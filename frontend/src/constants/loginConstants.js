@@ -9,7 +9,9 @@ export const LOGIN_TEXT = {
   passwordPlaceholder: 'Enter your password',
   forgotPassword: 'Forgot password?',
   submit: 'Sign in',
+  submitting: 'Signing in...',
   helper: 'Use your organization credentials to continue.',
+  defaultError: 'Unable to sign in. Please check your email and password.',
   sideTitle: 'Organized mail operations, without the clutter.',
   sideDescription:
     'Track requests, coordinate teams, and keep every message moving through the right workflow.',
@@ -24,8 +26,10 @@ export const FORGOT_PASSWORD_TEXT = {
   emailLabel: 'Email ID',
   emailPlaceholder: LOGIN_TEXT.emailPlaceholder,
   submit: 'Send reset link',
+  submitting: 'Sending...',
   backToLogin: 'Back to login',
   helper: 'Check your inbox and spam folder after requesting the reset link.',
+  defaultError: 'Unable to send reset link. Please try again.',
   sideTitle: 'Access restored with a clean reset flow.',
   sideDescription:
     'A verified reset link helps protect your account while getting you back to work quickly.',

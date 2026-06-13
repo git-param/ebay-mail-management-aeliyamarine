@@ -1,6 +1,36 @@
+import { useState } from 'react'
+
 import { LOGIN_TEXT } from '../constants/loginConstants'
+import { loginUser } from '../services/authApi'
 
 function Login() {
+  const [error, setError] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  async function handleSubmit(event) {
+    event.preventDefault()
+    setError('')
+    setIsSubmitting(true)
+
+    const formData = new FormData(event.currentTarget)
+
+    try {
+      const session = await loginUser({
+        email: formData.get('email'),
+        password: formData.get('password'),
+      })
+
+      localStorage.setItem('accessToken', session.access_token)
+      localStorage.setItem('refreshToken', session.refresh_token)
+      localStorage.setItem('currentUser', JSON.stringify(session.user))
+      window.location.assign('/login-success')
+    } catch (caughtError) {
+      setError(caughtError.message || LOGIN_TEXT.defaultError)
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
   return (
     <main className="auth-page">
       <section className="auth-panel" aria-labelledby="login-title">
@@ -10,7 +40,7 @@ function Login() {
           <h1 id="login-title">{LOGIN_TEXT.title}</h1>
           <p className="auth-subtitle">{LOGIN_TEXT.subtitle}</p>
 
-          <form className="auth-form">
+          <form className="auth-form" onSubmit={handleSubmit}>
             <label className="field">
               <span>{LOGIN_TEXT.emailLabel}</span>
               <input
@@ -38,9 +68,15 @@ function Login() {
               <a href="/forgot-password">{LOGIN_TEXT.forgotPassword}</a>
             </div>
 
-            <button className="primary-button" type="submit">
-              {LOGIN_TEXT.submit}
+            <button className="primary-button" type="submit" disabled={isSubmitting}>
+              {isSubmitting ? LOGIN_TEXT.submitting : LOGIN_TEXT.submit}
             </button>
+
+            {error ? (
+              <p className="form-message error" role="alert">
+                {error}
+              </p>
+            ) : null}
           </form>
         </div>
 

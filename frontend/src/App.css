@@ -154,6 +154,12 @@
   outline-offset: 3px;
 }
 
+.primary-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.72;
+  transform: none;
+}
+
 .auth-link-button {
   width: fit-content;
   display: inline-flex;
@@ -162,6 +168,41 @@
   margin-top: 32px;
   padding: 0 22px;
   text-decoration: none;
+}
+
+.form-message {
+  padding: 12px 14px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.form-message.error {
+  border: 1px solid rgba(210, 28, 45, 0.24);
+  background: rgba(210, 28, 45, 0.08);
+  color: #a11120;
+}
+
+.form-message.success {
+  border: 1px solid rgba(14, 84, 179, 0.22);
+  background: rgba(14, 84, 179, 0.08);
+  color: #0a3f87;
+}
+
+.success-page {
+  min-height: 100svh;
+  display: grid;
+  place-items: center;
+  background: #ffffff;
+  color: #061426;
+  text-align: center;
+}
+
+.success-page h1 {
+  margin: 0;
+  font-size: clamp(36px, 7vw, 72px);
+  line-height: 1;
+  font-weight: 850;
 }
 
 .auth-side {

@@ -1,5 +1,6 @@
 import ForgotPassword from './pages/forgot_password'
 import Login from './pages/login'
+import LoginSuccess from './pages/login_success'
 import './App.css'
 
 const ROUTES = [
@@ -14,6 +15,10 @@ const ROUTES = [
   {
     path: '/forgot-password',
     component: ForgotPassword,
+  },
+  {
+    path: '/login-success',
+    component: LoginSuccess,
   },
 ]
 
