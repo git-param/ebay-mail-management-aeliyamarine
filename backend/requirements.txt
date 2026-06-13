@@ -1,1 +1,11 @@
 alembic
+email-validator
+fastapi
+passlib[bcrypt]==1.7.4
+bcrypt==4.0.1
+pydantic-settings
+psycopg[binary]
+python-dotenv
+python-jose[cryptography]
+sqlalchemy
+uvicorn
