@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, print-scale: 1.0">
+    <title>eBay Omni-Desk Platform | Merged SRS v2.0 – Complete Specification</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', 'Roboto', 'Helvetica Neue', sans-serif;
+            background: #eef2f5;
+            color: #1a2c3e;
+            line-height: 1.45;
+        }
+
+        /* PRINT STYLES (A4 FRIENDLY) */
+        @media print {
+            body {
+                background: white;
+                font-size: 9pt;
+            }
+            .toc-sidebar {
+                display: none;
+            }
+            .main-content {
+                margin-left: 0;
+                padding: 0.2in;
+            }
+            .section-card {
+                break-inside: avoid;
+                page-break-inside: avoid;
+                border: none;
+                box-shadow: none;
+            }
+            h2, h3 {
+                page-break-after: avoid;
+            }
+            table, .permission-table {
+                font-size: 8pt;
+            }
+            .mermaid {
+                border: 1px solid #ccc;
+                background: #f9f9f9;
+            }
+        }
+
+        /* FIXED TOC SIDEBAR (from file 1) */
+        .toc-sidebar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 270px;
+            height: 100vh;
+            background: #0a2b3e;
+            color: #ecf0f1;
+            overflow-y: auto;
+            padding: 20px 0;
+            z-index: 100;
+            box-shadow: 2px 0 12px rgba(0,0,0,0.1);
+        }
+        .toc-sidebar .logo {
+            padding: 0 20px 20px 20px;
+            border-bottom: 1px solid #2c4b64;
+            margin-bottom: 20px;
+        }
+        .toc-sidebar .logo h2 {
+            font-size: 1.3rem;
+            font-weight: 600;
+            color: #ffaa33;
+        }
+        .toc-sidebar .logo p {
+            font-size: 0.7rem;
+            opacity: 0.8;
+        }
+        .toc-sidebar nav ul {
+            list-style: none;
+            padding: 0 12px;
+        }
+        .toc-sidebar nav li {
+            margin: 8px 0;
+        }
+        .toc-sidebar nav a {
+            display: block;
+            color: #d1e3ed;
+            text-decoration: none;
+            font-size: 0.85rem;
+            padding: 6px 12px;
+            border-radius: 8px;
+            transition: 0.2s;
+            font-weight: 500;
+        }
+        .toc-sidebar nav a:hover {
+            background: #1f4e6e;
+            color: white;
+        }
+
+        /* MAIN CONTENT */
+        .main-content {
+            margin-left: 270px;
+            padding: 30px 40px;
+            background: #f8fafc;
+        }
+
+        /* CARDS & TABLES */
+        .section-card {
+            background: white;
+            border-radius: 20px;
+            padding: 24px 30px;
+            margin-bottom: 32px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.03);
+            border: 1px solid #e2e8f0;
+        }
+        h1 {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            color: #0a2b3e;
+        }
+        h2 {
+            font-size: 1.6rem;
+            margin: 0.5rem 0 1rem 0;
+            border-left: 5px solid #ffaa33;
+            padding-left: 18px;
+            color: #0a2b3e;
+        }
+        h3 {
+            font-size: 1.25rem;
+            margin: 1.2rem 0 0.6rem 0;
+            color: #1f4e6e;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+            font-size: 0.85rem;
+        }
+        th {
+            background-color: #eef2f5;
+            text-align: left;
+            padding: 10px 12px;
+            border: 1px solid #cad2db;
+            font-weight: 700;
+        }
+        td {
+            padding: 8px 12px;
+            border: 1px solid #dee2e6;
+            vertical-align: top;
+        }
+        .permission-table th {
+            background-color: #1e4663;
+            color: white;
+            text-align: center;
+        }
+        .permission-table td {
+            text-align: center;
+            font-weight: 500;
+        }
+        .badge {
+            background: #eef2fa;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 0.7rem;
+            font-weight: 500;
+        }
+        .tick {
+            color: #2c7a4d;
+            font-size: 1.1rem;
+            font-weight: bold;
+        }
+        .cross {
+            color: #b91c1c;
+            font-size: 1rem;
+        }
+        .partial {
+            color: #d97706;
+        }
+        .mermaid {
+            background: #fbfdff;
+            padding: 16px;
+            border-radius: 14px;
+            margin: 20px 0;
+            text-align: center;
+            border: 1px solid #e2e8f0;
+        }
+        .wireframe {
+            background: #ffffff;
+            border: 1px solid #cbd5e1;
+            border-radius: 18px;
+            padding: 20px;
+            margin: 18px 0;
+            font-family: monospace;
+            font-size: 0.75rem;
+        }
+        .grid-2 {
+            display: flex;
+            gap: 24px;
+            flex-wrap: wrap;
+        }
+        .grid-2 > div {
+            flex: 1;
+            min-width: 240px;
+        }
+        footer {
+            text-align: center;
+            margin-top: 20px;
+            font-size: 0.75rem;
+            color: #5e6f8d;
+            padding: 20px 0;
+            border-top: 1px solid #e2e8f0;
+        }
+        @media (max-width: 800px) {
+            .toc-sidebar { display: none; }
+            .main-content { margin-left: 0; padding: 20px; }
+        }
+        .req-critical { background-color: #fce4e4; font-weight: bold; }
+        .phase-badge { background: #ffaa33; color: #1e4663; border-radius: 12px; padding: 2px 8px; font-size: 0.7rem; font-weight: bold; }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+</head>
+<body>
+<div class="toc-sidebar">
+    <div class="logo">
+        <h2>📘 eBay Omni-Desk</h2>
+        <p>SRS v2.0 (Merged)</p>
+    </div>
+    <nav>
+        <ul>
+            <li><a href="#cover">📄 Cover</a></li>
+            <li><a href="#revision">📅 Revision History</a></li>
+            <li><a href="#exec-summary">📌 Executive Summary</a></li>
+            <li><a href="#scope">🎯 Scope & Phases</a></li>
+            <li><a href="#upper-permissions">👑 Upper‑Level Role Matrix</a></li>
+            <li><a href="#roles">👥 User Roles & RBAC</a></li>
+            <li><a href="#functional">⚙️ Functional Requirements</a></li>
+            <li><a href="#nonfunctional">🔧 Non‑Functional</a></li>
+            <li><a href="#business-rules">📜 Business Rules</a></li>
+            <li><a href="#architecture">🏗️ Architecture</a></li>
+            <li><a href="#database">🗄️ Database Design</a></li>
+            <li><a href="#api">🔌 API Specs</a></li>
+            <li><a href="#workflows">🔄 Workflows & Mockups</a></li>
+            <li><a href="#security">🔒 Security & Audit</a></li>
+            <li><a href="#notifications">🔔 Notifications</a></li>
+            <li><a href="#analytics">📊 Analytics KPIs</a></li>
+            <li><a href="#acceptance">✅ Acceptance Criteria</a></li>
+            <li><a href="#trace">🔗 Traceability</a></li>
+            <li><a href="#future">🚀 Future Enhancements</a></li>
+        </ul>
+    </nav>
+</div>
+
+<div class="main-content">
+    <!-- COVER -->
+    <div id="cover" class="section-card" style="text-align: center;">
+        <h1>📬 eBay Omni-Desk Platform</h1>
+        <p style="font-size: 1.2rem;">Software Requirements Specification (SRS) – Merged Edition</p>
+        <p><strong>Version 2.0 (Consolidated)</strong> | IEEE 830-1998 | Approved for Engineering</p>
+        <hr style="margin: 20px auto; width: 80px; border: 1px solid #ffaa33;">
+        <p>Centralized Customer Communication & Helpdesk Management System</p>
+        <p style="margin-top: 16px;">Prepared by: Solution Architecture Team · Confidential – Internal Use Only</p>
+        <p>Date: June 12, 2026</p>
+    </div>
+
+    <!-- REVISION HISTORY (merged) -->
+    <div id="revision" class="section-card">
+        <h2>Revision History</h2>
+        <table>
+            <thead><tr><th>Version</th><th>Date</th><th>Author</th><th>Description</th></tr></thead>
+            <tbody>
+                <tr><td>1.0</td><td>2026-05-20</td><td>Business Analyst</td><td>Initial draft based on stakeholder interviews</td></tr>
+                <tr><td>1.5</td><td>2026-05-30</td><td>Solutions Architect</td><td>Added NFRs, security, tech stack</td></tr>
+                <tr><td>2.0</td><td>2026-06-12</td><td>Platform Team</td><td>Merged both SRS documents; added upper‑level permission matrix, AI as Phase 2</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- EXECUTIVE SUMMARY & BUSINESS OBJECTIVES -->
+    <div id="exec-summary" class="section-card">
+        <h2>Executive Summary & Business Objectives</h2>
+        <p>The eBay Omni-Desk Platform centralizes customer support across multiple eBay seller accounts (Main, Marine, Tech, Ship, Tools, Trade). Agents manage all buyer messages, replies, and assignments from a single WhatsApp‑style interface, eliminating manual account switching. Built on <strong>FastAPI, React, PostgreSQL, Redis & Celery</strong>, the system reduces first response time by ≥40%, enforces accountability via assignment, and provides real‑time analytics.</p>
+        <div class="grid-2" style="margin-top: 16px;">
+            <div><strong>🎯 Primary Goals</strong><br>✔ Unified conversation inbox<br>✔ Role‑based access control<br>✔ 24h SLA visual tracking<br>✔ Complete audit trail<br>✔ Assignment ownership</div>
+            <div><strong>📈 Measurable KPIs</strong><br>✔ Avg first response ↓40%<br>✔ Zero direct eBay logins for agents<br>✔ 95% conversations within SLA<br>✔ 99.5% platform availability</div>
+        </div>
+    </div>
+
+    <!-- SCOPE (merged: AI in Phase 2) -->
+    <div id="scope" class="section-card">
+        <h2>Scope Definition & Phased Roadmap</h2>
+        <div class="grid-2">
+            <div><strong>✅ Phase 1 (MVP) – In Scope</strong><br>• eBay OAuth & multi‑account sync<br>• Conversation threading (buyer/account)<br>• Manual conversation categories<br>• Assignment / reassignment workflows<br>• In‑app notification center<br>• Template management (CRUD by Admin)<br>• Attachments: view & download<br>• Role‑based dashboards & audit logs</div>
+            <div><strong>🚫 Out of Scope (Phase 1)</strong><br>• AI categorization (Phase 2)<br>• Email/SMS notifications<br>• Escalation engine<br>• Multi‑marketplace (Amazon, Walmart)<br>• Internal notes / @mentions<br>• Bulk actions</div>
+        </div>
+        <h3>Phased Roadmap</h3>
+        <p><span class="badge">Phase 1 (MVP)</span> Centralized queue + assignment + audit · <span class="badge">Phase 2</span> AI categorization + SLA breach alerts + advanced analytics + bulk actions · <span class="badge">Phase 3</span> Internal notes, mentions, multi‑marketplace adapters.</p>
+    </div>
+
+    <!-- UPPER LEVEL REQUIREMENTS – ROLE CAPABILITY MATRIX (from second file, enhanced) -->
+    <div id="upper-permissions" class="section-card">
+        <h2>📌 Upper‑Level Requirements – Role Capability Matrix</h2>
+        <p><em>“Who can do what” – definitive permissions across major functional areas. (AI‑related capabilities are Phase 2, marked with *)</em></p>
+        <table class="permission-table">
+            <thead>
+                <tr><th>Capability / Functional Area</th><th>Admin</th><th>Operation Manager</th><th>Support Agent (User)</th></tr>
+            </thead>
+            <tbody>
+                <tr><td style="text-align:left">👥 User Management (create, edit, disable, delete)</td><td class="tick">✔ Full</td><td class="partial">✘ (view only)</td><td class="cross">✘</td></tr>
+                <tr><td style="text-align:left">🔐 Reset user passwords & force change</td><td class="tick">✔</td><td class="cross">✘</td><td class="cross">✘</td></tr>
+                <tr><td style="text-align:left">🏪 eBay Account Management (add/remove/configure)</td><td class="tick">✔ Full</td><td class="cross">✘</td><td class="cross">✘</td></tr>
+                <tr><td style="text-align:left">📋 Assign / Reassign conversations (any user)</td><td class="tick">✔</td><td class="tick">✔</td><td class="partial">Self‑assign only</td></tr>
+                <tr><td style="text-align:left">💬 Reply to conversations</td><td class="tick">✔</td><td class="tick">✔</td><td class="tick">✔ (assigned or category‑accessible)</td></tr>
+                <tr><td style="text-align:left">📁 Use predefined reply templates</td><td class="tick">✔</td><td class="tick">✔</td><td class="tick">✔</td></tr>
+                <tr><td style="text-align:left">✏️ Create / Edit / Delete templates</td><td class="tick">✔</td><td class="cross">✘ (read only)</td><td class="cross">✘</td></tr>
+                <tr><td style="text-align:left">🏷️ Override AI category * (Phase2)</td><td class="tick">✔</td><td class="tick">✔</td><td class="partial">Only on assigned conversations</td></tr>
+                <tr><td style="text-align:left">👁️ View all conversations (global)</td><td class="tick">✔</td><td class="tick">✔</td><td class="partial">Own assignments + category‑restricted</td></tr>
+                <tr><td style="text-align:left">📊 View team analytics & productivity</td><td class="tick">✔</td><td class="tick">✔</td><td class="cross">(personal only)</td></tr>
+                <tr><td style="text-align:left">📜 View audit logs (full / scoped)</td><td class="tick">✔ Full</td><td class="partial">Operational events only</td><td class="cross">✘</td></tr>
+                <tr><td style="text-align:left">⚙️ Configure system (SLA, categories, thresholds)</td><td class="tick">✔</td><td class="cross">✘</td><td class="cross">✘</td></tr>
+                <tr><td style="text-align:left">📎 Download attachments & view inline</td><td class="tick">✔</td><td class="tick">✔</td><td class="tick">✔ (on accessible conversations)</td></tr>
+                <tr><td style="text-align:left">🚦 Change conversation status (Open/Pending/Resolved)</td><td class="tick">✔</td><td class="tick">✔</td><td class="tick">✔ (on owned/accessible)</td></tr>
+                <tr><td style="text-align:left">📢 View Unassigned Category Queue (low confidence)</td><td class="tick">✔</td><td class="tick">✔</td><td class="cross">✘</td></tr>
+                <tr><td style="text-align:left">🛡️ Mark conversation as Spam / Unspam</td><td class="tick">✔</td><td class="tick">✔</td><td class="tick">✔ (own conversations)</td></tr>
+            </tbody>
+        </table>
+        <p><strong>Legend:</strong> ✔ = Allowed, ✘ = Not allowed, Partial = restricted by ownership or category scope. * = AI features delivered in Phase 2.</p>
+    </div>
+
+    <!-- USER ROLES DESCRIPTION -->
+    <div id="roles" class="section-card">
+        <h2>User Roles (RBAC)</h2>
+        <table>
+            <thead><tr><th>Role</th><th>Description</th><th>Key Responsibilities</th></tr></thead>
+            <tbody>
+                <tr><td>Admin</td><td>Platform owner, full configuration & governance</td><td>User lifecycle, eBay account integration, template management, audit review, system config</td></tr>
+                <tr><td>Operation Manager</td><td>Supervisor of support workflow</td><td>Assign/reassign conversations, workload balancing, team analytics, category override</td></tr>
+                <tr><td>Support Agent (User)</td><td>Frontline customer service</td><td>Reply to buyers, use templates, update status, view personal metrics, handle assigned conversations</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- FUNCTIONAL REQUIREMENTS (detailed table from file 1, but with Phase 2 AI note) -->
+    <div id="functional" class="section-card">
+        <h2>Functional Requirements – Phase 1 (MVP)</h2>
+        <table class="req-table">
+            <thead><tr><th>ID</th><th>Module</th><th>Requirement Description</th><th>Priority</th><th>Acceptance Note</th></tr></thead>
+            <tbody>
+                <tr><td>FR-AUTH-01</td><td>Authentication</td><td>Email/password login, JWT access (15m) + refresh token (8h)</td><td class="req-critical">Critical</td><td>Redis blocklist on logout; refresh rotation</td></tr>
+                <tr><td>FR-AUTH-02</td><td>Authentication</td><td>Password reset via email with single‑use token</td><td>High</td><td>Token expires in 1h</td></tr>
+                <tr><td>FR-RBAC-01</td><td>RBAC</td><td>User Management APIs restricted to Admin; 403 otherwise</td><td class="req-critical">Critical</td><td>API middleware enforces hierarchy</td></tr>
+                <tr><td>FR-USER-01</td><td>User Mgmt</td><td>Admin creates users (email, name, role); sends welcome email</td><td>High</td><td>Password setup link</td></tr>
+                <tr><td>FR-USER-02</td><td>User Mgmt</td><td>Admin updates user details, roles, soft‑disable</td><td class="req-critical">Critical</td><td>Disabled users cannot login</td></tr>
+                <tr><td>FR-EBY-01</td><td>eBay Account</td><td>OAuth 2.0 connect accounts, store refresh token encrypted</td><td class="req-critical">Critical</td><td>AES-256-GCM encryption</td></tr>
+                <tr><td>FR-EBY-02</td><td>eBay Account</td><td>Automated token refresh before expiry</td><td class="req-critical">Critical</td><td>Silent rotation</td></tr>
+                <tr><td>FR-SYNC-01</td><td>Sync</td><td>Poll eBay every 5 min per active account via Celery Beat</td><td class="req-critical">Critical</td><td>Resilient to partial failures</td></tr>
+                <tr><td>FR-SYNC-02</td><td>Sync</td><td>Group messages into conversations (account + buyer_username)</td><td class="req-critical">Critical</td><td>Deterministic thread key</td></tr>
+                <tr><td>FR-CONV-01</td><td>Conversation</td><td>Master‑detail view, sort by last message; unread indicator</td><td class="req-critical">Critical</td><td>Real‑time update via polling</td></tr>
+                <tr><td>FR-REPLY-01</td><td>Reply</td><td>Send text replies with idempotency key; async processing</td><td class="req-critical">Critical</td><td>PENDING → SENT/FAILED</td></tr>
+                <tr><td>FR-TPL-01</td><td>Templates</td><td>Managers/Admins CRUD templates with variables {buyer_name}</td><td>High</td><td>Variables resolved before insertion</td></tr>
+                <tr><td>FR-ASG-01</td><td>Assignment</td><td>Agents self‑claim unassigned conversations</td><td>High</td><td>Single active owner</td></tr>
+                <tr><td>FR-ASG-02</td><td>Assignment</td><td>Managers assign any conversation to any active agent</td><td>High</td><td>Assignment history stored</td></tr>
+                <tr><td>FR-NOTIF-01</td><td>Notifications</td><td>In‑app notifications for assignment & reply failures</td><td>High</td><td>Bell dropdown with unread counts</td></tr>
+                <tr><td>FR-DASH-01</td><td>Dashboard</td><td>Global counts: Open, Unassigned, Resolved (last 24h)</td><td>High</td><td>Aggregated metrics</td></tr>
+                <tr><td>FR-AUD-01</td><td>Audit</td><td>Immutable log of status, category, assignment changes</td><td class="req-critical">Critical</td><td>Append‑only, user ID + timestamp</td></tr>
+            </tbody>
+        </table>
+        <p><strong>Phase 2 additions (AI & SLA):</strong> FR-AI-001 (LLM categorization), FR-SLA-001 (SLA timers & breach alerts), bulk actions. <strong>Phase 3:</strong> internal notes, multi‑marketplace.</p>
+    </div>
+
+    <!-- NON-FUNCTIONAL REQUIREMENTS -->
+    <div id="nonfunctional" class="section-card">
+        <h2>Non‑Functional Requirements</h2>
+        <table>
+            <thead><tr><th>Category</th><th>Requirement</th><th>Target</th></tr></thead>
+            <tbody>
+                <tr><td>Performance</td><td>Conversation list load (50 records)</td><td>&lt; 2 sec (95th percentile)</td></tr>
+                <tr><td>Performance</td><td>Search across 250k messages</td><td>&lt; 2 sec</td></tr>
+                <tr><td>Scalability</td><td>Concurrent users / daily messages</td><td>25 users / 400 msgs/day</td></tr>
+                <tr><td>Availability</td><td>Business hours uptime</td><td>99.5%</td></tr>
+                <tr><td>Security</td><td>Encryption at rest (tokens, credentials)</td><td>AES-256-GCM</td></tr>
+                <tr><td>Reliability</td><td>eBay API retry on failure</td><td>Exponential backoff, max 5 attempts</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- BUSINESS RULES (merged) -->
+    <div id="business-rules" class="section-card">
+        <h2>Business Rules</h2>
+        <ul>
+            <li><strong>BR-01:</strong> One conversation per (eBay account, buyer username).</li>
+            <li><strong>BR-03:</strong> New customer message on Resolved conversation → auto Reopened.</li>
+            <li><strong>BR-05:</strong> Agent sees conversation iff assigned to them OR belongs to assigned category (unassigned).</li>
+            <li><strong>BR-07:</strong> Low‑confidence AI categorization (Phase 2) routes to Unassigned Queue (Manager/Admin only).</li>
+            <li><strong>BR-12:</strong> 24h SLA clock pauses when status = Pending; resumes on customer reply.</li>
+            <li><strong>BR-15:</strong> All stored timestamps in UTC; UI converts to user local time.</li>
+            <li><strong>BR-13:</strong> Sent messages are immutable; no edit or delete.</li>
+        </ul>
+    </div>
+
+    <!-- ARCHITECTURE (MERMAID + TEXT) -->
+    <div id="architecture" class="section-card">
+        <h2>System Architecture & Data Flow</h2>
+        <div class="mermaid">
+            graph TD
+            subgraph External
+                eBayAPI[eBay REST API]
+            end
+            subgraph Omni-Desk Backend
+                Nginx[Nginx Proxy] --> API[FastAPI]
+                CelerySync[Celery Sync Worker] --> DB[(PostgreSQL)]
+                Redis[(Redis Queue)] --> CeleryWorker[Celery Reply Worker]
+            end
+            subgraph Client
+                React[React SPA]
+            end
+            React --> Nginx
+            API --> DB
+            CelerySync --> eBayAPI
+            CeleryWorker --> eBayAPI
+        </div>
+        <div class="mermaid">
+            sequenceDiagram
+                participant Buyer
+                participant eBay
+                participant SyncWorker
+                participant DB
+                participant UI
+                Buyer->>eBay: Send message
+                loop Poll every 5min
+                    SyncWorker->>eBay: GET /messages
+                    eBay-->>SyncWorker: JSON messages
+                end
+                SyncWorker->>DB: Upsert conversation + message
+                DB-->>SyncWorker: success
+                SyncWorker->>UI: WebSocket/Refresh
+        </div>
+        <p><strong>Message flow:</strong> eBay → Celery sync → deduplication → conversation upsert → notification → UI update.<br>
+        <strong>Reply flow:</strong> Agent → API → local PENDING record → Celery task → eBay → status update & audit.</p>
+    </div>
+
+    <!-- DATABASE CORE ENTITIES -->
+    <div id="database" class="section-card">
+        <h2>Database Design – Core Entities</h2>
+        <table>
+            <thead><tr><th>Entity</th><th>Key Fields</th><th>Description</th></tr></thead>
+            <tbody>
+                <tr><td>User</td><td>id, email, password_hash, role, is_active</td><td>System user accounts</td></tr>
+                <tr><td>EbayAccount</td><td>id, label, access_token_enc, refresh_token_enc, status</td><td>Connected seller accounts with encrypted tokens</td></tr>
+                <tr><td>Conversation</td><td>id, ebay_account_id, buyer_username, status, assigned_user_id, category_id</td><td>Thread per buyer/account</td></tr>
+                <tr><td>Message</td><td>id, conversation_id, direction, body, external_id, dispatch_status</td><td>Inbound/outbound messages</td></tr>
+                <tr><td>AuditLog</td><td>id, actor_id, action, entity_type, prev_value, new_value, ip, timestamp</td><td>Append‑only immutable trail</td></tr>
+                <tr><td>Template</td><td>id, title, body, category_tag, created_by</td><td>Global reply templates</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- API SPECIFICATIONS -->
+    <div id="api" class="section-card">
+        <h2>API Specifications (REST + JSON)</h2>
+        <table>
+            <thead><tr><th>Method</th><th>Endpoint</th><th>Purpose</th><th>RBAC</th></tr></thead>
+            <tbody>
+                <tr><td>POST</td><td>/auth/login</td><td>Email/password authentication, returns JWT</td><td>Public</td></tr>
+                <tr><td>GET</td><td>/conversations</td><td>List with filters (status, category, assignee)</td><td>All authenticated roles</td></tr>
+                <tr><td>POST</td><td>/conversations/{id}/replies</td><td>Send reply with idempotency key</td><td>Agent/Manager/Admin</td></tr>
+                <tr><td>POST</td><td>/conversations/{id}/assign</td><td>Assign/reassign conversation</td><td>Manager/Admin</td></tr>
+                <tr><td>GET</td><td>/analytics/manager</td><td>Team productivity metrics</td><td>Manager/Admin</td></tr>
+                <tr><td>GET</td><td>/audit</td><td>Query audit logs</td><td>Admin</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- WORKFLOWS & UI MOCKUPS -->
+    <div id="workflows" class="section-card">
+        <h2>Workflow Specifications & UI Mockups</h2>
+        <p><strong>1. Inbound Sync:</strong> Scheduler (2‑5 min) → fetch messages → deduplicate → create/append conversation → notify.<br>
+        <strong>2. Reply Sending:</strong> Compose → persist PENDING → Celery call eBay API → update status → audit.<br>
+        <strong>3. Assignment:</strong> Manager selects conversation & user → update assignment_history → in‑app notification.</p>
+        <div class="wireframe">
+            <strong>📱 Login Screen</strong><br>
+            ╔══════════════════════╗<br>
+            ║   Omni-Desk Platform ║<br>
+            ║ Email: [_________]   ║<br>
+            ║ Password: [______]   ║<br>
+            ║   [ Login ] [Forgot] ║<br>
+            ╚══════════════════════╝
+        </div>
+        <div class="wireframe">
+            <strong>💬 Conversation Detail (WhatsApp style)</strong><br>
+            Buyer: johndoe | Assigned: Alice<br>
+            [09:42] Buyer: When will it ship?<br>
+            [09:55] Agent: Shipped yesterday!<br>
+            [Reply box] [Templates] [Send]
+        </div>
+    </div>
+
+    <!-- SECURITY & AUDIT -->
+    <div id="security" class="section-card">
+        <h2>Security & Audit Compliance</h2>
+        <p><strong>Security:</strong> TLS 1.2+, Argon2id password hashing, AES-256-GCM for eBay tokens, JWT with short TTL, rate limiting, CSRF protection, input validation via Pydantic.</p>
+        <p><strong>Audit Logging:</strong> Every state change (assignment, category, status, reply, login) logged with actor, timestamp, IP, previous/new values. Immutable, retention ≥24 months. Admins can filter & export.</p>
+    </div>
+
+    <!-- NOTIFICATIONS MATRIX -->
+    <div id="notifications" class="section-card">
+        <h2>Notifications (In-App)</h2>
+        <table>
+            <thead><tr><th>Trigger</th><th>Priority</th><th>Target</th></tr></thead>
+            <tbody>
+                <tr><td>New conversation assignment</td><td>Medium</td><td>Assigned agent</td></tr>
+                <tr><td>Reassignment (by manager)</td><td>Medium</td><td>New assignee</td></tr>
+                <tr><td>Customer reply on owned conversation</td><td>High</td><td>Assigned agent</td></tr>
+                <tr><td>Outbound reply permanent failure</td><td>High</td><td>Sender + Manager</td></tr>
+                <tr><td>eBay sync token failure</td><td>High</td><td>Admin & Manager</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- ANALYTICS KPIs -->
+    <div id="analytics" class="section-card">
+        <h2>Reporting & Analytics KPIs</h2>
+        <table>
+            <thead><tr><th>KPI</th><th>Formula</th><th>Visibility</th></tr></thead>
+            <tbody>
+                <tr><td>Open Conversations</td><td>COUNT(status IN ('OPEN','PENDING'))</td><td>Manager/Admin</td></tr>
+                <tr><td>Average First Response Time</td><td>AVG(first_agent_reply_at - first_buyer_message_at)</td><td>Manager</td></tr>
+                <tr><td>Agent Workload</td><td># assigned open conversations per agent</td><td>Manager</td></tr>
+                <tr><td>Resolution Rate (24h)</td><td>RESOLVED / total active</td><td>Admin</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- ACCEPTANCE CRITERIA -->
+    <div id="acceptance" class="section-card">
+        <h2>Acceptance Criteria (UAT)</h2>
+        <table>
+            <thead><tr><th>ID</th><th>Scenario</th><th>Expected Result</th></tr></thead>
+            <tbody>
+                <tr><td>AC-01</td><td>All six eBay accounts sync messages</td><td>Messages appear in unified inbox within 5 min</td></tr>
+                <tr><td>AC-02</td><td>Admin adds new eBay account via UI</td><td>Account becomes active without code change</td></tr>
+                <tr><td>AC-03</td><td>Assignment & notification</td><td>Manager assigns conversation → agent gets in‑app notification ≤5 sec</td></tr>
+                <tr><td>AC-04</td><td>Reply round‑trip</td><td>Reply sent from platform appears in eBay within 30 sec</td></tr>
+                <tr><td>AC-05</td><td>RBAC enforcement</td><td>Agent cannot view user management or audit logs</td></tr>
+                <tr><td>AC-06</td><td>Performance</td><td>Conversation list loads &lt;2 sec under load</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- TRACEABILITY MATRIX -->
+    <div id="trace" class="section-card">
+        <h2>Traceability Matrix</h2>
+        <tr>
+            <thead><tr><th>Business Goal</th><th>Requirements</th><th>Module</th><th>Test Coverage</th></tr></thead>
+            <tbody>
+                <tr><td>Centralize support operations</td><td>FR-SYNC-01, FR-CONV-01</td><td>Sync & Conversation</td><td>AC-01</td></tr>
+                <tr><td>Reduce response times</td><td>FR-REPLY-01, FR-TPL-01</td><td>Reply & Templates</td><td>AC-04</td></tr>
+                <tr><td>Track ownership</td><td>FR-ASG-01, BR-01</td><td>Assignment & Audit</td><td>AC-03</td></tr>
+                <tr><td>Team visibility</td><td>FR-DASH-01, FR-NOTIF-01</td><td>Dashboard & Notifications</td><td>AC-05</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- FUTURE ENHANCEMENTS -->
+    <div id="future" class="section-card">
+        <h2>Future Enhancements (Phases 2 & 3)</h2>
+        <p><strong>Phase 2:</strong> AI‑based automatic categorization (LLM), SLA breach alerts & timers, advanced analytics with predictive trends, bulk reassign/bulk resolve.</p>
+        <p><strong>Phase 3:</strong> Internal notes & @mentions, multi‑marketplace adapters (Amazon, Walmart), AI reply suggestions, customer sentiment analysis.</p>
+    </div>
+
+    <footer>
+        eBay Omni-Desk Platform SRS v2.0 (Merged) – Confidential – Approved for Engineering – All requirements subject to change control.
+    </footer>
+</div>
+
+<script>
+    mermaid.initialize({ startOnLoad: true, theme: 'base', securityLevel: 'loose' });
+    document.addEventListener("DOMContentLoaded", function() {
+        mermaid.run({ querySelector: '.mermaid' }).catch(e => console.warn(e));
+    });
+</script>
+</body>
+</html>
