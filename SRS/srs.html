@@ -258,11 +258,11 @@
     <div id="cover" class="section-card" style="text-align: center;">
         <h1>📬 eBay Omni-Desk Platform</h1>
         <p style="font-size: 1.2rem;">Software Requirements Specification (SRS) – Merged Edition</p>
-        <p><strong>Version 2.0 (Consolidated)</strong> | IEEE 830-1998 | Approved for Engineering</p>
+        <p><strong>Version 2.1 (Cross‑Assignment + Manual Sync)</strong> | IEEE 830-1998 | Approved for Engineering</p>
         <hr style="margin: 20px auto; width: 80px; border: 1px solid #ffaa33;">
         <p>Centralized Customer Communication & Helpdesk Management System</p>
         <p style="margin-top: 16px;">Prepared by: Solution Architecture Team · Confidential – Internal Use Only</p>
-        <p>Date: June 12, 2026</p>
+        <p>Date: June 13, 2026</p>
     </div>
 
     <!-- REVISION HISTORY (merged) -->
@@ -274,6 +274,7 @@
                 <tr><td>1.0</td><td>2026-05-20</td><td>Business Analyst</td><td>Initial draft based on stakeholder interviews</td></tr>
                 <tr><td>1.5</td><td>2026-05-30</td><td>Solutions Architect</td><td>Added NFRs, security, tech stack</td></tr>
                 <tr><td>2.0</td><td>2026-06-12</td><td>Platform Team</td><td>Merged both SRS documents; added upper‑level permission matrix, AI as Phase 2</td></tr>
+                <tr><td>2.1</td><td>2026-06-13</td><td>Product Owner</td><td><strong>Removed automatic 5‑min polling; added manual sync button for Admin/Operation Manager. Enabled any user (including Support Agents) to assign any conversation to any other user (Admin/Manager/Agent). Strengthened assignment notifications.</strong></td></tr>
             </tbody>
         </table>
     </div>
@@ -283,7 +284,7 @@
         <h2>Executive Summary & Business Objectives</h2>
         <p>The eBay Omni-Desk Platform centralizes customer support across multiple eBay seller accounts (Main, Marine, Tech, Ship, Tools, Trade). Agents manage all buyer messages, replies, and assignments from a single WhatsApp‑style interface, eliminating manual account switching. Built on <strong>FastAPI, React, PostgreSQL, Redis & Celery</strong>, the system reduces first response time by ≥40%, enforces accountability via assignment, and provides real‑time analytics.</p>
         <div class="grid-2" style="margin-top: 16px;">
-            <div><strong>🎯 Primary Goals</strong><br>✔ Unified conversation inbox<br>✔ Role‑based access control<br>✔ 24h SLA visual tracking<br>✔ Complete audit trail<br>✔ Assignment ownership</div>
+            <div><strong>🎯 Primary Goals</strong><br>✔ Unified conversation inbox<br>✔ Role‑based access control<br>✔ 24h SLA visual tracking<br>✔ Complete audit trail<br>✔ <strong>Universal assignment: any user can assign to any other user (including Admin/Manager)</strong><br>✔ <strong>Manual sync (Admin/Manager trigger) instead of automatic polling</strong></div>
             <div><strong>📈 Measurable KPIs</strong><br>✔ Avg first response ↓40%<br>✔ Zero direct eBay logins for agents<br>✔ 95% conversations within SLA<br>✔ 99.5% platform availability</div>
         </div>
     </div>
@@ -292,17 +293,17 @@
     <div id="scope" class="section-card">
         <h2>Scope Definition & Phased Roadmap</h2>
         <div class="grid-2">
-            <div><strong>✅ Phase 1 (MVP) – In Scope</strong><br>• eBay OAuth & multi‑account sync<br>• Conversation threading (buyer/account)<br>• Manual conversation categories<br>• Assignment / reassignment workflows<br>• In‑app notification center<br>• Template management (CRUD by Admin)<br>• Attachments: view & download<br>• Role‑based dashboards & audit logs</div>
+            <div><strong>✅ Phase 1 (MVP) – In Scope</strong><br>• eBay OAuth & multi‑account sync (<strong>manual sync button for Admin/Manager</strong>)<br>• Conversation threading (buyer/account)<br>• Manual conversation categories<br>• <strong>Full cross‑user assignment: ANY authenticated user (Admin, Manager, Support Agent) can assign ANY conversation to ANY other user (including Admin, Operation Manager, or Agent).</strong><br>• In‑app notification center for assignment events<br>• Template management (CRUD by Admin)<br>• Attachments: view & download<br>• Role‑based dashboards & audit logs</div>
             <div><strong>🚫 Out of Scope (Phase 1)</strong><br>• AI categorization (Phase 2)<br>• Email/SMS notifications<br>• Escalation engine<br>• Multi‑marketplace (Amazon, Walmart)<br>• Internal notes / @mentions<br>• Bulk actions</div>
         </div>
         <h3>Phased Roadmap</h3>
-        <p><span class="badge">Phase 1 (MVP)</span> Centralized queue + assignment + audit · <span class="badge">Phase 2</span> AI categorization + SLA breach alerts + advanced analytics + bulk actions · <span class="badge">Phase 3</span> Internal notes, mentions, multi‑marketplace adapters.</p>
+        <p><span class="badge">Phase 1 (MVP)</span> Centralized queue + universal assignment + instant assignment notifications + manual sync + audit · <span class="badge">Phase 2</span> AI categorization + SLA breach alerts + advanced analytics + bulk actions · <span class="badge">Phase 3</span> Internal notes, mentions, multi‑marketplace adapters.</p>
     </div>
 
-    <!-- UPPER LEVEL REQUIREMENTS – ROLE CAPABILITY MATRIX (from second file, enhanced) -->
+    <!-- UPPER LEVEL REQUIREMENTS – ROLE CAPABILITY MATRIX (updated with universal assignment) -->
     <div id="upper-permissions" class="section-card">
         <h2>📌 Upper‑Level Requirements – Role Capability Matrix</h2>
-        <p><em>“Who can do what” – definitive permissions across major functional areas. (AI‑related capabilities are Phase 2, marked with *)</em></p>
+        <p><em>“Who can do what” – definitive permissions across major functional areas. (AI‑related capabilities are Phase 2, marked with *). <strong>🔔 Assignment enhancement:</strong> ANY authenticated user (Admin, Operation Manager, Support Agent) can assign ANY conversation to ANY other active user (including Admin, Operation Manager, or Support Agent). The assignee receives an immediate in-app notification. Manual sync is restricted to Admin & Operation Manager only.</em></p>
         <table class="permission-table">
             <thead>
                 <tr><th>Capability / Functional Area</th><th>Admin</th><th>Operation Manager</th><th>Support Agent (User)</th></tr>
@@ -311,7 +312,8 @@
                 <tr><td style="text-align:left">👥 User Management (create, edit, disable, delete)</td><td class="tick">✔ Full</td><td class="partial">✘ (view only)</td><td class="cross">✘</td></tr>
                 <tr><td style="text-align:left">🔐 Reset user passwords & force change</td><td class="tick">✔</td><td class="cross">✘</td><td class="cross">✘</td></tr>
                 <tr><td style="text-align:left">🏪 eBay Account Management (add/remove/configure)</td><td class="tick">✔ Full</td><td class="cross">✘</td><td class="cross">✘</td></tr>
-                <tr><td style="text-align:left">📋 Assign / Reassign conversations (any user)</td><td class="tick">✔</td><td class="tick">✔</td><td class="partial">Self‑assign only</td></tr>
+                <tr><td style="text-align:left">🔄 Manual sync messages from eBay (button trigger)</td><td class="tick">✔</td><td class="tick">✔</td><td class="cross">✘</td></tr>
+                <tr><td style="text-align:left">📋 Assign / Reassign conversations to ANY user (including Admin/Manager/Agent)</td><td class="tick">✔ (any target)</td><td class="tick">✔ (any target)</td><td class="tick">✔ (any target – universal assignment)</td></tr>
                 <tr><td style="text-align:left">💬 Reply to conversations</td><td class="tick">✔</td><td class="tick">✔</td><td class="tick">✔ (assigned or category‑accessible)</td></tr>
                 <tr><td style="text-align:left">📁 Use predefined reply templates</td><td class="tick">✔</td><td class="tick">✔</td><td class="tick">✔</td></tr>
                 <tr><td style="text-align:left">✏️ Create / Edit / Delete templates</td><td class="tick">✔</td><td class="cross">✘ (read only)</td><td class="cross">✘</td></tr>
@@ -322,11 +324,10 @@
                 <tr><td style="text-align:left">⚙️ Configure system (SLA, categories, thresholds)</td><td class="tick">✔</td><td class="cross">✘</td><td class="cross">✘</td></tr>
                 <tr><td style="text-align:left">📎 Download attachments & view inline</td><td class="tick">✔</td><td class="tick">✔</td><td class="tick">✔ (on accessible conversations)</td></tr>
                 <tr><td style="text-align:left">🚦 Change conversation status (Open/Pending/Resolved)</td><td class="tick">✔</td><td class="tick">✔</td><td class="tick">✔ (on owned/accessible)</td></tr>
-                <tr><td style="text-align:left">📢 View Unassigned Category Queue (low confidence)</td><td class="tick">✔</td><td class="tick">✔</td><td class="cross">✘</td></tr>
                 <tr><td style="text-align:left">🛡️ Mark conversation as Spam / Unspam</td><td class="tick">✔</td><td class="tick">✔</td><td class="tick">✔ (own conversations)</td></tr>
             </tbody>
         </table>
-        <p><strong>Legend:</strong> ✔ = Allowed, ✘ = Not allowed, Partial = restricted by ownership or category scope. * = AI features delivered in Phase 2.</p>
+        <p><strong>Legend:</strong> ✔ = Allowed, ✘ = Not allowed. <strong>Universal assignment:</strong> Any user (including Support Agent) can assign a conversation to any other active user (Admin, Manager, or another Agent). Assignment triggers in-app notification to the assignee.</p>
     </div>
 
     <!-- USER ROLES DESCRIPTION -->
@@ -335,14 +336,14 @@
         <table>
             <thead><tr><th>Role</th><th>Description</th><th>Key Responsibilities</th></tr></thead>
             <tbody>
-                <tr><td>Admin</td><td>Platform owner, full configuration & governance</td><td>User lifecycle, eBay account integration, template management, audit review, system config</td></tr>
-                <tr><td>Operation Manager</td><td>Supervisor of support workflow</td><td>Assign/reassign conversations, workload balancing, team analytics, category override</td></tr>
-                <tr><td>Support Agent (User)</td><td>Frontline customer service</td><td>Reply to buyers, use templates, update status, view personal metrics, handle assigned conversations</td></tr>
+                <tr><td>Admin</td><td>Platform owner, full configuration & governance</td><td>User lifecycle, eBay account integration, template management, audit review, system config, <strong>manual sync trigger, assign conversations to anyone</strong></td></tr>
+                <tr><td>Operation Manager</td><td>Supervisor of support workflow</td><td><strong>Manual sync trigger</strong>, assign/reassign conversations to any user, workload balancing, team analytics, category override</td></tr>
+                <tr><td>Support Agent (User)</td><td>Frontline customer service</td><td>Reply to buyers, use templates, update status, view personal metrics, <strong>assign any conversation to any other user (including Admin/Manager)</strong>, self‑assign unassigned conversations</td></tr>
             </tbody>
         </table>
     </div>
 
-    <!-- FUNCTIONAL REQUIREMENTS (detailed table from file 1, but with Phase 2 AI note) -->
+    <!-- FUNCTIONAL REQUIREMENTS (updated: manual sync, universal assignment) -->
     <div id="functional" class="section-card">
         <h2>Functional Requirements – Phase 1 (MVP)</h2>
         <table class="req-table">
@@ -355,19 +356,20 @@
                 <tr><td>FR-USER-02</td><td>User Mgmt</td><td>Admin updates user details, roles, soft‑disable</td><td class="req-critical">Critical</td><td>Disabled users cannot login</td></tr>
                 <tr><td>FR-EBY-01</td><td>eBay Account</td><td>OAuth 2.0 connect accounts, store refresh token encrypted</td><td class="req-critical">Critical</td><td>AES-256-GCM encryption</td></tr>
                 <tr><td>FR-EBY-02</td><td>eBay Account</td><td>Automated token refresh before expiry</td><td class="req-critical">Critical</td><td>Silent rotation</td></tr>
-                <tr><td>FR-SYNC-01</td><td>Sync</td><td>Poll eBay every 5 min per active account via Celery Beat</td><td class="req-critical">Critical</td><td>Resilient to partial failures</td></tr>
+                <tr><td><strong>FR-SYNC-01</strong></td><td><strong>Manual Sync</strong></td><td><strong>Admin and Operation Manager have a "Sync Now" button. When clicked, the system triggers an on‑demand Celery task to fetch latest messages from eBay for all active accounts and upsert conversations/messages. No automatic polling.</strong></td><td class="req-critical">Critical</td><td><strong>Sync completes in background; UI shows progress indicator. Idempotent: no duplicate messages.</strong></td></tr>
                 <tr><td>FR-SYNC-02</td><td>Sync</td><td>Group messages into conversations (account + buyer_username)</td><td class="req-critical">Critical</td><td>Deterministic thread key</td></tr>
-                <tr><td>FR-CONV-01</td><td>Conversation</td><td>Master‑detail view, sort by last message; unread indicator</td><td class="req-critical">Critical</td><td>Real‑time update via polling</td></tr>
+                <tr><td>FR-CONV-01</td><td>Conversation</td><td>Master‑detail view, sort by last message; unread indicator</td><td class="req-critical">Critical</td><td>Real‑time update via polling or WebSocket</td></tr>
                 <tr><td>FR-REPLY-01</td><td>Reply</td><td>Send text replies with idempotency key; async processing</td><td class="req-critical">Critical</td><td>PENDING → SENT/FAILED</td></tr>
                 <tr><td>FR-TPL-01</td><td>Templates</td><td>Managers/Admins CRUD templates with variables {buyer_name}</td><td>High</td><td>Variables resolved before insertion</td></tr>
-                <tr><td>FR-ASG-01</td><td>Assignment</td><td>Agents self‑claim unassigned conversations</td><td>High</td><td>Single active owner</td></tr>
-                <tr><td>FR-ASG-02</td><td>Assignment</td><td>Managers assign any conversation to any active agent</td><td>High</td><td>Assignment history stored</td></tr>
+                <tr><td>FR-ASG-01</td><td>Assignment</td><td><strong>Universal assignment: ANY authenticated user (Admin, Manager, Agent) can assign ANY conversation to ANY other active user (including Admin, Operation Manager, Support Agent).</strong></td><td class="req-critical">Critical</td><td>Assignment dropdown shows all active users regardless of role</td></tr>
+                <tr><td>FR-ASG-02</td><td>Assignment</td><td>Assignment history stored (audit log: who assigned to whom, timestamp)</td><td>High</td><td>Immutable trail</td></tr>
+                <tr><td>FR-ASG-03</td><td>Assignment + Notification</td><td><strong>Upon any assignment, the assignee receives an in‑app notification instantly (bell icon, unread badge, message: “Conversation from [buyer] assigned to you by [assigner_name]”).</strong></td><td class="req-critical">Critical</td><td>Notification includes conversation link</td></tr>
                 <tr><td>FR-NOTIF-01</td><td>Notifications</td><td>In‑app notifications for assignment & reply failures</td><td>High</td><td>Bell dropdown with unread counts</td></tr>
                 <tr><td>FR-DASH-01</td><td>Dashboard</td><td>Global counts: Open, Unassigned, Resolved (last 24h)</td><td>High</td><td>Aggregated metrics</td></tr>
                 <tr><td>FR-AUD-01</td><td>Audit</td><td>Immutable log of status, category, assignment changes</td><td class="req-critical">Critical</td><td>Append‑only, user ID + timestamp</td></tr>
             </tbody>
         </table>
-        <p><strong>Phase 2 additions (AI & SLA):</strong> FR-AI-001 (LLM categorization), FR-SLA-001 (SLA timers & breach alerts), bulk actions. <strong>Phase 3:</strong> internal notes, multi‑marketplace.</p>
+        <p><strong>Phase 2 additions (AI & SLA):</strong> FR-AI-001 (LLM categorization), FR-SLA-001 (SLA timers & breach alerts), bulk actions. <strong>No automatic polling:</strong> sync is manual by Admin/Manager.</p>
     </div>
 
     <!-- NON-FUNCTIONAL REQUIREMENTS -->
@@ -377,16 +379,16 @@
             <thead><tr><th>Category</th><th>Requirement</th><th>Target</th></tr></thead>
             <tbody>
                 <tr><td>Performance</td><td>Conversation list load (50 records)</td><td>&lt; 2 sec (95th percentile)</td></tr>
-                <tr><td>Performance</td><td>Search across 250k messages</td><td>&lt; 2 sec</td></tr>
+                <tr><td>Performance</td><td>Manual sync completion for 500 messages</td><td>&lt; 30 sec</td></tr>
                 <tr><td>Scalability</td><td>Concurrent users / daily messages</td><td>25 users / 400 msgs/day</td></tr>
                 <tr><td>Availability</td><td>Business hours uptime</td><td>99.5%</td></tr>
                 <tr><td>Security</td><td>Encryption at rest (tokens, credentials)</td><td>AES-256-GCM</td></tr>
-                <tr><td>Reliability</td><td>eBay API retry on failure</td><td>Exponential backoff, max 5 attempts</td></tr>
+                <tr><td>Reliability</td><td>eBay API retry on failure (manual sync)</td><td>Exponential backoff, max 5 attempts</td></tr>
             </tbody>
         </table>
     </div>
 
-    <!-- BUSINESS RULES (merged) -->
+    <!-- BUSINESS RULES (updated) -->
     <div id="business-rules" class="section-card">
         <h2>Business Rules</h2>
         <ul>
@@ -397,10 +399,12 @@
             <li><strong>BR-12:</strong> 24h SLA clock pauses when status = Pending; resumes on customer reply.</li>
             <li><strong>BR-15:</strong> All stored timestamps in UTC; UI converts to user local time.</li>
             <li><strong>BR-13:</strong> Sent messages are immutable; no edit or delete.</li>
+            <li><strong>BR-16 (Universal Assignment):</strong> Any authenticated user (Admin, Manager, Agent) can reassign any conversation to any other active user. The system records the assignment and sends an in‑app notification to the new assignee.</li>
+            <li><strong>BR-17 (Manual Sync):</strong> Only Admin and Operation Manager roles have access to the "Sync Now" button. Sync operation fetches new messages from eBay for all connected accounts. No automatic periodic sync is performed.</li>
         </ul>
     </div>
 
-    <!-- ARCHITECTURE (MERMAID + TEXT) -->
+    <!-- ARCHITECTURE (updated: manual sync trigger) -->
     <div id="architecture" class="section-card">
         <h2>System Architecture & Data Flow</h2>
         <div class="mermaid">
@@ -410,38 +414,42 @@
             end
             subgraph Omni-Desk Backend
                 Nginx[Nginx Proxy] --> API[FastAPI]
-                CelerySync[Celery Sync Worker] --> DB[(PostgreSQL)]
-                Redis[(Redis Queue)] --> CeleryWorker[Celery Reply Worker]
+                CelerySync[Celery Sync Worker]
+                DB[(PostgreSQL)]
+                Redis[(Redis Queue)]
             end
             subgraph Client
                 React[React SPA]
             end
             React --> Nginx
             API --> DB
-            CelerySync --> eBayAPI
-            CeleryWorker --> eBayAPI
+            Admin/Manager clicks "Sync Now" --> API --> CelerySync --> eBayAPI
+            CelerySync --> DB
         </div>
         <div class="mermaid">
             sequenceDiagram
-                participant Buyer
-                participant eBay
-                participant SyncWorker
-                participant DB
+                participant Admin
                 participant UI
-                Buyer->>eBay: Send message
-                loop Poll every 5min
-                    SyncWorker->>eBay: GET /messages
-                    eBay-->>SyncWorker: JSON messages
-                end
-                SyncWorker->>DB: Upsert conversation + message
-                DB-->>SyncWorker: success
-                SyncWorker->>UI: WebSocket/Refresh
+                participant API
+                participant CeleryWorker
+                participant eBay
+                participant DB
+                Admin->>UI: Click "Sync Now"
+                UI->>API: POST /sync/manual
+                API->>CeleryWorker: trigger sync task
+                CeleryWorker->>eBay: Fetch new messages (all accounts)
+                eBay-->>CeleryWorker: messages
+                CeleryWorker->>DB: Upsert conversations & messages
+                DB-->>CeleryWorker: done
+                CeleryWorker->>API: completion status
+                API->>UI: sync finished
         </div>
-        <p><strong>Message flow:</strong> eBay → Celery sync → deduplication → conversation upsert → notification → UI update.<br>
-        <strong>Reply flow:</strong> Agent → API → local PENDING record → Celery task → eBay → status update & audit.</p>
+        <p><strong>Message flow (manual):</strong> Admin/Manager triggers sync → Celery task → fetch from eBay → deduplication → conversation upsert → UI refresh.<br>
+        <strong>Reply flow:</strong> Agent → API → local PENDING record → Celery task → eBay → status update & audit.<br>
+        <strong>Universal assignment flow:</strong> Any user selects conversation → chooses target user (any role) → API updates assigned_user_id → Audit log → In‑app notification to new assignee.</p>
     </div>
 
-    <!-- DATABASE CORE ENTITIES -->
+    <!-- DATABASE CORE ENTITIES (unchanged) -->
     <div id="database" class="section-card">
         <h2>Database Design – Core Entities</h2>
         <table>
@@ -449,36 +457,38 @@
             <tbody>
                 <tr><td>User</td><td>id, email, password_hash, role, is_active</td><td>System user accounts</td></tr>
                 <tr><td>EbayAccount</td><td>id, label, access_token_enc, refresh_token_enc, status</td><td>Connected seller accounts with encrypted tokens</td></tr>
-                <tr><td>Conversation</td><td>id, ebay_account_id, buyer_username, status, assigned_user_id, category_id</td><td>Thread per buyer/account</td></tr>
+                <tr><td>Conversation</td><td>id, ebay_account_id, buyer_username, status, assigned_user_id, category_id</td><td>Thread per buyer/account; assigned_user_id can be any user (any role)</td></tr>
                 <tr><td>Message</td><td>id, conversation_id, direction, body, external_id, dispatch_status</td><td>Inbound/outbound messages</td></tr>
                 <tr><td>AuditLog</td><td>id, actor_id, action, entity_type, prev_value, new_value, ip, timestamp</td><td>Append‑only immutable trail</td></tr>
                 <tr><td>Template</td><td>id, title, body, category_tag, created_by</td><td>Global reply templates</td></tr>
+                <tr><td>Notification</td><td>id, user_id, type, payload, is_read, created_at</td><td>In‑app assignment notifications</td></tr>
             </tbody>
         </table>
     </div>
 
-    <!-- API SPECIFICATIONS -->
+    <!-- API SPECIFICATIONS (updated) -->
     <div id="api" class="section-card">
         <h2>API Specifications (REST + JSON)</h2>
         <table>
             <thead><tr><th>Method</th><th>Endpoint</th><th>Purpose</th><th>RBAC</th></tr></thead>
             <tbody>
                 <tr><td>POST</td><td>/auth/login</td><td>Email/password authentication, returns JWT</td><td>Public</td></tr>
+                <tr><td>POST</td><td>/sync/manual</td><td>Trigger manual sync from eBay (Admin/Manager only)</td><td>Admin, Operation Manager</td></tr>
                 <tr><td>GET</td><td>/conversations</td><td>List with filters (status, category, assignee)</td><td>All authenticated roles</td></tr>
-                <tr><td>POST</td><td>/conversations/{id}/replies</td><td>Send reply with idempotency key</td><td>Agent/Manager/Admin</td></tr>
-                <tr><td>POST</td><td>/conversations/{id}/assign</td><td>Assign/reassign conversation</td><td>Manager/Admin</td></tr>
+                <tr><td>POST</td><td>/conversations/{id}/replies</td><td>Send reply with idempotency key</td><td>All authenticated roles</td></tr>
+                <tr><td>POST</td><td>/conversations/{id}/assign</td><td>Assign conversation to any user (by ID). Triggers notification.</td><td>All authenticated roles (universal assignment)</td></tr>
                 <tr><td>GET</td><td>/analytics/manager</td><td>Team productivity metrics</td><td>Manager/Admin</td></tr>
                 <tr><td>GET</td><td>/audit</td><td>Query audit logs</td><td>Admin</td></tr>
             </tbody>
         </table>
     </div>
 
-    <!-- WORKFLOWS & UI MOCKUPS -->
+    <!-- WORKFLOWS & UI MOCKUPS (updated) -->
     <div id="workflows" class="section-card">
         <h2>Workflow Specifications & UI Mockups</h2>
-        <p><strong>1. Inbound Sync:</strong> Scheduler (2‑5 min) → fetch messages → deduplicate → create/append conversation → notify.<br>
+        <p><strong>1. Manual Sync:</strong> Admin/Manager clicks “Sync Now” button → Background Celery task fetches latest messages from eBay for all accounts → New messages appear in conversation list. No automatic polling.<br>
         <strong>2. Reply Sending:</strong> Compose → persist PENDING → Celery call eBay API → update status → audit.<br>
-        <strong>3. Assignment:</strong> Manager selects conversation & user → update assignment_history → in‑app notification.</p>
+        <strong>3. Universal Assignment:</strong> Any user (including Agent) opens a conversation → clicks “Assign to” → selects any active user (Admin, Manager, or another Agent) → system updates assigned_user_id → audit log entry → pushes in‑app notification to assignee: “Conversation from [buyer] assigned to you by [assigner_name]”.</p>
         <div class="wireframe">
             <strong>📱 Login Screen</strong><br>
             ╔══════════════════════╗<br>
@@ -489,11 +499,13 @@
             ╚══════════════════════╝
         </div>
         <div class="wireframe">
-            <strong>💬 Conversation Detail (WhatsApp style)</strong><br>
+            <strong>💬 Conversation Detail + Universal Assignment</strong><br>
             Buyer: johndoe | Assigned: Alice<br>
             [09:42] Buyer: When will it ship?<br>
             [09:55] Agent: Shipped yesterday!<br>
-            [Reply box] [Templates] [Send]
+            [Assign to: ▼ Select any user (Admin/Manager/Agent)] [Assign & Notify]<br>
+            [Reply box] [Templates] [Send]<br>
+            <strong>🔵 Admin/Manager only:</strong> [Sync Now] button at top to fetch latest eBay messages.
         </div>
     </div>
 
@@ -501,25 +513,25 @@
     <div id="security" class="section-card">
         <h2>Security & Audit Compliance</h2>
         <p><strong>Security:</strong> TLS 1.2+, Argon2id password hashing, AES-256-GCM for eBay tokens, JWT with short TTL, rate limiting, CSRF protection, input validation via Pydantic.</p>
-        <p><strong>Audit Logging:</strong> Every state change (assignment, category, status, reply, login) logged with actor, timestamp, IP, previous/new values. Immutable, retention ≥24 months. Admins can filter & export.</p>
+        <p><strong>Audit Logging:</strong> Every state change (assignment, category, status, reply, login) logged with actor, timestamp, IP, previous/new values. Immutable, retention ≥24 months. Admins can filter & export. Assignment events capture source user, target assignee, conversation ID.</p>
     </div>
 
-    <!-- NOTIFICATIONS MATRIX -->
+    <!-- NOTIFICATIONS MATRIX (updated) -->
     <div id="notifications" class="section-card">
         <h2>Notifications (In-App)</h2>
         <table>
-            <thead><tr><th>Trigger</th><th>Priority</th><th>Target</th></tr></thead>
+            <thead><tr><th>Trigger</th><th>Priority</th><th>Target</th><th>Details</th></tr></thead>
             <tbody>
-                <tr><td>New conversation assignment</td><td>Medium</td><td>Assigned agent</td></tr>
-                <tr><td>Reassignment (by manager)</td><td>Medium</td><td>New assignee</td></tr>
-                <tr><td>Customer reply on owned conversation</td><td>High</td><td>Assigned agent</td></tr>
-                <tr><td>Outbound reply permanent failure</td><td>High</td><td>Sender + Manager</td></tr>
-                <tr><td>eBay sync token failure</td><td>High</td><td>Admin & Manager</td></tr>
+                <tr><td>Conversation assignment (by any user to any user)</td><td>Medium</td><td>Assigned user (any role)</td><td>Push notification: “New conversation from {buyer_name} assigned to you by {assigner_name}”</td></tr>
+                <tr><td>Reassignment (any user changes assignee)</td><td>Medium</td><td>New assignee</td><td>Notification includes previous assignee if applicable</td></tr>
+                <tr><td>Customer reply on owned conversation</td><td>High</td><td>Assigned user (any role)</td><td>Immediate bell alert</td></tr>
+                <tr><td>Outbound reply permanent failure</td><td>High</td><td>Sender + Manager</td><td>Error details in notification</td></tr>
+                <tr><td>Manual sync completion / failure</td><td>Low</td><td>Admin/Manager who triggered sync</td><td>“Sync completed: X new messages” or error</td></tr>
             </tbody>
         </table>
     </div>
 
-    <!-- ANALYTICS KPIs -->
+    <!-- ANALYTICS KPIs (unchanged) -->
     <div id="analytics" class="section-card">
         <h2>Reporting & Analytics KPIs</h2>
         <table>
@@ -533,18 +545,19 @@
         </table>
     </div>
 
-    <!-- ACCEPTANCE CRITERIA -->
+    <!-- ACCEPTANCE CRITERIA (updated) -->
     <div id="acceptance" class="section-card">
         <h2>Acceptance Criteria (UAT)</h2>
         <table>
             <thead><tr><th>ID</th><th>Scenario</th><th>Expected Result</th></tr></thead>
             <tbody>
-                <tr><td>AC-01</td><td>All six eBay accounts sync messages</td><td>Messages appear in unified inbox within 5 min</td></tr>
-                <tr><td>AC-02</td><td>Admin adds new eBay account via UI</td><td>Account becomes active without code change</td></tr>
-                <tr><td>AC-03</td><td>Assignment & notification</td><td>Manager assigns conversation → agent gets in‑app notification ≤5 sec</td></tr>
+                <tr><td>AC-01</td><td>Admin clicks “Sync Now” button</td><td>New eBay messages appear in conversation list within 30 sec, no duplicates</td></tr>
+                <tr><td>AC-02</td><td>Admin adds new eBay account via UI</td><td>Account becomes active; manual sync includes this account</td></tr>
+                <tr><td>AC-03</td><td>Universal assignment & notification (Agent → Admin)</td><td>Support Agent assigns conversation to Admin → Admin receives in‑app notification ≤3 sec, audit log updated</td></tr>
                 <tr><td>AC-04</td><td>Reply round‑trip</td><td>Reply sent from platform appears in eBay within 30 sec</td></tr>
-                <tr><td>AC-05</td><td>RBAC enforcement</td><td>Agent cannot view user management or audit logs</td></tr>
+                <tr><td>AC-05</td><td>RBAC enforcement</td><td>Agent cannot view user management or audit logs; Agent can assign conversations to any user</td></tr>
                 <tr><td>AC-06</td><td>Performance</td><td>Conversation list loads &lt;2 sec under load</td></tr>
+                <tr><td>AC-07</td><td>Manual sync only</td><td>No automatic polling occurs; messages only appear after “Sync Now” or manual action</td></tr>
             </tbody>
         </table>
     </div>
@@ -555,10 +568,10 @@
         <tr>
             <thead><tr><th>Business Goal</th><th>Requirements</th><th>Module</th><th>Test Coverage</th></tr></thead>
             <tbody>
-                <tr><td>Centralize support operations</td><td>FR-SYNC-01, FR-CONV-01</td><td>Sync & Conversation</td><td>AC-01</td></tr>
+                <tr><td>Centralize support operations</td><td>FR-SYNC-01, FR-SYNC-02, FR-CONV-01</td><td>Manual Sync & Conversation</td><td>AC-01, AC-07</td></tr>
                 <tr><td>Reduce response times</td><td>FR-REPLY-01, FR-TPL-01</td><td>Reply & Templates</td><td>AC-04</td></tr>
-                <tr><td>Track ownership</td><td>FR-ASG-01, BR-01</td><td>Assignment & Audit</td><td>AC-03</td></tr>
-                <tr><td>Team visibility</td><td>FR-DASH-01, FR-NOTIF-01</td><td>Dashboard & Notifications</td><td>AC-05</td></tr>
+                <tr><td>Universal ownership & flexibility</td><td>FR-ASG-01, FR-ASG-02, FR-ASG-03, BR-16</td><td>Assignment & Audit & Notifications</td><td>AC-03</td></tr>
+                <tr><td>Team visibility & accountability</td><td>FR-DASH-01, FR-NOTIF-01</td><td>Dashboard & Notifications</td><td>AC-05</td></tr>
             </tbody>
         </table>
     </div>
@@ -571,7 +584,7 @@
     </div>
 
     <footer>
-        eBay Omni-Desk Platform SRS v2.0 (Merged) – Confidential – Approved for Engineering – All requirements subject to change control.
+        eBay Omni-Desk Platform SRS v2.1 – Confidential – Approved for Engineering – All requirements subject to change control.
     </footer>
 </div>
 
