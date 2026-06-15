@@ -2,6 +2,7 @@ import { useState } from 'react'
 
 import { normalizeRole } from './layouts/app_layout'
 import Dashboard from './pages/dashboard'
+import EbayAccounts from './pages/ebay_accounts'
 import ForgotPassword from './pages/forgot_password'
 import Login from './pages/login'
 import LoginSuccess from './pages/login_success'
@@ -41,6 +42,11 @@ const PROTECTED_ROUTES = [
   {
     path: '/users',
     component: Users,
+    allowedRoles: ['ADMIN'],
+  },
+  {
+    path: '/ebay-accounts',
+    component: EbayAccounts,
     allowedRoles: ['ADMIN'],
   },
 ]

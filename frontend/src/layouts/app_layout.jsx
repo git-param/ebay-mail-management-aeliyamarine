@@ -13,6 +13,12 @@ const NAV_ITEMS = [
     icon: 'users',
     roles: ['ADMIN'],
   },
+  {
+    label: 'eBay Accounts',
+    path: '/ebay-accounts',
+    icon: 'bag',
+    roles: ['ADMIN'],
+  },
 ]
 
 export function normalizeRole(role) {
@@ -49,6 +55,7 @@ export function Icon({ name }) {
   const paths = {
     home: <path d="M3 10.5 10 4l7 6.5V18h-5v-5H8v5H3v-7.5Z" />,
     users: <path d="M7 10a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm6 8v-1a5 5 0 0 0-10 0v1m10-8a2.5 2.5 0 1 0 0-5m2 13v-1a4 4 0 0 0-3-3.87" />,
+    bag: <path d="M5 7h10l1 10H4L5 7Zm3 0a2 2 0 0 1 4 0" />,
     plus: <path d="M10 4v12M4 10h12" />,
     dots: <path d="M5 10h.01M10 10h.01M15 10h.01" />,
     eye: <path d="M2 10s3-5 8-5 8 5 8 5-3 5-8 5-8-5-8-5Zm8 2a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z" />,
