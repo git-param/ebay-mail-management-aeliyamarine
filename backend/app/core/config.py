@@ -28,6 +28,12 @@ class Settings(BaseSettings):
         default='http://localhost:5173,http://127.0.0.1:5173',
         validation_alias='BACKEND_CORS_ORIGINS',
     )
+    smtp_host: str = Field(default='', validation_alias='SMTP_HOST')
+    smtp_port: int = Field(default=587, validation_alias='SMTP_PORT')
+    smtp_username: str = Field(default='', validation_alias='SMTP_USERNAME')
+    smtp_password: str = Field(default='', validation_alias='SMTP_PASSWORD')
+    smtp_from_email: str = Field(default='', validation_alias='SMTP_FROM_EMAIL')
+    smtp_use_tls: bool = Field(default=True, validation_alias='SMTP_USE_TLS')
 
     model_config = SettingsConfigDict(env_file=ENV_FILE, env_file_encoding='utf-8', extra='ignore')
 

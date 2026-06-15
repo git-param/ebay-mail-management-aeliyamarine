@@ -31,3 +31,10 @@ export function requestPasswordReset(payload) {
     body: JSON.stringify(payload),
   })
 }
+
+export function resetPassword(payload) {
+  return request('/auth/reset-password', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
