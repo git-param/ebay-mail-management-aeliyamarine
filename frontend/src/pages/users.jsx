@@ -1,120 +1,18 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 import AppLayout, { Icon } from '../layouts/app_layout'
+import {
+  activateUser,
+  createUser,
+  deactivateUser,
+  fetchUser,
+  fetchUsers,
+  resetUserPassword,
+  updateUser,
+} from '../services/userApi'
 
 const ROLES = ['Admin', 'Operations Manager', 'Agent']
 const STATUSES = ['Active', 'Inactive']
-
-const INITIAL_USERS = [
-  {
-    id: 1,
-    fullName: 'Anika Shah',
-    email: 'anika.shah@omnidesk.com',
-    role: 'Admin',
-    status: 'Active',
-    createdDate: 'Jan 08, 2026',
-    lastLogin: 'Jun 14, 2026, 09:42 AM',
-    assignedConversations: 18,
-    assignedCategories: ['Returns', 'Escalations', 'Billing'],
-    activities: ['Updated billing template', 'Reviewed audit log', 'Created Agent account'],
-  },
-  {
-    id: 2,
-    fullName: 'Marcus Reed',
-    email: 'marcus.reed@omnidesk.com',
-    role: 'Admin',
-    status: 'Active',
-    createdDate: 'Jan 12, 2026',
-    lastLogin: 'Jun 13, 2026, 05:15 PM',
-    assignedConversations: 9,
-    assignedCategories: ['System Settings', 'eBay Accounts'],
-    activities: ['Activated eBay account', 'Changed user role', 'Exported audit report'],
-  },
-  {
-    id: 3,
-    fullName: 'Priya Nair',
-    email: 'priya.nair@omnidesk.com',
-    role: 'Operations Manager',
-    status: 'Active',
-    createdDate: 'Feb 03, 2026',
-    lastLogin: 'Jun 15, 2026, 10:08 AM',
-    assignedConversations: 34,
-    assignedCategories: ['Shipping', 'Returns', 'Order Status'],
-    activities: ['Assigned 12 conversations', 'Created return category', 'Reviewed SLA queue'],
-  },
-  {
-    id: 4,
-    fullName: 'Ethan Brooks',
-    email: 'ethan.brooks@omnidesk.com',
-    role: 'Operations Manager',
-    status: 'Inactive',
-    createdDate: 'Feb 17, 2026',
-    lastLogin: 'May 29, 2026, 03:22 PM',
-    assignedConversations: 11,
-    assignedCategories: ['Refunds', 'Feedback'],
-    activities: ['Disabled agent account', 'Updated refund workflow', 'Reviewed queue health'],
-  },
-  {
-    id: 5,
-    fullName: 'Sofia Martinez',
-    email: 'sofia.martinez@omnidesk.com',
-    role: 'Agent',
-    status: 'Active',
-    createdDate: 'Mar 01, 2026',
-    lastLogin: 'Jun 15, 2026, 08:51 AM',
-    assignedConversations: 42,
-    assignedCategories: ['Returns', 'Product Questions'],
-    activities: ['Resolved buyer return', 'Sent saved reply', 'Tagged urgent case'],
-  },
-  {
-    id: 6,
-    fullName: 'Noah Wilson',
-    email: 'noah.wilson@omnidesk.com',
-    role: 'Agent',
-    status: 'Active',
-    createdDate: 'Mar 07, 2026',
-    lastLogin: 'Jun 14, 2026, 01:36 PM',
-    assignedConversations: 27,
-    assignedCategories: ['Shipping', 'Tracking'],
-    activities: ['Updated shipping case', 'Merged duplicate thread', 'Added private note'],
-  },
-  {
-    id: 7,
-    fullName: 'Isha Patel',
-    email: 'isha.patel@omnidesk.com',
-    role: 'Agent',
-    status: 'Active',
-    createdDate: 'Apr 09, 2026',
-    lastLogin: 'Jun 15, 2026, 11:02 AM',
-    assignedConversations: 39,
-    assignedCategories: ['Billing', 'Refunds'],
-    activities: ['Processed refund question', 'Escalated payment issue', 'Closed billing thread'],
-  },
-  {
-    id: 8,
-    fullName: 'Liam Chen',
-    email: 'liam.chen@omnidesk.com',
-    role: 'Agent',
-    status: 'Inactive',
-    createdDate: 'Apr 21, 2026',
-    lastLogin: 'Jun 01, 2026, 04:40 PM',
-    assignedConversations: 6,
-    assignedCategories: ['Feedback', 'Order Status'],
-    activities: ['Answered feedback request', 'Updated buyer response', 'Paused assigned queue'],
-  },
-  {
-    id: 9,
-    fullName: 'Grace Taylor',
-    email: 'grace.taylor@omnidesk.com',
-    role: 'Agent',
-    status: 'Active',
-    createdDate: 'May 02, 2026',
-    lastLogin: 'Jun 15, 2026, 09:25 AM',
-    assignedConversations: 31,
-    assignedCategories: ['Product Questions', 'Shipping'],
-    activities: ['Created product macro', 'Reopened buyer thread', 'Resolved tracking issue'],
-  },
-]
 
 const EMPTY_FORM = {
   fullName: '',
@@ -126,6 +24,10 @@ const EMPTY_FORM = {
 }
 
 function getInitials(name) {
+  if (!name) {
+    return 'U'
+  }
+
   return name
     .split(' ')
     .map((part) => part[0])
@@ -136,6 +38,87 @@ function getInitials(name) {
 
 function validateEmail(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+}
+
+function formatDate(value) {
+  if (!value) {
+    return 'Not available'
+  }
+
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) {
+    return value
+  }
+
+  return date.toLocaleString(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
+function formatRole(role) {
+  const normalizedRole = String(role || '')
+    .trim()
+    .toUpperCase()
+    .replace(/[\s-]+/g, '_')
+
+  const labels = {
+    ADMIN: 'Admin',
+    OPS_MANAGER: 'Operations Manager',
+    OPERATIONS_MANAGER: 'Operations Manager',
+    AGENT: 'Agent',
+    SUPPORT_AGENT: 'Agent',
+  }
+
+  return labels[normalizedRole] || role || 'Agent'
+}
+
+function normalizeUser(user) {
+  const isActive = typeof user.is_active === 'boolean' ? user.is_active : user.status !== 'Inactive'
+
+  return {
+    ...user,
+    id: user.id || user.user_id,
+    fullName: user.name || user.full_name || user.fullName || '',
+    email: user.email || '',
+    role: formatRole(user.role),
+    status: isActive ? 'Active' : 'Inactive',
+    createdDate: formatDate(user.created_at || user.createdDate || user.created_date),
+    lastLogin: formatDate(user.last_login || user.lastLogin || user.last_login_at),
+    assignedConversations: user.assigned_conversations || user.assignedConversations || 0,
+    assignedCategories: user.assigned_categories || user.assignedCategories || [],
+    activities: user.recent_activities || user.activities || [],
+    raw: user,
+  }
+}
+
+function getUsersFromResponse(response) {
+  if (Array.isArray(response)) {
+    return response
+  }
+
+  if (Array.isArray(response.data)) {
+    return response.data
+  }
+
+  if (response.data && Array.isArray(response.data.users)) {
+    return response.data.users
+  }
+
+  return response.users || response.items || []
+}
+
+function toUserPayload(values) {
+  return {
+    name: values.fullName.trim(),
+    email: values.email.trim(),
+    role: values.role,
+    is_active: values.status === 'Active',
+    ...(values.password ? { password: values.password } : {}),
+  }
 }
 
 function StatCard({ label, value }) {
@@ -173,7 +156,7 @@ function Modal({ title, children, onClose }) {
   )
 }
 
-function UserForm({ mode, initialValues, onCancel, onSubmit }) {
+function UserForm({ mode, initialValues, isSubmitting, onCancel, onSubmit }) {
   const [values, setValues] = useState(initialValues)
   const [errors, setErrors] = useState({})
 
@@ -269,15 +252,15 @@ function UserForm({ mode, initialValues, onCancel, onSubmit }) {
         <button className="secondary-button" type="button" onClick={onCancel}>
           Cancel
         </button>
-        <button className="primary-button compact" type="submit">
-          {mode === 'create' ? 'Create User' : 'Save Changes'}
+        <button className="primary-button compact" type="submit" disabled={isSubmitting}>
+          {isSubmitting ? 'Saving...' : mode === 'create' ? 'Create User' : 'Save Changes'}
         </button>
       </div>
     </form>
   )
 }
 
-function ConfirmModal({ title, message, actionLabel, danger, onCancel, onConfirm }) {
+function ConfirmModal({ title, message, actionLabel, danger, isSubmitting, onCancel, onConfirm }) {
   return (
     <Modal title={title} onClose={onCancel}>
       <p className="confirm-message">{message}</p>
@@ -285,8 +268,13 @@ function ConfirmModal({ title, message, actionLabel, danger, onCancel, onConfirm
         <button className="secondary-button" type="button" onClick={onCancel}>
           Cancel
         </button>
-        <button className={danger ? 'danger-button' : 'primary-button compact'} type="button" onClick={onConfirm}>
-          {actionLabel}
+        <button
+          className={danger ? 'danger-button' : 'primary-button compact'}
+          type="button"
+          onClick={onConfirm}
+          disabled={isSubmitting}
+        >
+          {isSubmitting ? 'Working...' : actionLabel}
         </button>
       </div>
     </Modal>
@@ -297,6 +285,35 @@ function UserDrawer({ user, onClose }) {
   if (!user) {
     return null
   }
+
+  const knownFields = new Set([
+    'id',
+    'user_id',
+    'name',
+    'full_name',
+    'fullName',
+    'email',
+    'role',
+    'status',
+    'is_active',
+    'created_at',
+    'createdDate',
+    'created_date',
+    'last_login',
+    'lastLogin',
+    'last_login_at',
+    'assigned_conversations',
+    'assignedConversations',
+    'assigned_categories',
+    'assignedCategories',
+    'recent_activities',
+    'activities',
+    'password_hash',
+    'raw',
+  ])
+  const additionalFields = Object.entries(user.raw || {}).filter(([key, value]) => {
+    return !knownFields.has(key) && value !== null && value !== undefined && typeof value !== 'object'
+  })
 
   return (
     <div className="drawer-backdrop" role="presentation">
@@ -333,30 +350,48 @@ function UserDrawer({ user, onClose }) {
           </div>
         </dl>
 
-        <section className="drawer-section">
-          <h3>Assigned Categories</h3>
-          <div className="category-list">
-            {user.assignedCategories.map((category) => (
-              <span key={category}>{category}</span>
-            ))}
-          </div>
-        </section>
+        {user.assignedCategories.length ? (
+          <section className="drawer-section">
+            <h3>Assigned Categories</h3>
+            <div className="category-list">
+              {user.assignedCategories.map((category) => (
+                <span key={category}>{category}</span>
+              ))}
+            </div>
+          </section>
+        ) : null}
 
-        <section className="drawer-section">
-          <h3>Recent Activities</h3>
-          <ul className="activity-list">
-            {user.activities.map((activity) => (
-              <li key={activity}>{activity}</li>
-            ))}
-          </ul>
-        </section>
+        {user.activities.length ? (
+          <section className="drawer-section">
+            <h3>Recent Activities</h3>
+            <ul className="activity-list">
+              {user.activities.map((activity) => (
+                <li key={activity}>{activity}</li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
+
+        {additionalFields.length ? (
+          <section className="drawer-section">
+            <h3>Additional Details</h3>
+            <dl className="detail-grid">
+              {additionalFields.map(([key, value]) => (
+                <div key={key}>
+                  <dt>{key.replace(/_/g, ' ')}</dt>
+                  <dd>{String(value)}</dd>
+                </div>
+              ))}
+            </dl>
+          </section>
+        ) : null}
       </aside>
     </div>
   )
 }
 
 function Users({ currentUser, onLogout }) {
-  const [users, setUsers] = useState(INITIAL_USERS)
+  const [users, setUsers] = useState([])
   const [search, setSearch] = useState('')
   const [roleFilter, setRoleFilter] = useState('All Roles')
   const [statusFilter, setStatusFilter] = useState('All')
@@ -364,6 +399,27 @@ function Users({ currentUser, onLogout }) {
   const [selectedUser, setSelectedUser] = useState(null)
   const [modal, setModal] = useState(null)
   const [notification, setNotification] = useState('')
+  const [error, setError] = useState('')
+  const [isLoading, setIsLoading] = useState(true)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  async function loadUsers() {
+    setIsLoading(true)
+    setError('')
+
+    try {
+      const response = await fetchUsers()
+      setUsers(getUsersFromResponse(response).map(normalizeUser))
+    } catch (caughtError) {
+      setError(caughtError.message)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadUsers()
+  }, [])
 
   const filteredUsers = useMemo(() => {
     return users.filter((user) => {
@@ -391,6 +447,12 @@ function Users({ currentUser, onLogout }) {
     window.setTimeout(() => setNotification(''), 2800)
   }
 
+  function showError(caughtError) {
+    const message = caughtError.message || 'Something went wrong. Please try again.'
+    setError(message)
+    showNotification(message)
+  }
+
   function openModal(type, user = null) {
     setActionUserId(null)
     setSelectedUser(user)
@@ -402,51 +464,83 @@ function Users({ currentUser, onLogout }) {
     setSelectedUser(null)
   }
 
-  function createUser(values) {
-    const nextUser = {
-      id: Date.now(),
-      fullName: values.fullName.trim(),
-      email: values.email.trim(),
-      role: values.role,
-      status: values.status,
-      createdDate: 'Jun 15, 2026',
-      lastLogin: 'Never',
-      assignedConversations: 0,
-      assignedCategories: [],
-      activities: ['User account created'],
+  async function createUserFromForm(values) {
+    setIsSubmitting(true)
+    setError('')
+
+    try {
+      await createUser(toUserPayload(values))
+      closeModal()
+      showNotification('User created successfully.')
+      await loadUsers()
+    } catch (caughtError) {
+      showError(caughtError)
+    } finally {
+      setIsSubmitting(false)
     }
-    setUsers((current) => [nextUser, ...current])
-    closeModal()
-    showNotification('User created successfully.')
   }
 
-  function updateUser(values) {
-    setUsers((current) =>
-      current.map((user) =>
-        user.id === selectedUser.id
-          ? {
-              ...user,
-              fullName: values.fullName.trim(),
-              email: values.email.trim(),
-              role: values.role,
-              status: values.status,
-            }
-          : user,
-      ),
-    )
-    closeModal()
-    showNotification('User updated successfully.')
+  async function updateUserFromForm(values) {
+    setIsSubmitting(true)
+    setError('')
+
+    try {
+      await updateUser(selectedUser.id, toUserPayload(values))
+      closeModal()
+      showNotification('User updated successfully.')
+      await loadUsers()
+    } catch (caughtError) {
+      showError(caughtError)
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
-  function setUserStatus(user, status) {
-    setUsers((current) => current.map((item) => (item.id === user.id ? { ...item, status } : item)))
-    closeModal()
-    showNotification(status === 'Active' ? 'User activated successfully.' : 'User disabled successfully.')
+  async function setUserStatus(user, status) {
+    setIsSubmitting(true)
+    setError('')
+
+    try {
+      if (status === 'Active') {
+        await activateUser(user.id)
+      } else {
+        await deactivateUser(user.id)
+      }
+      closeModal()
+      showNotification(status === 'Active' ? 'User activated successfully.' : 'User disabled successfully.')
+      await loadUsers()
+    } catch (caughtError) {
+      showError(caughtError)
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
-  function resetPassword() {
-    closeModal()
-    showNotification('Password reset notification sent.')
+  async function resetPassword() {
+    setIsSubmitting(true)
+    setError('')
+
+    try {
+      await resetUserPassword(selectedUser.id)
+      closeModal()
+      showNotification('Password reset notification sent.')
+    } catch (caughtError) {
+      showError(caughtError)
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  async function viewUser(user) {
+    setActionUserId(null)
+    setError('')
+
+    try {
+      const response = await fetchUser(user.id)
+      setSelectedUser(normalizeUser(response))
+    } catch (caughtError) {
+      showError(caughtError)
+    }
   }
 
   function resetFilters() {
@@ -512,8 +606,18 @@ function Users({ currentUser, onLogout }) {
           </button>
         </section>
 
+        {error ? (
+          <p className="form-message error management-error" role="alert">
+            {error}
+          </p>
+        ) : null}
+
         <section className="table-card" aria-label="Users table">
-          {filteredUsers.length ? (
+          {isLoading ? (
+            <div className="empty-state">
+              <h2>Loading users...</h2>
+            </div>
+          ) : filteredUsers.length ? (
             <div className="table-scroll">
               <table className="users-table">
                 <thead>
@@ -560,10 +664,7 @@ function Users({ currentUser, onLogout }) {
                             <button
                               className="menu-view"
                               type="button"
-                              onClick={() => {
-                                setActionUserId(null)
-                                setSelectedUser(user)
-                              }}
+                              onClick={() => viewUser(user)}
                             >
                               <Icon name="eye" />
                               View User
@@ -577,12 +678,22 @@ function Users({ currentUser, onLogout }) {
                               Reset Password
                             </button>
                             {user.status === 'Active' ? (
-                              <button className="menu-disable" type="button" onClick={() => openModal('disable', user)}>
+                              <button
+                                className="menu-disable"
+                                type="button"
+                                onClick={() => openModal('disable', user)}
+                                disabled={isSubmitting}
+                              >
                                 <Icon name="disable" />
                                 Disable User
                               </button>
                             ) : (
-                              <button className="menu-activate" type="button" onClick={() => setUserStatus(user, 'Active')}>
+                              <button
+                                className="menu-activate"
+                                type="button"
+                                onClick={() => setUserStatus(user, 'Active')}
+                                disabled={isSubmitting}
+                              >
                                 <Icon name="activate" />
                                 Activate User
                               </button>
@@ -610,7 +721,13 @@ function Users({ currentUser, onLogout }) {
 
       {modal === 'create' ? (
         <Modal title="Create User" onClose={closeModal}>
-          <UserForm mode="create" initialValues={EMPTY_FORM} onCancel={closeModal} onSubmit={createUser} />
+          <UserForm
+            mode="create"
+            initialValues={EMPTY_FORM}
+            isSubmitting={isSubmitting}
+            onCancel={closeModal}
+            onSubmit={createUserFromForm}
+          />
         </Modal>
       ) : null}
 
@@ -624,8 +741,9 @@ function Users({ currentUser, onLogout }) {
               role: selectedUser.role,
               status: selectedUser.status,
             }}
+            isSubmitting={isSubmitting}
             onCancel={closeModal}
-            onSubmit={updateUser}
+            onSubmit={updateUserFromForm}
           />
         </Modal>
       ) : null}
@@ -635,6 +753,7 @@ function Users({ currentUser, onLogout }) {
           title="Reset Password"
           message="Are you sure you want to reset this user's password?"
           actionLabel="Reset Password"
+          isSubmitting={isSubmitting}
           onCancel={closeModal}
           onConfirm={resetPassword}
         />
@@ -646,6 +765,7 @@ function Users({ currentUser, onLogout }) {
           message={`Disable ${selectedUser.fullName}'s account? They will no longer be able to access Omni-Desk.`}
           actionLabel="Disable User"
           danger
+          isSubmitting={isSubmitting}
           onCancel={closeModal}
           onConfirm={() => setUserStatus(selectedUser, 'Inactive')}
         />

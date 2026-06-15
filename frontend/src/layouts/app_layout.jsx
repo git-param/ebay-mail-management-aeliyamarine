@@ -25,6 +25,10 @@ export function normalizeRole(role) {
     return 'OPS_MANAGER'
   }
 
+  if (normalizedRole === 'SUPPORT_AGENT') {
+    return 'AGENT'
+  }
+
   return normalizedRole
 }
 
