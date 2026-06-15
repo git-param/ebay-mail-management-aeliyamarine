@@ -214,6 +214,24 @@
   outline: none;
 }
 
+.field textarea {
+  width: 100%;
+  padding: 14px 16px;
+  border: 1px solid #bfd0e6;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #061426;
+  font: inherit;
+  box-sizing: border-box;
+  outline: none;
+  resize: vertical;
+}
+
+.field textarea:focus {
+  border-color: #5865f2;
+  box-shadow: 0 0 0 4px rgba(88, 101, 242, 0.12);
+}
+
 .field small {
   color: #a11120;
   font-size: 12px;
@@ -678,7 +696,9 @@
 }
 
 .role-badge,
-.status-badge {
+.status-badge,
+.environment-badge,
+.connection-badge {
   display: inline-flex;
   align-items: center;
   min-height: 28px;
@@ -711,6 +731,31 @@
 .status-inactive {
   background: #e5e7eb;
   color: #475569;
+}
+
+.environment-sandbox {
+  background: #e0f2fe;
+  color: #0369a1;
+}
+
+.environment-production {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.connection-connected {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.connection-disconnected {
+  background: #e5e7eb;
+  color: #475569;
+}
+
+.connection-expired {
+  background: #fee2e2;
+  color: #b91c1c;
 }
 
 .actions-cell {
@@ -859,6 +904,10 @@
   gap: 16px;
 }
 
+.form-field-wide {
+  grid-column: 1 / -1;
+}
+
 .management-form .modal-actions,
 .modal-actions {
   grid-column: 1 / -1;
@@ -941,6 +990,11 @@
   margin: 0 0 12px;
   color: #061426;
   font-size: 16px;
+}
+
+.drawer-note {
+  color: #45556c;
+  line-height: 1.6;
 }
 
 .category-list {

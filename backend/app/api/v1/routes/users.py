@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session, joinedload
 from app.api.dependencies import get_current_user
 from app.core.security import hash_password
 from app.db.session import get_db
+from app.models.audit_log import AuditLog
 from app.models.role import Role
 from app.models.user import User
 from app.schemas.user import UserCreateRequest, UserResponse, UserUpdateRequest
@@ -23,6 +24,16 @@ ROLE_ALIASES = {
     'AGENT': 'Support Agent',
     'SUPPORT_AGENT': 'Support Agent',
 }
+
+USER_ENTITY_TYPE = 'USER'
+
+
+class UserAuditActions:
+    CREATED = 'USER_CREATED'
+    UPDATED = 'USER_UPDATED'
+    ACTIVATED = 'USER_ACTIVATED'
+    DEACTIVATED = 'USER_DEACTIVATED'
+    PASSWORD_RESET_REQUESTED = 'USER_PASSWORD_RESET_REQUESTED'
 
 
 def require_admin(current_user=Depends(get_current_user)):
@@ -69,6 +80,17 @@ def serialize_user(user: User) -> UserResponse:
     )
 
 
+def add_user_audit_log(db: Session, *, action: str, actor_id: UUID, target_user_id: UUID) -> None:
+    db.add(
+        AuditLog(
+            user_id=actor_id,
+            action=action,
+            entity_type=USER_ENTITY_TYPE,
+            entity_id=target_user_id,
+        )
+    )
+
+
 @router.get('', response_model=list[UserResponse])
 def list_users(
     db: Session = Depends(get_db),
@@ -103,6 +125,13 @@ def create_user(
         must_reset_password=False,
     )
     db.add(user)
+    db.flush()
+    add_user_audit_log(
+        db,
+        action=UserAuditActions.CREATED,
+        actor_id=current_user.id,
+        target_user_id=user.id,
+    )
     db.commit()
     db.refresh(user)
     user.role = role
@@ -137,6 +166,12 @@ def update_user(
     user.role_id = role.id
     user.role = role
     user.is_active = payload.is_active
+    add_user_audit_log(
+        db,
+        action=UserAuditActions.UPDATED,
+        actor_id=current_user.id,
+        target_user_id=user.id,
+    )
     db.commit()
     db.refresh(user)
     return serialize_user(user)
@@ -150,6 +185,12 @@ def activate_user(
 ) -> UserResponse:
     user = get_user_or_404(db, user_id)
     user.is_active = True
+    add_user_audit_log(
+        db,
+        action=UserAuditActions.ACTIVATED,
+        actor_id=current_user.id,
+        target_user_id=user.id,
+    )
     db.commit()
     db.refresh(user)
     return serialize_user(user)
@@ -163,6 +204,12 @@ def deactivate_user(
 ) -> UserResponse:
     user = get_user_or_404(db, user_id)
     user.is_active = False
+    add_user_audit_log(
+        db,
+        action=UserAuditActions.DEACTIVATED,
+        actor_id=current_user.id,
+        target_user_id=user.id,
+    )
     db.commit()
     db.refresh(user)
     return serialize_user(user)
@@ -176,4 +223,11 @@ def reset_user_password(
 ) -> dict[str, str]:
     user = get_user_or_404(db, user_id)
     AuthService(db).request_password_reset(email=user.email)
+    add_user_audit_log(
+        db,
+        action=UserAuditActions.PASSWORD_RESET_REQUESTED,
+        actor_id=current_user.id,
+        target_user_id=user.id,
+    )
+    db.commit()
     return {'message': 'Password reset notification sent'}
