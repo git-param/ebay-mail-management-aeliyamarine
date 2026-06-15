@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react'
 
+import AppLayout, { Icon } from '../layouts/app_layout'
+
 const ROLES = ['Admin', 'Operations Manager', 'Agent']
 const STATUSES = ['Active', 'Inactive']
 
@@ -114,32 +116,6 @@ const INITIAL_USERS = [
   },
 ]
 
-const SIDEBAR_ITEMS = [
-  'Dashboard',
-  'Conversations',
-  'Templates',
-  'Categories',
-  'Notifications',
-  'Analytics',
-  'eBay Accounts',
-  'Users',
-  'Audit Logs',
-  'Settings',
-]
-
-const NAV_ICONS = {
-  Dashboard: 'home',
-  Conversations: 'chat',
-  Templates: 'template',
-  Categories: 'list',
-  Notifications: 'bell',
-  Analytics: 'chart',
-  'eBay Accounts': 'bag',
-  Users: 'users',
-  'Audit Logs': 'refresh',
-  Settings: 'settings',
-}
-
 const EMPTY_FORM = {
   fullName: '',
   email: '',
@@ -160,94 +136,6 @@ function getInitials(name) {
 
 function validateEmail(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
-}
-
-function Icon({ name }) {
-  const paths = {
-    home: <path d="M3 10.5 10 4l7 6.5V18h-5v-5H8v5H3v-7.5Z" />,
-    chat: <path d="M4 5h12v8H8l-4 4V5Z" />,
-    template: <path d="M4 4h12v14H4V4Zm3 4h6M7 12h6" />,
-    list: <path d="M5 6h10M5 10h10M5 14h10M3 6h.01M3 10h.01M3 14h.01" />,
-    bell: <path d="M6 15h8l-1-2V9a4 4 0 0 0-8 0v4l-1 2h2Zm3 2h2" />,
-    chart: <path d="M4 16h12M6 13V8m4 5V5m4 8v-3" />,
-    bag: <path d="M5 7h10l1 10H4L5 7Zm3 0a2 2 0 0 1 4 0" />,
-    users: <path d="M7 10a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm6 8v-1a5 5 0 0 0-10 0v1m10-8a2.5 2.5 0 1 0 0-5m2 13v-1a4 4 0 0 0-3-3.87" />,
-    refresh: <path d="M15 6a6 6 0 1 0 1 6m0-6h-4m4 0V2" />,
-    settings: <path d="M10 13a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm7-3-2-.7-.4-1 1-1.9-2-2-1.9 1-1-.4L10 2H7l-.7 2-1 .4-1.9-1-2 2 1 1.9-.4 1L0 9v3l2 .7.4 1-1 1.9 2 2 1.9-1 1 .4.7 2h3l.7-2 1-.4 1.9 1 2-2-1-1.9.4-1 2-.7V9Z" />,
-    plus: <path d="M10 4v12M4 10h12" />,
-    dots: <path d="M5 10h.01M10 10h.01M15 10h.01" />,
-    eye: <path d="M2 10s3-5 8-5 8 5 8 5-3 5-8 5-8-5-8-5Zm8 2a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z" />,
-    edit: <path d="m4 14-.5 2.5L6 16l8.5-8.5-2-2L4 14Zm9-10 2 2" />,
-    key: <path d="M7 11a4 4 0 1 1 3.5 2H9l-1.5 1.5H6V16H4v-2h2l2.1-2.1A4 4 0 0 1 7 11Zm4-1h.01" />,
-    disable: <path d="M4.5 4.5 15.5 15.5M17 10a7 7 0 0 1-10.8 5.9M3 10A7 7 0 0 1 13.8 4.1" />,
-    activate: <path d="m4 10 4 4 8-8" />,
-    moon: <path d="M14.5 13.5A6 6 0 0 1 7 6a6 6 0 1 0 7.5 7.5Z" />,
-  }
-
-  return (
-    <svg className="ui-icon" viewBox="0 0 20 20" aria-hidden="true">
-      {paths[name]}
-    </svg>
-  )
-}
-
-function Shell({ children }) {
-  return (
-    <div className="app-shell">
-      <aside className="sidebar">
-        <div className="sidebar-brand">
-          <span>OD</span>
-          <div>
-            <strong>Omni-Desk</strong>
-            <p>eBay Helpdesk</p>
-          </div>
-        </div>
-
-        <nav className="sidebar-nav" aria-label="Main navigation">
-          {SIDEBAR_ITEMS.map((item) => (
-            <a className={item === 'Users' ? 'active' : ''} href={item === 'Users' ? '/users' : '#'} key={item}>
-              <span>
-                <Icon name={NAV_ICONS[item]} />
-              </span>
-              {item}
-            </a>
-          ))}
-        </nav>
-
-        <div className="sidebar-user">
-          <span>AS</span>
-          <div>
-            <strong>Anika Shah</strong>
-            <p>Admin</p>
-          </div>
-        </div>
-      </aside>
-
-      <div className="workspace">
-        <header className="top-nav">
-          <label className="global-search">
-            <span>Search</span>
-            <input type="search" placeholder="Search conversations, users, orders" />
-          </label>
-          <div className="top-actions">
-            <button className="icon-button" type="button" aria-label="Notifications">
-              <Icon name="bell" />
-              <span className="notify-dot">3</span>
-            </button>
-            <button className="icon-button" type="button" aria-label="Theme">
-              <Icon name="moon" />
-            </button>
-            <button className="profile-button" type="button">
-              <span>AS</span>
-              Admin
-            </button>
-          </div>
-        </header>
-
-        {children}
-      </div>
-    </div>
-  )
 }
 
 function StatCard({ label, value }) {
@@ -467,7 +355,7 @@ function UserDrawer({ user, onClose }) {
   )
 }
 
-function Users() {
+function Users({ currentUser, onLogout }) {
   const [users, setUsers] = useState(INITIAL_USERS)
   const [search, setSearch] = useState('')
   const [roleFilter, setRoleFilter] = useState('All Roles')
@@ -568,7 +456,7 @@ function Users() {
   }
 
   return (
-    <Shell>
+    <AppLayout activePage="Users" currentUser={currentUser} onLogout={onLogout}>
       <main className="management-page">
         <div className="page-header">
           <div>
@@ -764,7 +652,7 @@ function Users() {
       ) : null}
 
       <UserDrawer user={selectedUser && !modal ? selectedUser : null} onClose={() => setSelectedUser(null)} />
-    </Shell>
+    </AppLayout>
   )
 }
 
