@@ -23,7 +23,7 @@ function Login() {
       localStorage.setItem('accessToken', session.access_token)
       localStorage.setItem('refreshToken', session.refresh_token)
       localStorage.setItem('currentUser', JSON.stringify(session.user))
-      window.location.assign('/login-success')
+      window.location.assign('/dashboard')
     } catch (caughtError) {
       setError(caughtError.message || LOGIN_TEXT.defaultError)
     } finally {
