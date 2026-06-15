@@ -7,6 +7,7 @@ from app.core.security import hash_password
 from app.db.session import SessionLocal
 from app.models.role import Role
 from app.models.user import User
+from app.utils.auth_utils import validate_password_rules
 
 
 def create_admin(email: str, full_name: str, password: str) -> None:
@@ -46,8 +47,10 @@ def main() -> None:
     confirm_password = getpass('Confirm password: ')
     if password != confirm_password:
         raise SystemExit('Passwords do not match.')
-    if len(password) < 8:
-        raise SystemExit('Password must be at least 8 characters.')
+
+    password_error = validate_password_rules(password)
+    if password_error:
+        raise SystemExit(password_error)
 
     create_admin(email=args.email, full_name=args.name, password=password)
 
