@@ -34,3 +34,24 @@ export const FORGOT_PASSWORD_TEXT = {
   sideDescription:
     'A verified reset link helps protect your account while getting you back to work quickly.',
 }
+
+export const RESET_PASSWORD_TEXT = {
+  brand: LOGIN_TEXT.brand,
+  eyebrow: 'Password Reset',
+  title: 'Create a new password',
+  subtitle: 'Choose a new password for your Mail Management account.',
+  passwordLabel: 'New password',
+  passwordPlaceholder: 'Enter new password',
+  confirmPasswordLabel: 'Confirm password',
+  confirmPasswordPlaceholder: 'Re-enter new password',
+  submit: 'Reset password',
+  submitting: 'Resetting...',
+  backToLogin: 'Back to login',
+  helper: 'Use at least 6 characters with one letter and one number.',
+  missingTokenError: 'This reset link is missing a token. Please request a new link.',
+  passwordMismatchError: 'Passwords do not match.',
+  defaultError: 'Unable to reset password. Please request a new link and try again.',
+  success: 'Password reset successfully. You can now sign in.',
+  sideTitle: 'A fresh password keeps the account protected.',
+  sideDescription: 'Your old sessions are revoked after the reset is completed.',
+}

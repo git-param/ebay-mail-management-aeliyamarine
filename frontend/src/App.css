@@ -189,6 +189,12 @@
   color: #0a3f87;
 }
 
+.form-helper {
+  margin: -4px 0 0;
+  color: #5a687b;
+  font-size: 14px;
+}
+
 .success-page {
   min-height: 100svh;
   display: grid;
