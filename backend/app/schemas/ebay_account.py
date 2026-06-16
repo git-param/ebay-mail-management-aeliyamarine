@@ -29,6 +29,9 @@ class EbayAccountResponse(BaseModel):
     is_active: bool
     oauth_state: str | None
     token_expires_at: datetime | None
+    access_token_expires_at: datetime | None = None
+    refresh_token_expires_at: datetime | None = None
+    last_connected_at: datetime | None = None
     ebay_user_id: str | None
     last_sync_at: datetime | None
     sync_status: str | None

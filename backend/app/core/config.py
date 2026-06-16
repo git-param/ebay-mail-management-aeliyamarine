@@ -34,6 +34,11 @@ class Settings(BaseSettings):
     smtp_password: str = Field(default='', validation_alias='SMTP_PASSWORD')
     smtp_from_email: str = Field(default='', validation_alias='SMTP_FROM_EMAIL')
     smtp_use_tls: bool = Field(default=True, validation_alias='SMTP_USE_TLS')
+    ebay_client_id: str = Field(default='', validation_alias='EBAY_CLIENT_ID')
+    ebay_client_secret: str = Field(default='', validation_alias='EBAY_CLIENT_SECRET')
+    ebay_redirect_uri: str = Field(default='', validation_alias='EBAY_REDIRECT_URI')
+    ebay_runame: str = Field(default='', validation_alias='EBAY_RUNAME')
+    ebay_environment: str = Field(default='SANDBOX', validation_alias='EBAY_ENVIRONMENT')
 
     model_config = SettingsConfigDict(env_file=ENV_FILE, env_file_encoding='utf-8', extra='ignore')
 
@@ -45,6 +50,14 @@ class Settings(BaseSettings):
         if not value.startswith(('postgresql://', 'postgresql+psycopg://', 'postgresql+psycopg2://')):
             raise ValueError('DATABASE_URL must be a PostgreSQL SQLAlchemy URL')
         return value
+
+    @field_validator('ebay_environment')
+    @classmethod
+    def validate_ebay_environment(cls, value: str) -> str:
+        normalized_value = value.strip().upper()
+        if normalized_value not in {'SANDBOX', 'PRODUCTION'}:
+            raise ValueError('EBAY_ENVIRONMENT must be SANDBOX or PRODUCTION')
+        return normalized_value
 
     @property
     def cors_origins(self) -> list[str]:
