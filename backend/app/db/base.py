@@ -1,14 +1,37 @@
 from app.db.base_class import Base
-from app.models import AuditLog, Category, CategoryKeyword, EbayAccount, PasswordResetToken, RefreshToken, Role, User
+from app.models import (
+    AuditLog,
+    Category,
+    CategoryKeyword,
+    Conversation,
+    ConversationAssignment,
+    ConversationCategoryHistory,
+    ConversationParticipant,
+    ConversationStatusHistory,
+    EbayAccount,
+    Message,
+    PasswordResetToken,
+    RefreshToken,
+    Role,
+    SyncLog,
+    User,
+)
 
 __all__ = [
     'AuditLog',
     'Base',
     'Category',
     'CategoryKeyword',
+    'Conversation',
+    'ConversationAssignment',
+    'ConversationCategoryHistory',
+    'ConversationParticipant',
+    'ConversationStatusHistory',
     'EbayAccount',
+    'Message',
     'PasswordResetToken',
     'RefreshToken',
     'Role',
+    'SyncLog',
     'User',
 ]
