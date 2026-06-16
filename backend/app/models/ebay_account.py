@@ -15,9 +15,11 @@ class EbayEnvironment(str, enum.Enum):
 
 
 class EbayConnectionStatus(str, enum.Enum):
+    PENDING = 'PENDING'
     CONNECTED = 'CONNECTED'
     DISCONNECTED = 'DISCONNECTED'
     EXPIRED = 'EXPIRED'
+    FAILED = 'FAILED'
 
 
 class EbayAccount(Base):
@@ -40,6 +42,9 @@ class EbayAccount(Base):
     access_token: Mapped[str | None] = mapped_column(Text, nullable=True)
     refresh_token: Mapped[str | None] = mapped_column(Text, nullable=True)
     token_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    access_token_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    refresh_token_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_connected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     ebay_user_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     last_sync_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     sync_status: Mapped[str | None] = mapped_column(String(50), nullable=True)
