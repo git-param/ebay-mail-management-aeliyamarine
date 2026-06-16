@@ -1,5 +1,7 @@
 import { useState } from 'react'
 
+import { normalizeRole } from '../utils/roles'
+
 const NAV_ITEMS = [
   {
     label: 'Dashboard',
@@ -19,24 +21,13 @@ const NAV_ITEMS = [
     icon: 'bag',
     roles: ['ADMIN'],
   },
+  {
+    label: 'Categories',
+    path: '/categories',
+    icon: 'tag',
+    roles: ['ADMIN', 'OPS_MANAGER'],
+  },
 ]
-
-export function normalizeRole(role) {
-  const normalizedRole = String(role || '')
-    .trim()
-    .toUpperCase()
-    .replace(/[\s-]+/g, '_')
-
-  if (normalizedRole === 'OPERATIONS_MANAGER') {
-    return 'OPS_MANAGER'
-  }
-
-  if (normalizedRole === 'SUPPORT_AGENT') {
-    return 'AGENT'
-  }
-
-  return normalizedRole
-}
 
 function getInitials(name) {
   if (!name) {
@@ -56,6 +47,7 @@ export function Icon({ name }) {
     home: <path d="M3 10.5 10 4l7 6.5V18h-5v-5H8v5H3v-7.5Z" />,
     users: <path d="M7 10a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm6 8v-1a5 5 0 0 0-10 0v1m10-8a2.5 2.5 0 1 0 0-5m2 13v-1a4 4 0 0 0-3-3.87" />,
     bag: <path d="M5 7h10l1 10H4L5 7Zm3 0a2 2 0 0 1 4 0" />,
+    tag: <path d="M4 4h6l6 6-6 6-6-6V4Zm4 3h.01" />,
     plus: <path d="M10 4v12M4 10h12" />,
     dots: <path d="M5 10h.01M10 10h.01M15 10h.01" />,
     eye: <path d="M2 10s3-5 8-5 8 5 8 5-3 5-8 5-8-5-8-5Zm8 2a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z" />,
@@ -63,6 +55,7 @@ export function Icon({ name }) {
     key: <path d="M7 11a4 4 0 1 1 3.5 2H9l-1.5 1.5H6V16H4v-2h2l2.1-2.1A4 4 0 0 1 7 11Zm4-1h.01" />,
     disable: <path d="M4.5 4.5 15.5 15.5M17 10a7 7 0 0 1-10.8 5.9M3 10A7 7 0 0 1 13.8 4.1" />,
     activate: <path d="m4 10 4 4 8-8" />,
+    close: <path d="M5 5l10 10M15 5 5 15" />,
     bell: <path d="M6 15h8l-1-2V9a4 4 0 0 0-8 0v4l-1 2h2Zm3 2h2" />,
     moon: <path d="M14.5 13.5A6 6 0 0 1 7 6a6 6 0 1 0 7.5 7.5Z" />,
   }

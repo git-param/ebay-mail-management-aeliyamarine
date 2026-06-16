@@ -1,6 +1,6 @@
 import { useState } from 'react'
 
-import { normalizeRole } from './layouts/app_layout'
+import Categories from './pages/categories'
 import Dashboard from './pages/dashboard'
 import EbayAccounts from './pages/ebay_accounts'
 import ForgotPassword from './pages/forgot_password'
@@ -8,6 +8,7 @@ import Login from './pages/login'
 import LoginSuccess from './pages/login_success'
 import ResetPassword from './pages/reset_password'
 import Users from './pages/users'
+import { normalizeRole } from './utils/roles'
 import './App.css'
 
 const PUBLIC_ROUTES = [
@@ -48,6 +49,11 @@ const PROTECTED_ROUTES = [
     path: '/ebay-accounts',
     component: EbayAccounts,
     allowedRoles: ['ADMIN'],
+  },
+  {
+    path: '/categories',
+    component: Categories,
+    allowedRoles: ['ADMIN', 'OPS_MANAGER'],
   },
 ]
 
