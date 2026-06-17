@@ -36,6 +36,11 @@ const PUBLIC_ROUTES = [
 
 const PROTECTED_ROUTES = [
   {
+    path: '/inbox',
+    component: Dashboard,
+    allowedRoles: ['ADMIN', 'OPS_MANAGER', 'AGENT'],
+  },
+  {
     path: '/dashboard',
     component: Dashboard,
     allowedRoles: ['ADMIN', 'OPS_MANAGER', 'AGENT'],
@@ -135,7 +140,7 @@ function App() {
   }
 
   if (isAuthenticated && ['/', '/login', '/forgot-password', '/reset-password', '/login-success'].includes(currentPath)) {
-    return <Redirect to="/dashboard" />
+    return <Redirect to="/inbox" />
   }
 
   const publicRoute = PUBLIC_ROUTES.find(({ path }) => path === currentPath)
@@ -150,8 +155,8 @@ function App() {
       return <Redirect to="/login" />
     }
 
-    if (protectedRoute.path !== '/dashboard' && !protectedRoute.allowedRoles.includes(currentRole)) {
-      return <Redirect to="/dashboard" />
+    if (!['/dashboard', '/inbox'].includes(protectedRoute.path) && !protectedRoute.allowedRoles.includes(currentRole)) {
+      return <Redirect to="/inbox" />
     }
 
     const Page = protectedRoute.component

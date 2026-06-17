@@ -1,19 +1,1141 @@
-import AppLayout from '../layouts/app_layout'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 
-function Dashboard({ currentUser, onLogout }) {
+import AppLayout, { Icon } from '../layouts/app_layout'
+import { fetchCategories } from '../services/categoryApi'
+import {
+  assignConversation,
+  createConversationNote,
+  fetchConversation,
+  fetchConversationNotes,
+  fetchConversations,
+  updateConversationCategory,
+  updateConversationStatus,
+} from '../services/conversationApi'
+import { fetchEbayAccounts } from '../services/ebayAccountApi'
+import { fetchUsers } from '../services/userApi'
+
+const PAGE_SIZE = 25
+const STATUSES = ['OPEN', 'PENDING', 'RESOLVED', 'CLOSED']
+const LIST_WIDTH_KEY = 'inboxListPanelWidth'
+const DETAILS_WIDTH_KEY = 'inboxDetailsPanelWidth'
+
+function getStoredNumber(key, fallback) {
+  const value = Number(localStorage.getItem(key))
+  return Number.isFinite(value) ? value : fallback
+}
+
+function clamp(value, min, max) {
+  return Math.min(Math.max(value, min), max)
+}
+
+function formatDate(value) {
+  if (!value) {
+    return 'Not available'
+  }
+
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) {
+    return value
+  }
+
+  return date.toLocaleString(undefined, {
+    month: 'short',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
+function formatRelativeDeadline(value) {
+  if (!value) {
+    return 'No deadline'
+  }
+
+  const due = new Date(value)
+  if (Number.isNaN(due.getTime())) {
+    return value
+  }
+
+  const diffMs = due.getTime() - Date.now()
+  const absHours = Math.abs(diffMs) / 36e5
+  if (diffMs < 0) {
+    return absHours < 1 ? 'Overdue' : `${Math.ceil(absHours)}h overdue`
+  }
+
+  if (absHours < 1) {
+    return 'Due soon'
+  }
+
+  return `${Math.ceil(absHours)}h left`
+}
+
+function deadlineTone(value) {
+  if (!value) {
+    return 'neutral'
+  }
+
+  const diffMs = new Date(value).getTime() - Date.now()
+  if (diffMs < 0) {
+    return 'danger'
+  }
+  if (diffMs < 4 * 36e5) {
+    return 'warning'
+  }
+  return 'good'
+}
+
+function normalizeUser(user) {
+  return {
+    id: user.id,
+    fullName: user.full_name || user.name || user.fullName || user.email || 'Unknown user',
+    email: user.email || '',
+    role: user.role || '',
+    isActive: user.is_active !== false,
+  }
+}
+
+function normalizeCategory(category) {
+  return {
+    id: category.id,
+    name: category.name,
+    color: category.color || '#2563eb',
+    isActive: category.is_active !== false,
+  }
+}
+
+function normalizeAccount(account) {
+  return {
+    id: account.id,
+    label: account.ebay_username || account.store_name || account.account_name || account.id,
+  }
+}
+
+function getList(response) {
+  if (Array.isArray(response)) {
+    return response
+  }
+
+  return response.items || response.data || response.users || response.categories || []
+}
+
+function getInitials(name) {
+  return String(name || 'U')
+    .split(' ')
+    .map((part) => part[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase()
+}
+
+function userLabel(user) {
+  if (!user) {
+    return 'Unassigned'
+  }
+
+  return user.full_name || user.name || user.fullName || user.email || 'Unknown user'
+}
+
+function getLastMessagePreview(conversation) {
   return (
-    <AppLayout activePage="Dashboard" currentUser={currentUser} onLogout={onLogout}>
-      <main className="management-page">
-        <div className="page-header">
-          <div>
-            <h1>Dashboard</h1>
-            <p>Welcome to Omni-Desk</p>
-          </div>
+    conversation.last_message_preview ||
+    conversation.latest_message_preview ||
+    conversation.last_message_body ||
+    conversation.message_preview ||
+    conversation.subject ||
+    conversation.reference_id ||
+    'Open to read the latest message'
+  )
+}
+
+function ConversationBadge({ children, tone = 'neutral', color }) {
+  return (
+    <span
+      className={`conversation-badge conversation-badge-${tone}`}
+      style={color ? { '--badge-color': color } : undefined}
+    >
+      {children}
+    </span>
+  )
+}
+
+function EmptyPanel({ title, message }) {
+  return (
+    <div className="inbox-empty">
+      <h2>{title}</h2>
+      <p>{message}</p>
+    </div>
+  )
+}
+
+function FilterSelect({ label, value, onChange, children }) {
+  return (
+    <label className="field">
+      <span>{label}</span>
+      <select value={value} onChange={(event) => onChange(event.target.value)}>
+        {children}
+      </select>
+    </label>
+  )
+}
+
+function ConversationRow({ conversation, isSelected, onSelect }) {
+  const assignee = conversation.current_assignment?.assignee
+  const title = conversation.subject || conversation.reference_id || 'Customer message'
+  const categoryColor = conversation.category?.color
+  const deadline = formatRelativeDeadline(conversation.response_due_at)
+
+  return (
+    <button
+      className={`conversation-row ${isSelected ? 'active' : ''}`}
+      type="button"
+      onClick={() => onSelect(conversation.id)}
+    >
+      <span className="conversation-avatar">{getInitials(conversation.buyer_identifier)}</span>
+      <span className="conversation-row-main">
+        <span className="conversation-row-top">
+          <strong>{conversation.buyer_identifier || 'Unknown buyer'}</strong>
+          <time>{formatDate(conversation.last_message_at || conversation.updated_at)}</time>
+        </span>
+        <span className="conversation-title">{title}</span>
+        <span className="conversation-preview">{getLastMessagePreview(conversation)}</span>
+        <span className="conversation-tags">
+          <ConversationBadge tone="category" color={categoryColor}>
+            {conversation.category?.name || 'No category'}
+          </ConversationBadge>
+          <ConversationBadge tone={conversation.status?.toLowerCase()}>{conversation.status}</ConversationBadge>
+        </span>
+      </span>
+      <span className="ticket-source">
+        <span className="source-pill">{conversation.provider}</span>
+        <small>{conversation.reference_type || 'Message'}</small>
+      </span>
+      <span className="ticket-category">
+        <ConversationBadge tone="category" color={categoryColor}>
+          {conversation.category?.name || 'No category'}
+        </ConversationBadge>
+      </span>
+      <span className="ticket-assignee">{userLabel(assignee)}</span>
+      <span className="ticket-count" title="Message count">
+        <Icon name="message" />
+        {conversation.message_count || 0}
+      </span>
+      <span className={`ticket-deadline ticket-deadline-${deadlineTone(conversation.response_due_at)}`}>
+        <strong>{deadline}</strong>
+        <small>Respond by</small>
+      </span>
+      <time className="ticket-last">{formatDate(conversation.last_message_at || conversation.updated_at)}</time>
+    </button>
+  )
+}
+
+function FiltersDrawer({
+  isOpen,
+  filters,
+  users,
+  categories,
+  accounts,
+  onFilterChange,
+  onSearchSubmit,
+  onReset,
+  onClose,
+}) {
+  const [searchInput, setSearchInput] = useState(filters.search)
+
+  useEffect(() => {
+    setSearchInput(filters.search)
+  }, [filters.search])
+
+  if (!isOpen) {
+    return null
+  }
+
+  function submitSearch(event) {
+    event.preventDefault()
+    onSearchSubmit(searchInput)
+    onClose()
+  }
+
+  function resetFilters() {
+    setSearchInput('')
+    onReset()
+    onClose()
+  }
+
+  return (
+    <div className="filters-drawer-backdrop" role="presentation" onMouseDown={onClose}>
+      <aside
+        className="filters-drawer"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="filters-title"
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <div className="drawer-header">
+          <h2 id="filters-title">Filters</h2>
+          <button className="icon-button" type="button" onClick={onClose} aria-label="Close filters">
+            <Icon name="close" />
+          </button>
         </div>
 
-        <section className="dashboard-card">
-          <p>This dashboard is under development.</p>
+        <form className="filters-form" onSubmit={submitSearch}>
+          <label className="field">
+            <span>Search</span>
+            <input
+              type="search"
+              placeholder="Search buyer, subject, item, or message body"
+              value={searchInput}
+              onChange={(event) => setSearchInput(event.target.value)}
+            />
+          </label>
+
+          <FilterSelect label="Status" value={filters.status} onChange={(value) => onFilterChange('status', value)}>
+            <option value="">All statuses</option>
+            {STATUSES.map((status) => (
+              <option value={status} key={status}>
+                {status}
+              </option>
+            ))}
+          </FilterSelect>
+
+          <FilterSelect label="Provider" value={filters.provider} onChange={(value) => onFilterChange('provider', value)}>
+            <option value="">All providers</option>
+            <option value="ebay">eBay</option>
+          </FilterSelect>
+
+          <FilterSelect
+            label="eBay Account"
+            value={filters.ebay_account_id}
+            onChange={(value) => onFilterChange('ebay_account_id', value)}
+          >
+            <option value="">All accounts</option>
+            {accounts.map((account) => (
+              <option value={account.id} key={account.id}>
+                {account.label}
+              </option>
+            ))}
+          </FilterSelect>
+
+          <FilterSelect
+            label="Assigned User"
+            value={filters.assigned_user_id}
+            onChange={(value) => onFilterChange('assigned_user_id', value)}
+          >
+            <option value="">Anyone</option>
+            {users.map((user) => (
+              <option value={user.id} key={user.id}>
+                {user.fullName}
+              </option>
+            ))}
+          </FilterSelect>
+
+          <FilterSelect
+            label="Category"
+            value={filters.category_id}
+            onChange={(value) => onFilterChange('category_id', value)}
+          >
+            <option value="">All categories</option>
+            {categories.map((category) => (
+              <option value={category.id} key={category.id}>
+                {category.name}
+              </option>
+            ))}
+          </FilterSelect>
+
+          <div className="modal-actions">
+            <button className="secondary-button" type="button" onClick={resetFilters}>
+              Reset
+            </button>
+            <button className="primary-button compact" type="submit">
+              Apply
+            </button>
+          </div>
+        </form>
+      </aside>
+    </div>
+  )
+}
+
+function MessageThread({ messages }) {
+  if (!messages.length) {
+    return <EmptyPanel title="No messages yet" message="This conversation has no stored message bodies." />
+  }
+
+  return (
+    <div className="message-thread">
+      {messages.map((message) => (
+        <article className={`message-bubble ${message.is_inbound ? 'inbound' : 'outbound'}`} key={message.id}>
+          <div className="message-meta">
+            <strong>{message.sender_identifier || message.sender_type}</strong>
+            <time>{formatDate(message.sent_at)}</time>
+          </div>
+          <p>{message.body}</p>
+          <span>{message.read_status ? 'Read' : 'Unread'}</span>
+        </article>
+      ))}
+    </div>
+  )
+}
+
+function AssignmentPanel({ detail, users, usersError, isSubmitting, onAssign }) {
+  const currentAssignee = detail.current_assignment?.assignee
+  const assignments = detail.assignments || []
+  const [selectedUser, setSelectedUser] = useState(detail.current_assignee_id || '')
+
+  useEffect(() => {
+    setSelectedUser(detail.current_assignee_id || '')
+  }, [detail.current_assignee_id])
+
+  return (
+    <section className="detail-section">
+      <div className="section-heading">
+        <h3>Assignment</h3>
+        {currentAssignee ? <ConversationBadge tone="open">{userLabel(currentAssignee)}</ConversationBadge> : null}
+      </div>
+
+      <div className="assignment-form">
+        <select value={selectedUser} onChange={(event) => setSelectedUser(event.target.value)} disabled={Boolean(usersError)}>
+          <option value="">Select user</option>
+          {users.map((user) => (
+            <option value={user.id} key={user.id}>
+              {user.fullName}
+            </option>
+          ))}
+        </select>
+        <button
+          className="primary-button compact"
+          type="button"
+          disabled={!selectedUser || isSubmitting}
+          onClick={() => onAssign(selectedUser)}
+        >
+          {detail.current_assignee_id ? 'Reassign' : 'Assign'}
+        </button>
+      </div>
+
+      {usersError ? <p className="detail-warning">{usersError}</p> : null}
+
+      <div className="history-list">
+        {assignments.length ? (
+          assignments.map((assignment) => (
+            <div className="history-item" key={assignment.id}>
+              <strong>{userLabel(assignment.assignee)}</strong>
+              <span>
+                Assigned by {userLabel(assignment.assigner)} on {formatDate(assignment.assigned_at)}
+              </span>
+              {assignment.unassigned_at ? <small>Ended {formatDate(assignment.unassigned_at)}</small> : null}
+            </div>
+          ))
+        ) : (
+          <p className="detail-muted">No assignment history yet.</p>
+        )}
+      </div>
+    </section>
+  )
+}
+
+function CategoryPanel({ detail, categories, isSubmitting, onCategoryChange, onStatusChange }) {
+  return (
+    <section className="detail-section">
+      <div className="section-heading">
+        <h3>Workflow</h3>
+        <ConversationBadge tone={detail.status?.toLowerCase()}>{detail.status}</ConversationBadge>
+      </div>
+
+      <label className="field compact-field">
+        <span>Status</span>
+        <select value={detail.status || ''} onChange={(event) => onStatusChange(event.target.value)} disabled={isSubmitting}>
+          {STATUSES.map((status) => (
+            <option value={status} key={status}>
+              {status}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <label className="field compact-field">
+        <span>Category</span>
+        <select
+          value={detail.category_id || ''}
+          onChange={(event) => onCategoryChange(event.target.value)}
+          disabled={isSubmitting}
+        >
+          <option value="">No category</option>
+          {categories.map((category) => (
+            <option value={category.id} key={category.id}>
+              {category.name}
+            </option>
+          ))}
+        </select>
+      </label>
+    </section>
+  )
+}
+
+function NotesPanel({ notes, isLoading, isSubmitting, onAddNote }) {
+  const [body, setBody] = useState('')
+
+  async function submitNote(event) {
+    event.preventDefault()
+    if (!body.trim()) {
+      return
+    }
+
+    await onAddNote(body.trim())
+    setBody('')
+  }
+
+  return (
+    <section className="detail-section">
+      <div className="section-heading">
+        <h3>Internal Notes</h3>
+        <ConversationBadge>{notes.length}</ConversationBadge>
+      </div>
+
+      <form className="note-form" onSubmit={submitNote}>
+        <textarea
+          rows="3"
+          value={body}
+          onChange={(event) => setBody(event.target.value)}
+          placeholder="Add an internal note"
+        />
+        <button className="primary-button compact" type="submit" disabled={isSubmitting || !body.trim()}>
+          Add Note
+        </button>
+      </form>
+
+      {isLoading ? <p className="detail-muted">Loading notes...</p> : null}
+      <div className="notes-list">
+        {notes.length ? (
+          notes.map((note) => (
+            <article className="note-item" key={note.id}>
+              <p>{note.body}</p>
+              <span>
+                {userLabel(note.author)} - {formatDate(note.created_at)}
+              </span>
+            </article>
+          ))
+        ) : (
+          <p className="detail-muted">No internal notes yet.</p>
+        )}
+      </div>
+    </section>
+  )
+}
+
+function MetadataPanel({ detail, accounts }) {
+  const account = accounts.find((item) => item.id === detail.provider_account_id)
+
+  return (
+    <section className="detail-section">
+      <div className="section-heading">
+        <h3>Metadata</h3>
+        <ConversationBadge>{detail.provider}</ConversationBadge>
+      </div>
+      <dl className="metadata-list">
+        <div>
+          <dt>Buyer</dt>
+          <dd>{detail.buyer_identifier || 'Not available'}</dd>
+        </div>
+        <div>
+          <dt>eBay Account</dt>
+          <dd>{account?.label || detail.provider_account_id || 'Not available'}</dd>
+        </div>
+        <div>
+          <dt>Conversation ID</dt>
+          <dd>{detail.provider_conversation_id}</dd>
+        </div>
+        <div>
+          <dt>Reference</dt>
+          <dd>{detail.reference_id || 'Not available'}</dd>
+        </div>
+        <div>
+          <dt>Reference Type</dt>
+          <dd>{detail.reference_type || 'Not available'}</dd>
+        </div>
+        <div>
+          <dt>Unread</dt>
+          <dd>{detail.unread_count}</dd>
+        </div>
+      </dl>
+    </section>
+  )
+}
+
+function DetailsPanel({
+  detail,
+  notes,
+  users,
+  usersError,
+  categories,
+  accounts,
+  notesLoading,
+  isSubmitting,
+  onAssign,
+  onAddNote,
+  onCategoryChange,
+  onStatusChange,
+}) {
+  return (
+    <aside className="side-detail-panel">
+      <AssignmentPanel detail={detail} users={users} usersError={usersError} isSubmitting={isSubmitting} onAssign={onAssign} />
+      <CategoryPanel
+        detail={detail}
+        categories={categories}
+        isSubmitting={isSubmitting}
+        onCategoryChange={onCategoryChange}
+        onStatusChange={onStatusChange}
+      />
+      <MetadataPanel detail={detail} accounts={accounts} />
+      <NotesPanel notes={notes} isLoading={notesLoading} isSubmitting={isSubmitting} onAddNote={onAddNote} />
+    </aside>
+  )
+}
+
+function ConversationDetail({
+  detail,
+  notes,
+  users,
+  usersError,
+  categories,
+  accounts,
+  isLoading,
+  notesLoading,
+  actionError,
+  isSubmitting,
+  isDetailsOpen,
+  mobilePane,
+  onBack,
+  onOpenDetails,
+  onHideDetails,
+  onCloseDetails,
+  onAssign,
+  onAddNote,
+  onCategoryChange,
+  onStatusChange,
+}) {
+  if (isLoading) {
+    return <EmptyPanel title="Loading conversation..." message="Fetching the latest conversation detail." />
+  }
+
+  if (!detail) {
+    return <EmptyPanel title="Select a conversation" message="Choose a conversation from the inbox to inspect it." />
+  }
+
+  const isDetailsView = mobilePane === 'details'
+  const detailsButtonLabel = isDetailsView ? 'Thread' : isDetailsOpen ? 'Hide Details' : 'Details'
+  const detailsButtonAction = isDetailsView ? onCloseDetails : isDetailsOpen ? onHideDetails : onOpenDetails
+
+  return (
+    <section className="conversation-detail" aria-label="Conversation detail">
+      <div className="detail-header">
+        <div>
+          <button className="thread-back-button" type="button" onClick={onBack}>
+            Back to inbox
+          </button>
+          <p>{detail.buyer_identifier || 'Unknown buyer'}</p>
+          <h2>{detail.subject || detail.reference_id || 'Customer message'}</h2>
+        </div>
+        <div className="detail-header-actions">
+          <ConversationBadge tone={detail.provider_conversation_status === 'ACTIVE' ? 'open' : 'neutral'}>
+            {detail.provider_conversation_status || 'Unknown'}
+          </ConversationBadge>
+          <button className="secondary-button compact-action" type="button" onClick={detailsButtonAction}>
+            {detailsButtonLabel}
+          </button>
+        </div>
+      </div>
+
+      {actionError ? (
+        <p className="form-message error management-error" role="alert">
+          {actionError}
+        </p>
+      ) : null}
+
+      {isDetailsView ? (
+        <DetailsPanel
+          detail={detail}
+          notes={notes}
+          users={users}
+          usersError={usersError}
+          categories={categories}
+          accounts={accounts}
+          notesLoading={notesLoading}
+          isSubmitting={isSubmitting}
+          onAssign={onAssign}
+          onAddNote={onAddNote}
+          onCategoryChange={onCategoryChange}
+          onStatusChange={onStatusChange}
+        />
+      ) : (
+        <div className="thread-panel">
+          <MessageThread messages={detail.messages || []} />
+        </div>
+      )}
+    </section>
+  )
+}
+
+function Dashboard({ currentUser, onLogout }) {
+  const [filters, setFilters] = useState({
+    search: '',
+    status: '',
+    provider: 'ebay',
+    ebay_account_id: '',
+    assigned_user_id: '',
+    category_id: '',
+  })
+  const [page, setPage] = useState(0)
+  const [conversations, setConversations] = useState([])
+  const [total, setTotal] = useState(0)
+  const [selectedConversationId, setSelectedConversationId] = useState('')
+  const [detail, setDetail] = useState(null)
+  const [notes, setNotes] = useState([])
+  const [users, setUsers] = useState([])
+  const [categories, setCategories] = useState([])
+  const [accounts, setAccounts] = useState([])
+  const [listWidth, setListWidth] = useState(() => getStoredNumber(LIST_WIDTH_KEY, 420))
+  const [detailsWidth, setDetailsWidth] = useState(() => getStoredNumber(DETAILS_WIDTH_KEY, 360))
+  const [isDetailsOpen, setIsDetailsOpen] = useState(true)
+  const [isFiltersOpen, setIsFiltersOpen] = useState(false)
+  const [mobilePane, setMobilePane] = useState('list')
+  const [isListLoading, setIsListLoading] = useState(true)
+  const [isDetailLoading, setIsDetailLoading] = useState(false)
+  const [isNotesLoading, setIsNotesLoading] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [listError, setListError] = useState('')
+  const [detailError, setDetailError] = useState('')
+  const [actionError, setActionError] = useState('')
+  const [usersError, setUsersError] = useState('')
+
+  const offset = page * PAGE_SIZE
+  const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE))
+  const hasSelectedConversation = Boolean(selectedConversationId)
+
+  const workspaceStyle = hasSelectedConversation
+    ? {
+        gridTemplateColumns: isDetailsOpen
+          ? `${listWidth}px 8px minmax(0, 1fr) 8px ${detailsWidth}px`
+          : `${listWidth}px 8px minmax(0, 1fr)`,
+      }
+    : undefined
+
+  const loadConversations = useCallback(async () => {
+    setIsListLoading(true)
+    setListError('')
+
+    try {
+      const response = await fetchConversations({
+        limit: PAGE_SIZE,
+        offset,
+        ...filters,
+      })
+      setConversations(response.items || [])
+      setTotal(response.total || 0)
+    } catch (caughtError) {
+      setListError(caughtError.message)
+      setConversations([])
+      setTotal(0)
+    } finally {
+      setIsListLoading(false)
+    }
+  }, [filters, offset])
+
+  const loadConversationDetail = useCallback(async (conversationId) => {
+    if (!conversationId) {
+      setDetail(null)
+      setNotes([])
+      return
+    }
+
+    setIsDetailLoading(true)
+    setDetailError('')
+
+    try {
+      const response = await fetchConversation(conversationId)
+      setDetail(response)
+    } catch (caughtError) {
+      setDetailError(caughtError.message)
+      setDetail(null)
+    } finally {
+      setIsDetailLoading(false)
+    }
+  }, [])
+
+  const loadNotes = useCallback(async (conversationId) => {
+    if (!conversationId) {
+      setNotes([])
+      return
+    }
+
+    setIsNotesLoading(true)
+
+    try {
+      const response = await fetchConversationNotes(conversationId)
+      setNotes(getList(response))
+    } catch {
+      setNotes([])
+    } finally {
+      setIsNotesLoading(false)
+    }
+  }, [])
+
+  async function loadSupportData() {
+    const [categoryResult, accountResult, userResult] = await Promise.allSettled([
+      fetchCategories(),
+      fetchEbayAccounts(),
+      fetchUsers(),
+    ])
+
+    if (categoryResult.status === 'fulfilled') {
+      setCategories(getList(categoryResult.value).map(normalizeCategory).filter((category) => category.isActive))
+    }
+
+    if (accountResult.status === 'fulfilled') {
+      setAccounts(getList(accountResult.value).map(normalizeAccount))
+    }
+
+    if (userResult.status === 'fulfilled') {
+      setUsers(getList(userResult.value).map(normalizeUser).filter((user) => user.isActive))
+      setUsersError('')
+    } else {
+      setUsersError(userResult.reason?.message || 'Users are unavailable for assignment.')
+    }
+  }
+
+  useEffect(() => {
+    loadSupportData()
+  }, [])
+
+  useEffect(() => {
+    loadConversations()
+  }, [loadConversations])
+
+  useEffect(() => {
+    loadConversationDetail(selectedConversationId)
+    loadNotes(selectedConversationId)
+  }, [loadConversationDetail, loadNotes, selectedConversationId])
+
+  useEffect(() => {
+    localStorage.setItem(LIST_WIDTH_KEY, String(listWidth))
+  }, [listWidth])
+
+  useEffect(() => {
+    localStorage.setItem(DETAILS_WIDTH_KEY, String(detailsWidth))
+  }, [detailsWidth])
+
+  const selectedConversation = useMemo(
+    () => conversations.find((conversation) => conversation.id === selectedConversationId),
+    [conversations, selectedConversationId],
+  )
+
+  function beginListResize(event) {
+    event.preventDefault()
+
+    function move(mouseEvent) {
+      setListWidth(clamp(mouseEvent.clientX - 272, 320, 680))
+    }
+
+    function stop() {
+      window.removeEventListener('mousemove', move)
+      window.removeEventListener('mouseup', stop)
+    }
+
+    window.addEventListener('mousemove', move)
+    window.addEventListener('mouseup', stop)
+  }
+
+  function beginDetailsResize(event) {
+    event.preventDefault()
+
+    function move(mouseEvent) {
+      setDetailsWidth(clamp(window.innerWidth - mouseEvent.clientX, 300, 560))
+    }
+
+    function stop() {
+      window.removeEventListener('mousemove', move)
+      window.removeEventListener('mouseup', stop)
+    }
+
+    window.addEventListener('mousemove', move)
+    window.addEventListener('mouseup', stop)
+  }
+
+  function selectConversation(conversationId) {
+    setSelectedConversationId(conversationId)
+    setMobilePane('thread')
+  }
+
+  function returnToList() {
+    setSelectedConversationId('')
+    setDetail(null)
+    setNotes([])
+    setMobilePane('list')
+  }
+
+  function changeFilter(key, value) {
+    setFilters((current) => ({ ...current, [key]: value }))
+    setPage(0)
+    setSelectedConversationId('')
+    setMobilePane('list')
+  }
+
+  function resetFilters() {
+    setFilters({
+      search: '',
+      status: '',
+      provider: 'ebay',
+      ebay_account_id: '',
+      assigned_user_id: '',
+      category_id: '',
+    })
+    setPage(0)
+    setSelectedConversationId('')
+    setMobilePane('list')
+  }
+
+  async function refreshSelectedConversation() {
+    await Promise.all([
+      loadConversations(),
+      selectedConversationId ? loadConversationDetail(selectedConversationId) : Promise.resolve(),
+      selectedConversationId ? loadNotes(selectedConversationId) : Promise.resolve(),
+    ])
+  }
+
+  async function handleAssign(userId) {
+    if (!selectedConversationId) {
+      return
+    }
+
+    setIsSubmitting(true)
+    setActionError('')
+
+    try {
+      await assignConversation(selectedConversationId, userId)
+      await refreshSelectedConversation()
+    } catch (caughtError) {
+      setActionError(caughtError.message)
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  async function handleAddNote(body) {
+    if (!selectedConversationId) {
+      return
+    }
+
+    setIsSubmitting(true)
+    setActionError('')
+
+    try {
+      await createConversationNote(selectedConversationId, body)
+      await loadNotes(selectedConversationId)
+      await loadConversationDetail(selectedConversationId)
+    } catch (caughtError) {
+      setActionError(caughtError.message)
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  async function handleCategoryChange(categoryId) {
+    if (!selectedConversationId) {
+      return
+    }
+
+    setIsSubmitting(true)
+    setActionError('')
+
+    try {
+      const response = await updateConversationCategory(selectedConversationId, categoryId)
+      setDetail(response)
+      await loadConversations()
+    } catch (caughtError) {
+      setActionError(caughtError.message)
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  async function handleStatusChange(status) {
+    if (!selectedConversationId) {
+      return
+    }
+
+    setIsSubmitting(true)
+    setActionError('')
+
+    try {
+      const response = await updateConversationStatus(selectedConversationId, status)
+      setDetail(response)
+      await loadConversations()
+    } catch (caughtError) {
+      setActionError(caughtError.message)
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  return (
+    <AppLayout activePage="Inbox" currentUser={currentUser} onLogout={onLogout}>
+      <main
+        className={`inbox-page ${hasSelectedConversation ? 'conversation-open' : 'list-only'} ${isDetailsOpen ? '' : 'details-collapsed'}`}
+        style={workspaceStyle}
+        data-mobile-pane={mobilePane}
+      >
+        <section className="inbox-list-panel" aria-label="Conversation list">
+          <div className="inbox-header">
+            <div>
+              <h1>Inbox</h1>
+              <p>{total} conversations</p>
+            </div>
+            <div className="inbox-header-actions">
+              <button className="secondary-button compact-action" type="button" onClick={() => setIsFiltersOpen(true)}>
+                Filters
+              </button>
+              <button className="icon-button" type="button" onClick={loadConversations} aria-label="Refresh conversations">
+                <Icon name="activate" />
+              </button>
+            </div>
+          </div>
+
+          <form
+            className="inbox-search-bar"
+            onSubmit={(event) => {
+              event.preventDefault()
+              const formData = new FormData(event.currentTarget)
+              changeFilter('search', String(formData.get('search') || '').trim())
+            }}
+          >
+            <input name="search" type="search" placeholder="Search conversations" defaultValue={filters.search} />
+            <button className="secondary-button" type="submit">
+              Search
+            </button>
+          </form>
+
+          <div className="conversation-table-head" aria-hidden="true">
+            <span></span>
+            <span>Customer</span>
+            <span>Source</span>
+            <span>Label</span>
+            <span>Assigned</span>
+            <span>Count</span>
+            <span>Respond</span>
+            <span>Last activity</span>
+          </div>
+
+          {listError ? (
+            <p className="form-message error management-error" role="alert">
+              {listError}
+            </p>
+          ) : null}
+
+          <div className="conversation-list">
+            {isListLoading ? (
+              <EmptyPanel title="Loading conversations..." message="Fetching the latest inbox data." />
+            ) : conversations.length ? (
+              conversations.map((conversation) => (
+                <ConversationRow
+                  conversation={conversation}
+                  isSelected={conversation.id === selectedConversationId}
+                  onSelect={selectConversation}
+                  key={conversation.id}
+                />
+              ))
+            ) : (
+              <EmptyPanel title="No conversations found" message="Adjust filters or sync eBay conversations first." />
+            )}
+          </div>
+
+          <div className="pagination-bar">
+            <button className="secondary-button" type="button" disabled={page === 0} onClick={() => setPage(page - 1)}>
+              Previous
+            </button>
+            <span>
+              Page {page + 1} of {pageCount}
+            </span>
+            <button
+              className="secondary-button"
+              type="button"
+              disabled={page + 1 >= pageCount}
+              onClick={() => setPage(page + 1)}
+            >
+              Next
+            </button>
+          </div>
         </section>
+
+        {hasSelectedConversation ? (
+          <>
+            <button className="resize-handle" type="button" onMouseDown={beginListResize} aria-label="Resize conversation list" />
+
+            <section className="inbox-detail-panel">
+              {detailError ? (
+                <p className="form-message error management-error" role="alert">
+                  {detailError}
+                </p>
+              ) : null}
+              <ConversationDetail
+                detail={detail || selectedConversation}
+                notes={notes}
+                users={users}
+                usersError={usersError}
+                categories={categories}
+                accounts={accounts}
+                isLoading={isDetailLoading}
+                notesLoading={isNotesLoading}
+                actionError={actionError}
+                isSubmitting={isSubmitting}
+                isDetailsOpen={isDetailsOpen}
+                mobilePane={mobilePane}
+                onBack={returnToList}
+                onOpenDetails={() => {
+                  setIsDetailsOpen(true)
+                  if (window.innerWidth <= 820) {
+                    setMobilePane('details')
+                  }
+                }}
+                onHideDetails={() => setIsDetailsOpen(false)}
+                onCloseDetails={() => setMobilePane('thread')}
+                onAssign={handleAssign}
+                onAddNote={handleAddNote}
+                onCategoryChange={handleCategoryChange}
+                onStatusChange={handleStatusChange}
+              />
+            </section>
+
+            {isDetailsOpen ? (
+              <>
+                <button className="resize-handle" type="button" onMouseDown={beginDetailsResize} aria-label="Resize details panel" />
+                <DetailsPanel
+                  detail={detail || selectedConversation}
+                  notes={notes}
+                  users={users}
+                  usersError={usersError}
+                  categories={categories}
+                  accounts={accounts}
+                  notesLoading={isNotesLoading}
+                  isSubmitting={isSubmitting}
+                  onAssign={handleAssign}
+                  onAddNote={handleAddNote}
+                  onCategoryChange={handleCategoryChange}
+                  onStatusChange={handleStatusChange}
+                />
+              </>
+            ) : null}
+          </>
+        ) : null}
+
+        <FiltersDrawer
+          isOpen={isFiltersOpen}
+          filters={filters}
+          users={users}
+          categories={categories}
+          accounts={accounts}
+          onFilterChange={changeFilter}
+          onSearchSubmit={(search) => changeFilter('search', search.trim())}
+          onReset={resetFilters}
+          onClose={() => setIsFiltersOpen(false)}
+        />
       </main>
     </AppLayout>
   )

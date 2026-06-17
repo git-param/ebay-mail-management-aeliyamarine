@@ -4,8 +4,8 @@ import { normalizeRole } from '../utils/roles'
 
 const NAV_ITEMS = [
   {
-    label: 'Dashboard',
-    path: '/dashboard',
+    label: 'Inbox',
+    path: '/inbox',
     icon: 'home',
     roles: ['ADMIN', 'OPS_MANAGER', 'AGENT'],
   },
@@ -57,6 +57,7 @@ export function Icon({ name }) {
     activate: <path d="m4 10 4 4 8-8" />,
     close: <path d="M5 5l10 10M15 5 5 15" />,
     bell: <path d="M6 15h8l-1-2V9a4 4 0 0 0-8 0v4l-1 2h2Zm3 2h2" />,
+    message: <path d="M4 5h12v8H7l-3 3V5Zm3 3h6M7 10h4" />,
     moon: <path d="M14.5 13.5A6 6 0 0 1 7 6a6 6 0 1 0 7.5 7.5Z" />,
   }
 
@@ -69,6 +70,7 @@ export function Icon({ name }) {
 
 function AppLayout({ activePage, children, currentUser, onLogout }) {
   const [isProfileOpen, setIsProfileOpen] = useState(false)
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false)
   const userRole = normalizeRole(currentUser?.role)
   const visibleItems = NAV_ITEMS.filter((item) => item.roles.includes(userRole))
   const displayName = currentUser?.full_name || currentUser?.fullName || currentUser?.email || 'User'
@@ -112,10 +114,24 @@ function AppLayout({ activePage, children, currentUser, onLogout }) {
             <input type="search" placeholder="Search conversations, users, orders" />
           </label>
           <div className="top-actions">
-            <button className="icon-button" type="button" aria-label="Notifications">
+            <div className="notification-menu-wrap">
+            <button
+              className="icon-button"
+              type="button"
+              aria-label="Notifications"
+              aria-expanded={isNotificationsOpen}
+              onClick={() => setIsNotificationsOpen((current) => !current)}
+            >
               <Icon name="bell" />
-              <span className="notify-dot">3</span>
+              <span className="notify-dot">0</span>
             </button>
+              {isNotificationsOpen ? (
+                <div className="notification-menu">
+                  <strong>Notifications</strong>
+                  <p>No new notifications right now.</p>
+                </div>
+              ) : null}
+            </div>
             <button className="icon-button" type="button" aria-label="Theme">
               <Icon name="moon" />
             </button>

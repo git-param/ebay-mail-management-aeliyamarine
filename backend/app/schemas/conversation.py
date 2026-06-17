@@ -6,6 +6,19 @@ from pydantic import BaseModel, Field
 from app.models.conversation import ConversationStatus, MessageSenderType, SyncLogStatus
 
 
+class UserBriefResponse(BaseModel):
+    id: UUID
+    full_name: str
+    email: str
+    role: str
+
+
+class CategoryBriefResponse(BaseModel):
+    id: UUID
+    name: str
+    color: str
+
+
 class ConversationSummaryResponse(BaseModel):
     id: UUID
     provider: str
@@ -18,12 +31,17 @@ class ConversationSummaryResponse(BaseModel):
     reference_id: str | None = None
     reference_type: str | None = None
     unread_count: int = 0
+    message_count: int = 0
+    last_message_preview: str | None = None
+    response_due_at: datetime | None = None
     status: ConversationStatus
     category_id: UUID | None
+    category: CategoryBriefResponse | None = None
     last_message_at: datetime | None
     external_created_at: datetime | None
     created_at: datetime
     updated_at: datetime
+    current_assignment: 'ConversationAssignmentResponse | None' = None
 
 
 class MessageResponse(BaseModel):
@@ -44,6 +62,8 @@ class MessageResponse(BaseModel):
 class ConversationDetailResponse(ConversationSummaryResponse):
     current_assignee_id: UUID | None = None
     messages: list[MessageResponse] = Field(default_factory=list)
+    assignments: list['ConversationAssignmentResponse'] = Field(default_factory=list)
+    notes: list['ConversationNoteResponse'] = Field(default_factory=list)
 
 
 class ConversationPageResponse(BaseModel):
@@ -60,10 +80,26 @@ class ConversationAssignmentResponse(BaseModel):
     assigned_by: UUID
     assigned_at: datetime
     unassigned_at: datetime | None
+    assignee: UserBriefResponse | None = None
+    assigner: UserBriefResponse | None = None
 
 
 class AssignConversationRequest(BaseModel):
     assigned_to: UUID
+
+
+class ConversationNoteCreateRequest(BaseModel):
+    body: str = Field(min_length=1, max_length=5000)
+
+
+class ConversationNoteResponse(BaseModel):
+    id: UUID
+    conversation_id: UUID
+    author_id: UUID
+    body: str
+    created_at: datetime
+    updated_at: datetime
+    author: UserBriefResponse | None = None
 
 
 class UpdateConversationStatusRequest(BaseModel):
