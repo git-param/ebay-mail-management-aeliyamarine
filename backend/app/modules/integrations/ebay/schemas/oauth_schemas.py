@@ -16,6 +16,10 @@ class EbayConnectResponse(BaseModel):
 class EbayOAuthCallbackResponse(BaseModel):
     account_id: UUID
     connection_status: str
+    ebay_username: str
+    ebay_user_id: str | None = None
+    seller_account_id: str | None = None
+    store_name: str | None = None
     access_token_expires_at: datetime | None
     refresh_token_expires_at: datetime | None
     message: str

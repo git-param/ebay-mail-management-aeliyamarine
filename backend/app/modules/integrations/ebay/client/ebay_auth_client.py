@@ -11,7 +11,11 @@ from fastapi import HTTPException, status
 
 logger = logging.getLogger(__name__)
 
-EBAY_OAUTH_SCOPES = ['https://api.ebay.com/oauth/api_scope/commerce.message']
+EBAY_OAUTH_SCOPES = [
+    'https://api.ebay.com/oauth/api_scope/commerce.message',
+    'https://api.ebay.com/oauth/api_scope/commerce.identity.readonly',
+]
+EBAY_REFRESH_SCOPES = ['https://api.ebay.com/oauth/api_scope/commerce.message']
 
 
 @dataclass(frozen=True)
@@ -20,6 +24,14 @@ class EbayTokenPayload:
     refresh_token: str | None
     expires_in: int | None
     refresh_token_expires_in: int | None
+
+
+@dataclass(frozen=True)
+class EbaySellerIdentity:
+    username: str
+    user_id: str
+    seller_account_id: str
+    store_name: str | None
 
 
 class EbayAuthClient:
@@ -59,6 +71,12 @@ class EbayAuthClient:
             return 'https://api.ebay.com/identity/v1/oauth2/token'
         return 'https://api.sandbox.ebay.com/identity/v1/oauth2/token'
 
+    @property
+    def identity_user_url(self) -> str:
+        if self.environment == 'PRODUCTION':
+            return 'https://apiz.ebay.com/commerce/identity/v1/user/'
+        return 'https://apiz.sandbox.ebay.com/commerce/identity/v1/user/'
+
     def build_authorization_url(self, *, state: str) -> str:
         query = urlencode(
             {
@@ -85,9 +103,71 @@ class EbayAuthClient:
             {
                 'grant_type': 'refresh_token',
                 'refresh_token': refresh_token,
-                'scope': ' '.join(EBAY_OAUTH_SCOPES),
+                'scope': ' '.join(EBAY_REFRESH_SCOPES),
             }
         )
+
+    def get_authenticated_seller_identity(self, access_token: str) -> EbaySellerIdentity:
+        request = Request(
+            self.identity_user_url,
+            headers={
+                'Authorization': f'Bearer {access_token}',
+                'Accept': 'application/json',
+            },
+            method='GET',
+        )
+        try:
+            with urlopen(request, timeout=20) as response:
+                data = json.loads(response.read().decode('utf-8'))
+        except HTTPError as exc:
+            error_body = ''
+            try:
+                error_body = exc.read().decode('utf-8')
+            except Exception:
+                pass
+            logger.error(
+                'eBay seller identity lookup failed. Status=%s Body=%s',
+                exc.code,
+                error_body,
+            )
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail='Unable to verify eBay seller identity',
+            ) from exc
+        except (URLError, TimeoutError, json.JSONDecodeError) as exc:
+            logger.warning('Unable to reach or parse eBay seller identity response')
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail='Unable to verify eBay seller identity',
+            ) from exc
+
+        username = self._non_empty_string(data.get('username'))
+        user_id = self._non_empty_string(data.get('userId'))
+        if not username or not user_id:
+            logger.error('eBay seller identity response did not include username and userId')
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail='eBay seller identity response was invalid',
+            )
+
+        business_account = data.get('businessAccount') if isinstance(data.get('businessAccount'), dict) else {}
+        store_name = (
+            self._non_empty_string(business_account.get('doingBusinessAs'))
+            or self._non_empty_string(business_account.get('name'))
+        )
+        seller_identity = EbaySellerIdentity(
+            username=username,
+            user_id=user_id,
+            seller_account_id=user_id,
+            store_name=store_name,
+        )
+        logger.info(
+            'Verified eBay seller identity username=%s user_id=%s store_name=%s',
+            seller_identity.username,
+            seller_identity.user_id,
+            seller_identity.store_name,
+        )
+        return seller_identity
 
     def _request_tokens(self, payload: dict[str, str]) -> EbayTokenPayload:
         body = urlencode(payload).encode('utf-8')
@@ -151,3 +231,8 @@ class EbayAuthClient:
             expires_in=data.get('expires_in'),
             refresh_token_expires_in=data.get('refresh_token_expires_in'),
         )
+
+    def _non_empty_string(self, value: object) -> str | None:
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+        return None

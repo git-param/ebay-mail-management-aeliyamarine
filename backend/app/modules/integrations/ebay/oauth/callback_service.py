@@ -1,4 +1,5 @@
 import logging
+from urllib.parse import unquote
 
 from fastapi import HTTPException, status
 from sqlalchemy import select
@@ -8,8 +9,6 @@ from app.core.config import get_settings
 from app.models.ebay_account import EbayAccount, EbayConnectionStatus
 from app.modules.integrations.ebay.client.ebay_auth_client import EbayAuthClient
 from app.modules.integrations.ebay.oauth.token_service import EbayTokenService
-from urllib.parse import unquote
-
 
 
 logger = logging.getLogger(__name__)
@@ -44,9 +43,20 @@ class EbayOAuthCallbackService:
             logger.warning('eBay OAuth callback missing authorization code for account %s', account.id)
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Authorization code is missing')
 
-        try:            
+        try:
             decoded_code = unquote(code)
             token_payload = self.client.exchange_code_for_tokens(decoded_code)
+            seller_identity = self.client.get_authenticated_seller_identity(token_payload.access_token)
+            account.ebay_username = seller_identity.username
+            account.ebay_user_id = seller_identity.seller_account_id
+            account.store_name = seller_identity.store_name
+            logger.info(
+                'Persisting verified eBay seller identity for account %s username=%s user_id=%s store_name=%s',
+                account.id,
+                seller_identity.username,
+                seller_identity.user_id,
+                seller_identity.store_name,
+            )
 
             connected_account = EbayTokenService(self.db).store_tokens(account, token_payload)
             logger.info('eBay OAuth callback token exchange succeeded for account %s', account.id)
@@ -55,7 +65,7 @@ class EbayOAuthCallbackService:
             account.connection_status = EbayConnectionStatus.FAILED
             account.oauth_state = None
             self.db.commit()
-            logger.warning('eBay OAuth callback token exchange failed for account %s', account.id)
+            logger.warning('eBay OAuth callback completion failed for account %s', account.id)
             raise
 
     def _get_account_by_state(self, state: str | None) -> EbayAccount:

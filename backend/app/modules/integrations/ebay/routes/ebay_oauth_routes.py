@@ -47,6 +47,10 @@ def handle_ebay_oauth_callback(
     return EbayOAuthCallbackResponse(
         account_id=account.id,
         connection_status=account.connection_status.value,
+        ebay_username=account.ebay_username,
+        ebay_user_id=account.ebay_user_id,
+        seller_account_id=account.ebay_user_id,
+        store_name=account.store_name,
         access_token_expires_at=account.access_token_expires_at,
         refresh_token_expires_at=account.refresh_token_expires_at,
         message='eBay account connected successfully',
