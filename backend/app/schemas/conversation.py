@@ -13,16 +13,17 @@ class ConversationSummaryResponse(BaseModel):
     provider_account_id: UUID | None
     subject: str | None
     buyer_identifier: str | None
+    provider_conversation_status: str | None = None
+    provider_conversation_type: str | None = None
+    reference_id: str | None = None
+    reference_type: str | None = None
+    unread_count: int = 0
     status: ConversationStatus
     category_id: UUID | None
     last_message_at: datetime | None
     external_created_at: datetime | None
     created_at: datetime
     updated_at: datetime
-
-
-class ConversationDetailResponse(ConversationSummaryResponse):
-    current_assignee_id: UUID | None = None
 
 
 class MessageResponse(BaseModel):
@@ -32,10 +33,24 @@ class MessageResponse(BaseModel):
     provider_message_id: str
     sender_type: MessageSenderType
     sender_identifier: str | None
+    recipient_identifier: str | None = None
     body: str
+    read_status: bool | None = None
     is_inbound: bool
     sent_at: datetime
     created_at: datetime
+
+
+class ConversationDetailResponse(ConversationSummaryResponse):
+    current_assignee_id: UUID | None = None
+    messages: list[MessageResponse] = Field(default_factory=list)
+
+
+class ConversationPageResponse(BaseModel):
+    items: list[ConversationSummaryResponse]
+    total: int
+    limit: int
+    offset: int
 
 
 class ConversationAssignmentResponse(BaseModel):

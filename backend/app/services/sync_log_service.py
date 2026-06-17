@@ -49,6 +49,27 @@ class SyncLogService:
         self.db.refresh(sync_log)
         return sync_log
 
+    def update_progress(
+        self,
+        sync_log_id: UUID,
+        *,
+        records_processed: int,
+        sync_metadata: dict | None = None,
+    ) -> SyncLog:
+        sync_log = self.repository.get_by_id(sync_log_id)
+        if not sync_log:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Sync log not found')
+
+        sync_log.records_processed = records_processed
+        if sync_metadata:
+            sync_log.sync_metadata = {
+                **(sync_log.sync_metadata or {}),
+                **sync_metadata,
+            }
+        self.db.commit()
+        self.db.refresh(sync_log)
+        return sync_log
+
     def fail_sync(self, sync_log_id: UUID, error_message: str) -> SyncLog:
         sync_log = self.repository.get_by_id(sync_log_id)
         if not sync_log:

@@ -34,6 +34,13 @@ class EbaySellerIdentity:
     store_name: str | None
 
 
+@dataclass(frozen=True)
+class EbayRawApiResponse:
+    status_code: int
+    payload: dict | list | str
+    ok: bool
+
+
 class EbayAuthClient:
     def __init__(
         self,
@@ -76,6 +83,12 @@ class EbayAuthClient:
         if self.environment == 'PRODUCTION':
             return 'https://apiz.ebay.com/commerce/identity/v1/user/'
         return 'https://apiz.sandbox.ebay.com/commerce/identity/v1/user/'
+
+    @property
+    def conversations_url(self) -> str:
+        if self.environment == 'PRODUCTION':
+            return 'https://api.ebay.com/commerce/message/v1/conversation'
+        return 'https://api.sandbox.ebay.com/commerce/message/v1/conversation'
 
     def build_authorization_url(self, *, state: str) -> str:
         query = urlencode(
@@ -169,6 +182,74 @@ class EbayAuthClient:
         )
         return seller_identity
 
+    def get_conversations_raw(
+        self,
+        access_token: str,
+        *,
+        conversation_type: str = 'FROM_MEMBERS',
+        limit: int = 10,
+        offset: int = 0,
+    ) -> EbayRawApiResponse:
+        request_url = f'{self.conversations_url}?{urlencode({"conversation_type": conversation_type, "limit": limit, "offset": offset})}'
+        return self._request_message_api_raw(access_token, request_url=request_url, method='GET')
+
+    def get_conversations(
+        self,
+        access_token: str,
+        *,
+        conversation_type: str = 'FROM_MEMBERS',
+        limit: int = 50,
+        offset: int = 0,
+    ) -> dict:
+        response = self.get_conversations_raw(
+            access_token,
+            conversation_type=conversation_type,
+            limit=limit,
+            offset=offset,
+        )
+        if not response.ok or not isinstance(response.payload, dict):
+            logger.warning('eBay conversation list request failed with status %s', response.status_code)
+            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail='eBay conversation list request failed')
+        return response.payload
+
+    def get_conversation_raw(
+        self,
+        access_token: str,
+        *,
+        conversation_id: str,
+        conversation_type: str = 'FROM_MEMBERS',
+        limit: int = 25,
+        offset: int = 0,
+    ) -> EbayRawApiResponse:
+        query = urlencode({'conversation_type': conversation_type, 'limit': limit, 'offset': offset})
+        request_url = f'{self.conversations_url}/{conversation_id}?{query}'
+        return self._request_message_api_raw(access_token, request_url=request_url, method='GET')
+
+    def get_conversation(
+        self,
+        access_token: str,
+        *,
+        conversation_id: str,
+        conversation_type: str = 'FROM_MEMBERS',
+        limit: int = 50,
+        offset: int = 0,
+    ) -> dict:
+        response = self.get_conversation_raw(
+            access_token,
+            conversation_id=conversation_id,
+            conversation_type=conversation_type,
+            limit=limit,
+            offset=offset,
+        )
+        if not response.ok or not isinstance(response.payload, dict):
+            logger.warning(
+                'eBay conversation detail request failed for %s with status %s',
+                conversation_id,
+                response.status_code,
+            )
+            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail='eBay conversation detail request failed')
+        return response.payload
+
     def _request_tokens(self, payload: dict[str, str]) -> EbayTokenPayload:
         body = urlencode(payload).encode('utf-8')
         credentials = base64.b64encode(f'{self.client_id}:{self.client_secret}'.encode('utf-8')).decode('ascii')
@@ -236,3 +317,61 @@ class EbayAuthClient:
         if isinstance(value, str) and value.strip():
             return value.strip()
         return None
+
+    def _decode_response_body(self, response_body: str) -> dict | list | str:
+        if not response_body:
+            return {}
+        try:
+            return json.loads(response_body)
+        except json.JSONDecodeError:
+            return response_body
+
+    def _request_message_api_raw(self, access_token: str, *, request_url: str, method: str) -> EbayRawApiResponse:
+        request = Request(
+            request_url,
+            headers={
+                'Authorization': f'Bearer {access_token}',
+                'Accept': 'application/json',
+            },
+            method=method,
+        )
+        logger.info('Calling eBay Message API url=%s method=%s', request_url, method)
+        try:
+            with urlopen(request, timeout=20) as response:
+                response_body = response.read().decode('utf-8')
+                logger.info(
+                    'eBay Message API response url=%s method=%s status_code=%s body=%s',
+                    request_url,
+                    method,
+                    response.status,
+                    response_body,
+                )
+                return EbayRawApiResponse(
+                    status_code=response.status,
+                    payload=self._decode_response_body(response_body),
+                    ok=True,
+                )
+        except HTTPError as exc:
+            error_body = ''
+            try:
+                error_body = exc.read().decode('utf-8')
+            except Exception:
+                pass
+            logger.warning(
+                'eBay Message API error url=%s method=%s status_code=%s body=%s',
+                request_url,
+                method,
+                exc.code,
+                error_body,
+            )
+            return EbayRawApiResponse(
+                status_code=exc.code,
+                payload=self._decode_response_body(error_body),
+                ok=False,
+            )
+        except (URLError, TimeoutError) as exc:
+            logger.warning('Unable to reach eBay Message API endpoint url=%s method=%s', request_url, method)
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail='Unable to reach eBay Message API',
+            ) from exc
