@@ -19,11 +19,47 @@ class ConversationService:
         self.status_history_repository = ConversationStatusHistoryRepository(db)
         self.category_history_repository = ConversationCategoryHistoryRepository(db)
 
-    def list_conversations(self, *, limit: int | None = None, offset: int = 0) -> list[Conversation]:
-        return self.repository.list(limit=limit, offset=offset)
+    def list_conversations(
+        self,
+        *,
+        limit: int | None = None,
+        offset: int = 0,
+        search: str | None = None,
+        status: ConversationStatus | None = None,
+        provider: str | None = None,
+        provider_account_id: UUID | None = None,
+        assigned_user_id: UUID | None = None,
+        category_id: UUID | None = None,
+    ) -> list[Conversation]:
+        return self.repository.list(
+            limit=limit,
+            offset=offset,
+            search=search,
+            status=status,
+            provider=provider,
+            provider_account_id=provider_account_id,
+            assigned_user_id=assigned_user_id,
+            category_id=category_id,
+        )
 
-    def count_conversations(self) -> int:
-        return self.repository.count()
+    def count_conversations(
+        self,
+        *,
+        search: str | None = None,
+        status: ConversationStatus | None = None,
+        provider: str | None = None,
+        provider_account_id: UUID | None = None,
+        assigned_user_id: UUID | None = None,
+        category_id: UUID | None = None,
+    ) -> int:
+        return self.repository.count(
+            search=search,
+            status=status,
+            provider=provider,
+            provider_account_id=provider_account_id,
+            assigned_user_id=assigned_user_id,
+            category_id=category_id,
+        )
 
     def get_conversation(self, conversation_id: UUID) -> Conversation:
         conversation = self.repository.get_by_id(conversation_id)

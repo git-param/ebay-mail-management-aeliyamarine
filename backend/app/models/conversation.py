@@ -94,6 +94,12 @@ class Conversation(Base):
         cascade='all, delete-orphan',
         order_by='ConversationCategoryHistory.changed_at',
     )
+    notes = relationship(
+        'ConversationNote',
+        back_populates='conversation',
+        cascade='all, delete-orphan',
+        order_by='ConversationNote.created_at',
+    )
 
 
 class Message(Base):
@@ -188,6 +194,24 @@ class ConversationCategoryHistory(Base):
     old_category = relationship('Category', foreign_keys=[old_category_id])
     new_category = relationship('Category', foreign_keys=[new_category_id])
     user = relationship('User')
+
+
+class ConversationNote(Base):
+    __tablename__ = 'conversation_notes'
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    conversation_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey('conversations.id'), nullable=False)
+    author_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey('users.id'), nullable=False)
+    body: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+    )
+
+    conversation = relationship('Conversation', back_populates='notes')
+    author = relationship('User')
 
 
 class SyncLog(Base):

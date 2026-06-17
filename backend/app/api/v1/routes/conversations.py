@@ -1,3 +1,4 @@
+from datetime import timedelta
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
@@ -5,18 +6,25 @@ from sqlalchemy.orm import Session
 
 from app.api.dependencies import get_current_user
 from app.db.session import get_db
-from app.models.conversation import Conversation, ConversationAssignment, Message
+from app.models.category import Category
+from app.models.conversation import Conversation, ConversationAssignment, ConversationNote, ConversationStatus, Message
+from app.models.user import User
 from app.schemas.conversation import (
     AssignConversationRequest,
+    CategoryBriefResponse,
     ConversationAssignmentResponse,
     ConversationDetailResponse,
+    ConversationNoteCreateRequest,
+    ConversationNoteResponse,
     ConversationPageResponse,
     ConversationSummaryResponse,
     MessageResponse,
     UpdateConversationCategoryRequest,
     UpdateConversationStatusRequest,
+    UserBriefResponse,
 )
 from app.services.assignment_service import AssignmentService
+from app.services.conversation_note_service import ConversationNoteService
 from app.services.conversation_service import ConversationService
 from app.services.message_service import MessageService
 
@@ -32,6 +40,7 @@ def serialize_conversation(
     conversation: Conversation,
     current_assignee_id: UUID | None = None,
 ) -> ConversationDetailResponse:
+    assignments = [serialize_assignment(assignment) for assignment in conversation.assignments]
     return ConversationDetailResponse(
         id=conversation.id,
         provider=conversation.provider,
@@ -44,14 +53,21 @@ def serialize_conversation(
         reference_id=conversation.reference_id,
         reference_type=conversation.reference_type,
         unread_count=conversation.unread_count,
+        message_count=len(conversation.messages),
+        last_message_preview=latest_message_preview(conversation),
+        response_due_at=response_due_at(conversation),
         status=conversation.status,
         category_id=conversation.category_id,
+        category=serialize_category_brief(conversation.category) if conversation.category else None,
         last_message_at=conversation.last_message_at,
         external_created_at=conversation.external_created_at,
         created_at=conversation.created_at,
         updated_at=conversation.updated_at,
+        current_assignment=next((assignment for assignment in assignments if assignment.unassigned_at is None), None),
         current_assignee_id=current_assignee_id,
         messages=[serialize_message(message) for message in conversation.messages],
+        assignments=assignments,
+        notes=[serialize_note(note) for note in conversation.notes],
     )
 
 
@@ -68,12 +84,17 @@ def serialize_conversation_summary(conversation: Conversation) -> ConversationSu
         reference_id=conversation.reference_id,
         reference_type=conversation.reference_type,
         unread_count=conversation.unread_count,
+        message_count=len(conversation.messages),
+        last_message_preview=latest_message_preview(conversation),
+        response_due_at=response_due_at(conversation),
         status=conversation.status,
         category_id=conversation.category_id,
+        category=serialize_category_brief(conversation.category) if conversation.category else None,
         last_message_at=conversation.last_message_at,
         external_created_at=conversation.external_created_at,
         created_at=conversation.created_at,
         updated_at=conversation.updated_at,
+        current_assignment=serialize_assignment(current_assignment) if (current_assignment := current_assignment_for(conversation)) else None,
     )
 
 
@@ -102,21 +123,93 @@ def serialize_assignment(assignment: ConversationAssignment) -> ConversationAssi
         assigned_by=assignment.assigned_by,
         assigned_at=assignment.assigned_at,
         unassigned_at=assignment.unassigned_at,
+        assignee=serialize_user_brief(assignment.assignee) if assignment.assignee else None,
+        assigner=serialize_user_brief(assignment.assigner) if assignment.assigner else None,
     )
+
+
+def serialize_note(note: ConversationNote) -> ConversationNoteResponse:
+    return ConversationNoteResponse(
+        id=note.id,
+        conversation_id=note.conversation_id,
+        author_id=note.author_id,
+        body=note.body,
+        created_at=note.created_at,
+        updated_at=note.updated_at,
+        author=serialize_user_brief(note.author) if note.author else None,
+    )
+
+
+def serialize_user_brief(user: User) -> UserBriefResponse:
+    return UserBriefResponse(
+        id=user.id,
+        full_name=user.full_name,
+        email=user.email,
+        role=user.role.name if user.role else '',
+    )
+
+
+def serialize_category_brief(category: Category) -> CategoryBriefResponse:
+    return CategoryBriefResponse(id=category.id, name=category.name, color=category.color)
+
+
+def current_assignment_for(conversation: Conversation) -> ConversationAssignment | None:
+    return next((assignment for assignment in conversation.assignments if assignment.unassigned_at is None), None)
+
+
+def latest_message_preview(conversation: Conversation, limit: int = 180) -> str | None:
+    if not conversation.messages:
+        return None
+
+    latest_message = max(conversation.messages, key=lambda message: message.sent_at)
+    preview = ' '.join(latest_message.body.split())
+    if len(preview) <= limit:
+        return preview
+    return f'{preview[: limit - 3]}...'
+
+
+def response_due_at(conversation: Conversation):
+    if not conversation.last_message_at:
+        return None
+
+    sla_hours = conversation.category.sla_hours if conversation.category else 24
+    return conversation.last_message_at + timedelta(hours=sla_hours)
 
 
 @router.get('', response_model=ConversationPageResponse)
 def list_conversations(
     limit: int = Query(default=25, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
+    search: str | None = Query(default=None, min_length=1),
+    status: ConversationStatus | None = Query(default=None),
+    provider: str | None = Query(default=None, min_length=1),
+    ebay_account_id: UUID | None = Query(default=None),
+    assigned_user_id: UUID | None = Query(default=None),
+    category_id: UUID | None = Query(default=None),
     db: Session = Depends(get_db),
     current_user=Depends(require_conversation_access),
 ) -> ConversationPageResponse:
     service = ConversationService(db)
-    conversations = service.list_conversations(limit=limit, offset=offset)
+    conversations = service.list_conversations(
+        limit=limit,
+        offset=offset,
+        search=search,
+        status=status,
+        provider=provider,
+        provider_account_id=ebay_account_id,
+        assigned_user_id=assigned_user_id,
+        category_id=category_id,
+    )
     return ConversationPageResponse(
         items=[serialize_conversation_summary(conversation) for conversation in conversations],
-        total=service.count_conversations(),
+        total=service.count_conversations(
+            search=search,
+            status=status,
+            provider=provider,
+            provider_account_id=ebay_account_id,
+            assigned_user_id=assigned_user_id,
+            category_id=category_id,
+        ),
         limit=limit,
         offset=offset,
     )
@@ -155,6 +248,30 @@ def assign_conversation(
         assigned_by=current_user.id,
     )
     return serialize_assignment(assignment)
+
+
+@router.post('/{conversation_id}/notes', response_model=ConversationNoteResponse)
+def create_conversation_note(
+    conversation_id: UUID,
+    payload: ConversationNoteCreateRequest,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_conversation_access),
+) -> ConversationNoteResponse:
+    note = ConversationNoteService(db).add_note(
+        conversation_id=conversation_id,
+        author_id=current_user.id,
+        body=payload.body,
+    )
+    return serialize_note(note)
+
+
+@router.get('/{conversation_id}/notes', response_model=list[ConversationNoteResponse])
+def list_conversation_notes(
+    conversation_id: UUID,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_conversation_access),
+) -> list[ConversationNoteResponse]:
+    return [serialize_note(note) for note in ConversationNoteService(db).list_notes(conversation_id)]
 
 
 @router.patch('/{conversation_id}/status', response_model=ConversationDetailResponse)
