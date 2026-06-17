@@ -25,3 +25,18 @@ class MessageRepository:
     def add(self, message: Message) -> Message:
         self.db.add(message)
         return message
+
+    def upsert_by_provider_id(self, provider: str, provider_message_id: str, values: dict) -> tuple[Message, bool]:
+        message = self.get_by_provider_id(provider, provider_message_id)
+        created = message is None
+        if created:
+            message = Message(
+                provider=provider,
+                provider_message_id=provider_message_id,
+                **values,
+            )
+            self.db.add(message)
+        else:
+            for key, value in values.items():
+                setattr(message, key, value)
+        return message, created

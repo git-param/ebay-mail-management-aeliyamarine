@@ -19,8 +19,11 @@ class ConversationService:
         self.status_history_repository = ConversationStatusHistoryRepository(db)
         self.category_history_repository = ConversationCategoryHistoryRepository(db)
 
-    def list_conversations(self) -> list[Conversation]:
-        return self.repository.list()
+    def list_conversations(self, *, limit: int | None = None, offset: int = 0) -> list[Conversation]:
+        return self.repository.list(limit=limit, offset=offset)
+
+    def count_conversations(self) -> int:
+        return self.repository.count()
 
     def get_conversation(self, conversation_id: UUID) -> Conversation:
         conversation = self.repository.get_by_id(conversation_id)

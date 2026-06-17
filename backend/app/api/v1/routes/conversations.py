@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.api.dependencies import get_current_user
@@ -10,6 +10,7 @@ from app.schemas.conversation import (
     AssignConversationRequest,
     ConversationAssignmentResponse,
     ConversationDetailResponse,
+    ConversationPageResponse,
     ConversationSummaryResponse,
     MessageResponse,
     UpdateConversationCategoryRequest,
@@ -38,6 +39,11 @@ def serialize_conversation(
         provider_account_id=conversation.provider_account_id,
         subject=conversation.subject,
         buyer_identifier=conversation.buyer_identifier,
+        provider_conversation_status=conversation.provider_conversation_status,
+        provider_conversation_type=conversation.provider_conversation_type,
+        reference_id=conversation.reference_id,
+        reference_type=conversation.reference_type,
+        unread_count=conversation.unread_count,
         status=conversation.status,
         category_id=conversation.category_id,
         last_message_at=conversation.last_message_at,
@@ -45,6 +51,7 @@ def serialize_conversation(
         created_at=conversation.created_at,
         updated_at=conversation.updated_at,
         current_assignee_id=current_assignee_id,
+        messages=[serialize_message(message) for message in conversation.messages],
     )
 
 
@@ -56,6 +63,11 @@ def serialize_conversation_summary(conversation: Conversation) -> ConversationSu
         provider_account_id=conversation.provider_account_id,
         subject=conversation.subject,
         buyer_identifier=conversation.buyer_identifier,
+        provider_conversation_status=conversation.provider_conversation_status,
+        provider_conversation_type=conversation.provider_conversation_type,
+        reference_id=conversation.reference_id,
+        reference_type=conversation.reference_type,
+        unread_count=conversation.unread_count,
         status=conversation.status,
         category_id=conversation.category_id,
         last_message_at=conversation.last_message_at,
@@ -73,7 +85,9 @@ def serialize_message(message: Message) -> MessageResponse:
         provider_message_id=message.provider_message_id,
         sender_type=message.sender_type,
         sender_identifier=message.sender_identifier,
+        recipient_identifier=message.recipient_identifier,
         body=message.body,
+        read_status=message.read_status,
         is_inbound=message.is_inbound,
         sent_at=message.sent_at,
         created_at=message.created_at,
@@ -91,12 +105,21 @@ def serialize_assignment(assignment: ConversationAssignment) -> ConversationAssi
     )
 
 
-@router.get('', response_model=list[ConversationSummaryResponse])
+@router.get('', response_model=ConversationPageResponse)
 def list_conversations(
+    limit: int = Query(default=25, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
     current_user=Depends(require_conversation_access),
-) -> list[ConversationSummaryResponse]:
-    return [serialize_conversation_summary(conversation) for conversation in ConversationService(db).list_conversations()]
+) -> ConversationPageResponse:
+    service = ConversationService(db)
+    conversations = service.list_conversations(limit=limit, offset=offset)
+    return ConversationPageResponse(
+        items=[serialize_conversation_summary(conversation) for conversation in conversations],
+        total=service.count_conversations(),
+        limit=limit,
+        offset=offset,
+    )
 
 
 @router.get('/{conversation_id}', response_model=ConversationDetailResponse)

@@ -17,8 +17,11 @@ from app.modules.integrations.ebay.schemas.oauth_schemas import (
     EbayConnectResponse,
     EbayOAuthCallbackResponse,
     EbayRefreshTokenResponse,
+    EbaySyncAllResponse,
+    EbaySyncResultResponse,
     EbayTestConnectionResponse,
 )
+from app.modules.integrations.ebay.services.ebay_sync_service import EbaySyncResult, EbaySyncService
 
 
 logger = logging.getLogger(__name__)
@@ -28,6 +31,12 @@ router = APIRouter()
 def require_admin(current_user=Depends(get_current_user)):
     if current_user.role.name != 'Admin':
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='Only admins can connect eBay accounts')
+    return current_user
+
+
+def require_ebay_sync_access(current_user=Depends(get_current_user)):
+    if current_user.role.name not in {'Admin', 'Operations Manager'}:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='Only admins and operations managers can sync eBay accounts')
     return current_user
 
 
@@ -90,6 +99,43 @@ def test_ebay_connection(
         account_id=account.id,
         access_token_expires_at=account.access_token_expires_at,
     )
+
+
+def serialize_sync_result(result: EbaySyncResult) -> EbaySyncResultResponse:
+    return EbaySyncResultResponse(
+        account_id=result.account_id,
+        ebay_username=result.ebay_username,
+        sync_log_id=result.sync_log_id,
+        status=result.status,
+        conversations_processed=result.conversations_processed,
+        conversations_created=result.conversations_created,
+        conversations_updated=result.conversations_updated,
+        messages_created=result.messages_created,
+        messages_updated=result.messages_updated,
+        total_conversations_available=result.total_conversations_available,
+        elapsed_seconds=result.elapsed_seconds,
+        average_detail_seconds=result.average_detail_seconds,
+        error_message=result.error_message,
+    )
+
+
+@router.post('/sync/{account_id}', response_model=EbaySyncResultResponse)
+def sync_ebay_account(
+    account_id: UUID,
+    max_conversations: int | None = Query(default=None, ge=1, le=100),
+    db: Session = Depends(get_db),
+    current_user=Depends(require_ebay_sync_access),
+) -> EbaySyncResultResponse:
+    return serialize_sync_result(EbaySyncService(db).sync_account(account_id, max_conversations=max_conversations))
+
+
+@router.post('/sync-all', response_model=EbaySyncAllResponse)
+def sync_all_ebay_accounts(
+    db: Session = Depends(get_db),
+    current_user=Depends(require_ebay_sync_access),
+) -> EbaySyncAllResponse:
+    results = EbaySyncService(db).sync_all_connected_accounts()
+    return EbaySyncAllResponse(results=[serialize_sync_result(result) for result in results])
 
 
 @router.post('/test-conversations/{account_id}')

@@ -193,6 +193,25 @@ class EbayAuthClient:
         request_url = f'{self.conversations_url}?{urlencode({"conversation_type": conversation_type, "limit": limit, "offset": offset})}'
         return self._request_message_api_raw(access_token, request_url=request_url, method='GET')
 
+    def get_conversations(
+        self,
+        access_token: str,
+        *,
+        conversation_type: str = 'FROM_MEMBERS',
+        limit: int = 50,
+        offset: int = 0,
+    ) -> dict:
+        response = self.get_conversations_raw(
+            access_token,
+            conversation_type=conversation_type,
+            limit=limit,
+            offset=offset,
+        )
+        if not response.ok or not isinstance(response.payload, dict):
+            logger.warning('eBay conversation list request failed with status %s', response.status_code)
+            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail='eBay conversation list request failed')
+        return response.payload
+
     def get_conversation_raw(
         self,
         access_token: str,
@@ -205,6 +224,31 @@ class EbayAuthClient:
         query = urlencode({'conversation_type': conversation_type, 'limit': limit, 'offset': offset})
         request_url = f'{self.conversations_url}/{conversation_id}?{query}'
         return self._request_message_api_raw(access_token, request_url=request_url, method='GET')
+
+    def get_conversation(
+        self,
+        access_token: str,
+        *,
+        conversation_id: str,
+        conversation_type: str = 'FROM_MEMBERS',
+        limit: int = 50,
+        offset: int = 0,
+    ) -> dict:
+        response = self.get_conversation_raw(
+            access_token,
+            conversation_id=conversation_id,
+            conversation_type=conversation_type,
+            limit=limit,
+            offset=offset,
+        )
+        if not response.ok or not isinstance(response.payload, dict):
+            logger.warning(
+                'eBay conversation detail request failed for %s with status %s',
+                conversation_id,
+                response.status_code,
+            )
+            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail='eBay conversation detail request failed')
+        return response.payload
 
     def _request_tokens(self, payload: dict[str, str]) -> EbayTokenPayload:
         body = urlencode(payload).encode('utf-8')

@@ -42,6 +42,11 @@ class Conversation(Base):
     provider_account_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
     subject: Mapped[str | None] = mapped_column(String(500), nullable=True)
     buyer_identifier: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    provider_conversation_status: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    provider_conversation_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    reference_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    reference_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    unread_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     status: Mapped[ConversationStatus] = mapped_column(
         Enum(ConversationStatus, name='conversation_status'),
         nullable=False,
@@ -106,7 +111,9 @@ class Message(Base):
         nullable=False,
     )
     sender_identifier: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    recipient_identifier: Mapped[str | None] = mapped_column(String(255), nullable=True)
     body: Mapped[str] = mapped_column(Text, nullable=False)
+    read_status: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     is_inbound: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     sent_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     raw_payload: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
