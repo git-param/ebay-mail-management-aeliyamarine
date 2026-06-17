@@ -33,6 +33,7 @@ class EbayAccountResponse(BaseModel):
     refresh_token_expires_at: datetime | None = None
     last_connected_at: datetime | None = None
     ebay_user_id: str | None
+    store_name: str | None = None
     last_sync_at: datetime | None
     sync_status: str | None
     notes: str | None

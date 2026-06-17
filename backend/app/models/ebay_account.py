@@ -46,6 +46,7 @@ class EbayAccount(Base):
     refresh_token_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_connected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     ebay_user_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    store_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     last_sync_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     sync_status: Mapped[str | None] = mapped_column(String(50), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
