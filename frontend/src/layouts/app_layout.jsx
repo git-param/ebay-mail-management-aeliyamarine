@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 import { normalizeRole } from '../utils/roles'
 
@@ -71,10 +71,16 @@ export function Icon({ name }) {
 function AppLayout({ activePage, children, currentUser, onLogout }) {
   const [isProfileOpen, setIsProfileOpen] = useState(false)
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false)
+  const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'light')
   const userRole = normalizeRole(currentUser?.role)
   const visibleItems = NAV_ITEMS.filter((item) => item.roles.includes(userRole))
   const displayName = currentUser?.full_name || currentUser?.fullName || currentUser?.email || 'User'
   const roleLabel = currentUser?.role || userRole
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme
+    localStorage.setItem('theme', theme)
+  }, [theme])
 
   return (
     <div className="app-shell">
@@ -109,10 +115,6 @@ function AppLayout({ activePage, children, currentUser, onLogout }) {
 
       <div className="workspace">
         <header className="top-nav">
-          <label className="global-search">
-            <span>Search</span>
-            <input type="search" placeholder="Search conversations, users, orders" />
-          </label>
           <div className="top-actions">
             <div className="notification-menu-wrap">
             <button
@@ -132,7 +134,12 @@ function AppLayout({ activePage, children, currentUser, onLogout }) {
                 </div>
               ) : null}
             </div>
-            <button className="icon-button" type="button" aria-label="Theme">
+            <button
+              className="icon-button"
+              type="button"
+              aria-label="Theme"
+              onClick={() => setTheme((current) => (current === 'dark' ? 'light' : 'dark'))}
+            >
               <Icon name="moon" />
             </button>
             <div className="profile-menu-wrap">
