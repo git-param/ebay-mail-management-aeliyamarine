@@ -3,9 +3,6 @@ from uuid import UUID
 
 from pydantic import BaseModel
 
-from app.models.conversation import SyncLogStatus
-
-
 class EbayConnectRequest(BaseModel):
     account_id: UUID
 
@@ -45,8 +42,10 @@ class EbaySyncResultResponse(BaseModel):
     account_id: UUID
     ebay_username: str
     sync_log_id: UUID
-    status: SyncLogStatus
+    status: str
     conversations_processed: int
+    conversations_failed: int
+    failed_conversation_ids: list[str]
     conversations_created: int
     conversations_updated: int
     messages_created: int

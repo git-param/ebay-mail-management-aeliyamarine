@@ -79,3 +79,22 @@ export function deleteEbayAccount(accountId) {
     method: 'DELETE',
   })
 }
+
+export function connectEbayAccount(accountId) {
+  return request('/integrations/ebay/connect', {
+    method: 'POST',
+    body: JSON.stringify({ account_id: accountId }),
+  })
+}
+
+export function syncEbayAccount(accountId) {
+  return request(`/integrations/ebay/sync/${accountId}`, {
+    method: 'POST',
+  })
+}
+
+export function syncAllEbayAccounts() {
+  return request('/integrations/ebay/sync-all', {
+    method: 'POST',
+  })
+}

@@ -19,6 +19,13 @@ class CategoryBriefResponse(BaseModel):
     color: str
 
 
+class EbayAccountBriefResponse(BaseModel):
+    id: UUID
+    account_name: str
+    ebay_username: str
+    store_name: str | None = None
+
+
 class ConversationSummaryResponse(BaseModel):
     id: UUID
     provider: str
@@ -42,6 +49,7 @@ class ConversationSummaryResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     current_assignment: 'ConversationAssignmentResponse | None' = None
+    seller_account: EbayAccountBriefResponse | None = None
 
 
 class MessageResponse(BaseModel):

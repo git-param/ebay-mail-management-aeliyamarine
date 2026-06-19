@@ -3,16 +3,20 @@ import { useEffect, useMemo, useState } from 'react'
 import AppLayout, { Icon } from '../layouts/app_layout'
 import {
   activateEbayAccount,
+  connectEbayAccount,
   createEbayAccount,
   deactivateEbayAccount,
   deleteEbayAccount,
   fetchEbayAccount,
   fetchEbayAccounts,
+  syncAllEbayAccounts,
+  syncEbayAccount,
   updateEbayAccount,
 } from '../services/ebayAccountApi'
+import { normalizeRole } from '../utils/roles'
 
 const ENVIRONMENTS = ['SANDBOX', 'PRODUCTION']
-const CONNECTION_STATUSES = ['CONNECTED', 'DISCONNECTED', 'EXPIRED']
+const CONNECTION_STATUSES = ['CONNECTED', 'PENDING', 'DISCONNECTED', 'EXPIRED', 'FAILED']
 
 const EMPTY_FORM = {
   accountName: '',
@@ -53,6 +57,7 @@ function normalizeAccount(account) {
     id: account.id,
     accountName: account.account_name || '',
     ebayUsername: account.ebay_username || '',
+    storeName: account.store_name || '',
     environment: account.environment || 'SANDBOX',
     connectionStatus: account.connection_status || 'DISCONNECTED',
     status: account.is_active ? 'Active' : 'Inactive',
@@ -64,6 +69,29 @@ function normalizeAccount(account) {
     syncStatus: account.sync_status || 'Not synced',
     raw: account,
   }
+}
+
+function normalizeSyncResult(result) {
+  const messagesProcessed = (result.messages_created || 0) + (result.messages_updated || 0)
+  return {
+    accountId: result.account_id,
+    ebayUsername: result.ebay_username,
+    status: result.status,
+    conversationsProcessed: result.conversations_processed || 0,
+    conversationsFailed: result.conversations_failed || 0,
+    failedConversationIds: result.failed_conversation_ids || [],
+    messagesProcessed,
+    elapsedSeconds: result.elapsed_seconds,
+    errorMessage: result.error_message || '',
+  }
+}
+
+function formatElapsed(value) {
+  if (!Number.isFinite(Number(value))) {
+    return 'Not available'
+  }
+
+  return `${Number(value).toFixed(2)}s`
 }
 
 function getAccountsFromResponse(response) {
@@ -213,6 +241,33 @@ function ConfirmModal({ title, message, actionLabel, danger, isSubmitting, onCan
   )
 }
 
+function SyncSummary({ results }) {
+  if (!results.length) {
+    return null
+  }
+
+  const totals = results.reduce(
+    (summary, result) => ({
+      conversations: summary.conversations + result.conversationsProcessed,
+      messages: summary.messages + result.messagesProcessed,
+      failed: summary.failed + result.conversationsFailed,
+      elapsed: summary.elapsed + (Number(result.elapsedSeconds) || 0),
+    }),
+    { conversations: 0, messages: 0, failed: 0, elapsed: 0 },
+  )
+
+  return (
+    <section className="sync-summary" aria-label="Sync summary">
+      <strong>Last sync</strong>
+      <span>{results.length} account{results.length === 1 ? '' : 's'}</span>
+      <span>{totals.conversations} conversations</span>
+      <span>{totals.failed} failed</span>
+      <span>{totals.messages} messages</span>
+      <span>{formatElapsed(totals.elapsed)}</span>
+    </section>
+  )
+}
+
 function AccountDrawer({ account, onClose }) {
   if (!account) {
     return null
@@ -269,6 +324,7 @@ function AccountDrawer({ account, onClose }) {
 
 function EbayAccounts({ currentUser, onLogout }) {
   const [accounts, setAccounts] = useState([])
+  const [selectedAccountIds, setSelectedAccountIds] = useState(() => new Set())
   const [search, setSearch] = useState('')
   const [environmentFilter, setEnvironmentFilter] = useState('All Environments')
   const [statusFilter, setStatusFilter] = useState('All Statuses')
@@ -277,8 +333,12 @@ function EbayAccounts({ currentUser, onLogout }) {
   const [modal, setModal] = useState(null)
   const [notification, setNotification] = useState('')
   const [error, setError] = useState('')
+  const [syncResults, setSyncResults] = useState([])
+  const [connectingAccountId, setConnectingAccountId] = useState('')
+  const [syncingAction, setSyncingAction] = useState('')
   const [isLoading, setIsLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const isAdmin = normalizeRole(currentUser?.role) === 'ADMIN'
 
   async function loadAccounts() {
     setIsLoading(true)
@@ -297,6 +357,23 @@ function EbayAccounts({ currentUser, onLogout }) {
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     loadAccounts()
+  }, [])
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const connectionStatus = params.get('ebay_connection')
+    if (!connectionStatus) {
+      return
+    }
+
+    if (connectionStatus === 'success') {
+      showNotification('eBay account connected successfully.')
+    } else {
+      setError(params.get('message') || 'eBay authorization failed. Please try again.')
+    }
+
+    loadAccounts()
+    window.history.replaceState({}, document.title, window.location.pathname)
   }, [])
 
   const filteredAccounts = useMemo(() => {
@@ -320,6 +397,16 @@ function EbayAccounts({ currentUser, onLogout }) {
       lastSync: accounts.find((account) => account.syncStatus !== 'Not synced')?.syncStatus || 'Not synced',
     }),
     [accounts],
+  )
+
+  const connectedAccounts = useMemo(
+    () => accounts.filter((account) => account.connectionStatus === 'CONNECTED'),
+    [accounts],
+  )
+
+  const selectedConnectedAccountIds = useMemo(
+    () => connectedAccounts.filter((account) => selectedAccountIds.has(account.id)).map((account) => account.id),
+    [connectedAccounts, selectedAccountIds],
   )
 
   function showNotification(message) {
@@ -424,6 +511,71 @@ function EbayAccounts({ currentUser, onLogout }) {
     }
   }
 
+  function toggleAccountSelection(accountId) {
+    setSelectedAccountIds((current) => {
+      const next = new Set(current)
+      if (next.has(accountId)) {
+        next.delete(accountId)
+      } else {
+        next.add(accountId)
+      }
+      return next
+    })
+  }
+
+  async function connectAccount(account) {
+    setConnectingAccountId(account.id)
+    setError('')
+
+    try {
+      const response = await connectEbayAccount(account.id)
+      showNotification('Opening eBay authorization...')
+      window.location.assign(response.authorization_url)
+    } catch (caughtError) {
+      showError(caughtError)
+      setConnectingAccountId('')
+    }
+  }
+
+  async function runSync(label, syncRequest) {
+    setSyncingAction(label)
+    setError('')
+    setSyncResults([])
+
+    try {
+      const response = await syncRequest()
+      const results = Array.isArray(response.results)
+        ? response.results.map(normalizeSyncResult)
+        : [normalizeSyncResult(response)]
+      setSyncResults(results)
+      showNotification('Sync completed successfully.')
+      await loadAccounts()
+    } catch (caughtError) {
+      showError(caughtError)
+    } finally {
+      setSyncingAction('')
+    }
+  }
+
+  async function syncSingleAccount(account) {
+    await runSync(account.id, () => syncEbayAccount(account.id))
+  }
+
+  async function syncSelectedAccounts() {
+    const accountIds = selectedConnectedAccountIds
+    if (!accountIds.length) {
+      return
+    }
+
+    await runSync('selected', async () => ({
+      results: await Promise.all(accountIds.map((accountId) => syncEbayAccount(accountId))),
+    }))
+  }
+
+  async function syncAllConnectedAccounts() {
+    await runSync('all', syncAllEbayAccounts)
+  }
+
   function resetFilters() {
     setSearch('')
     setEnvironmentFilter('All Environments')
@@ -450,6 +602,29 @@ function EbayAccounts({ currentUser, onLogout }) {
           <StatCard label="Connected Accounts" value={stats.connected} />
           <StatCard label="Last Sync Status" value={stats.lastSync} />
         </section>
+
+        {isAdmin ? (
+          <section className="sync-controls" aria-label="eBay sync controls">
+            <button
+              className="secondary-button"
+              type="button"
+              disabled={!selectedConnectedAccountIds.length || Boolean(syncingAction)}
+              onClick={syncSelectedAccounts}
+            >
+              {syncingAction === 'selected' ? 'Syncing...' : `Sync Selected (${selectedConnectedAccountIds.length})`}
+            </button>
+            <button
+              className="secondary-button"
+              type="button"
+              disabled={!connectedAccounts.length || Boolean(syncingAction)}
+              onClick={syncAllConnectedAccounts}
+            >
+              {syncingAction === 'all' ? 'Syncing...' : 'Sync All Connected'}
+            </button>
+          </section>
+        ) : null}
+
+        <SyncSummary results={syncResults} />
 
         <section className="filter-panel" aria-label="eBay account filters">
           <label className="field search-field">
@@ -507,6 +682,7 @@ function EbayAccounts({ currentUser, onLogout }) {
               <table className="users-table">
                 <thead>
                   <tr>
+                    {isAdmin ? <th>Select</th> : null}
                     <th>Account Name</th>
                     <th>eBay Username</th>
                     <th>Environment</th>
@@ -520,6 +696,17 @@ function EbayAccounts({ currentUser, onLogout }) {
                 <tbody>
                   {filteredAccounts.map((account) => (
                     <tr key={account.id}>
+                      {isAdmin ? (
+                        <td>
+                          <input
+                            type="checkbox"
+                            checked={selectedAccountIds.has(account.id)}
+                            disabled={account.connectionStatus !== 'CONNECTED' || Boolean(syncingAction)}
+                            onChange={() => toggleAccountSelection(account.id)}
+                            aria-label={`Select ${account.accountName}`}
+                          />
+                        </td>
+                      ) : null}
                       <td>
                         <strong>{account.accountName}</strong>
                       </td>
@@ -536,6 +723,26 @@ function EbayAccounts({ currentUser, onLogout }) {
                         <Badge type="status" value={account.status} />
                       </td>
                       <td className="actions-cell">
+                        {account.connectionStatus !== 'CONNECTED' ? (
+                          <button
+                            className="secondary-button compact-action"
+                            type="button"
+                            onClick={() => connectAccount(account)}
+                            disabled={connectingAccountId === account.id}
+                          >
+                            {connectingAccountId === account.id ? 'Connecting...' : 'Connect'}
+                          </button>
+                        ) : null}
+                        {isAdmin && account.connectionStatus === 'CONNECTED' ? (
+                          <button
+                            className="secondary-button compact-action"
+                            type="button"
+                            onClick={() => syncSingleAccount(account)}
+                            disabled={Boolean(syncingAction)}
+                          >
+                            {syncingAction === account.id ? 'Syncing...' : 'Sync'}
+                          </button>
+                        ) : null}
                         <button
                           className="icon-button"
                           type="button"

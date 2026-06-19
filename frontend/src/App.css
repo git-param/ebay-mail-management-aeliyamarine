@@ -2969,3 +2969,250 @@
     display: none;
   }
 }
+
+/* End-of-file dashboard overrides */
+.top-nav {
+  justify-content: flex-end;
+}
+
+.inbox-list-panel {
+  grid-template-rows: auto auto auto auto minmax(0, 1fr) auto;
+}
+
+.bulk-assignment-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 56px;
+  padding: 10px 20px;
+  border-bottom: 1px solid #edf2f8;
+  background: #ffffff;
+}
+
+.bulk-assignment-bar.empty {
+  min-height: 0;
+  padding: 0;
+  border-bottom: 0;
+}
+
+.bulk-assignment-bar strong {
+  color: #061426;
+  font-size: 13px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.bulk-assignment-bar select {
+  width: min(240px, 100%);
+  min-height: 38px;
+  padding: 0 12px;
+  border: 1px solid #cbd9ea;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #061426;
+  font: inherit;
+  outline: none;
+}
+
+.conversation-table-head,
+.list-only .conversation-row {
+  grid-template-columns: 44px 170px 150px minmax(260px, 2fr) 132px 96px 126px 120px;
+}
+
+.list-only .conversation-row {
+  cursor: pointer;
+}
+
+.ticket-select {
+  display: inline-grid;
+  place-items: center;
+}
+
+.ticket-select input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: #0e54b3;
+  cursor: pointer;
+}
+
+.ticket-username {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.ticket-username > span:last-child,
+.ticket-seller-account,
+.ticket-message {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+}
+
+.ticket-username strong {
+  overflow: hidden;
+  color: #020617;
+  font-size: 15px;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ticket-username small {
+  overflow: hidden;
+  color: #334155;
+  font-size: 12px;
+  font-weight: 850;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ticket-seller-account strong {
+  overflow: hidden;
+  color: #111827;
+  font-size: 13px;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ticket-seller-account small {
+  overflow: hidden;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 850;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.detail-account-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 18px;
+  margin: 12px 0 0;
+}
+
+.detail-account-summary div {
+  min-width: 140px;
+}
+
+.detail-account-summary dt {
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.detail-account-summary dd {
+  margin: 4px 0 0;
+  color: #061426;
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.conversation-open .conversation-row {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+}
+
+.conversation-open .ticket-select,
+.conversation-open .ticket-seller-account,
+.conversation-open .ticket-category,
+.conversation-open .ticket-count,
+.conversation-open .ticket-deadline,
+.conversation-open .ticket-last {
+  display: none;
+}
+
+html[data-theme='dark'] .bulk-assignment-bar {
+  border-color: #243247;
+  background: #111827;
+}
+
+html[data-theme='dark'] .bulk-assignment-bar strong,
+html[data-theme='dark'] .ticket-username strong,
+html[data-theme='dark'] .ticket-seller-account strong,
+html[data-theme='dark'] .detail-account-summary dd {
+  color: #f8fafc;
+}
+
+html[data-theme='dark'] .bulk-assignment-bar select {
+  border-color: #334155;
+  background: #111827;
+  color: #e5e7eb;
+}
+
+html[data-theme='dark'] .ticket-username small,
+html[data-theme='dark'] .ticket-seller-account small,
+html[data-theme='dark'] .detail-account-summary dt {
+  color: #94a3b8;
+}
+
+.sync-controls,
+.sync-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.sync-summary {
+  padding: 12px 14px;
+  border: 1px solid #d8e4f3;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.sync-summary strong {
+  color: #061426;
+}
+
+html[data-theme='dark'] .sync-summary {
+  border-color: #243247;
+  background: #111827;
+  color: #94a3b8;
+}
+
+html[data-theme='dark'] .sync-summary strong {
+  color: #f8fafc;
+}
+
+@media (max-width: 1160px) {
+  .list-only .conversation-row,
+  .conversation-table-head {
+    grid-template-columns: 44px 160px 140px minmax(260px, 2fr) 116px 92px 112px;
+  }
+
+  .list-only .conversation-row .ticket-last,
+  .conversation-table-head span:last-child {
+    display: none;
+  }
+}
+
+@media (max-width: 820px) {
+  .bulk-assignment-bar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .bulk-assignment-bar select,
+  .bulk-assignment-bar button {
+    width: 100%;
+  }
+
+  .list-only .conversation-row {
+    grid-template-columns: 42px minmax(0, 1fr);
+  }
+
+  .ticket-username,
+  .ticket-seller-account,
+  .ticket-message {
+    grid-column: 2;
+  }
+}

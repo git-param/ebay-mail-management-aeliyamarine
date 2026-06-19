@@ -147,6 +147,17 @@ function getLastMessagePreview(conversation) {
   )
 }
 
+function sellerAccountLabel(conversation) {
+  const sellerAccount = conversation.seller_account
+  return (
+    sellerAccount?.store_name ||
+    sellerAccount?.ebay_username ||
+    sellerAccount?.account_name ||
+    conversation.provider_account_id ||
+    'Unknown account'
+  )
+}
+
 function ConversationBadge({ children, tone = 'neutral', color }) {
   return (
     <span
@@ -178,25 +189,44 @@ function FilterSelect({ label, value, onChange, children }) {
   )
 }
 
-function ConversationRow({ conversation, isSelected, onSelect }) {
-  const assignee = conversation.current_assignment?.assignee
+function ConversationRow({ conversation, isSelected, isBulkSelected, onSelect, onToggleBulk }) {
   const title = conversation.subject || conversation.reference_id || 'Customer message'
   const categoryColor = conversation.category?.color
   const deadline = formatRelativeDeadline(conversation.response_due_at)
 
   return (
-    <button
+    <div
       className={`conversation-row ${isSelected ? 'active' : ''}`}
-      type="button"
       onClick={() => onSelect(conversation.id)}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault()
+          onSelect(conversation.id)
+        }
+      }}
+      role="button"
+      tabIndex={0}
     >
-      <span className="conversation-avatar">{getInitials(conversation.buyer_identifier)}</span>
-      <span className="conversation-row-main">
-        <span className="conversation-row-top">
+      <span className="ticket-select" onClick={(event) => event.stopPropagation()}>
+        <input
+          type="checkbox"
+          checked={isBulkSelected}
+          onChange={() => onToggleBulk(conversation.id)}
+          aria-label={`Select ${conversation.buyer_identifier || 'conversation'}`}
+        />
+      </span>
+      <span className="ticket-username">
+        <span className="conversation-avatar">{getInitials(conversation.buyer_identifier)}</span>
+        <span>
           <strong>{conversation.buyer_identifier || 'Unknown buyer'}</strong>
-          <time>{formatDate(conversation.last_message_at || conversation.updated_at)}</time>
+          <small>{title}</small>
         </span>
-        <span className="conversation-title">{title}</span>
+      </span>
+      <span className="ticket-seller-account">
+        <strong>{sellerAccountLabel(conversation)}</strong>
+        <small>{conversation.seller_account?.account_name || 'Seller account'}</small>
+      </span>
+      <span className="ticket-message">
         <span className="conversation-preview">{getLastMessagePreview(conversation)}</span>
         <span className="conversation-tags">
           <ConversationBadge tone="category" color={categoryColor}>
@@ -205,16 +235,11 @@ function ConversationRow({ conversation, isSelected, onSelect }) {
           <ConversationBadge tone={conversation.status?.toLowerCase()}>{conversation.status}</ConversationBadge>
         </span>
       </span>
-      <span className="ticket-source">
-        <span className="source-pill">{conversation.provider}</span>
-        <small>{conversation.reference_type || 'Message'}</small>
-      </span>
       <span className="ticket-category">
         <ConversationBadge tone="category" color={categoryColor}>
           {conversation.category?.name || 'No category'}
         </ConversationBadge>
       </span>
-      <span className="ticket-assignee">{userLabel(assignee)}</span>
       <span className="ticket-count" title="Message count">
         <Icon name="message" />
         {conversation.message_count || 0}
@@ -224,7 +249,38 @@ function ConversationRow({ conversation, isSelected, onSelect }) {
         <small>Respond by</small>
       </span>
       <time className="ticket-last">{formatDate(conversation.last_message_at || conversation.updated_at)}</time>
-    </button>
+    </div>
+  )
+}
+
+function BulkAssignBar({ selectedCount, selectedUser, users, usersError, error, isSubmitting, onUserChange, onAssign, onClear }) {
+  if (!selectedCount) {
+    return <div className="bulk-assignment-bar empty" aria-hidden="true" />
+  }
+
+  return (
+    <form className="bulk-assignment-bar" onSubmit={onAssign}>
+      <strong>{selectedCount} selected</strong>
+      <select value={selectedUser} onChange={(event) => onUserChange(event.target.value)} disabled={Boolean(usersError)}>
+        <option value="">Assign to user</option>
+        {users.map((user) => (
+          <option value={user.id} key={user.id}>
+            {user.fullName}
+          </option>
+        ))}
+      </select>
+      <button className="primary-button compact" type="submit" disabled={!selectedUser || isSubmitting || Boolean(usersError)}>
+        Assign
+      </button>
+      <button className="secondary-button compact-action" type="button" onClick={onClear}>
+        Clear
+      </button>
+      {error ? (
+        <p className="form-message error management-error" role="alert">
+          {error}
+        </p>
+      ) : null}
+    </form>
   )
 }
 
@@ -623,6 +679,7 @@ function ConversationDetail({
   const isDetailsView = mobilePane === 'details'
   const detailsButtonLabel = isDetailsView ? 'Thread' : isDetailsOpen ? 'Hide Details' : 'Details'
   const detailsButtonAction = isDetailsView ? onCloseDetails : isDetailsOpen ? onHideDetails : onOpenDetails
+  const sellerAccount = detail.seller_account
 
   return (
     <section className="conversation-detail" aria-label="Conversation detail">
@@ -633,6 +690,20 @@ function ConversationDetail({
           </button>
           <p>{detail.buyer_identifier || 'Unknown buyer'}</p>
           <h2>{detail.subject || detail.reference_id || 'Customer message'}</h2>
+          <dl className="detail-account-summary">
+            <div>
+              <dt>Seller Account</dt>
+              <dd>{sellerAccountLabel(detail)}</dd>
+            </div>
+            <div>
+              <dt>eBay Username</dt>
+              <dd>{sellerAccount?.ebay_username || 'Not available'}</dd>
+            </div>
+            <div>
+              <dt>Account Name</dt>
+              <dd>{sellerAccount?.account_name || 'Not available'}</dd>
+            </div>
+          </dl>
         </div>
         <div className="detail-header-actions">
           <ConversationBadge tone={detail.provider_conversation_status === 'ACTIVE' ? 'open' : 'neutral'}>
@@ -687,6 +758,8 @@ function Dashboard({ currentUser, onLogout }) {
   const [conversations, setConversations] = useState([])
   const [total, setTotal] = useState(0)
   const [selectedConversationId, setSelectedConversationId] = useState('')
+  const [bulkSelectedIds, setBulkSelectedIds] = useState(() => new Set())
+  const [bulkAssignedUserId, setBulkAssignedUserId] = useState('')
   const [detail, setDetail] = useState(null)
   const [notes, setNotes] = useState([])
   const [users, setUsers] = useState([])
@@ -827,6 +900,8 @@ function Dashboard({ currentUser, onLogout }) {
     [conversations, selectedConversationId],
   )
 
+  const bulkSelectedCount = bulkSelectedIds.size
+
   function beginListResize(event) {
     event.preventDefault()
 
@@ -862,6 +937,23 @@ function Dashboard({ currentUser, onLogout }) {
   function selectConversation(conversationId) {
     setSelectedConversationId(conversationId)
     setMobilePane('thread')
+  }
+
+  function toggleBulkSelection(conversationId) {
+    setBulkSelectedIds((current) => {
+      const next = new Set(current)
+      if (next.has(conversationId)) {
+        next.delete(conversationId)
+      } else {
+        next.add(conversationId)
+      }
+      return next
+    })
+  }
+
+  function clearBulkSelection() {
+    setBulkSelectedIds(new Set())
+    setBulkAssignedUserId('')
   }
 
   function returnToList() {
@@ -910,6 +1002,27 @@ function Dashboard({ currentUser, onLogout }) {
 
     try {
       await assignConversation(selectedConversationId, userId)
+      await refreshSelectedConversation()
+    } catch (caughtError) {
+      setActionError(caughtError.message)
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  async function handleBulkAssign(event) {
+    event.preventDefault()
+    const conversationIds = Array.from(bulkSelectedIds)
+    if (!conversationIds.length || !bulkAssignedUserId) {
+      return
+    }
+
+    setIsSubmitting(true)
+    setActionError('')
+
+    try {
+      await Promise.all(conversationIds.map((conversationId) => assignConversation(conversationId, bulkAssignedUserId)))
+      clearBulkSelection()
       await refreshSelectedConversation()
     } catch (caughtError) {
       setActionError(caughtError.message)
@@ -1012,15 +1125,27 @@ function Dashboard({ currentUser, onLogout }) {
             </button>
           </form>
 
+          <BulkAssignBar
+            selectedCount={bulkSelectedCount}
+            selectedUser={bulkAssignedUserId}
+            users={users}
+            usersError={usersError}
+            error={actionError}
+            isSubmitting={isSubmitting}
+            onUserChange={setBulkAssignedUserId}
+            onAssign={handleBulkAssign}
+            onClear={clearBulkSelection}
+          />
+
           <div className="conversation-table-head" aria-hidden="true">
             <span></span>
-            <span>Customer</span>
-            <span>Source</span>
-            <span>Label</span>
-            <span>Assigned</span>
-            <span>Count</span>
-            <span>Respond</span>
-            <span>Last activity</span>
+            <span>Username</span>
+            <span>Seller Account</span>
+            <span>Message</span>
+            <span>Category</span>
+            <span>Total Chats</span>
+            <span>SLA</span>
+            <span>Time</span>
           </div>
 
           {listError ? (
@@ -1037,7 +1162,9 @@ function Dashboard({ currentUser, onLogout }) {
                 <ConversationRow
                   conversation={conversation}
                   isSelected={conversation.id === selectedConversationId}
+                  isBulkSelected={bulkSelectedIds.has(conversation.id)}
                   onSelect={selectConversation}
+                  onToggleBulk={toggleBulkSelection}
                   key={conversation.id}
                 />
               ))

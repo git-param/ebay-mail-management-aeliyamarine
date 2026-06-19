@@ -2,12 +2,14 @@ from datetime import timedelta
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.dependencies import get_current_user
 from app.db.session import get_db
 from app.models.category import Category
 from app.models.conversation import Conversation, ConversationAssignment, ConversationNote, ConversationStatus, Message
+from app.models.ebay_account import EbayAccount
 from app.models.user import User
 from app.schemas.conversation import (
     AssignConversationRequest,
@@ -18,6 +20,7 @@ from app.schemas.conversation import (
     ConversationNoteResponse,
     ConversationPageResponse,
     ConversationSummaryResponse,
+    EbayAccountBriefResponse,
     MessageResponse,
     UpdateConversationCategoryRequest,
     UpdateConversationStatusRequest,
@@ -39,6 +42,7 @@ def require_conversation_access(current_user=Depends(get_current_user)):
 def serialize_conversation(
     conversation: Conversation,
     current_assignee_id: UUID | None = None,
+    seller_account: EbayAccount | None = None,
 ) -> ConversationDetailResponse:
     assignments = [serialize_assignment(assignment) for assignment in conversation.assignments]
     return ConversationDetailResponse(
@@ -64,6 +68,7 @@ def serialize_conversation(
         created_at=conversation.created_at,
         updated_at=conversation.updated_at,
         current_assignment=next((assignment for assignment in assignments if assignment.unassigned_at is None), None),
+        seller_account=serialize_ebay_account_brief(seller_account) if seller_account else None,
         current_assignee_id=current_assignee_id,
         messages=[serialize_message(message) for message in conversation.messages],
         assignments=assignments,
@@ -71,7 +76,10 @@ def serialize_conversation(
     )
 
 
-def serialize_conversation_summary(conversation: Conversation) -> ConversationSummaryResponse:
+def serialize_conversation_summary(
+    conversation: Conversation,
+    seller_account: EbayAccount | None = None,
+) -> ConversationSummaryResponse:
     return ConversationSummaryResponse(
         id=conversation.id,
         provider=conversation.provider,
@@ -95,6 +103,7 @@ def serialize_conversation_summary(conversation: Conversation) -> ConversationSu
         created_at=conversation.created_at,
         updated_at=conversation.updated_at,
         current_assignment=serialize_assignment(current_assignment) if (current_assignment := current_assignment_for(conversation)) else None,
+        seller_account=serialize_ebay_account_brief(seller_account) if seller_account else None,
     )
 
 
@@ -153,6 +162,26 @@ def serialize_category_brief(category: Category) -> CategoryBriefResponse:
     return CategoryBriefResponse(id=category.id, name=category.name, color=category.color)
 
 
+def serialize_ebay_account_brief(account: EbayAccount) -> EbayAccountBriefResponse:
+    return EbayAccountBriefResponse(
+        id=account.id,
+        account_name=account.account_name,
+        ebay_username=account.ebay_username,
+        store_name=account.store_name,
+    )
+
+
+def get_seller_account_map(db: Session, conversations: list[Conversation]) -> dict[UUID, EbayAccount]:
+    account_ids = {conversation.provider_account_id for conversation in conversations if conversation.provider_account_id}
+    if not account_ids:
+        return {}
+
+    return {
+        account.id: account
+        for account in db.scalars(select(EbayAccount).where(EbayAccount.id.in_(account_ids)))
+    }
+
+
 def current_assignment_for(conversation: Conversation) -> ConversationAssignment | None:
     return next((assignment for assignment in conversation.assignments if assignment.unassigned_at is None), None)
 
@@ -200,8 +229,12 @@ def list_conversations(
         assigned_user_id=assigned_user_id,
         category_id=category_id,
     )
+    seller_accounts = get_seller_account_map(db, conversations)
     return ConversationPageResponse(
-        items=[serialize_conversation_summary(conversation) for conversation in conversations],
+        items=[
+            serialize_conversation_summary(conversation, seller_accounts.get(conversation.provider_account_id))
+            for conversation in conversations
+        ],
         total=service.count_conversations(
             search=search,
             status=status,
@@ -223,7 +256,8 @@ def get_conversation(
 ) -> ConversationDetailResponse:
     service = ConversationService(db)
     conversation = service.get_conversation(conversation_id)
-    return serialize_conversation(conversation, service.get_current_assignee_id(conversation.id))
+    seller_account = db.get(EbayAccount, conversation.provider_account_id) if conversation.provider_account_id else None
+    return serialize_conversation(conversation, service.get_current_assignee_id(conversation.id), seller_account)
 
 
 @router.get('/{conversation_id}/messages', response_model=list[MessageResponse])

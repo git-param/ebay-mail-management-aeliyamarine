@@ -47,13 +47,30 @@ class EbayOAuthCallbackService:
             decoded_code = unquote(code)
             token_payload = self.client.exchange_code_for_tokens(decoded_code)
             seller_identity = self.client.get_authenticated_seller_identity(token_payload.access_token)
-            account.ebay_username = seller_identity.username
+            if not self._usernames_match(account.ebay_username, seller_identity.username):
+                account.connection_status = EbayConnectionStatus.FAILED
+                account.oauth_state = None
+                self.db.commit()
+                logger.warning(
+                    'eBay OAuth username mismatch for account %s expected=%s actual=%s',
+                    account.id,
+                    account.ebay_username,
+                    seller_identity.username,
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=(
+                        'Connected eBay user does not match the username entered for this account. '
+                        'Please sign in with the matching eBay user.'
+                    ),
+                )
+
             account.ebay_user_id = seller_identity.seller_account_id
             account.store_name = seller_identity.store_name
             logger.info(
                 'Persisting verified eBay seller identity for account %s username=%s user_id=%s store_name=%s',
                 account.id,
-                seller_identity.username,
+                account.ebay_username,
                 seller_identity.user_id,
                 seller_identity.store_name,
             )
@@ -67,6 +84,9 @@ class EbayOAuthCallbackService:
             self.db.commit()
             logger.warning('eBay OAuth callback completion failed for account %s', account.id)
             raise
+
+    def _usernames_match(self, expected_username: str, actual_username: str) -> bool:
+        return expected_username.strip().casefold() == actual_username.strip().casefold()
 
     def _get_account_by_state(self, state: str | None) -> EbayAccount:
         if not state:

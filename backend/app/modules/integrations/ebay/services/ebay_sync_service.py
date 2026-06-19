@@ -26,12 +26,14 @@ class EbaySyncResult:
     account_id: UUID
     ebay_username: str
     sync_log_id: UUID
-    status: SyncLogStatus
+    status: str
     conversations_processed: int
+    conversations_failed: int
     conversations_created: int
     conversations_updated: int
     messages_created: int
     messages_updated: int
+    failed_conversation_ids: list[str]
     total_conversations_available: int | None = None
     elapsed_seconds: float | None = None
     average_detail_seconds: float | None = None
@@ -55,11 +57,13 @@ class EbaySyncService:
         )
         counters = {
             'conversations_processed': 0,
+            'conversations_failed': 0,
             'conversations_created': 0,
             'conversations_updated': 0,
             'messages_created': 0,
             'messages_updated': 0,
         }
+        failed_conversations: list[dict] = []
         total_conversations_available = None
         detail_seconds_total = 0.0
         sync_started_at = perf_counter()
@@ -79,40 +83,99 @@ class EbaySyncService:
 
                 conversation_type = self._conversation_type(conversation_summary)
                 detail_started_at = perf_counter()
-                conversation_detail = self.token_service.client.get_conversation(
+                detail_response = self.token_service.client.get_conversation_raw(
                     account.access_token,
                     conversation_id=conversation_id,
                     conversation_type=conversation_type,
                     limit=50,
                     offset=0,
                 )
-                detail_elapsed_seconds = perf_counter() - detail_started_at
-                detail_seconds_total += detail_elapsed_seconds
-                conversation, created = self.message_service.upsert_conversation(
-                    account=account,
-                    conversation_summary=conversation_summary,
-                    conversation_detail=conversation_detail,
-                    conversation_type=conversation_type,
+                logger.info(
+                    'eBay conversation detail diagnostic account_id=%s conversation_id=%s conversation_type=%s request_url=%s conversation_summary=%s',
+                    account.id,
+                    conversation_id,
+                    conversation_type,
+                    detail_response.request_url,
+                    conversation_summary,
                 )
-                self.db.flush()
-                messages_created, messages_updated = self.message_service.upsert_messages(
-                    account=account,
-                    conversation=conversation,
-                    conversation_detail=conversation_detail,
-                )
-                counters['conversations_processed'] += 1
-                if created:
-                    counters['conversations_created'] += 1
-                else:
-                    counters['conversations_updated'] += 1
-                counters['messages_created'] += messages_created
-                counters['messages_updated'] += messages_updated
+                if conversation_id == '112795218410' or not detail_response.ok:
+                    logger.warning(
+                        'eBay conversation detail response diagnostic account_id=%s conversation_id=%s conversation_type=%s status_code=%s request_url=%s response_body=%s conversation_summary=%s',
+                        account.id,
+                        conversation_id,
+                        conversation_type,
+                        detail_response.status_code,
+                        detail_response.request_url,
+                        detail_response.payload,
+                        conversation_summary,
+                    )
+                if not detail_response.ok or not isinstance(detail_response.payload, dict):
+                    failed_conversation = self._failed_conversation(
+                        conversation_id=conversation_id,
+                        conversation_type=conversation_type,
+                        status_code=detail_response.status_code,
+                        error_message='eBay conversation detail request failed',
+                    )
+                    failed_conversation['response_body'] = detail_response.payload
+                    failed_conversations.append(failed_conversation)
+                    counters['conversations_failed'] += 1
+                    logger.warning(
+                        'Skipping failed eBay conversation detail account_id=%s conversation_id=%s conversation_type=%s status_code=%s response_body=%s',
+                        account.id,
+                        conversation_id,
+                        conversation_type,
+                        detail_response.status_code,
+                        detail_response.payload,
+                    )
+                    continue
+
+                try:
+                    with self.db.begin_nested():
+                        conversation_detail = detail_response.payload
+                        detail_elapsed_seconds = perf_counter() - detail_started_at
+                        detail_seconds_total += detail_elapsed_seconds
+                        conversation, created = self.message_service.upsert_conversation(
+                            account=account,
+                            conversation_summary=conversation_summary,
+                            conversation_detail=conversation_detail,
+                            conversation_type=conversation_type,
+                        )
+                        self.db.flush()
+                        messages_created, messages_updated = self.message_service.upsert_messages(
+                            account=account,
+                            conversation=conversation,
+                            conversation_detail=conversation_detail,
+                        )
+                        counters['conversations_processed'] += 1
+                        if created:
+                            counters['conversations_created'] += 1
+                        else:
+                            counters['conversations_updated'] += 1
+                        counters['messages_created'] += messages_created
+                        counters['messages_updated'] += messages_updated
+                except Exception as conversation_exc:
+                    failed_conversations.append(
+                        self._failed_conversation(
+                            conversation_id=conversation_id,
+                            conversation_type=conversation_type,
+                            status_code=None,
+                            error_message=str(conversation_exc),
+                        )
+                    )
+                    counters['conversations_failed'] += 1
+                    logger.exception(
+                        'Skipping eBay conversation after processing failure account_id=%s conversation_id=%s conversation_type=%s',
+                        account.id,
+                        conversation_id,
+                        conversation_type,
+                    )
+                    continue
 
                 elapsed_seconds = perf_counter() - sync_started_at
                 remaining_count = self._remaining_count(
                     total_conversations_available=total_conversations_available,
                     max_conversations=max_conversations,
-                    conversations_processed=counters['conversations_processed'],
+                    conversations_processed=counters['conversations_processed'] + counters['conversations_failed'],
                 )
                 logger.info(
                     'eBay sync progress account_id=%s processed=%s current_conversation_id=%s elapsed_seconds=%.2f remaining_count=%s detail_seconds=%.2f',
@@ -134,16 +197,19 @@ class EbaySyncService:
                             max_conversations=max_conversations,
                             elapsed_seconds=elapsed_seconds,
                             detail_seconds_total=detail_seconds_total,
+                            failed_conversations=failed_conversations,
                         ),
                     )
 
             account.last_sync_at = datetime.now(UTC)
-            account.sync_status = 'SUCCESS'
+            account.sync_status = 'SUCCESS_WITH_ERRORS' if counters['conversations_failed'] else 'SUCCESS'
             elapsed_seconds = perf_counter() - sync_started_at
             sync_log = self.sync_log_service.complete_sync(
                 sync_log.id,
                 records_processed=self._records_processed(counters),
             )
+            if counters['conversations_failed']:
+                sync_log.error_message = f"{counters['conversations_failed']} conversation(s) failed during sync"
             sync_log.sync_metadata = {
                 **(sync_log.sync_metadata or {}),
                 **self._progress_metadata(
@@ -152,6 +218,7 @@ class EbaySyncService:
                     max_conversations=max_conversations,
                     elapsed_seconds=elapsed_seconds,
                     detail_seconds_total=detail_seconds_total,
+                    failed_conversations=failed_conversations,
                 ),
             }
             self.db.commit()
@@ -167,8 +234,9 @@ class EbaySyncService:
             return self._build_result(
                 account=account,
                 sync_log_id=sync_log.id,
-                status=sync_log.status,
+                status=account.sync_status,
                 counters=counters,
+                failed_conversations=failed_conversations,
                 total_conversations_available=total_conversations_available,
                 elapsed_seconds=elapsed_seconds,
                 average_detail_seconds=self._average_detail_seconds(
@@ -187,8 +255,9 @@ class EbaySyncService:
             return self._build_result(
                 account=account or self._get_syncable_account(account_id),
                 sync_log_id=failed_sync_log.id,
-                status=failed_sync_log.status,
+                status=failed_sync_log.status.value,
                 counters=counters,
+                failed_conversations=failed_conversations,
                 total_conversations_available=total_conversations_available,
                 elapsed_seconds=perf_counter() - sync_started_at,
                 average_detail_seconds=self._average_detail_seconds(
@@ -280,8 +349,9 @@ class EbaySyncService:
         *,
         account: EbayAccount,
         sync_log_id: UUID,
-        status: SyncLogStatus,
+        status: SyncLogStatus | str,
         counters: dict,
+        failed_conversations: list[dict],
         total_conversations_available: int | None = None,
         elapsed_seconds: float | None = None,
         average_detail_seconds: float | None = None,
@@ -291,12 +361,18 @@ class EbaySyncService:
             account_id=account.id,
             ebay_username=account.ebay_username,
             sync_log_id=sync_log_id,
-            status=status,
+            status=status.value if isinstance(status, SyncLogStatus) else status,
             conversations_processed=counters['conversations_processed'],
+            conversations_failed=counters['conversations_failed'],
             conversations_created=counters['conversations_created'],
             conversations_updated=counters['conversations_updated'],
             messages_created=counters['messages_created'],
             messages_updated=counters['messages_updated'],
+            failed_conversation_ids=[
+                failed_conversation['conversation_id']
+                for failed_conversation in failed_conversations
+                if failed_conversation.get('conversation_id')
+            ],
             total_conversations_available=total_conversations_available,
             elapsed_seconds=elapsed_seconds,
             average_detail_seconds=average_detail_seconds,
@@ -331,6 +407,7 @@ class EbaySyncService:
         max_conversations: int | None,
         elapsed_seconds: float,
         detail_seconds_total: float,
+        failed_conversations: list[dict],
     ) -> dict:
         average_detail_seconds = self._average_detail_seconds(
             detail_seconds_total,
@@ -341,15 +418,38 @@ class EbaySyncService:
             'max_conversations': max_conversations,
             'total_conversations_available': total_conversations_available,
             'conversations_processed': counters['conversations_processed'],
+            'conversations_failed': counters['conversations_failed'],
+            'failed_conversation_ids': [
+                failed_conversation['conversation_id']
+                for failed_conversation in failed_conversations
+                if failed_conversation.get('conversation_id')
+            ],
+            'failed_conversations': failed_conversations,
             'conversations_created': counters['conversations_created'],
             'conversations_updated': counters['conversations_updated'],
             'messages_created': counters['messages_created'],
             'messages_updated': counters['messages_updated'],
+            'result_status': 'SUCCESS_WITH_ERRORS' if counters['conversations_failed'] else 'SUCCESS',
             'elapsed_seconds': round(elapsed_seconds, 3),
             'average_detail_seconds': round(average_detail_seconds, 3) if average_detail_seconds is not None else None,
             'remaining_count': self._remaining_count(
                 total_conversations_available=total_conversations_available,
                 max_conversations=max_conversations,
-                conversations_processed=counters['conversations_processed'],
+                conversations_processed=counters['conversations_processed'] + counters['conversations_failed'],
             ),
+        }
+
+    def _failed_conversation(
+        self,
+        *,
+        conversation_id: str,
+        conversation_type: str,
+        status_code: int | None,
+        error_message: str,
+    ) -> dict:
+        return {
+            'conversation_id': conversation_id,
+            'conversation_type': conversation_type,
+            'status_code': status_code,
+            'error_message': error_message,
         }
