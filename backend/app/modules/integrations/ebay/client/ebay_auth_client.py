@@ -39,6 +39,7 @@ class EbayRawApiResponse:
     status_code: int
     payload: dict | list | str
     ok: bool
+    request_url: str
 
 
 class EbayAuthClient:
@@ -350,6 +351,7 @@ class EbayAuthClient:
                     status_code=response.status,
                     payload=self._decode_response_body(response_body),
                     ok=True,
+                    request_url=request_url,
                 )
         except HTTPError as exc:
             error_body = ''
@@ -368,6 +370,7 @@ class EbayAuthClient:
                 status_code=exc.code,
                 payload=self._decode_response_body(error_body),
                 ok=False,
+                request_url=request_url,
             )
         except (URLError, TimeoutError) as exc:
             logger.warning('Unable to reach eBay Message API endpoint url=%s method=%s', request_url, method)

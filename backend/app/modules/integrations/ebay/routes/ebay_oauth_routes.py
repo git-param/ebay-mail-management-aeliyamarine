@@ -1,12 +1,14 @@
 import logging
 from datetime import UTC, datetime
+from urllib.parse import quote
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from sqlalchemy.orm import Session
 
 from app.api.dependencies import get_current_user
+from app.core.config import get_settings
 from app.db.session import get_db
 from app.models.ebay_account import EbayAccount
 from app.modules.integrations.ebay.oauth.callback_service import EbayOAuthCallbackService
@@ -35,8 +37,8 @@ def require_admin(current_user=Depends(get_current_user)):
 
 
 def require_ebay_sync_access(current_user=Depends(get_current_user)):
-    if current_user.role.name not in {'Admin', 'Operations Manager'}:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='Only admins and operations managers can sync eBay accounts')
+    if current_user.role.name != 'Admin':
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='Only admins can sync eBay accounts')
     return current_user
 
 
@@ -50,15 +52,23 @@ def connect_ebay_account(
     return EbayConnectResponse(authorization_url=authorization_url, state=state)
 
 
-@router.get('/callback', response_model=EbayOAuthCallbackResponse)
+@router.get('/callback')
 def handle_ebay_oauth_callback(
     code: str | None = Query(default=None),
     state: str | None = Query(default=None),
     error: str | None = Query(default=None),
     db: Session = Depends(get_db),
-) -> EbayOAuthCallbackResponse:
-    account = EbayOAuthCallbackService(db).handle_callback(code=code, state=state, error=error)
-    return EbayOAuthCallbackResponse(
+) -> RedirectResponse:
+    settings = get_settings()
+    try:
+        account = EbayOAuthCallbackService(db).handle_callback(code=code, state=state, error=error)
+    except HTTPException as exc:
+        return RedirectResponse(
+            f'{settings.frontend_url}/ebay-accounts?ebay_connection=failed&message={quote(str(exc.detail))}',
+            status_code=status.HTTP_303_SEE_OTHER,
+        )
+
+    response = EbayOAuthCallbackResponse(
         account_id=account.id,
         connection_status=account.connection_status.value,
         ebay_username=account.ebay_username,
@@ -68,6 +78,10 @@ def handle_ebay_oauth_callback(
         access_token_expires_at=account.access_token_expires_at,
         refresh_token_expires_at=account.refresh_token_expires_at,
         message='eBay account connected successfully',
+    )
+    return RedirectResponse(
+        f'{settings.frontend_url}/ebay-accounts?ebay_connection=success&account_id={response.account_id}',
+        status_code=status.HTTP_303_SEE_OTHER,
     )
 
 
@@ -108,6 +122,8 @@ def serialize_sync_result(result: EbaySyncResult) -> EbaySyncResultResponse:
         sync_log_id=result.sync_log_id,
         status=result.status,
         conversations_processed=result.conversations_processed,
+        conversations_failed=result.conversations_failed,
+        failed_conversation_ids=result.failed_conversation_ids,
         conversations_created=result.conversations_created,
         conversations_updated=result.conversations_updated,
         messages_created=result.messages_created,

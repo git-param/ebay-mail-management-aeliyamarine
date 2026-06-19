@@ -1,7 +1,7 @@
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.api.dependencies import get_current_user
@@ -35,6 +35,23 @@ def get_account_or_404(db: Session, account_id: UUID) -> EbayAccount:
     if not account:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='eBay account not found')
     return account
+
+
+def normalize_ebay_username(username: str) -> str:
+    return username.strip()
+
+
+def ensure_unique_ebay_username(db: Session, username: str, *, exclude_account_id: UUID | None = None) -> None:
+    normalized_username = normalize_ebay_username(username)
+    statement = select(EbayAccount).where(func.lower(EbayAccount.ebay_username) == normalized_username.casefold())
+    if exclude_account_id:
+        statement = statement.where(EbayAccount.id != exclude_account_id)
+
+    if db.scalar(statement):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail='An eBay account with this username already exists.',
+        )
 
 
 def serialize_account(account: EbayAccount) -> EbayAccountResponse:
@@ -87,9 +104,11 @@ def create_ebay_account(
     db: Session = Depends(get_db),
     current_user=Depends(require_admin),
 ) -> EbayAccountResponse:
+    ebay_username = normalize_ebay_username(payload.ebay_username)
+    ensure_unique_ebay_username(db, ebay_username)
     account = EbayAccount(
         account_name=payload.account_name.strip(),
-        ebay_username=payload.ebay_username.strip(),
+        ebay_username=ebay_username,
         environment=payload.environment,
         connection_status=EbayConnectionStatus.PENDING,
         is_active=True,
@@ -137,8 +156,10 @@ def update_ebay_account(
     current_user=Depends(require_admin),
 ) -> EbayAccountResponse:
     account = get_account_or_404(db, account_id)
+    ebay_username = normalize_ebay_username(payload.ebay_username)
+    ensure_unique_ebay_username(db, ebay_username, exclude_account_id=account.id)
     account.account_name = payload.account_name.strip()
-    account.ebay_username = payload.ebay_username.strip()
+    account.ebay_username = ebay_username
     account.environment = payload.environment
     account.notes = payload.notes.strip() if payload.notes else None
     add_account_audit_log(

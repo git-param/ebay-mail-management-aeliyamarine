@@ -147,6 +147,17 @@ function getLastMessagePreview(conversation) {
   )
 }
 
+function sellerAccountLabel(conversation) {
+  const sellerAccount = conversation.seller_account
+  return (
+    sellerAccount?.store_name ||
+    sellerAccount?.ebay_username ||
+    sellerAccount?.account_name ||
+    conversation.provider_account_id ||
+    'Unknown account'
+  )
+}
+
 function ConversationBadge({ children, tone = 'neutral', color }) {
   return (
     <span
@@ -210,6 +221,10 @@ function ConversationRow({ conversation, isSelected, isBulkSelected, onSelect, o
           <strong>{conversation.buyer_identifier || 'Unknown buyer'}</strong>
           <small>{title}</small>
         </span>
+      </span>
+      <span className="ticket-seller-account">
+        <strong>{sellerAccountLabel(conversation)}</strong>
+        <small>{conversation.seller_account?.account_name || 'Seller account'}</small>
       </span>
       <span className="ticket-message">
         <span className="conversation-preview">{getLastMessagePreview(conversation)}</span>
@@ -664,6 +679,7 @@ function ConversationDetail({
   const isDetailsView = mobilePane === 'details'
   const detailsButtonLabel = isDetailsView ? 'Thread' : isDetailsOpen ? 'Hide Details' : 'Details'
   const detailsButtonAction = isDetailsView ? onCloseDetails : isDetailsOpen ? onHideDetails : onOpenDetails
+  const sellerAccount = detail.seller_account
 
   return (
     <section className="conversation-detail" aria-label="Conversation detail">
@@ -674,6 +690,20 @@ function ConversationDetail({
           </button>
           <p>{detail.buyer_identifier || 'Unknown buyer'}</p>
           <h2>{detail.subject || detail.reference_id || 'Customer message'}</h2>
+          <dl className="detail-account-summary">
+            <div>
+              <dt>Seller Account</dt>
+              <dd>{sellerAccountLabel(detail)}</dd>
+            </div>
+            <div>
+              <dt>eBay Username</dt>
+              <dd>{sellerAccount?.ebay_username || 'Not available'}</dd>
+            </div>
+            <div>
+              <dt>Account Name</dt>
+              <dd>{sellerAccount?.account_name || 'Not available'}</dd>
+            </div>
+          </dl>
         </div>
         <div className="detail-header-actions">
           <ConversationBadge tone={detail.provider_conversation_status === 'ACTIVE' ? 'open' : 'neutral'}>
@@ -1110,6 +1140,7 @@ function Dashboard({ currentUser, onLogout }) {
           <div className="conversation-table-head" aria-hidden="true">
             <span></span>
             <span>Username</span>
+            <span>Seller Account</span>
             <span>Message</span>
             <span>Category</span>
             <span>Total Chats</span>
