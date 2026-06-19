@@ -2,12 +2,13 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, joinedload, selectinload
 
 from app.api.dependencies import get_current_user
 from app.core.security import hash_password
 from app.db.session import get_db
 from app.models.audit_log import AuditLog
+from app.models.category import Category, CategoryUserAssignment
 from app.models.role import Role
 from app.models.user import User
 from app.schemas.user import UserCreateRequest, UserResponse, UserUpdateRequest
@@ -68,7 +69,19 @@ def get_user_or_404(db: Session, user_id: UUID) -> User:
     return user
 
 
+def assigned_categories_for_user(db: Session, user_id: UUID) -> list[Category]:
+    return list(
+        db.scalars(
+            select(Category)
+            .join(CategoryUserAssignment, CategoryUserAssignment.category_id == Category.id)
+            .where(CategoryUserAssignment.user_id == user_id)
+            .order_by(Category.name.asc())
+        )
+    )
+
+
 def serialize_user(user: User) -> UserResponse:
+    assigned_categories = assigned_categories_for_user(user._sa_instance_state.session, user.id)
     return UserResponse(
         id=user.id,
         name=user.full_name,
@@ -77,6 +90,8 @@ def serialize_user(user: User) -> UserResponse:
         is_active=user.is_active,
         created_at=user.created_at,
         updated_at=user.updated_at,
+        assigned_categories=[category.name for category in assigned_categories],
+        assigned_category_ids=[category.id for category in assigned_categories],
     )
 
 

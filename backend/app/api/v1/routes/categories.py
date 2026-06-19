@@ -4,17 +4,22 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
-from app.api.dependencies import get_current_user
+from app.api.dependencies import get_current_user, require_operations_manager_or_admin
 from app.db.session import get_db
 from app.models.audit_log import AuditLog
-from app.models.category import Category, CategoryKeyword
+from app.models.category import Category, CategoryKeyword, CategoryUserAssignment
+from app.models.user import User
 from app.schemas.category import (
+    CategoryAssigneeResponse,
     CategoryCreateRequest,
     CategoryKeywordCreateRequest,
     CategoryKeywordResponse,
     CategoryResponse,
     CategoryUpdateRequest,
+    UserCategoryAssignmentRequest,
 )
+from app.services.audit_service import AuditService
+from app.services.category_assignment_service import CategoryAssignmentService
 from app.services.category_service import (
     ensure_category_name_available,
     ensure_keyword_available,
@@ -36,6 +41,7 @@ class CategoryAuditActions:
     DELETED = 'CATEGORY_DELETED'
     KEYWORD_CREATED = 'CATEGORY_KEYWORD_CREATED'
     KEYWORD_DELETED = 'CATEGORY_KEYWORD_DELETED'
+    ASSIGNMENTS_UPDATED = 'CATEGORY_ASSIGNMENTS_UPDATED'
 
 
 def role_name(current_user) -> str:
@@ -45,6 +51,10 @@ def role_name(current_user) -> str:
 def require_category_access(current_user=Depends(get_current_user)):
     if role_name(current_user) not in {'Admin', 'Operations Manager'}:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='You do not have access to categories')
+    return current_user
+
+
+def require_category_assignment_access(current_user=Depends(require_operations_manager_or_admin)):
     return current_user
 
 
@@ -63,8 +73,22 @@ def serialize_keyword(keyword: CategoryKeyword) -> CategoryKeywordResponse:
     )
 
 
+def serialize_assignee(user: User) -> CategoryAssigneeResponse:
+    return CategoryAssigneeResponse(
+        id=user.id,
+        name=user.full_name,
+        email=user.email,
+        role=user.role.name if user.role else '',
+    )
+
+
 def serialize_category(category: Category) -> CategoryResponse:
     keywords = [serialize_keyword(keyword) for keyword in category.keywords]
+    assigned_users = [
+        serialize_assignee(assignment.user)
+        for assignment in getattr(category, 'user_assignments', [])
+        if assignment.user
+    ]
     return CategoryResponse(
         id=category.id,
         name=category.name,
@@ -77,17 +101,17 @@ def serialize_category(category: Category) -> CategoryResponse:
         updated_at=category.updated_at,
         keywords=keywords,
         keywords_count=len(keywords),
+        assigned_users=assigned_users,
     )
 
 
 def add_category_audit_log(db: Session, *, action: str, actor_id: UUID, category_id: UUID) -> None:
-    db.add(
-        AuditLog(
-            user_id=actor_id,
-            action=action,
-            entity_type=CATEGORY_ENTITY_TYPE,
-            entity_id=category_id,
-        )
+    AuditService(db).log(
+        user_id=actor_id,
+        action=action,
+        entity_type=CATEGORY_ENTITY_TYPE,
+        entity_id=category_id,
+        category='CATEGORY_MANAGEMENT',
     )
 
 
@@ -102,7 +126,14 @@ def list_categories(
     db: Session = Depends(get_db),
     current_user=Depends(require_category_access),
 ) -> list[CategoryResponse]:
-    statement = select(Category).options(selectinload(Category.keywords)).order_by(Category.created_at.desc())
+    statement = (
+        select(Category)
+        .options(
+            selectinload(Category.keywords),
+            selectinload(Category.user_assignments).joinedload(CategoryUserAssignment.user).joinedload(User.role),
+        )
+        .order_by(Category.created_at.desc())
+    )
     return [serialize_category(category) for category in db.scalars(statement)]
 
 
@@ -137,6 +168,32 @@ def get_category(
     current_user=Depends(require_category_access),
 ) -> CategoryResponse:
     return serialize_category(get_category_or_404(db, category_id))
+
+
+@router.put('/users/{user_id}/assignments', response_model=list[CategoryResponse])
+def set_user_category_assignments(
+    user_id: UUID,
+    payload: UserCategoryAssignmentRequest,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_category_assignment_access),
+) -> list[CategoryResponse]:
+    CategoryAssignmentService(db).set_user_categories(
+        user_id=user_id,
+        category_ids=payload.category_ids,
+        actor_id=current_user.id,
+    )
+    db.commit()
+    statement = (
+        select(Category)
+        .options(
+            selectinload(Category.keywords),
+            selectinload(Category.user_assignments).joinedload(CategoryUserAssignment.user).joinedload(User.role),
+        )
+        .join(CategoryUserAssignment, CategoryUserAssignment.category_id == Category.id)
+        .where(CategoryUserAssignment.user_id == user_id)
+        .order_by(Category.name.asc())
+    )
+    return [serialize_category(category) for category in db.scalars(statement)]
 
 
 @router.put('/{category_id}', response_model=CategoryResponse)

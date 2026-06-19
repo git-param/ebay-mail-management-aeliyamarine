@@ -31,6 +31,12 @@ class Category(Base):
         cascade='all, delete-orphan',
         order_by='CategoryKeyword.created_at',
     )
+    user_assignments = relationship(
+        'CategoryUserAssignment',
+        back_populates='category',
+        cascade='all, delete-orphan',
+        order_by='CategoryUserAssignment.assigned_at',
+    )
 
 
 class CategoryKeyword(Base):
@@ -42,3 +48,17 @@ class CategoryKeyword(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
 
     category = relationship('Category', back_populates='keywords')
+
+
+class CategoryUserAssignment(Base):
+    __tablename__ = 'category_user_assignments'
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    category_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey('categories.id'), nullable=False)
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey('users.id'), nullable=False)
+    assigned_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey('users.id'), nullable=True)
+    assigned_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+
+    category = relationship('Category', back_populates='user_assignments')
+    user = relationship('User', foreign_keys=[user_id])
+    assigner = relationship('User', foreign_keys=[assigned_by])

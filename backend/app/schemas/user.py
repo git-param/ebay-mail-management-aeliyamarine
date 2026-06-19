@@ -30,3 +30,5 @@ class UserResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     last_login: datetime | None = None
+    assigned_categories: list[str] = Field(default_factory=list)
+    assigned_category_ids: list[UUID] = Field(default_factory=list)

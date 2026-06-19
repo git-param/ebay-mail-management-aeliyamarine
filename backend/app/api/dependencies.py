@@ -32,3 +32,35 @@ def get_current_user(
     if not user or not user.is_active:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=AuthMessages.INVALID_AUTH_TOKEN)
     return user
+
+
+def normalized_role_name(user) -> str:
+    return str(user.role.name if user and user.role else '').strip().upper().replace(' ', '_')
+
+
+def is_admin(user) -> bool:
+    return normalized_role_name(user) == 'ADMIN'
+
+
+def is_operations_manager(user) -> bool:
+    return normalized_role_name(user) == 'OPERATIONS_MANAGER'
+
+
+def is_support_agent(user) -> bool:
+    return normalized_role_name(user) == 'SUPPORT_AGENT'
+
+
+def can_manage_operations(user) -> bool:
+    return is_admin(user) or is_operations_manager(user)
+
+
+def require_admin(current_user=Depends(get_current_user)):
+    if not is_admin(current_user):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='Only admins can perform this action')
+    return current_user
+
+
+def require_operations_manager_or_admin(current_user=Depends(get_current_user)):
+    if not can_manage_operations(current_user):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='Only admins and operations managers can perform this action')
+    return current_user

@@ -7,6 +7,9 @@ from app.models.ebay_account import EbayAccount
 from app.modules.integrations.ebay.providers import EBAY_PROVIDER_NAME
 from app.repositories.conversation_repository import ConversationRepository
 from app.repositories.message_repository import MessageRepository
+from app.services.categorization_service import CategorizationService
+from app.services.category_assignment_service import CategoryAssignmentService
+from app.services.notification_service import NotificationService
 
 
 class EbayMessageService:
@@ -65,6 +68,18 @@ class EbayMessageService:
         )
         if created:
             conversation.status = ConversationStatus.OPEN
+        category_id = CategorizationService(self.db).classify_text(
+            ' '.join(
+                [
+                    values.get('subject') or '',
+                    values.get('buyer_identifier') or '',
+                    values.get('reference_id') or '',
+                    *(self._string_or_none(message.get('messageBody')) or '' for message in messages),
+                ]
+            )
+        )
+        if category_id:
+            conversation.category_id = category_id
         return conversation, created
 
     def upsert_messages(
@@ -96,9 +111,11 @@ class EbayMessageService:
                 'sent_at': sent_at,
                 'raw_payload': message_payload,
             }
-            _, created = self.message_repository.upsert_by_provider_id(EBAY_PROVIDER_NAME, message_id, values)
+            message, created = self.message_repository.upsert_by_provider_id(EBAY_PROVIDER_NAME, message_id, values)
             if created:
                 created_count += 1
+                if is_inbound and conversation.category_id:
+                    self._notify_category_owners(conversation, message.id)
             else:
                 updated_count += 1
 
@@ -194,3 +211,17 @@ class EbayMessageService:
 
     def _normalize_for_comparison(self, value: str) -> str:
         return ' '.join(value.split())
+
+    def _notify_category_owners(self, conversation: Conversation, message_id) -> None:
+        users = CategoryAssignmentService(self.db).users_for_category(conversation.category_id)
+        notification_service = NotificationService(self.db)
+        for user in users:
+            notification_service.create(
+                user_id=user.id,
+                title='New incoming message',
+                body=f'New message in {conversation.subject or conversation.provider_conversation_id}.',
+                event_type='NEW_INCOMING_MESSAGE',
+                event_key=f'new-message:{message_id}:{user.id}',
+                resource_type='CONVERSATION',
+                resource_id=conversation.id,
+            )

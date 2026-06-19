@@ -11,6 +11,17 @@ class CategoryKeywordResponse(BaseModel):
     created_at: datetime
 
 
+class CategoryAssigneeResponse(BaseModel):
+    id: UUID
+    name: str
+    email: str
+    role: str
+
+
+class UserCategoryAssignmentRequest(BaseModel):
+    category_ids: list[UUID] = Field(default_factory=list)
+
+
 class CategoryBaseRequest(BaseModel):
     name: str = Field(min_length=1, max_length=120)
     description: str | None = None
@@ -66,3 +77,4 @@ class CategoryResponse(BaseModel):
     updated_at: datetime
     keywords: list[CategoryKeywordResponse]
     keywords_count: int
+    assigned_users: list[CategoryAssigneeResponse] = Field(default_factory=list)

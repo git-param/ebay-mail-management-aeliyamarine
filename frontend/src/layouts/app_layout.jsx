@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 
 import { normalizeRole } from '../utils/roles'
+import { fetchNotifications, markNotificationsRead } from '../services/notificationApi'
 
 const NAV_ITEMS = [
   {
@@ -26,6 +27,18 @@ const NAV_ITEMS = [
     path: '/categories',
     icon: 'tag',
     roles: ['ADMIN', 'OPS_MANAGER'],
+  },
+  {
+    label: 'Analytics',
+    path: '/analytics',
+    icon: 'chart',
+    roles: ['ADMIN', 'OPS_MANAGER'],
+  },
+  {
+    label: 'Audit Logs',
+    path: '/audit-logs',
+    icon: 'audit',
+    roles: ['ADMIN'],
   },
 ]
 
@@ -59,6 +72,8 @@ export function Icon({ name }) {
     bell: <path d="M6 15h8l-1-2V9a4 4 0 0 0-8 0v4l-1 2h2Zm3 2h2" />,
     message: <path d="M4 5h12v8H7l-3 3V5Zm3 3h6M7 10h4" />,
     moon: <path d="M14.5 13.5A6 6 0 0 1 7 6a6 6 0 1 0 7.5 7.5Z" />,
+    chart: <path d="M4 16V5m0 11h12M7 13V9m4 4V6m4 7v-3" />,
+    audit: <path d="M5 4h8l2 2v10H5V4Zm7 0v3h3M7 9h6M7 12h6" />,
   }
 
   return (
@@ -71,6 +86,8 @@ export function Icon({ name }) {
 function AppLayout({ activePage, children, currentUser, onLogout }) {
   const [isProfileOpen, setIsProfileOpen] = useState(false)
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false)
+  const [notifications, setNotifications] = useState([])
+  const [unreadCount, setUnreadCount] = useState(0)
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'light')
   const userRole = normalizeRole(currentUser?.role)
   const visibleItems = NAV_ITEMS.filter((item) => item.roles.includes(userRole))
@@ -81,6 +98,44 @@ function AppLayout({ activePage, children, currentUser, onLogout }) {
     document.documentElement.dataset.theme = theme
     localStorage.setItem('theme', theme)
   }, [theme])
+
+  useEffect(() => {
+    let isActive = true
+    async function loadNotifications() {
+      try {
+        const response = await fetchNotifications()
+        if (isActive) {
+          setNotifications(response.items || [])
+          setUnreadCount(response.unread_count || 0)
+        }
+      } catch {
+        if (isActive) {
+          setNotifications([])
+          setUnreadCount(0)
+        }
+      }
+    }
+    loadNotifications()
+    const interval = window.setInterval(loadNotifications, 60000)
+    return () => {
+      isActive = false
+      window.clearInterval(interval)
+    }
+  }, [])
+
+  async function toggleNotifications() {
+    const nextOpen = !isNotificationsOpen
+    setIsNotificationsOpen(nextOpen)
+    if (nextOpen && unreadCount) {
+      try {
+        await markNotificationsRead()
+        setUnreadCount(0)
+        setNotifications((items) => items.map((item) => ({ ...item, is_read: true })))
+      } catch {
+        // Keep the menu usable even if marking read fails.
+      }
+    }
+  }
 
   return (
     <div className="app-shell">
@@ -122,15 +177,24 @@ function AppLayout({ activePage, children, currentUser, onLogout }) {
               type="button"
               aria-label="Notifications"
               aria-expanded={isNotificationsOpen}
-              onClick={() => setIsNotificationsOpen((current) => !current)}
+              onClick={toggleNotifications}
             >
               <Icon name="bell" />
-              <span className="notify-dot">0</span>
+              <span className="notify-dot">{unreadCount}</span>
             </button>
               {isNotificationsOpen ? (
                 <div className="notification-menu">
                   <strong>Notifications</strong>
-                  <p>No new notifications right now.</p>
+                  {notifications.length ? (
+                    notifications.map((notification) => (
+                      <a href={notification.resource_type === 'CONVERSATION' ? `/inbox` : '#'} key={notification.id}>
+                        <span>{notification.title}</span>
+                        <p>{notification.body}</p>
+                      </a>
+                    ))
+                  ) : (
+                    <p>No new notifications right now.</p>
+                  )}
                 </div>
               ) : null}
             </div>

@@ -5,7 +5,8 @@ from fastapi import HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
-from app.models.category import Category, CategoryKeyword
+from app.models.category import Category, CategoryKeyword, CategoryUserAssignment
+from app.models.user import User
 
 OTHER_CATEGORY_NAME = 'Other'
 
@@ -33,7 +34,10 @@ def validate_unique_keywords(keywords: list[str]) -> list[str]:
 def get_category_or_404(db: Session, category_id: UUID) -> Category:
     category = db.scalar(
         select(Category)
-        .options(selectinload(Category.keywords))
+        .options(
+            selectinload(Category.keywords),
+            selectinload(Category.user_assignments).joinedload(CategoryUserAssignment.user).joinedload(User.role),
+        )
         .where(Category.id == category_id)
     )
     if not category:

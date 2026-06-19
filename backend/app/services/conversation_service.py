@@ -30,6 +30,7 @@ class ConversationService:
         provider_account_id: UUID | None = None,
         assigned_user_id: UUID | None = None,
         category_id: UUID | None = None,
+        visible_category_ids: set[UUID] | None = None,
     ) -> list[Conversation]:
         return self.repository.list(
             limit=limit,
@@ -40,6 +41,7 @@ class ConversationService:
             provider_account_id=provider_account_id,
             assigned_user_id=assigned_user_id,
             category_id=category_id,
+            visible_category_ids=visible_category_ids,
         )
 
     def count_conversations(
@@ -51,6 +53,7 @@ class ConversationService:
         provider_account_id: UUID | None = None,
         assigned_user_id: UUID | None = None,
         category_id: UUID | None = None,
+        visible_category_ids: set[UUID] | None = None,
     ) -> int:
         return self.repository.count(
             search=search,
@@ -59,10 +62,11 @@ class ConversationService:
             provider_account_id=provider_account_id,
             assigned_user_id=assigned_user_id,
             category_id=category_id,
+            visible_category_ids=visible_category_ids,
         )
 
-    def get_conversation(self, conversation_id: UUID) -> Conversation:
-        conversation = self.repository.get_by_id(conversation_id)
+    def get_conversation(self, conversation_id: UUID, visible_category_ids: set[UUID] | None = None) -> Conversation:
+        conversation = self.repository.get_by_id(conversation_id, visible_category_ids=visible_category_ids)
         if not conversation:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Conversation not found')
         return conversation
