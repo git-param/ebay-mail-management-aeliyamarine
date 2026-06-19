@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.api.dependencies import get_current_user
+from app.api.dependencies import can_manage_operations, get_current_user, is_support_agent
 from app.db.session import get_db
 from app.models.category import Category
 from app.models.conversation import Conversation, ConversationAssignment, ConversationNote, ConversationStatus, Message
@@ -13,6 +13,8 @@ from app.models.ebay_account import EbayAccount
 from app.models.user import User
 from app.schemas.conversation import (
     AssignConversationRequest,
+    BulkConversationUpdateRequest,
+    BulkConversationUpdateResponse,
     CategoryBriefResponse,
     ConversationAssignmentResponse,
     ConversationDetailResponse,
@@ -27,9 +29,12 @@ from app.schemas.conversation import (
     UserBriefResponse,
 )
 from app.services.assignment_service import AssignmentService
+from app.services.audit_service import AuditService
+from app.services.category_assignment_service import CategoryAssignmentService
 from app.services.conversation_note_service import ConversationNoteService
 from app.services.conversation_service import ConversationService
 from app.services.message_service import MessageService
+from app.services.notification_service import NotificationService
 
 
 router = APIRouter()
@@ -37,6 +42,19 @@ router = APIRouter()
 
 def require_conversation_access(current_user=Depends(get_current_user)):
     return current_user
+
+
+def visible_category_ids_for_user(db: Session, current_user) -> set[UUID] | None:
+    if is_support_agent(current_user):
+        return CategoryAssignmentService(db).assigned_category_ids(current_user.id)
+    return None
+
+
+def ensure_can_manage_conversation(current_user) -> None:
+    if not can_manage_operations(current_user):
+        from fastapi import HTTPException, status
+
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='Only admins and operations managers can manage assignments and categories')
 
 
 def serialize_conversation(
@@ -219,6 +237,7 @@ def list_conversations(
     current_user=Depends(require_conversation_access),
 ) -> ConversationPageResponse:
     service = ConversationService(db)
+    visible_category_ids = visible_category_ids_for_user(db, current_user)
     conversations = service.list_conversations(
         limit=limit,
         offset=offset,
@@ -228,6 +247,7 @@ def list_conversations(
         provider_account_id=ebay_account_id,
         assigned_user_id=assigned_user_id,
         category_id=category_id,
+        visible_category_ids=visible_category_ids,
     )
     seller_accounts = get_seller_account_map(db, conversations)
     return ConversationPageResponse(
@@ -242,6 +262,7 @@ def list_conversations(
             provider_account_id=ebay_account_id,
             assigned_user_id=assigned_user_id,
             category_id=category_id,
+            visible_category_ids=visible_category_ids,
         ),
         limit=limit,
         offset=offset,
@@ -255,7 +276,7 @@ def get_conversation(
     current_user=Depends(require_conversation_access),
 ) -> ConversationDetailResponse:
     service = ConversationService(db)
-    conversation = service.get_conversation(conversation_id)
+    conversation = service.get_conversation(conversation_id, visible_category_ids=visible_category_ids_for_user(db, current_user))
     seller_account = db.get(EbayAccount, conversation.provider_account_id) if conversation.provider_account_id else None
     return serialize_conversation(conversation, service.get_current_assignee_id(conversation.id), seller_account)
 
@@ -266,6 +287,7 @@ def list_conversation_messages(
     db: Session = Depends(get_db),
     current_user=Depends(require_conversation_access),
 ) -> list[MessageResponse]:
+    ConversationService(db).get_conversation(conversation_id, visible_category_ids=visible_category_ids_for_user(db, current_user))
     return [serialize_message(message) for message in MessageService(db).list_messages(conversation_id)]
 
 
@@ -276,11 +298,32 @@ def assign_conversation(
     db: Session = Depends(get_db),
     current_user=Depends(require_conversation_access),
 ) -> ConversationAssignmentResponse:
+    ensure_can_manage_conversation(current_user)
+    conversation = ConversationService(db).get_conversation(conversation_id)
     assignment = AssignmentService(db).assign_conversation(
         conversation_id=conversation_id,
         assigned_to=payload.assigned_to,
         assigned_by=current_user.id,
     )
+    NotificationService(db).create(
+        user_id=payload.assigned_to,
+        title='Conversation assigned',
+        body=f'Conversation {conversation.subject or conversation.provider_conversation_id} was assigned to you.',
+        event_type='MESSAGE_ASSIGNMENT',
+        event_key=f'conversation-assigned:{assignment.id}',
+        resource_type='CONVERSATION',
+        resource_id=conversation_id,
+    )
+    AuditService(db).log(
+        action='CONVERSATION_ASSIGNED',
+        user_id=current_user.id,
+        entity_type='CONVERSATION',
+        entity_id=conversation_id,
+        category='ASSIGNMENT',
+        metadata={'assigned_to': str(payload.assigned_to)},
+    )
+    db.commit()
+    db.refresh(assignment)
     return serialize_assignment(assignment)
 
 
@@ -291,6 +334,7 @@ def create_conversation_note(
     db: Session = Depends(get_db),
     current_user=Depends(require_conversation_access),
 ) -> ConversationNoteResponse:
+    ConversationService(db).get_conversation(conversation_id, visible_category_ids=visible_category_ids_for_user(db, current_user))
     note = ConversationNoteService(db).add_note(
         conversation_id=conversation_id,
         author_id=current_user.id,
@@ -305,6 +349,7 @@ def list_conversation_notes(
     db: Session = Depends(get_db),
     current_user=Depends(require_conversation_access),
 ) -> list[ConversationNoteResponse]:
+    ConversationService(db).get_conversation(conversation_id, visible_category_ids=visible_category_ids_for_user(db, current_user))
     return [serialize_note(note) for note in ConversationNoteService(db).list_notes(conversation_id)]
 
 
@@ -316,12 +361,22 @@ def update_conversation_status(
     current_user=Depends(require_conversation_access),
 ) -> ConversationDetailResponse:
     service = ConversationService(db)
+    service.get_conversation(conversation_id, visible_category_ids=visible_category_ids_for_user(db, current_user))
     conversation = service.update_status(
         conversation_id=conversation_id,
         new_status=payload.status,
         changed_by=current_user.id,
         note=payload.note,
     )
+    AuditService(db).log(
+        action='MESSAGE_STATUS_CHANGED',
+        user_id=current_user.id,
+        entity_type='CONVERSATION',
+        entity_id=conversation_id,
+        category='MESSAGE_MANAGEMENT',
+        metadata={'status': payload.status.value},
+    )
+    db.commit()
     return serialize_conversation(conversation, service.get_current_assignee_id(conversation.id))
 
 
@@ -333,10 +388,95 @@ def update_conversation_category(
     current_user=Depends(require_conversation_access),
 ) -> ConversationDetailResponse:
     service = ConversationService(db)
+    ensure_can_manage_conversation(current_user)
     conversation = service.update_category(
         conversation_id=conversation_id,
         category_id=payload.category_id,
         changed_by=current_user.id,
         note=payload.note,
     )
+    AuditService(db).log(
+        action='MESSAGE_CATEGORY_CHANGED',
+        user_id=current_user.id,
+        entity_type='CONVERSATION',
+        entity_id=conversation_id,
+        category='MESSAGE_MANAGEMENT',
+        metadata={'category_id': str(payload.category_id) if payload.category_id else None},
+    )
+    db.commit()
     return serialize_conversation(conversation, service.get_current_assignee_id(conversation.id))
+
+
+@router.post('/bulk-update', response_model=BulkConversationUpdateResponse)
+def bulk_update_conversations(
+    payload: BulkConversationUpdateRequest,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_conversation_access),
+) -> BulkConversationUpdateResponse:
+    ensure_can_manage_conversation(current_user)
+    service = ConversationService(db)
+    assignment_service = AssignmentService(db)
+    updated_count = 0
+    assignment_count = 0
+    skipped_count = 0
+
+    owner_ids: list[UUID] = []
+    if payload.assign_to_category_owners and payload.category_id:
+        owner_ids = [user.id for user in CategoryAssignmentService(db).users_for_category(payload.category_id)]
+
+    for conversation_id in payload.conversation_ids:
+        try:
+            conversation = service.get_conversation(conversation_id)
+            if payload.category_id is not None:
+                service.update_category(
+                    conversation_id=conversation_id,
+                    category_id=payload.category_id,
+                    changed_by=current_user.id,
+                    note='Bulk category update',
+                )
+            if payload.status is not None:
+                service.update_status(
+                    conversation_id=conversation_id,
+                    new_status=payload.status,
+                    changed_by=current_user.id,
+                    note='Bulk status update',
+                )
+            if payload.assigned_to:
+                assignment_service.assign_conversation(
+                    conversation_id=conversation_id,
+                    assigned_to=payload.assigned_to,
+                    assigned_by=current_user.id,
+                )
+                assignment_count += 1
+            for owner_id in owner_ids:
+                assignment_service.assign_conversation(
+                    conversation_id=conversation_id,
+                    assigned_to=owner_id,
+                    assigned_by=current_user.id,
+                )
+                assignment_count += 1
+            updated_count += 1
+        except Exception:
+            skipped_count += 1
+
+    AuditService(db).log(
+        action='BULK_ASSIGNMENT_UPDATED',
+        user_id=current_user.id,
+        entity_type='CONVERSATION',
+        category='ASSIGNMENT',
+        metadata={
+            'conversation_ids': [str(value) for value in payload.conversation_ids],
+            'assigned_to': str(payload.assigned_to) if payload.assigned_to else None,
+            'category_id': str(payload.category_id) if payload.category_id else None,
+            'assign_to_category_owners': payload.assign_to_category_owners,
+            'updated_count': updated_count,
+            'skipped_count': skipped_count,
+        },
+    )
+    db.commit()
+    return BulkConversationUpdateResponse(
+        updated_count=updated_count,
+        assignment_count=assignment_count,
+        skipped_count=skipped_count,
+        message='Bulk update completed',
+    )

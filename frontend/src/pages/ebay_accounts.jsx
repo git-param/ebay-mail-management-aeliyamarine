@@ -11,6 +11,7 @@ import {
   fetchEbayAccounts,
   syncAllEbayAccounts,
   syncEbayAccount,
+  submitManualEbayCallback,
   updateEbayAccount,
 } from '../services/ebayAccountApi'
 import { normalizeRole } from '../utils/roles'
@@ -336,6 +337,10 @@ function EbayAccounts({ currentUser, onLogout }) {
   const [syncResults, setSyncResults] = useState([])
   const [connectingAccountId, setConnectingAccountId] = useState('')
   const [syncingAction, setSyncingAction] = useState('')
+  const [manualAccountId, setManualAccountId] = useState('')
+  const [manualConnectUrl, setManualConnectUrl] = useState('')
+  const [manualState, setManualState] = useState('')
+  const [manualCode, setManualCode] = useState('')
   const [isLoading, setIsLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const isAdmin = normalizeRole(currentUser?.role) === 'ADMIN'
@@ -537,6 +542,53 @@ function EbayAccounts({ currentUser, onLogout }) {
     }
   }
 
+  async function generateManualConnectLink() {
+    if (!manualAccountId) {
+      setError('Choose an eBay account first.')
+      return
+    }
+    setConnectingAccountId(manualAccountId)
+    setError('')
+    try {
+      const response = await connectEbayAccount(manualAccountId)
+      setManualConnectUrl(response.authorization_url)
+      setManualState(response.state || '')
+      showNotification('Manual connect link generated.')
+    } catch (caughtError) {
+      showError(caughtError)
+    } finally {
+      setConnectingAccountId('')
+    }
+  }
+
+  async function submitManualCallback(event) {
+    event.preventDefault()
+    if (!manualState.trim() || !manualCode.trim()) {
+      setError('State and code are required.')
+      return
+    }
+    setIsSubmitting(true)
+    setError('')
+    try {
+      await submitManualEbayCallback({ state: manualState.trim(), code: manualCode.trim() })
+      setManualCode('')
+      showNotification('Manual eBay callback completed successfully.')
+      await loadAccounts()
+    } catch (caughtError) {
+      showError(caughtError)
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  async function copyManualLink() {
+    if (!manualConnectUrl) {
+      return
+    }
+    await navigator.clipboard.writeText(manualConnectUrl)
+    showNotification('Connect link copied.')
+  }
+
   async function runSync(label, syncRequest) {
     setSyncingAction(label)
     setError('')
@@ -626,53 +678,63 @@ function EbayAccounts({ currentUser, onLogout }) {
 
         <SyncSummary results={syncResults} />
 
-        <section className="filter-panel" aria-label="eBay account filters">
-          <label className="field search-field">
-            <span>Search</span>
-            <input
-              type="search"
-              placeholder="Search by account or username"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-            />
-          </label>
-
-          <label className="field">
-            <span>Environment</span>
-            <select value={environmentFilter} onChange={(event) => setEnvironmentFilter(event.target.value)}>
-              <option>All Environments</option>
-              {ENVIRONMENTS.map((environment) => (
-                <option value={environment} key={environment}>
-                  {formatLabel(environment)}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="field">
-            <span>Status</span>
-            <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
-              <option>All Statuses</option>
-              {CONNECTION_STATUSES.map((status) => (
-                <option value={status} key={status}>
-                  {formatLabel(status)}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <button className="secondary-button" type="button" onClick={resetFilters}>
-            Reset Filters
-          </button>
-        </section>
-
         {error ? (
           <p className="form-message error management-error" role="alert">
             {error}
           </p>
         ) : null}
 
-        <section className="table-card" aria-label="eBay accounts table">
+        <section className="table-card ebay-list-section" aria-label="eBay accounts table">
+          <div className="ebay-list-header">
+            <div>
+              <h2>Connected Seller Accounts</h2>
+              <p>{filteredAccounts.length} account{filteredAccounts.length === 1 ? '' : 's'} match your filters</p>
+            </div>
+            <button className="secondary-button compact-action" type="button" onClick={loadAccounts}>
+              Refresh List
+            </button>
+          </div>
+
+          <div className="filter-panel ebay-filter-panel" aria-label="eBay account filters">
+            <label className="field search-field">
+              <span>Search</span>
+              <input
+                type="search"
+                placeholder="Search by account or username"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+              />
+            </label>
+
+            <label className="field">
+              <span>Environment</span>
+              <select value={environmentFilter} onChange={(event) => setEnvironmentFilter(event.target.value)}>
+                <option>All Environments</option>
+                {ENVIRONMENTS.map((environment) => (
+                  <option value={environment} key={environment}>
+                    {formatLabel(environment)}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="field">
+              <span>Status</span>
+              <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+                <option>All Statuses</option>
+                {CONNECTION_STATUSES.map((status) => (
+                  <option value={status} key={status}>
+                    {formatLabel(status)}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <button className="secondary-button" type="button" onClick={resetFilters}>
+              Reset Filters
+            </button>
+          </div>
+
           {isLoading ? (
             <div className="empty-state">
               <h2>Loading eBay accounts...</h2>
@@ -805,6 +867,82 @@ function EbayAccounts({ currentUser, onLogout }) {
             </div>
           )}
         </section>
+
+        {isAdmin ? (
+          <section className="oauth-helper-panel" aria-label="Manual eBay OAuth helper">
+            <div className="oauth-helper-copy">
+              <span className="oauth-kicker">Admin Utility</span>
+              <h2>Manual eBay OAuth</h2>
+              <p>Generate a seller authorization link, complete eBay login in a browser, then paste the returned state and code here.</p>
+              <div className="oauth-status-row">
+                <Badge type="connection" value="PENDING" />
+                <span>{manualConnectUrl ? 'Connect link ready' : 'Waiting for account selection'}</span>
+              </div>
+            </div>
+
+            <div className="oauth-helper-workspace">
+              <div className="oauth-step-card">
+                <span className="oauth-step-number">1</span>
+                <div>
+                  <h3>Generate Connect Link</h3>
+                  <label className="field">
+                    <span>Account</span>
+                    <select value={manualAccountId} onChange={(event) => setManualAccountId(event.target.value)}>
+                      <option value="">Select account</option>
+                      {accounts.map((account) => (
+                        <option value={account.id} key={account.id}>
+                          {account.accountName} - {account.ebayUsername}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <button
+                    className="primary-button compact"
+                    type="button"
+                    onClick={generateManualConnectLink}
+                    disabled={!manualAccountId || Boolean(connectingAccountId)}
+                  >
+                    {connectingAccountId === manualAccountId ? 'Generating...' : 'Generate Connect Link'}
+                  </button>
+                </div>
+              </div>
+
+              {manualConnectUrl ? (
+                <div className="oauth-link-box">
+                  <input value={manualConnectUrl} readOnly />
+                  <button className="secondary-button compact-action" type="button" onClick={copyManualLink}>
+                    Copy
+                  </button>
+                  <a className="secondary-button compact-action" href={manualConnectUrl} target="_blank" rel="noreferrer">
+                    Open
+                  </a>
+                </div>
+              ) : null}
+
+              <form className="oauth-step-card oauth-callback-form" onSubmit={submitManualCallback}>
+                <span className="oauth-step-number">2</span>
+                <div>
+                  <h3>Submit Callback</h3>
+                  <div className="oauth-callback-grid">
+                    <label className="field">
+                      <span>State</span>
+                      <input value={manualState} onChange={(event) => setManualState(event.target.value)} />
+                    </label>
+                    <label className="field">
+                      <span>Code</span>
+                      <input value={manualCode} onChange={(event) => setManualCode(event.target.value)} />
+                    </label>
+                  </div>
+                  <div className="modal-actions">
+                    <button className="primary-button compact" type="submit" disabled={isSubmitting || !manualState || !manualCode}>
+                      {isSubmitting ? 'Submitting...' : 'Submit Callback'}
+                    </button>
+                  </div>
+                </div>
+              </form>
+            </div>
+          </section>
+        ) : null}
       </main>
 
       {notification ? <div className="toast">{notification}</div> : null}

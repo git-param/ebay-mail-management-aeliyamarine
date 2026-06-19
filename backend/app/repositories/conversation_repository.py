@@ -3,6 +3,7 @@ from uuid import UUID
 from sqlalchemy import and_, exists, func, or_, select
 from sqlalchemy.orm import Session, joinedload, selectinload
 
+from app.models.category import CategoryUserAssignment
 from app.models.conversation import Conversation, ConversationAssignment, ConversationNote, ConversationStatus, Message
 
 
@@ -21,6 +22,7 @@ class ConversationRepository:
         provider_account_id: UUID | None = None,
         assigned_user_id: UUID | None = None,
         category_id: UUID | None = None,
+        visible_category_ids: set[UUID] | None = None,
     ) -> list[Conversation]:
         statement = self._filtered_statement(
             search=search,
@@ -29,6 +31,7 @@ class ConversationRepository:
             provider_account_id=provider_account_id,
             assigned_user_id=assigned_user_id,
             category_id=category_id,
+            visible_category_ids=visible_category_ids,
         ).options(
             selectinload(Conversation.assignments).joinedload(ConversationAssignment.assignee),
             selectinload(Conversation.assignments).joinedload(ConversationAssignment.assigner),
@@ -50,6 +53,7 @@ class ConversationRepository:
         provider_account_id: UUID | None = None,
         assigned_user_id: UUID | None = None,
         category_id: UUID | None = None,
+        visible_category_ids: set[UUID] | None = None,
     ) -> int:
         statement = self._filtered_statement(
             search=search,
@@ -58,10 +62,11 @@ class ConversationRepository:
             provider_account_id=provider_account_id,
             assigned_user_id=assigned_user_id,
             category_id=category_id,
+            visible_category_ids=visible_category_ids,
         )
         return int(self.db.scalar(select(func.count()).select_from(statement.subquery())) or 0)
 
-    def get_by_id(self, conversation_id: UUID) -> Conversation | None:
+    def get_by_id(self, conversation_id: UUID, visible_category_ids: set[UUID] | None = None) -> Conversation | None:
         statement = (
             select(Conversation)
             .options(
@@ -73,6 +78,8 @@ class ConversationRepository:
             )
             .where(Conversation.id == conversation_id)
         )
+        if visible_category_ids is not None:
+            statement = statement.where(Conversation.category_id.in_(visible_category_ids))
         return self.db.scalar(statement)
 
     def get_by_provider_id(self, provider: str, provider_conversation_id: str) -> Conversation | None:
@@ -111,6 +118,7 @@ class ConversationRepository:
         provider_account_id: UUID | None = None,
         assigned_user_id: UUID | None = None,
         category_id: UUID | None = None,
+        visible_category_ids: set[UUID] | None = None,
     ):
         statement = select(Conversation)
         if search:
@@ -149,4 +157,6 @@ class ConversationRepository:
             )
         if category_id:
             statement = statement.where(Conversation.category_id == category_id)
+        if visible_category_ids is not None:
+            statement = statement.where(Conversation.category_id.in_(visible_category_ids))
         return statement

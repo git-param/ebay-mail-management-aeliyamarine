@@ -1,5 +1,5 @@
 from app.models.audit_log import AuditLog
-from app.models.category import Category, CategoryKeyword
+from app.models.category import Category, CategoryKeyword, CategoryUserAssignment
 from app.models.conversation import (
     Conversation,
     ConversationAssignment,
@@ -11,6 +11,7 @@ from app.models.conversation import (
     SyncLog,
 )
 from app.models.ebay_account import EbayAccount
+from app.models.notification import Notification
 from app.models.password_reset_token import PasswordResetToken
 from app.models.refresh_token import RefreshToken
 from app.models.role import Role
@@ -20,6 +21,7 @@ __all__ = [
     'AuditLog',
     'Category',
     'CategoryKeyword',
+    'CategoryUserAssignment',
     'Conversation',
     'ConversationAssignment',
     'ConversationCategoryHistory',
@@ -28,6 +30,7 @@ __all__ = [
     'ConversationStatusHistory',
     'EbayAccount',
     'Message',
+    'Notification',
     'PasswordResetToken',
     'RefreshToken',
     'Role',

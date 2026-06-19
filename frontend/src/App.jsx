@@ -1,6 +1,8 @@
 import { useState } from 'react'
 
 import Categories from './pages/categories'
+import Analytics from './pages/analytics'
+import AuditLogs from './pages/audit_logs'
 import Dashboard from './pages/dashboard'
 import EbayAccounts from './pages/ebay_accounts'
 import ForgotPassword from './pages/forgot_password'
@@ -59,6 +61,16 @@ const PROTECTED_ROUTES = [
     path: '/categories',
     component: Categories,
     allowedRoles: ['ADMIN', 'OPS_MANAGER'],
+  },
+  {
+    path: '/analytics',
+    component: Analytics,
+    allowedRoles: ['ADMIN', 'OPS_MANAGER'],
+  },
+  {
+    path: '/audit-logs',
+    component: AuditLogs,
+    allowedRoles: ['ADMIN'],
   },
 ]
 

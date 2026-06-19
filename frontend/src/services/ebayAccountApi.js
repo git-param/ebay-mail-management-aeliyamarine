@@ -1,4 +1,4 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://127.0.0.1:8000/api/v1'
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api/v1'
 
 function getAuthToken() {
   return localStorage.getItem('accessToken') || ''
@@ -84,6 +84,13 @@ export function connectEbayAccount(accountId) {
   return request('/integrations/ebay/connect', {
     method: 'POST',
     body: JSON.stringify({ account_id: accountId }),
+  })
+}
+
+export function submitManualEbayCallback(payload) {
+  return request('/integrations/ebay/manual-callback', {
+    method: 'POST',
+    body: JSON.stringify(payload),
   })
 }
 

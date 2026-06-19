@@ -4,6 +4,7 @@ import AppLayout, { Icon } from '../layouts/app_layout'
 import { fetchCategories } from '../services/categoryApi'
 import {
   assignConversation,
+  bulkUpdateConversations,
   createConversationNote,
   fetchConversation,
   fetchConversationNotes,
@@ -13,6 +14,7 @@ import {
 } from '../services/conversationApi'
 import { fetchEbayAccounts } from '../services/ebayAccountApi'
 import { fetchUsers } from '../services/userApi'
+import { normalizeRole } from '../utils/roles'
 
 const PAGE_SIZE = 25
 const STATUSES = ['OPEN', 'PENDING', 'RESOLVED', 'CLOSED']
@@ -746,6 +748,7 @@ function ConversationDetail({
 }
 
 function Dashboard({ currentUser, onLogout }) {
+  const canManageAssignments = ['ADMIN', 'OPS_MANAGER'].includes(normalizeRole(currentUser?.role))
   const [filters, setFilters] = useState({
     search: '',
     status: '',
@@ -1021,7 +1024,10 @@ function Dashboard({ currentUser, onLogout }) {
     setActionError('')
 
     try {
-      await Promise.all(conversationIds.map((conversationId) => assignConversation(conversationId, bulkAssignedUserId)))
+      await bulkUpdateConversations({
+        conversation_ids: conversationIds,
+        assigned_to: bulkAssignedUserId,
+      })
       clearBulkSelection()
       await refreshSelectedConversation()
     } catch (caughtError) {
@@ -1125,17 +1131,19 @@ function Dashboard({ currentUser, onLogout }) {
             </button>
           </form>
 
-          <BulkAssignBar
-            selectedCount={bulkSelectedCount}
-            selectedUser={bulkAssignedUserId}
-            users={users}
-            usersError={usersError}
-            error={actionError}
-            isSubmitting={isSubmitting}
-            onUserChange={setBulkAssignedUserId}
-            onAssign={handleBulkAssign}
-            onClear={clearBulkSelection}
-          />
+          {canManageAssignments ? (
+            <BulkAssignBar
+              selectedCount={bulkSelectedCount}
+              selectedUser={bulkAssignedUserId}
+              users={users}
+              usersError={usersError}
+              error={actionError}
+              isSubmitting={isSubmitting}
+              onUserChange={setBulkAssignedUserId}
+              onAssign={handleBulkAssign}
+              onClear={clearBulkSelection}
+            />
+          ) : null}
 
           <div className="conversation-table-head" aria-hidden="true">
             <span></span>
@@ -1164,7 +1172,7 @@ function Dashboard({ currentUser, onLogout }) {
                   isSelected={conversation.id === selectedConversationId}
                   isBulkSelected={bulkSelectedIds.has(conversation.id)}
                   onSelect={selectConversation}
-                  onToggleBulk={toggleBulkSelection}
+                  onToggleBulk={canManageAssignments ? toggleBulkSelection : () => {}}
                   key={conversation.id}
                 />
               ))

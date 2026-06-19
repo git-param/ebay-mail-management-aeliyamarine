@@ -3173,10 +3173,264 @@ html[data-theme='dark'] .detail-account-summary dt {
   color: #061426;
 }
 
+.ebay-list-section {
+  padding: 0;
+  margin-bottom: 22px;
+  overflow: hidden;
+}
+
+.ebay-list-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px 22px 0;
+}
+
+.ebay-list-header h2,
+.oauth-helper-panel h2,
+.analytics-panel h2 {
+  margin: 0;
+  color: #061426;
+  font-size: 20px;
+  line-height: 1.2;
+}
+
+.ebay-list-header p,
+.oauth-helper-copy p,
+.analytics-trend-panel p {
+  margin: 6px 0 0;
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.ebay-filter-panel {
+  margin: 16px 18px 18px;
+  box-shadow: none;
+}
+
+.oauth-helper-panel {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.34fr) minmax(0, 1fr);
+  gap: 18px;
+  margin-top: 8px;
+  padding: 22px;
+  border: 1px solid rgba(164, 189, 242, 0.72);
+  border-radius: 16px;
+  background:
+    linear-gradient(135deg, rgba(239, 246, 255, 0.95), rgba(255, 255, 255, 0.92)),
+    #ffffff;
+  box-shadow: 0 20px 54px rgba(37, 99, 235, 0.12);
+}
+
+.oauth-helper-copy {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 220px;
+  padding: 18px;
+  border-radius: 14px;
+  background:
+    linear-gradient(160deg, rgba(37, 99, 235, 0.98), rgba(79, 70, 229, 0.94)),
+    #2563eb;
+  color: #ffffff;
+}
+
+.oauth-helper-copy h2,
+.oauth-helper-copy p {
+  color: #ffffff;
+}
+
+.oauth-kicker {
+  width: max-content;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.oauth-status-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 24px;
+  color: rgba(255, 255, 255, 0.88);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.oauth-helper-workspace {
+  display: grid;
+  gap: 14px;
+}
+
+.oauth-step-card {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid #dbe7f6;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.86);
+}
+
+.oauth-step-number {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #e0f2fe;
+  color: #0e54b3;
+  font-weight: 900;
+}
+
+.oauth-step-card h3 {
+  margin: 0 0 12px;
+  color: #061426;
+  font-size: 16px;
+}
+
+.oauth-step-card .primary-button {
+  margin-top: 10px;
+}
+
+.oauth-link-box {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 10px;
+  padding: 12px;
+  border: 1px dashed #93c5fd;
+  border-radius: 14px;
+  background: #f8fbff;
+}
+
+.oauth-link-box input {
+  min-width: 0;
+}
+
+.oauth-callback-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.analytics-stats-grid .stat-card {
+  border-color: rgba(147, 197, 253, 0.58);
+}
+
+.analytics-feature-grid,
+.analytics-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.analytics-feature-grid {
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+}
+
+.analytics-trend-panel {
+  grid-column: 1 / -1;
+}
+
+.analytics-panel {
+  padding: 20px;
+  border: 1px solid rgba(220, 228, 244, 0.9);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 18px 48px rgba(15, 23, 42, 0.08);
+}
+
+.analytics-list,
+.analytics-bars {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.analytics-list > div,
+.analytics-bar-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  color: #45556c;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.analytics-bar-row {
+  grid-template-columns: minmax(92px, 0.34fr) minmax(120px, 1fr) auto;
+}
+
+.analytics-bar-track {
+  height: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e8eef8;
+}
+
+.analytics-bar-track span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #2563eb, #14b8a6);
+}
+
+.trend-chart {
+  display: flex;
+  align-items: end;
+  gap: 8px;
+  height: 180px;
+  margin-top: 18px;
+  padding: 16px;
+  border-radius: 14px;
+  background:
+    linear-gradient(#eef4ff 1px, transparent 1px) 0 0 / 100% 25%,
+    #f8fbff;
+}
+
+.trend-chart span {
+  flex: 1;
+  min-width: 10px;
+  border-radius: 8px 8px 3px 3px;
+  background: linear-gradient(180deg, #7c3aed, #38bdf8);
+}
+
 html[data-theme='dark'] .sync-summary {
   border-color: #243247;
   background: #111827;
   color: #94a3b8;
+}
+
+html[data-theme='dark'] .ebay-list-header h2,
+html[data-theme='dark'] .oauth-step-card h3,
+html[data-theme='dark'] .analytics-panel h2 {
+  color: #f8fafc;
+}
+
+html[data-theme='dark'] .oauth-helper-panel,
+html[data-theme='dark'] .analytics-panel,
+html[data-theme='dark'] .oauth-step-card {
+  border-color: #243247;
+  background: #111827;
+}
+
+html[data-theme='dark'] .oauth-link-box,
+html[data-theme='dark'] .trend-chart {
+  border-color: #334155;
+  background: #0f172a;
+}
+
+html[data-theme='dark'] .analytics-bar-track {
+  background: #243247;
 }
 
 html[data-theme='dark'] .sync-summary strong {
@@ -3196,6 +3450,39 @@ html[data-theme='dark'] .sync-summary strong {
 }
 
 @media (max-width: 820px) {
+  .ebay-list-header,
+  .oauth-helper-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .ebay-list-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .oauth-helper-panel,
+  .oauth-step-card,
+  .oauth-link-box,
+  .oauth-callback-grid,
+  .analytics-feature-grid,
+  .analytics-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .oauth-helper-copy {
+    min-height: 0;
+  }
+
+  .analytics-bar-row {
+    grid-template-columns: 1fr;
+    gap: 7px;
+  }
+
+  .trend-chart {
+    height: 140px;
+    padding: 12px;
+  }
+
   .bulk-assignment-bar {
     align-items: stretch;
     flex-direction: column;

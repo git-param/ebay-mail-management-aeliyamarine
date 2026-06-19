@@ -1,10 +1,15 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 class EbayConnectRequest(BaseModel):
     account_id: UUID
+
+
+class EbayManualCallbackRequest(BaseModel):
+    state: str = Field(min_length=1)
+    code: str = Field(min_length=1)
 
 
 class EbayConnectResponse(BaseModel):

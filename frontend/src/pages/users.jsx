@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 
 import AppLayout, { Icon } from '../layouts/app_layout'
+import { fetchCategories, updateUserCategoryAssignments } from '../services/categoryApi'
 import {
   activateUser,
   createUser,
@@ -90,6 +91,7 @@ function normalizeUser(user) {
     lastLogin: formatDate(user.last_login || user.lastLogin || user.last_login_at),
     assignedConversations: user.assigned_conversations || user.assignedConversations || 0,
     assignedCategories: user.assigned_categories || user.assignedCategories || [],
+    assignedCategoryIds: user.assigned_category_ids || user.assignedCategoryIds || [],
     activities: user.recent_activities || user.activities || [],
     raw: user,
   }
@@ -392,6 +394,7 @@ function UserDrawer({ user, onClose }) {
 
 function Users({ currentUser, onLogout }) {
   const [users, setUsers] = useState([])
+  const [categories, setCategories] = useState([])
   const [search, setSearch] = useState('')
   const [roleFilter, setRoleFilter] = useState('All Roles')
   const [statusFilter, setStatusFilter] = useState('All')
@@ -399,6 +402,7 @@ function Users({ currentUser, onLogout }) {
   const [selectedUser, setSelectedUser] = useState(null)
   const [modal, setModal] = useState(null)
   const [notification, setNotification] = useState('')
+  const [selectedCategoryIds, setSelectedCategoryIds] = useState(() => new Set())
   const [error, setError] = useState('')
   const [isLoading, setIsLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -417,9 +421,20 @@ function Users({ currentUser, onLogout }) {
     }
   }
 
+  async function loadCategories() {
+    try {
+      const response = await fetchCategories()
+      const items = Array.isArray(response) ? response : response.items || []
+      setCategories(items.filter((category) => category.is_active !== false))
+    } catch {
+      setCategories([])
+    }
+  }
+
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     loadUsers()
+    loadCategories()
   }, [])
 
   const filteredUsers = useMemo(() => {
@@ -457,6 +472,7 @@ function Users({ currentUser, onLogout }) {
   function openModal(type, user = null) {
     setActionUserId(null)
     setSelectedUser(user)
+    setSelectedCategoryIds(new Set(user?.assignedCategoryIds || []))
     setModal(type)
   }
 
@@ -530,6 +546,36 @@ function Users({ currentUser, onLogout }) {
     } finally {
       setIsSubmitting(false)
     }
+  }
+
+  async function saveCategoryAssignments() {
+    if (!selectedUser) {
+      return
+    }
+    setIsSubmitting(true)
+    setError('')
+    try {
+      await updateUserCategoryAssignments(selectedUser.id, Array.from(selectedCategoryIds))
+      closeModal()
+      showNotification('Category assignments updated successfully.')
+      await loadUsers()
+    } catch (caughtError) {
+      showError(caughtError)
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  function toggleCategory(categoryId) {
+    setSelectedCategoryIds((current) => {
+      const next = new Set(current)
+      if (next.has(categoryId)) {
+        next.delete(categoryId)
+      } else {
+        next.add(categoryId)
+      }
+      return next
+    })
   }
 
   async function viewUser(user) {
@@ -678,6 +724,10 @@ function Users({ currentUser, onLogout }) {
                               <Icon name="key" />
                               Reset Password
                             </button>
+                            <button className="menu-edit" type="button" onClick={() => openModal('categories', user)}>
+                              <Icon name="tag" />
+                              Assign Categories
+                            </button>
                             {user.status === 'Active' ? (
                               <button
                                 className="menu-disable"
@@ -770,6 +820,34 @@ function Users({ currentUser, onLogout }) {
           onCancel={closeModal}
           onConfirm={() => setUserStatus(selectedUser, 'Inactive')}
         />
+      ) : null}
+
+      {modal === 'categories' && selectedUser ? (
+        <Modal title="Assign Categories" onClose={closeModal}>
+          <div className="management-form">
+            <p className="confirm-message">Choose the categories {selectedUser.fullName} can work on.</p>
+            <div className="category-list assignment-category-list">
+              {categories.map((category) => (
+                <label key={category.id}>
+                  <input
+                    type="checkbox"
+                    checked={selectedCategoryIds.has(category.id)}
+                    onChange={() => toggleCategory(category.id)}
+                  />
+                  <span>{category.name}</span>
+                </label>
+              ))}
+            </div>
+            <div className="modal-actions">
+              <button className="secondary-button" type="button" onClick={closeModal}>
+                Cancel
+              </button>
+              <button className="primary-button compact" type="button" disabled={isSubmitting} onClick={saveCategoryAssignments}>
+                {isSubmitting ? 'Saving...' : 'Save Assignments'}
+              </button>
+            </div>
+          </div>
+        </Modal>
       ) : null}
 
       <UserDrawer user={selectedUser && !modal ? selectedUser : null} onClose={() => setSelectedUser(null)} />

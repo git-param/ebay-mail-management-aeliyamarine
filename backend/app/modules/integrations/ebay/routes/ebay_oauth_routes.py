@@ -17,6 +17,7 @@ from app.modules.integrations.ebay.oauth.token_service import EbayTokenService
 from app.modules.integrations.ebay.schemas.oauth_schemas import (
     EbayConnectRequest,
     EbayConnectResponse,
+    EbayManualCallbackRequest,
     EbayOAuthCallbackResponse,
     EbayRefreshTokenResponse,
     EbaySyncAllResponse,
@@ -24,6 +25,7 @@ from app.modules.integrations.ebay.schemas.oauth_schemas import (
     EbayTestConnectionResponse,
 )
 from app.modules.integrations.ebay.services.ebay_sync_service import EbaySyncResult, EbaySyncService
+from app.services.audit_service import AuditService
 
 
 logger = logging.getLogger(__name__)
@@ -49,7 +51,43 @@ def connect_ebay_account(
     current_user=Depends(require_admin),
 ) -> EbayConnectResponse:
     authorization_url, state = EbayOAuthService(db).create_authorization_url(payload.account_id)
+    AuditService(db).log(
+        action='EBAY_CONNECT_LINK_GENERATED',
+        user_id=current_user.id,
+        entity_type='EBAY_ACCOUNT',
+        entity_id=payload.account_id,
+        category='EBAY',
+    )
+    db.commit()
     return EbayConnectResponse(authorization_url=authorization_url, state=state)
+
+
+@router.post('/manual-callback', response_model=EbayOAuthCallbackResponse)
+def submit_manual_ebay_callback(
+    payload: EbayManualCallbackRequest,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_admin),
+) -> EbayOAuthCallbackResponse:
+    account = EbayOAuthCallbackService(db).handle_callback(code=payload.code, state=payload.state, error=None)
+    AuditService(db).log(
+        action='EBAY_MANUAL_CALLBACK_SUBMITTED',
+        user_id=current_user.id,
+        entity_type='EBAY_ACCOUNT',
+        entity_id=account.id,
+        category='EBAY',
+    )
+    db.commit()
+    return EbayOAuthCallbackResponse(
+        account_id=account.id,
+        connection_status=account.connection_status.value,
+        ebay_username=account.ebay_username,
+        ebay_user_id=account.ebay_user_id,
+        seller_account_id=account.ebay_user_id,
+        store_name=account.store_name,
+        access_token_expires_at=account.access_token_expires_at,
+        refresh_token_expires_at=account.refresh_token_expires_at,
+        message='eBay account connected successfully',
+    )
 
 
 @router.get('/callback')

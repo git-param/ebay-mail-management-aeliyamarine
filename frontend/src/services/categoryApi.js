@@ -1,4 +1,4 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://127.0.0.1:8000/api/v1'
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api/v1'
 
 function getAuthToken() {
   return localStorage.getItem('accessToken') || ''
@@ -90,5 +90,12 @@ export function createCategoryKeyword(categoryId, payload) {
 export function deleteCategoryKeyword(categoryId, keywordId) {
   return request(`/categories/${categoryId}/keywords/${keywordId}`, {
     method: 'DELETE',
+  })
+}
+
+export function updateUserCategoryAssignments(userId, categoryIds) {
+  return request(`/categories/users/${userId}/assignments`, {
+    method: 'PUT',
+    body: JSON.stringify({ category_ids: categoryIds }),
   })
 }

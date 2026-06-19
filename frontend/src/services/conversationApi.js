@@ -1,4 +1,4 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://127.0.0.1:8000/api/v1'
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api/v1'
 
 function getAuthToken() {
   return localStorage.getItem('accessToken') || ''
@@ -65,6 +65,13 @@ export function assignConversation(conversationId, assignedTo) {
   return request(`/conversations/${conversationId}/assign`, {
     method: 'POST',
     body: JSON.stringify({ assigned_to: assignedTo }),
+  })
+}
+
+export function bulkUpdateConversations(payload) {
+  return request('/conversations/bulk-update', {
+    method: 'POST',
+    body: JSON.stringify(payload),
   })
 }
 

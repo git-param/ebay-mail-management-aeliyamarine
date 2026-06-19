@@ -96,6 +96,21 @@ class AssignConversationRequest(BaseModel):
     assigned_to: UUID
 
 
+class BulkConversationUpdateRequest(BaseModel):
+    conversation_ids: list[UUID] = Field(min_length=1, max_length=500)
+    assigned_to: UUID | None = None
+    category_id: UUID | None = None
+    assign_to_category_owners: bool = False
+    status: ConversationStatus | None = None
+
+
+class BulkConversationUpdateResponse(BaseModel):
+    updated_count: int
+    assignment_count: int = 0
+    skipped_count: int = 0
+    message: str
+
+
 class ConversationNoteCreateRequest(BaseModel):
     body: str = Field(min_length=1, max_length=5000)
 
