@@ -65,6 +65,32 @@ class MessageResponse(BaseModel):
     is_inbound: bool
     sent_at: datetime
     created_at: datetime
+    attachments: list['MessageAttachmentResponse'] = Field(default_factory=list)
+
+
+class MessageAttachmentResponse(BaseModel):
+    id: UUID
+    message_id: UUID
+    account_id: UUID | None = None
+    provider: str
+    provider_attachment_id: str | None = None
+    file_name: str
+    media_name: str | None = None
+    media_url: str | None = None
+    media_type: str | None = None
+    mime_type: str | None = None
+    file_size: int | None = None
+    download_url: str | None = None
+    created_at: datetime
+
+
+class ReplyValidationResponse(BaseModel):
+    valid: bool
+    violations: list[str] = Field(default_factory=list)
+
+
+class ReplyConversationRequest(BaseModel):
+    body: str = Field(min_length=1, max_length=2000)
 
 
 class ConversationDetailResponse(ConversationSummaryResponse):
@@ -72,6 +98,68 @@ class ConversationDetailResponse(ConversationSummaryResponse):
     messages: list[MessageResponse] = Field(default_factory=list)
     assignments: list['ConversationAssignmentResponse'] = Field(default_factory=list)
     notes: list['ConversationNoteResponse'] = Field(default_factory=list)
+    order_context: 'OrderContextResponse | None' = None
+
+
+class OrderLineItemResponse(BaseModel):
+    id: UUID
+    item_id: str | None = None
+    title: str | None = None
+    quantity: int | None = None
+    price_value: float | None = None
+    price_currency: str | None = None
+
+
+class ReturnContextResponse(BaseModel):
+    id: UUID
+    return_id: str
+    return_status: str | None = None
+    return_reason: str | None = None
+    return_state: str | None = None
+    created_date: datetime | None = None
+    ebay_url: str
+
+
+class CancellationContextResponse(BaseModel):
+    id: UUID
+    cancel_id: str
+    cancel_state: str | None = None
+    cancel_reason: str | None = None
+    requester: str | None = None
+    created_date: datetime | None = None
+    ebay_url: str
+
+
+class OrderContextOrderResponse(BaseModel):
+    id: UUID
+    order_id: str
+    buyer_username: str | None = None
+    payment_status: str | None = None
+    fulfillment_status: str | None = None
+    cancel_status: str | None = None
+    refund_status: str | None = None
+    pricing_summary: dict | None = None
+    refunds: list | None = None
+    line_items: list[OrderLineItemResponse] = Field(default_factory=list)
+    returns: list[ReturnContextResponse] = Field(default_factory=list)
+    cancellations: list[CancellationContextResponse] = Field(default_factory=list)
+    ebay_url: str
+
+
+class OrderLinkingResponse(BaseModel):
+    strategy: str
+    requires_manual_selection: bool = False
+
+
+class OrderContextResponse(BaseModel):
+    selected_order: OrderContextOrderResponse | None = None
+    candidate_orders: list[OrderContextOrderResponse] = Field(default_factory=list)
+    linking: OrderLinkingResponse
+    deep_links: dict[str, str] = Field(default_factory=dict)
+
+
+class SelectConversationOrderRequest(BaseModel):
+    order_record_id: UUID | None = None
 
 
 class ConversationPageResponse(BaseModel):

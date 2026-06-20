@@ -109,7 +109,7 @@ def add_user_audit_log(db: Session, *, action: str, actor_id: UUID, target_user_
 @router.get('', response_model=list[UserResponse])
 def list_users(
     db: Session = Depends(get_db),
-    current_user=Depends(require_admin),
+    current_user=Depends(get_current_user),
 ) -> list[UserResponse]:
     statement = select(User).options(joinedload(User.role)).order_by(User.created_at.desc())
     return [serialize_user(user) for user in db.scalars(statement)]

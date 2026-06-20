@@ -3,7 +3,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models.conversation import Message
+from app.models.conversation import Message, MessageAttachment
 
 
 class MessageRepository:
@@ -25,6 +25,11 @@ class MessageRepository:
     def add(self, message: Message) -> Message:
         self.db.add(message)
         return message
+
+    def replace_attachments(self, message: Message, attachments: list[MessageAttachment]) -> None:
+        message.attachments.clear()
+        for attachment in attachments:
+            message.attachments.append(attachment)
 
     def upsert_by_provider_id(self, provider: str, provider_message_id: str, values: dict) -> tuple[Message, bool]:
         message = self.get_by_provider_id(provider, provider_message_id)

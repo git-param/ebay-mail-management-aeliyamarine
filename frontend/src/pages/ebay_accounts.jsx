@@ -7,6 +7,7 @@ import {
   createEbayAccount,
   deactivateEbayAccount,
   deleteEbayAccount,
+  fetchEbayApiUsage,
   fetchEbayAccount,
   fetchEbayAccounts,
   syncAllEbayAccounts,
@@ -24,6 +25,13 @@ const EMPTY_FORM = {
   ebayUsername: '',
   environment: 'SANDBOX',
   notes: '',
+}
+
+const EMPTY_API_USAGE = {
+  usageDate: '',
+  callCount: 0,
+  dailyLimit: 0,
+  remaining: 0,
 }
 
 function formatDate(value) {
@@ -84,6 +92,21 @@ function normalizeSyncResult(result) {
     messagesProcessed,
     elapsedSeconds: result.elapsed_seconds,
     errorMessage: result.error_message || '',
+  }
+}
+
+function normalizeApiUsage(usage) {
+  if (!usage) {
+    return EMPTY_API_USAGE
+  }
+
+  const dailyLimit = Number(usage.daily_limit) || 0
+  const callCount = Number(usage.call_count) || 0
+  return {
+    usageDate: usage.usage_date || '',
+    callCount,
+    dailyLimit,
+    remaining: Number.isFinite(Number(usage.remaining)) ? Number(usage.remaining) : Math.max(dailyLimit - callCount, 0),
   }
 }
 
@@ -335,6 +358,7 @@ function EbayAccounts({ currentUser, onLogout }) {
   const [notification, setNotification] = useState('')
   const [error, setError] = useState('')
   const [syncResults, setSyncResults] = useState([])
+  const [apiUsage, setApiUsage] = useState(EMPTY_API_USAGE)
   const [connectingAccountId, setConnectingAccountId] = useState('')
   const [syncingAction, setSyncingAction] = useState('')
   const [manualAccountId, setManualAccountId] = useState('')
@@ -359,9 +383,23 @@ function EbayAccounts({ currentUser, onLogout }) {
     }
   }
 
+  async function loadApiUsage() {
+    if (!isAdmin) {
+      return
+    }
+
+    try {
+      const response = await fetchEbayApiUsage()
+      setApiUsage(normalizeApiUsage(response))
+    } catch (caughtError) {
+      setError(caughtError.message)
+    }
+  }
+
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     loadAccounts()
+    loadApiUsage()
   }, [])
 
   useEffect(() => {
@@ -378,6 +416,7 @@ function EbayAccounts({ currentUser, onLogout }) {
     }
 
     loadAccounts()
+    loadApiUsage()
     window.history.replaceState({}, document.title, window.location.pathname)
   }, [])
 
@@ -405,7 +444,7 @@ function EbayAccounts({ currentUser, onLogout }) {
   )
 
   const connectedAccounts = useMemo(
-    () => accounts.filter((account) => account.connectionStatus === 'CONNECTED'),
+    () => accounts.filter((account) => account.connectionStatus === 'CONNECTED' && account.isActive),
     [accounts],
   )
 
@@ -589,6 +628,19 @@ function EbayAccounts({ currentUser, onLogout }) {
     showNotification('Connect link copied.')
   }
 
+  function hasApiUsageRemaining(requiredCalls) {
+    return apiUsage.dailyLimit > 0 && apiUsage.remaining >= requiredCalls
+  }
+
+  function showApiLimitReached(requiredCalls = 1) {
+    const message =
+      apiUsage.dailyLimit > 0
+        ? `API limit reached. ${apiUsage.remaining}/${apiUsage.dailyLimit} calls remaining today.`
+        : 'API limit reached. Please try again tomorrow.'
+    setError(requiredCalls > 1 ? `${message} This sync needs ${requiredCalls} calls.` : message)
+    showNotification('API limit reached.')
+  }
+
   async function runSync(label, syncRequest) {
     setSyncingAction(label)
     setError('')
@@ -600,16 +652,28 @@ function EbayAccounts({ currentUser, onLogout }) {
         ? response.results.map(normalizeSyncResult)
         : [normalizeSyncResult(response)]
       setSyncResults(results)
+      setApiUsage(normalizeApiUsage(response.api_usage || response.results?.find((result) => result.api_usage)?.api_usage))
       showNotification('Sync completed successfully.')
       await loadAccounts()
+      await loadApiUsage()
     } catch (caughtError) {
-      showError(caughtError)
+      if (caughtError.status === 429 || /api limit|daily api limit|limit reached/i.test(caughtError.message || '')) {
+        showApiLimitReached()
+      } else {
+        showError(caughtError)
+      }
+      await loadApiUsage()
     } finally {
       setSyncingAction('')
     }
   }
 
   async function syncSingleAccount(account) {
+    if (!hasApiUsageRemaining(1)) {
+      showApiLimitReached()
+      return
+    }
+
     await runSync(account.id, () => syncEbayAccount(account.id))
   }
 
@@ -618,13 +682,26 @@ function EbayAccounts({ currentUser, onLogout }) {
     if (!accountIds.length) {
       return
     }
+    if (!hasApiUsageRemaining(accountIds.length)) {
+      showApiLimitReached(accountIds.length)
+      return
+    }
 
-    await runSync('selected', async () => ({
-      results: await Promise.all(accountIds.map((accountId) => syncEbayAccount(accountId))),
-    }))
+    await runSync('selected', async () => {
+      const results = []
+      for (const accountId of accountIds) {
+        results.push(await syncEbayAccount(accountId))
+      }
+      return { results, api_usage: results.at(-1)?.api_usage }
+    })
   }
 
   async function syncAllConnectedAccounts() {
+    if (!hasApiUsageRemaining(connectedAccounts.length)) {
+      showApiLimitReached(connectedAccounts.length)
+      return
+    }
+
     await runSync('all', syncAllEbayAccounts)
   }
 
@@ -653,6 +730,12 @@ function EbayAccounts({ currentUser, onLogout }) {
           <StatCard label="Active Accounts" value={stats.active} />
           <StatCard label="Connected Accounts" value={stats.connected} />
           <StatCard label="Last Sync Status" value={stats.lastSync} />
+          {isAdmin ? (
+            <StatCard
+              label="Daily API Calls"
+              value={apiUsage.dailyLimit ? `${apiUsage.callCount}/${apiUsage.dailyLimit}` : 'Loading'}
+            />
+          ) : null}
         </section>
 
         {isAdmin ? (

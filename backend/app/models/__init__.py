@@ -8,10 +8,13 @@ from app.models.conversation import (
     ConversationParticipant,
     ConversationStatusHistory,
     Message,
+    MessageAttachment,
     SyncLog,
 )
 from app.models.ebay_account import EbayAccount
+from app.models.ebay_api_usage import EbayApiUsage
 from app.models.notification import Notification
+from app.models.order_context import EbayCancellation, EbayOrder, EbayOrderLineItem, EbayReturn
 from app.models.password_reset_token import PasswordResetToken
 from app.models.refresh_token import RefreshToken
 from app.models.role import Role
@@ -29,7 +32,13 @@ __all__ = [
     'ConversationParticipant',
     'ConversationStatusHistory',
     'EbayAccount',
+    'EbayApiUsage',
+    'EbayCancellation',
+    'EbayOrder',
+    'EbayOrderLineItem',
+    'EbayReturn',
     'Message',
+    'MessageAttachment',
     'Notification',
     'PasswordResetToken',
     'RefreshToken',

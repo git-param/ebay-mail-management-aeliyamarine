@@ -2,7 +2,7 @@ from datetime import UTC, datetime
 
 from sqlalchemy.orm import Session
 
-from app.models.conversation import Conversation, ConversationStatus, MessageSenderType
+from app.models.conversation import Conversation, ConversationStatus, MessageAttachment, MessageSenderType
 from app.models.ebay_account import EbayAccount
 from app.modules.integrations.ebay.providers import EBAY_PROVIDER_NAME
 from app.repositories.conversation_repository import ConversationRepository
@@ -112,6 +112,10 @@ class EbayMessageService:
                 'raw_payload': message_payload,
             }
             message, created = self.message_repository.upsert_by_provider_id(EBAY_PROVIDER_NAME, message_id, values)
+            self.message_repository.replace_attachments(
+                message,
+                self._attachments_from_message_payload(account, message_payload),
+            )
             if created:
                 created_count += 1
                 if is_inbound and conversation.category_id:
@@ -126,6 +130,63 @@ class EbayMessageService:
         if isinstance(messages, list):
             return [message for message in messages if isinstance(message, dict)]
         return []
+
+    def _attachments_from_message_payload(self, account: EbayAccount, message_payload: dict) -> list[MessageAttachment]:
+        attachment_payloads = []
+        for key in ('messageMedia', 'MessageMedia', 'attachments', 'messageAttachments', 'documents', 'files'):
+            value = message_payload.get(key)
+            if isinstance(value, list):
+                attachment_payloads.extend(item for item in value if isinstance(item, dict))
+            elif isinstance(value, dict):
+                attachment_payloads.append(value)
+
+        attachments = []
+        for index, payload in enumerate(attachment_payloads, start=1):
+            provider_attachment_id = self._string_or_none(
+                payload.get('attachmentId')
+                or payload.get('documentId')
+                or payload.get('fileId')
+                or payload.get('id')
+                or payload.get('mediaName')
+                or payload.get('MediaName')
+            )
+            file_name = self._string_or_none(
+                payload.get('fileName')
+                or payload.get('name')
+                or payload.get('documentName')
+                or payload.get('title')
+                or payload.get('mediaName')
+                or payload.get('MediaName')
+            ) or f'Attachment {index}'
+            media_url = self._string_or_none(
+                payload.get('mediaUrl')
+                or payload.get('MediaURL')
+                or payload.get('downloadUrl')
+                or payload.get('url')
+                or payload.get('href')
+            )
+            media_type = self._string_or_none(payload.get('mediaType') or payload.get('MediaType'))
+            file_size = payload.get('fileSize') or payload.get('size') or payload.get('contentLength')
+            try:
+                normalized_file_size = int(file_size) if file_size is not None else None
+            except (TypeError, ValueError):
+                normalized_file_size = None
+            attachments.append(
+                MessageAttachment(
+                    account_id=account.id,
+                    provider=EBAY_PROVIDER_NAME,
+                    provider_attachment_id=provider_attachment_id,
+                    file_name=file_name[:500],
+                    media_name=file_name[:500],
+                    media_url=media_url,
+                    media_type=media_type,
+                    mime_type=self._string_or_none(payload.get('mimeType') or payload.get('contentType')),
+                    file_size=normalized_file_size,
+                    download_url=media_url,
+                    raw_payload=payload,
+                )
+            )
+        return attachments
 
     def _latest_message_at(self, conversation_summary: dict, messages: list[dict]) -> datetime | None:
         latest_message = conversation_summary.get('latestMessage')

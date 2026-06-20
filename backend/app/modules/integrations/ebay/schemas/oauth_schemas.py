@@ -43,6 +43,13 @@ class EbayTestConnectionResponse(BaseModel):
     access_token_expires_at: datetime | None
 
 
+class EbayApiUsageResponse(BaseModel):
+    usage_date: str
+    call_count: int
+    daily_limit: int
+    remaining: int
+
+
 class EbaySyncResultResponse(BaseModel):
     account_id: UUID
     ebay_username: str
@@ -59,7 +66,9 @@ class EbaySyncResultResponse(BaseModel):
     elapsed_seconds: float | None = None
     average_detail_seconds: float | None = None
     error_message: str | None = None
+    api_usage: EbayApiUsageResponse | None = None
 
 
 class EbaySyncAllResponse(BaseModel):
     results: list[EbaySyncResultResponse]
+    api_usage: EbayApiUsageResponse

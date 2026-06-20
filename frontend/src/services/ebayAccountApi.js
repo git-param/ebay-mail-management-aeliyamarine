@@ -34,7 +34,9 @@ async function request(path, options = {}) {
   const data = await response.json().catch(() => ({}))
 
   if (!response.ok) {
-    throw new Error(getErrorMessage(response.status, data))
+    const error = new Error(getErrorMessage(response.status, data))
+    error.status = response.status
+    throw error
   }
 
   return data
@@ -92,6 +94,10 @@ export function submitManualEbayCallback(payload) {
     method: 'POST',
     body: JSON.stringify(payload),
   })
+}
+
+export function fetchEbayApiUsage() {
+  return request('/integrations/ebay/api-usage')
 }
 
 export function syncEbayAccount(accountId) {

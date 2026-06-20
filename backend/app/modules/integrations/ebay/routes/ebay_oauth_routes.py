@@ -18,6 +18,7 @@ from app.modules.integrations.ebay.schemas.oauth_schemas import (
     EbayConnectRequest,
     EbayConnectResponse,
     EbayManualCallbackRequest,
+    EbayApiUsageResponse,
     EbayOAuthCallbackResponse,
     EbayRefreshTokenResponse,
     EbaySyncAllResponse,
@@ -26,6 +27,7 @@ from app.modules.integrations.ebay.schemas.oauth_schemas import (
 )
 from app.modules.integrations.ebay.services.ebay_sync_service import EbaySyncResult, EbaySyncService
 from app.services.audit_service import AuditService
+from app.services.ebay_api_usage_service import EbayApiUsageService, EbayApiUsageSummary
 
 
 logger = logging.getLogger(__name__)
@@ -153,7 +155,27 @@ def test_ebay_connection(
     )
 
 
-def serialize_sync_result(result: EbaySyncResult) -> EbaySyncResultResponse:
+def serialize_api_usage(usage: EbayApiUsageSummary) -> EbayApiUsageResponse:
+    return EbayApiUsageResponse(
+        usage_date=usage.usage_date.isoformat(),
+        call_count=usage.call_count,
+        daily_limit=usage.daily_limit,
+        remaining=usage.remaining,
+    )
+
+
+@router.get('/api-usage', response_model=EbayApiUsageResponse)
+def get_ebay_api_usage(
+    db: Session = Depends(get_db),
+    current_user=Depends(require_ebay_sync_access),
+) -> EbayApiUsageResponse:
+    return serialize_api_usage(EbayApiUsageService(db).get_today_usage())
+
+
+def serialize_sync_result(
+    result: EbaySyncResult,
+    api_usage: EbayApiUsageSummary | None = None,
+) -> EbaySyncResultResponse:
     return EbaySyncResultResponse(
         account_id=result.account_id,
         ebay_username=result.ebay_username,
@@ -170,6 +192,7 @@ def serialize_sync_result(result: EbaySyncResult) -> EbaySyncResultResponse:
         elapsed_seconds=result.elapsed_seconds,
         average_detail_seconds=result.average_detail_seconds,
         error_message=result.error_message,
+        api_usage=serialize_api_usage(api_usage) if api_usage else None,
     )
 
 
@@ -180,7 +203,10 @@ def sync_ebay_account(
     db: Session = Depends(get_db),
     current_user=Depends(require_ebay_sync_access),
 ) -> EbaySyncResultResponse:
-    return serialize_sync_result(EbaySyncService(db).sync_account(account_id, max_conversations=max_conversations))
+    sync_service = EbaySyncService(db)
+    result = sync_service.sync_account(account_id, max_conversations=max_conversations)
+    usage = EbayApiUsageService(db).get_today_usage()
+    return serialize_sync_result(result, api_usage=usage)
 
 
 @router.post('/sync-all', response_model=EbaySyncAllResponse)
@@ -189,7 +215,11 @@ def sync_all_ebay_accounts(
     current_user=Depends(require_ebay_sync_access),
 ) -> EbaySyncAllResponse:
     results = EbaySyncService(db).sync_all_connected_accounts()
-    return EbaySyncAllResponse(results=[serialize_sync_result(result) for result in results])
+    usage = EbayApiUsageService(db).get_today_usage()
+    return EbaySyncAllResponse(
+        results=[serialize_sync_result(result) for result in results],
+        api_usage=serialize_api_usage(usage),
+    )
 
 
 @router.post('/test-conversations/{account_id}')
