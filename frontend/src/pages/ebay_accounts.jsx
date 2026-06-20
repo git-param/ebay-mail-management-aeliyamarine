@@ -30,8 +30,8 @@ const EMPTY_FORM = {
 const EMPTY_API_USAGE = {
   usageDate: '',
   callCount: 0,
-  dailyLimit: 100,
-  remaining: 100,
+  dailyLimit: 0,
+  remaining: 0,
 }
 
 function formatDate(value) {
@@ -100,7 +100,7 @@ function normalizeApiUsage(usage) {
     return EMPTY_API_USAGE
   }
 
-  const dailyLimit = Number(usage.daily_limit) || EMPTY_API_USAGE.dailyLimit
+  const dailyLimit = Number(usage.daily_limit) || 0
   const callCount = Number(usage.call_count) || 0
   return {
     usageDate: usage.usage_date || '',
@@ -629,7 +629,7 @@ function EbayAccounts({ currentUser, onLogout }) {
   }
 
   function hasApiUsageRemaining(requiredCalls) {
-    return apiUsage.remaining >= requiredCalls
+    return apiUsage.dailyLimit > 0 && apiUsage.remaining >= requiredCalls
   }
 
   async function runSync(label, syncRequest) {
@@ -703,18 +703,16 @@ function EbayAccounts({ currentUser, onLogout }) {
           <StatCard label="Active Accounts" value={stats.active} />
           <StatCard label="Connected Accounts" value={stats.connected} />
           <StatCard label="Last Sync Status" value={stats.lastSync} />
-          {isAdmin ? <StatCard label="Daily API Calls" value={`${apiUsage.callCount}/${apiUsage.dailyLimit}`} /> : null}
+          {isAdmin ? (
+            <StatCard
+              label="Daily API Calls"
+              value={apiUsage.dailyLimit ? `${apiUsage.callCount}/${apiUsage.dailyLimit}` : 'Loading'}
+            />
+          ) : null}
         </section>
 
         {isAdmin ? (
           <section className="sync-controls" aria-label="eBay sync controls">
-            <div className="api-usage-meter" aria-label="Daily eBay API usage">
-              <div>
-                <strong>{apiUsage.remaining}</strong>
-                <span>calls remaining today</span>
-              </div>
-              <progress value={apiUsage.callCount} max={apiUsage.dailyLimit} />
-            </div>
             <button
               className="secondary-button"
               type="button"

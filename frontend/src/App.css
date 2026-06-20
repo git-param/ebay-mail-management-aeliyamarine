@@ -3232,54 +3232,6 @@ html[data-theme='dark'] .detail-account-summary dt {
   margin-bottom: 18px;
 }
 
-.api-usage-meter {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  min-height: 44px;
-  padding: 8px 12px;
-  border: 1px solid #d8e4f3;
-  border-radius: 8px;
-  background: #ffffff;
-}
-
-.api-usage-meter div {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-  color: #64748b;
-  font-size: 13px;
-  font-weight: 800;
-}
-
-.api-usage-meter strong {
-  color: #061426;
-  font-size: 20px;
-}
-
-.api-usage-meter progress {
-  width: 140px;
-  height: 8px;
-  overflow: hidden;
-  border: 0;
-  border-radius: 999px;
-  background: #e2e8f0;
-}
-
-.api-usage-meter progress::-webkit-progress-bar {
-  background: #e2e8f0;
-}
-
-.api-usage-meter progress::-webkit-progress-value {
-  border-radius: 999px;
-  background: #0e54b3;
-}
-
-.api-usage-meter progress::-moz-progress-bar {
-  border-radius: 999px;
-  background: #0e54b3;
-}
-
 .sync-summary {
   padding: 12px 14px;
   border: 1px solid #d8e4f3;
@@ -3529,24 +3481,6 @@ html[data-theme='dark'] .sync-summary {
   border-color: #243247;
   background: #111827;
   color: #94a3b8;
-}
-
-html[data-theme='dark'] .api-usage-meter {
-  border-color: #243247;
-  background: #111827;
-}
-
-html[data-theme='dark'] .api-usage-meter div {
-  color: #94a3b8;
-}
-
-html[data-theme='dark'] .api-usage-meter strong {
-  color: #f8fafc;
-}
-
-html[data-theme='dark'] .api-usage-meter progress,
-html[data-theme='dark'] .api-usage-meter progress::-webkit-progress-bar {
-  background: #243247;
 }
 
 html[data-theme='dark'] .ebay-list-header h2,

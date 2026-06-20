@@ -6,10 +6,9 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.models.ebay_api_usage import EbayApiUsage
 from app.core.config import get_settings
+from app.models.ebay_api_usage import EbayApiUsage
 
-settings = get_settings()
 
 @dataclass(frozen=True)
 class EbayApiUsageSummary:
@@ -25,9 +24,12 @@ class EbayApiUsageSummary:
 class EbayApiUsageService:
     def __init__(self, db: Session):
         self.db = db
+        self.settings = get_settings()
 
     def get_today_usage(self) -> EbayApiUsageSummary:
         usage = self._get_or_create_usage_row(self._today())
+        self.db.commit()
+        self.db.refresh(usage)
         return self._to_summary(usage)
 
     def reserve_calls(self, call_count: int) -> EbayApiUsageSummary:
@@ -59,12 +61,13 @@ class EbayApiUsageService:
 
         usage = self.db.scalar(statement)
         if usage:
+            self._sync_daily_limit(usage)
             return usage
 
         usage = EbayApiUsage(
             usage_date=usage_date,
             call_count=0,
-            daily_limit=settings.ebay_daily_api_limit,
+            daily_limit=self.settings.ebay_daily_api_limit,
         )
         self.db.add(usage)
         try:
@@ -78,8 +81,16 @@ class EbayApiUsageService:
                 statement = statement.with_for_update()
             existing_usage = self.db.scalar(statement)
             if existing_usage:
+                self._sync_daily_limit(existing_usage)
                 return existing_usage
             raise
+
+    def _sync_daily_limit(self, usage: EbayApiUsage) -> None:
+        if usage.daily_limit == self.settings.ebay_daily_api_limit:
+            return
+
+        usage.daily_limit = self.settings.ebay_daily_api_limit
+        usage.updated_at = datetime.now(UTC)
 
     def _to_summary(self, usage: EbayApiUsage) -> EbayApiUsageSummary:
         return EbayApiUsageSummary(

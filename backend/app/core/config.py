@@ -42,7 +42,7 @@ class Settings(BaseSettings):
 
     ebay_daily_api_limit: int = Field(
         default=100,
-        validation_alias="EBAY_DAILY_API_LIMIT",
+        validation_alias='EBAY_DAILY_API_LIMIT',
     )
 
     model_config = SettingsConfigDict(env_file=ENV_FILE, env_file_encoding='utf-8', extra='ignore')
@@ -63,6 +63,13 @@ class Settings(BaseSettings):
         if normalized_value not in {'SANDBOX', 'PRODUCTION'}:
             raise ValueError('EBAY_ENVIRONMENT must be SANDBOX or PRODUCTION')
         return normalized_value
+
+    @field_validator('ebay_daily_api_limit')
+    @classmethod
+    def validate_ebay_daily_api_limit(cls, value: int) -> int:
+        if value < 1:
+            raise ValueError('EBAY_DAILY_API_LIMIT must be at least 1')
+        return value
 
     @property
     def cors_origins(self) -> list[str]:
