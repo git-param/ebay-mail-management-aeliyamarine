@@ -632,6 +632,15 @@ function EbayAccounts({ currentUser, onLogout }) {
     return apiUsage.dailyLimit > 0 && apiUsage.remaining >= requiredCalls
   }
 
+  function showApiLimitReached(requiredCalls = 1) {
+    const message =
+      apiUsage.dailyLimit > 0
+        ? `API limit reached. ${apiUsage.remaining}/${apiUsage.dailyLimit} calls remaining today.`
+        : 'API limit reached. Please try again tomorrow.'
+    setError(requiredCalls > 1 ? `${message} This sync needs ${requiredCalls} calls.` : message)
+    showNotification('API limit reached.')
+  }
+
   async function runSync(label, syncRequest) {
     setSyncingAction(label)
     setError('')
@@ -648,7 +657,11 @@ function EbayAccounts({ currentUser, onLogout }) {
       await loadAccounts()
       await loadApiUsage()
     } catch (caughtError) {
-      showError(caughtError)
+      if (caughtError.status === 429 || /api limit|daily api limit|limit reached/i.test(caughtError.message || '')) {
+        showApiLimitReached()
+      } else {
+        showError(caughtError)
+      }
       await loadApiUsage()
     } finally {
       setSyncingAction('')
@@ -656,12 +669,21 @@ function EbayAccounts({ currentUser, onLogout }) {
   }
 
   async function syncSingleAccount(account) {
+    if (!hasApiUsageRemaining(1)) {
+      showApiLimitReached()
+      return
+    }
+
     await runSync(account.id, () => syncEbayAccount(account.id))
   }
 
   async function syncSelectedAccounts() {
     const accountIds = selectedConnectedAccountIds
     if (!accountIds.length) {
+      return
+    }
+    if (!hasApiUsageRemaining(accountIds.length)) {
+      showApiLimitReached(accountIds.length)
       return
     }
 
@@ -675,6 +697,11 @@ function EbayAccounts({ currentUser, onLogout }) {
   }
 
   async function syncAllConnectedAccounts() {
+    if (!hasApiUsageRemaining(connectedAccounts.length)) {
+      showApiLimitReached(connectedAccounts.length)
+      return
+    }
+
     await runSync('all', syncAllEbayAccounts)
   }
 
@@ -716,11 +743,7 @@ function EbayAccounts({ currentUser, onLogout }) {
             <button
               className="secondary-button"
               type="button"
-              disabled={
-                !selectedConnectedAccountIds.length ||
-                Boolean(syncingAction) ||
-                !hasApiUsageRemaining(selectedConnectedAccountIds.length)
-              }
+              disabled={!selectedConnectedAccountIds.length || Boolean(syncingAction)}
               onClick={syncSelectedAccounts}
             >
               {syncingAction === 'selected' ? 'Syncing...' : `Sync Selected (${selectedConnectedAccountIds.length})`}
@@ -728,7 +751,7 @@ function EbayAccounts({ currentUser, onLogout }) {
             <button
               className="secondary-button"
               type="button"
-              disabled={!connectedAccounts.length || Boolean(syncingAction) || !hasApiUsageRemaining(connectedAccounts.length)}
+              disabled={!connectedAccounts.length || Boolean(syncingAction)}
               onClick={syncAllConnectedAccounts}
             >
               {syncingAction === 'all' ? 'Syncing...' : 'Sync All Connected'}
@@ -860,7 +883,7 @@ function EbayAccounts({ currentUser, onLogout }) {
                             className="secondary-button compact-action"
                             type="button"
                             onClick={() => syncSingleAccount(account)}
-                            disabled={Boolean(syncingAction) || !hasApiUsageRemaining(1)}
+                            disabled={Boolean(syncingAction)}
                           >
                             {syncingAction === account.id ? 'Syncing...' : 'Sync'}
                           </button>
