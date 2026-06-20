@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.api.dependencies import can_manage_operations, get_current_user, is_support_agent
+from app.api.dependencies import can_manage_operations, get_current_user, is_admin, is_operations_manager, is_support_agent
 from app.db.session import get_db
 from app.models.category import Category
 from app.models.conversation import Conversation, ConversationAssignment, ConversationNote, ConversationStatus, Message
@@ -27,6 +27,7 @@ from app.schemas.conversation import (
     MessageAttachmentResponse,
     ReplyConversationRequest,
     ReplyValidationResponse,
+    SelectConversationOrderRequest,
     UpdateConversationCategoryRequest,
     UpdateConversationStatusRequest,
     UserBriefResponse,
@@ -39,6 +40,7 @@ from app.services.conversation_service import ConversationService
 from app.services.message_service import MessageService
 from app.services.ebay_reply_service import EbayReplyService
 from app.services.notification_service import NotificationService
+from app.services.order_context_service import OrderContextService
 
 
 router = APIRouter()
@@ -49,9 +51,18 @@ def require_conversation_access(current_user=Depends(get_current_user)):
 
 
 def visible_category_ids_for_user(db: Session, current_user) -> set[UUID] | None:
-    if is_support_agent(current_user):
-        return CategoryAssignmentService(db).assigned_category_ids(current_user.id)
     return None
+
+
+def can_assign_conversations(current_user) -> bool:
+    return is_admin(current_user) or is_operations_manager(current_user) or is_support_agent(current_user)
+
+
+def ensure_can_assign_conversation(current_user) -> None:
+    if not can_assign_conversations(current_user):
+        from fastapi import HTTPException, status
+
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='Only support users can assign conversations')
 
 
 def ensure_can_manage_conversation(current_user) -> None:
@@ -65,6 +76,7 @@ def serialize_conversation(
     conversation: Conversation,
     current_assignee_id: UUID | None = None,
     seller_account: EbayAccount | None = None,
+    order_context: dict | None = None,
 ) -> ConversationDetailResponse:
     assignments = [serialize_assignment(assignment) for assignment in conversation.assignments]
     return ConversationDetailResponse(
@@ -95,6 +107,7 @@ def serialize_conversation(
         messages=[serialize_message(message) for message in conversation.messages],
         assignments=assignments,
         notes=[serialize_note(note) for note in conversation.notes],
+        order_context=serialize_order_context(order_context) if order_context else None,
     )
 
 
@@ -151,14 +164,79 @@ def serialize_attachment(attachment) -> MessageAttachmentResponse:
     return MessageAttachmentResponse(
         id=attachment.id,
         message_id=attachment.message_id,
+        account_id=attachment.account_id,
         provider=attachment.provider,
         provider_attachment_id=attachment.provider_attachment_id,
         file_name=attachment.file_name,
+        media_name=attachment.media_name,
+        media_url=attachment.media_url,
+        media_type=attachment.media_type,
         mime_type=attachment.mime_type,
         file_size=attachment.file_size,
         download_url=attachment.download_url,
         created_at=attachment.created_at,
     )
+
+
+def serialize_order_context(context: dict):
+    return {
+        'selected_order': serialize_order_context_order(context.get('selected_order')),
+        'candidate_orders': [serialize_order_context_order(order) for order in context.get('candidate_orders', [])],
+        'linking': context.get('linking') or {'strategy': 'NO_MATCH', 'requires_manual_selection': False},
+        'deep_links': context.get('deep_links') or {},
+    }
+
+
+def serialize_order_context_order(order):
+    if not order:
+        return None
+    return {
+        'id': order.id,
+        'order_id': order.order_id,
+        'buyer_username': order.buyer_username,
+        'payment_status': order.payment_status,
+        'fulfillment_status': order.fulfillment_status,
+        'cancel_status': order.cancel_status,
+        'refund_status': order.refund_status,
+        'pricing_summary': order.pricing_summary,
+        'refunds': order.refunds,
+        'line_items': [
+            {
+                'id': line_item.id,
+                'item_id': line_item.item_id,
+                'title': line_item.title,
+                'quantity': line_item.quantity,
+                'price_value': float(line_item.price_value) if line_item.price_value is not None else None,
+                'price_currency': line_item.price_currency,
+            }
+            for line_item in order.line_items
+        ],
+        'returns': [
+            {
+                'id': item.id,
+                'return_id': item.return_id,
+                'return_status': item.return_status,
+                'return_reason': item.return_reason,
+                'return_state': item.return_state,
+                'created_date': item.created_date,
+                'ebay_url': f'https://www.ebay.com/sh/ord/returns?returnId={item.return_id}',
+            }
+            for item in order.returns
+        ],
+        'cancellations': [
+            {
+                'id': item.id,
+                'cancel_id': item.cancel_id,
+                'cancel_state': item.cancel_state,
+                'cancel_reason': item.cancel_reason,
+                'requester': item.requester,
+                'created_date': item.created_date,
+                'ebay_url': f'https://www.ebay.com/sh/ord/cancellations?cancelId={item.cancel_id}',
+            }
+            for item in order.cancellations
+        ],
+        'ebay_url': f'https://www.ebay.com/sh/ord/details?orderId={order.order_id}',
+    }
 
 
 def serialize_assignment(assignment: ConversationAssignment) -> ConversationAssignmentResponse:
@@ -297,7 +375,23 @@ def get_conversation(
     service = ConversationService(db)
     conversation = service.get_conversation(conversation_id, visible_category_ids=visible_category_ids_for_user(db, current_user))
     seller_account = db.get(EbayAccount, conversation.provider_account_id) if conversation.provider_account_id else None
-    return serialize_conversation(conversation, service.get_current_assignee_id(conversation.id), seller_account)
+    order_context = OrderContextService(db).context_for_conversation(conversation)
+    return serialize_conversation(conversation, service.get_current_assignee_id(conversation.id), seller_account, order_context)
+
+
+@router.patch('/{conversation_id}/order', response_model=ConversationDetailResponse)
+def select_conversation_order(
+    conversation_id: UUID,
+    payload: SelectConversationOrderRequest,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_conversation_access),
+) -> ConversationDetailResponse:
+    service = ConversationService(db)
+    conversation = service.get_conversation(conversation_id, visible_category_ids=visible_category_ids_for_user(db, current_user))
+    conversation = OrderContextService(db).select_order(conversation, payload.order_record_id)
+    seller_account = db.get(EbayAccount, conversation.provider_account_id) if conversation.provider_account_id else None
+    order_context = OrderContextService(db).context_for_conversation(conversation)
+    return serialize_conversation(conversation, service.get_current_assignee_id(conversation.id), seller_account, order_context)
 
 
 @router.get('/{conversation_id}/messages', response_model=list[MessageResponse])
@@ -345,7 +439,7 @@ def assign_conversation(
     db: Session = Depends(get_db),
     current_user=Depends(require_conversation_access),
 ) -> ConversationAssignmentResponse:
-    ensure_can_manage_conversation(current_user)
+    ensure_can_assign_conversation(current_user)
     conversation = ConversationService(db).get_conversation(conversation_id)
     assignment = AssignmentService(db).assign_conversation(
         conversation_id=conversation_id,
@@ -424,7 +518,9 @@ def update_conversation_status(
         metadata={'status': payload.status.value},
     )
     db.commit()
-    return serialize_conversation(conversation, service.get_current_assignee_id(conversation.id))
+    seller_account = db.get(EbayAccount, conversation.provider_account_id) if conversation.provider_account_id else None
+    order_context = OrderContextService(db).context_for_conversation(conversation)
+    return serialize_conversation(conversation, service.get_current_assignee_id(conversation.id), seller_account, order_context)
 
 
 @router.patch('/{conversation_id}/category', response_model=ConversationDetailResponse)
@@ -451,7 +547,9 @@ def update_conversation_category(
         metadata={'category_id': str(payload.category_id) if payload.category_id else None},
     )
     db.commit()
-    return serialize_conversation(conversation, service.get_current_assignee_id(conversation.id))
+    seller_account = db.get(EbayAccount, conversation.provider_account_id) if conversation.provider_account_id else None
+    order_context = OrderContextService(db).context_for_conversation(conversation)
+    return serialize_conversation(conversation, service.get_current_assignee_id(conversation.id), seller_account, order_context)
 
 
 @router.post('/bulk-update', response_model=BulkConversationUpdateResponse)
@@ -460,7 +558,10 @@ def bulk_update_conversations(
     db: Session = Depends(get_db),
     current_user=Depends(require_conversation_access),
 ) -> BulkConversationUpdateResponse:
-    ensure_can_manage_conversation(current_user)
+    if payload.category_id is not None or payload.status is not None or payload.assign_to_category_owners:
+        ensure_can_manage_conversation(current_user)
+    if payload.assigned_to:
+        ensure_can_assign_conversation(current_user)
     service = ConversationService(db)
     assignment_service = AssignmentService(db)
     updated_count = 0

@@ -91,6 +91,12 @@ class EbayAuthClient:
             return 'https://api.ebay.com/commerce/message/v1/conversation'
         return 'https://api.sandbox.ebay.com/commerce/message/v1/conversation'
 
+    @property
+    def fulfillment_order_url(self) -> str:
+        if self.environment == 'PRODUCTION':
+            return 'https://api.ebay.com/sell/fulfillment/v1/order'
+        return 'https://api.sandbox.ebay.com/sell/fulfillment/v1/order'
+
     def build_authorization_url(self, *, state: str) -> str:
         query = urlencode(
             {
@@ -251,6 +257,10 @@ class EbayAuthClient:
             raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail='eBay conversation detail request failed')
         return response.payload
 
+    def get_order_raw(self, access_token: str, *, order_id: str) -> EbayRawApiResponse:
+        request_url = f'{self.fulfillment_order_url}/{order_id}'
+        return self._request_json_api_raw(access_token, request_url=request_url, method='GET')
+
     def _request_tokens(self, payload: dict[str, str]) -> EbayTokenPayload:
         body = urlencode(payload).encode('utf-8')
         credentials = base64.b64encode(f'{self.client_id}:{self.client_secret}'.encode('utf-8')).decode('ascii')
@@ -409,4 +419,56 @@ class EbayAuthClient:
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
                 detail='Unable to reach eBay Message API',
+            ) from exc
+
+    def _request_json_api_raw(
+        self,
+        access_token: str,
+        *,
+        request_url: str,
+        method: str,
+        payload: dict | None = None,
+    ) -> EbayRawApiResponse:
+        data = json.dumps(payload).encode('utf-8') if payload is not None else None
+        headers = {
+            'Authorization': f'Bearer {access_token}',
+            'Accept': 'application/json',
+        }
+        if payload is not None:
+            headers['Content-Type'] = 'application/json'
+        request = Request(request_url, data=data, headers=headers, method=method)
+        logger.info('Calling eBay JSON API url=%s method=%s', request_url, method)
+        try:
+            with urlopen(request, timeout=20) as response:
+                response_body = response.read().decode('utf-8')
+                return EbayRawApiResponse(
+                    status_code=response.status,
+                    payload=self._decode_response_body(response_body),
+                    ok=True,
+                    request_url=request_url,
+                )
+        except HTTPError as exc:
+            error_body = ''
+            try:
+                error_body = exc.read().decode('utf-8')
+            except Exception:
+                pass
+            logger.warning(
+                'eBay JSON API error url=%s method=%s status_code=%s body=%s',
+                request_url,
+                method,
+                exc.code,
+                error_body,
+            )
+            return EbayRawApiResponse(
+                status_code=exc.code,
+                payload=self._decode_response_body(error_body),
+                ok=False,
+                request_url=request_url,
+            )
+        except (URLError, TimeoutError) as exc:
+            logger.warning('Unable to reach eBay JSON API endpoint url=%s method=%s', request_url, method)
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail='Unable to reach eBay API',
             ) from exc

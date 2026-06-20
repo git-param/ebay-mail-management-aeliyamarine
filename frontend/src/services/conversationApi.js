@@ -113,3 +113,10 @@ export function sendConversationReply(conversationId, body) {
     body: JSON.stringify({ body }),
   })
 }
+
+export function selectConversationOrder(conversationId, orderRecordId) {
+  return request(`/conversations/${conversationId}/order`, {
+    method: 'PATCH',
+    body: JSON.stringify({ order_record_id: orderRecordId || null }),
+  })
+}

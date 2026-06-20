@@ -14,6 +14,7 @@ from app.modules.integrations.ebay.oauth.token_service import EbayTokenService
 from app.modules.integrations.ebay.providers import EBAY_PROVIDER_NAME
 from app.modules.integrations.ebay.services.ebay_message_service import EbayMessageService
 from app.services.ebay_api_usage_service import EbayApiUsageService
+from app.services.order_context_service import OrderContextService
 from app.services.sync_log_service import SyncLogService
 
 
@@ -48,17 +49,30 @@ class EbaySyncService:
         self.message_service = EbayMessageService(db)
         self.sync_log_service = SyncLogService(db)
         self.api_usage_service = EbayApiUsageService(db)
+        self.order_context_service = OrderContextService(db)
 
-    def sync_account(self, account_id: UUID, *, max_conversations: int | None = None) -> EbaySyncResult:
+    def sync_account(
+        self,
+        account_id: UUID,
+        *,
+        max_conversations: int | None = None,
+        reserve_api_usage: bool = True,
+    ) -> EbaySyncResult:
         account = self._get_syncable_account(account_id)
-        # if reserve_api_usage:
-        self.api_usage_service.reserve_calls(1)
+        updated_since = account.last_sync_at
+        if reserve_api_usage:
+            self.api_usage_service.reserve_calls(1)
 
         sync_log = self.sync_log_service.start_sync(
             provider=EBAY_PROVIDER_NAME,
             provider_account_id=account.id,
             sync_type=EBAY_MESSAGE_SYNC_TYPE,
-            sync_metadata={'conversation_type': 'FROM_MEMBERS', 'max_conversations': max_conversations},
+            sync_metadata={
+                'conversation_type': 'FROM_MEMBERS',
+                'max_conversations': max_conversations,
+                'updated_since': updated_since.isoformat() if updated_since else None,
+                'incremental': updated_since is not None,
+            },
         )
         counters = {
             'conversations_processed': 0,
@@ -76,8 +90,9 @@ class EbaySyncService:
         try:
             account = self._ensure_access_token(account)
             for conversation_summary, page_total in self._iter_conversation_summaries(
-                account.access_token,
+                account,
                 max_conversations=max_conversations,
+                updated_since=updated_since,
             ):
                 if page_total is not None:
                     total_conversations_available = page_total
@@ -88,8 +103,8 @@ class EbaySyncService:
 
                 conversation_type = self._conversation_type(conversation_summary)
                 detail_started_at = perf_counter()
-                detail_response = self.token_service.client.get_conversation_raw(
-                    account.access_token,
+                detail_response = self._get_conversation_detail_with_retry(
+                    account,
                     conversation_id=conversation_id,
                     conversation_type=conversation_type,
                     limit=50,
@@ -145,6 +160,7 @@ class EbaySyncService:
                             conversation_detail=conversation_detail,
                             conversation_type=conversation_type,
                         )
+                        self._sync_direct_order_context(account, conversation_summary, conversation_detail)
                         self.db.flush()
                         messages_created, messages_updated = self.message_service.upsert_messages(
                             account=account,
@@ -200,6 +216,7 @@ class EbaySyncService:
                             counters=counters,
                             total_conversations_available=total_conversations_available,
                             max_conversations=max_conversations,
+                            updated_since=updated_since,
                             elapsed_seconds=elapsed_seconds,
                             detail_seconds_total=detail_seconds_total,
                             failed_conversations=failed_conversations,
@@ -221,6 +238,7 @@ class EbaySyncService:
                     counters=counters,
                     total_conversations_available=total_conversations_available,
                     max_conversations=max_conversations,
+                    updated_since=updated_since,
                     elapsed_seconds=elapsed_seconds,
                     detail_seconds_total=detail_seconds_total,
                     failed_conversations=failed_conversations,
@@ -283,17 +301,37 @@ class EbaySyncService:
         self.api_usage_service.reserve_calls(len(accounts))
         return [self.sync_account(account.id, reserve_api_usage=False) for account in accounts]
 
-    def _iter_conversation_summaries(self, access_token: str, *, max_conversations: int | None = None):
+    def _iter_conversation_summaries(
+        self,
+        account: EbayAccount,
+        *,
+        max_conversations: int | None = None,
+        updated_since: datetime | None = None,
+    ):
         limit = 50
         offset = 0
         yielded_count = 0
         while True:
-            payload = self.token_service.client.get_conversations(
-                access_token,
+            response = self._get_conversations_with_retry(
+                account,
                 conversation_type='FROM_MEMBERS',
                 limit=limit,
                 offset=offset,
             )
+            if not response.ok or not isinstance(response.payload, dict):
+                logger.warning(
+                    'eBay conversation list request failed account_id=%s offset=%s status_code=%s response_body=%s',
+                    account.id,
+                    offset,
+                    response.status_code,
+                    response.payload,
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_502_BAD_GATEWAY,
+                    detail='eBay conversation list request failed',
+                )
+
+            payload = response.payload
             total = payload.get('total')
             page_total = total if isinstance(total, int) else None
             conversations = payload.get('conversations') if isinstance(payload.get('conversations'), list) else []
@@ -305,14 +343,29 @@ class EbaySyncService:
                 page_total,
                 max_conversations,
             )
+            yielded_from_page = 0
+            older_or_equal_count = 0
             for conversation in conversations:
                 if isinstance(conversation, dict):
+                    last_activity_at = self._conversation_activity_at(conversation)
+                    if updated_since and last_activity_at and last_activity_at <= updated_since:
+                        older_or_equal_count += 1
+                        continue
                     yield conversation, page_total
+                    yielded_from_page += 1
                     yielded_count += 1
                     if max_conversations and yielded_count >= max_conversations:
                         return
 
             if not conversations:
+                break
+            if updated_since and yielded_from_page == 0 and older_or_equal_count == len(conversations):
+                logger.info(
+                    'Stopping incremental eBay sync account_id=%s offset=%s because page is older than last_sync_at=%s',
+                    account.id,
+                    offset,
+                    updated_since.isoformat(),
+                )
                 break
             offset += limit
             if page_total is not None and offset >= page_total:
@@ -338,6 +391,65 @@ class EbaySyncService:
             return self.token_service.refresh_access_token(account.id)
         return account
 
+    def _refresh_account_after_unauthorized(self, account: EbayAccount) -> EbayAccount:
+        logger.info('Refreshing eBay access token after 401 account_id=%s', account.id)
+        refreshed_account = self.token_service.refresh_access_token(account.id)
+        self.db.refresh(refreshed_account)
+        return refreshed_account
+
+    def _get_conversations_with_retry(
+        self,
+        account: EbayAccount,
+        *,
+        conversation_type: str,
+        limit: int,
+        offset: int,
+    ):
+        response = self.token_service.client.get_conversations_raw(
+            account.access_token,
+            conversation_type=conversation_type,
+            limit=limit,
+            offset=offset,
+        )
+        if response.status_code != status.HTTP_401_UNAUTHORIZED:
+            return response
+
+        account = self._refresh_account_after_unauthorized(account)
+        return self.token_service.client.get_conversations_raw(
+            account.access_token,
+            conversation_type=conversation_type,
+            limit=limit,
+            offset=offset,
+        )
+
+    def _get_conversation_detail_with_retry(
+        self,
+        account: EbayAccount,
+        *,
+        conversation_id: str,
+        conversation_type: str,
+        limit: int,
+        offset: int,
+    ):
+        response = self.token_service.client.get_conversation_raw(
+            account.access_token,
+            conversation_id=conversation_id,
+            conversation_type=conversation_type,
+            limit=limit,
+            offset=offset,
+        )
+        if response.status_code != status.HTTP_401_UNAUTHORIZED:
+            return response
+
+        account = self._refresh_account_after_unauthorized(account)
+        return self.token_service.client.get_conversation_raw(
+            account.access_token,
+            conversation_id=conversation_id,
+            conversation_type=conversation_type,
+            limit=limit,
+            offset=offset,
+        )
+
     def _conversation_id(self, conversation_summary: dict) -> str | None:
         conversation_id = conversation_summary.get('conversationId')
         if isinstance(conversation_id, str) and conversation_id.strip():
@@ -349,6 +461,28 @@ class EbaySyncService:
         if isinstance(conversation_type, str) and conversation_type.strip():
             return conversation_type.strip()
         return 'FROM_MEMBERS'
+
+    def _conversation_activity_at(self, conversation_summary: dict) -> datetime | None:
+        latest_message = conversation_summary.get('latestMessage')
+        if isinstance(latest_message, dict):
+            parsed_latest_message = self._parse_ebay_datetime(latest_message.get('createdDate'))
+            if parsed_latest_message:
+                return parsed_latest_message
+        return self._parse_ebay_datetime(conversation_summary.get('createdDate'))
+
+    def _parse_ebay_datetime(self, value: object) -> datetime | None:
+        if not isinstance(value, str) or not value.strip():
+            return None
+        normalized_value = value.strip()
+        if normalized_value.endswith('Z'):
+            normalized_value = f'{normalized_value[:-1]}+00:00'
+        try:
+            parsed_value = datetime.fromisoformat(normalized_value)
+        except ValueError:
+            return None
+        if parsed_value.tzinfo is None:
+            return parsed_value.replace(tzinfo=UTC)
+        return parsed_value
 
     def _build_result(
         self,
@@ -411,6 +545,7 @@ class EbaySyncService:
         counters: dict,
         total_conversations_available: int | None,
         max_conversations: int | None,
+        updated_since: datetime | None,
         elapsed_seconds: float,
         detail_seconds_total: float,
         failed_conversations: list[dict],
@@ -422,6 +557,8 @@ class EbaySyncService:
         return {
             'conversation_type': 'FROM_MEMBERS',
             'max_conversations': max_conversations,
+            'updated_since': updated_since.isoformat() if updated_since else None,
+            'incremental': updated_since is not None,
             'total_conversations_available': total_conversations_available,
             'conversations_processed': counters['conversations_processed'],
             'conversations_failed': counters['conversations_failed'],
@@ -459,3 +596,49 @@ class EbaySyncService:
             'status_code': status_code,
             'error_message': error_message,
         }
+
+    def _sync_direct_order_context(self, account: EbayAccount, conversation_summary: dict, conversation_detail: dict) -> None:
+        order_id = self._find_nested_string([conversation_summary, conversation_detail], {'orderId', 'orderID', 'order_id'})
+        if not order_id:
+            return
+
+        response = self._get_order_with_retry(account, order_id=order_id)
+        if not response.ok or not isinstance(response.payload, dict):
+            logger.warning(
+                'Skipping eBay order context sync account_id=%s order_id=%s status_code=%s',
+                account.id,
+                order_id,
+                response.status_code,
+            )
+            return
+        self.order_context_service.upsert_order_payload(account_id=account.id, payload=response.payload)
+
+    def _get_order_with_retry(self, account: EbayAccount, *, order_id: str):
+        response = self.token_service.client.get_order_raw(account.access_token, order_id=order_id)
+        if response.status_code != status.HTTP_401_UNAUTHORIZED:
+            return response
+
+        account = self._refresh_account_after_unauthorized(account)
+        return self.token_service.client.get_order_raw(account.access_token, order_id=order_id)
+
+    def _find_nested_string(self, payloads: list[dict], keys: set[str]) -> str | None:
+        for payload in payloads:
+            value = self._find_nested_string_in_payload(payload, keys)
+            if value:
+                return value
+        return None
+
+    def _find_nested_string_in_payload(self, payload: object, keys: set[str]) -> str | None:
+        if isinstance(payload, dict):
+            for key, value in payload.items():
+                if key in keys and isinstance(value, str) and value.strip():
+                    return value.strip()
+                nested = self._find_nested_string_in_payload(value, keys)
+                if nested:
+                    return nested
+        if isinstance(payload, list):
+            for item in payload:
+                nested = self._find_nested_string_in_payload(item, keys)
+                if nested:
+                    return nested
+        return None

@@ -9,6 +9,7 @@ import {
   fetchConversation,
   fetchConversationNotes,
   sendConversationReply,
+  selectConversationOrder,
   fetchConversations,
   updateConversationCategory,
   updateConversationStatus,
@@ -171,6 +172,23 @@ function ConversationBadge({ children, tone = 'neutral', color }) {
       {children}
     </span>
   )
+}
+
+function isImageAttachment(attachment) {
+  const type = `${attachment.media_type || attachment.mime_type || ''}`.toLowerCase()
+  const url = `${attachment.media_url || attachment.download_url || ''}`.toLowerCase()
+  return type.includes('image') || /\.(png|jpe?g|gif|webp)(\?|$)/.test(url)
+}
+
+function moneyLabel(value, currency) {
+  if (value === null || value === undefined || value === '') {
+    return 'Not available'
+  }
+  return `${currency || ''} ${Number(value).toFixed(2)}`.trim()
+}
+
+function firstLineItem(order) {
+  return order?.line_items?.[0] || null
 }
 
 function EmptyPanel({ title, message }) {
@@ -431,19 +449,33 @@ function MessageThread({ messages }) {
           <p>{message.body}</p>
           {message.attachments?.length ? (
             <div className="message-attachments">
-              {message.attachments.map((attachment) => (
-                attachment.download_url ? (
-                  <a href={attachment.download_url} target="_blank" rel="noreferrer" key={attachment.id}>
-                    {attachment.file_name}
-                    {attachment.file_size ? <small>{Math.round(attachment.file_size / 1024)} KB</small> : null}
-                  </a>
-                ) : (
-                  <span key={attachment.id}>
-                    {attachment.file_name}
-                    {attachment.file_size ? <small>{Math.round(attachment.file_size / 1024)} KB</small> : null}
-                  </span>
+              {message.attachments.map((attachment) => {
+                const attachmentUrl = attachment.media_url || attachment.download_url
+                const attachmentName = attachment.media_name || attachment.file_name
+                return (
+                  <div className="attachment-card" key={attachment.id}>
+                    {attachmentUrl && isImageAttachment(attachment) ? (
+                      <a className="attachment-preview" href={attachmentUrl} target="_blank" rel="noreferrer">
+                        <img src={attachmentUrl} alt={attachmentName} loading="lazy" />
+                      </a>
+                    ) : null}
+                    <div>
+                      <strong>📎 {attachmentName}</strong>
+                      {attachment.file_size ? <small>{Math.round(attachment.file_size / 1024)} KB</small> : null}
+                      {attachmentUrl ? (
+                        <span>
+                          <a href={attachmentUrl} target="_blank" rel="noreferrer">
+                            Open
+                          </a>
+                          <a href={attachmentUrl} download={attachmentName}>
+                            Download
+                          </a>
+                        </span>
+                      ) : null}
+                    </div>
+                  </div>
                 )
-              ))}
+              })}
             </div>
           ) : null}
           <span>{message.read_status ? 'Read' : 'Unread'}</span>
@@ -694,6 +726,92 @@ function MetadataPanel({ detail, accounts }) {
   )
 }
 
+function OrderContextPanel({ detail, onSelectOrder }) {
+  const context = detail.order_context
+  const order = context?.selected_order || (context?.candidate_orders?.length === 1 ? context.candidate_orders[0] : null)
+  const candidates = context?.candidate_orders || []
+  const lineItem = firstLineItem(order)
+  const returnInfo = order?.returns?.[0]
+  const cancellationInfo = order?.cancellations?.[0]
+  const refundStatus = order?.refund_status || (order?.refunds?.length ? 'Refund recorded' : 'Not available')
+
+  return (
+    <section className="detail-section order-context-panel">
+      <div className="section-heading">
+        <h3>Order Context</h3>
+        <ConversationBadge>{context?.linking?.strategy || 'NO_MATCH'}</ConversationBadge>
+      </div>
+
+      {order ? (
+        <>
+          <dl className="metadata-list">
+            <div><dt>Order Number</dt><dd>{order.order_id}</dd></div>
+            <div><dt>Buyer Username</dt><dd>{order.buyer_username || detail.buyer_identifier || 'Not available'}</dd></div>
+            <div><dt>Item Title</dt><dd>{lineItem?.title || 'Not available'}</dd></div>
+            <div><dt>Item ID</dt><dd>{lineItem?.item_id || detail.reference_id || 'Not available'}</dd></div>
+            <div><dt>Quantity</dt><dd>{lineItem?.quantity ?? 'Not available'}</dd></div>
+            <div><dt>Price</dt><dd>{moneyLabel(lineItem?.price_value, lineItem?.price_currency)}</dd></div>
+            <div><dt>Order Status</dt><dd>{order.fulfillment_status || 'Not available'}</dd></div>
+            <div><dt>Payment Status</dt><dd>{order.payment_status || 'Not available'}</dd></div>
+            <div><dt>Cancellation Status</dt><dd>{order.cancel_status || cancellationInfo?.cancel_state || 'Not available'}</dd></div>
+            <div><dt>Return Status</dt><dd>{returnInfo?.return_status || 'Not available'}</dd></div>
+            <div><dt>Refund Status</dt><dd>{refundStatus}</dd></div>
+          </dl>
+          <a className="secondary-button compact-action detail-link-button" href={order.ebay_url} target="_blank" rel="noreferrer">
+            Open In eBay
+          </a>
+        </>
+      ) : (
+        <p className="detail-muted">No locally synced order context is linked to this conversation.</p>
+      )}
+
+      {cancellationInfo ? (
+        <div className="order-subpanel">
+          <h4>Cancellation Requested</h4>
+          <dl className="metadata-list">
+            <div><dt>Requested By</dt><dd>{cancellationInfo.requester || 'Not available'}</dd></div>
+            <div><dt>Reason</dt><dd>{cancellationInfo.cancel_reason || 'Not available'}</dd></div>
+            <div><dt>Created Date</dt><dd>{formatDate(cancellationInfo.created_date)}</dd></div>
+            <div><dt>Current Status</dt><dd>{cancellationInfo.cancel_state || 'Not available'}</dd></div>
+          </dl>
+          <a href={cancellationInfo.ebay_url} target="_blank" rel="noreferrer">Open In eBay</a>
+        </div>
+      ) : null}
+
+      {returnInfo ? (
+        <div className="order-subpanel">
+          <h4>Return</h4>
+          <dl className="metadata-list">
+            <div><dt>Status</dt><dd>{returnInfo.return_status || 'Not available'}</dd></div>
+            <div><dt>Reason</dt><dd>{returnInfo.return_reason || 'Not available'}</dd></div>
+            <div><dt>Created Date</dt><dd>{formatDate(returnInfo.created_date)}</dd></div>
+            <div><dt>Workflow State</dt><dd>{returnInfo.return_state || 'Not available'}</dd></div>
+          </dl>
+          <a href={returnInfo.ebay_url} target="_blank" rel="noreferrer">Open In eBay</a>
+        </div>
+      ) : null}
+
+      {candidates.length > 1 ? (
+        <label className="field compact-field">
+          <span>Order candidates</span>
+          <select defaultValue="" onChange={(event) => event.target.value && onSelectOrder(event.target.value)}>
+            <option value="">Select matching order</option>
+            {candidates.map((candidate) => (
+              <option value={candidate.id} key={candidate.id}>
+                {candidate.order_id} - {candidate.buyer_username || 'Unknown buyer'}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : null}
+
+      {context?.deep_links?.messages ? (
+        <a href={context.deep_links.messages} target="_blank" rel="noreferrer">Open eBay Messages</a>
+      ) : null}
+    </section>
+  )
+}
+
 function DetailsPanel({
   detail,
   notes,
@@ -708,9 +826,11 @@ function DetailsPanel({
   onCategoryChange,
   onStatusChange,
   onSendReply,
+  onSelectOrder,
 }) {
   return (
     <aside className="side-detail-panel">
+      <OrderContextPanel detail={detail} onSelectOrder={onSelectOrder} />
       <AssignmentPanel detail={detail} users={users} usersError={usersError} isSubmitting={isSubmitting} onAssign={onAssign} />
       <CategoryPanel
         detail={detail}
@@ -747,6 +867,7 @@ function ConversationDetail({
   onCategoryChange,
   onStatusChange,
   onSendReply,
+  onSelectOrder,
 }) {
   if (isLoading) {
     return <EmptyPanel title="Loading conversation..." message="Fetching the latest conversation detail." />
@@ -815,6 +936,7 @@ function ConversationDetail({
           onAddNote={onAddNote}
           onCategoryChange={onCategoryChange}
           onStatusChange={onStatusChange}
+          onSelectOrder={onSelectOrder}
         />
       ) : (
         <div className="thread-panel">
@@ -827,7 +949,7 @@ function ConversationDetail({
 }
 
 function Dashboard({ currentUser, onLogout }) {
-  const canManageAssignments = ['ADMIN', 'OPS_MANAGER'].includes(normalizeRole(currentUser?.role))
+  const canManageAssignments = ['ADMIN', 'OPS_MANAGER', 'AGENT'].includes(normalizeRole(currentUser?.role))
   const [filters, setFilters] = useState({
     search: '',
     status: '',
@@ -1190,6 +1312,23 @@ function Dashboard({ currentUser, onLogout }) {
     }
   }
 
+  async function handleSelectOrder(orderRecordId) {
+    if (!selectedConversationId) {
+      return
+    }
+    setIsSubmitting(true)
+    setActionError('')
+    try {
+      const response = await selectConversationOrder(selectedConversationId, orderRecordId)
+      setDetail(response)
+      await loadConversations()
+    } catch (caughtError) {
+      setActionError(caughtError.message)
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
   return (
     <AppLayout activePage="Inbox" currentUser={currentUser} onLogout={onLogout}>
       <main
@@ -1330,6 +1469,7 @@ function Dashboard({ currentUser, onLogout }) {
                   onCategoryChange={handleCategoryChange}
                   onStatusChange={handleStatusChange}
                   onSendReply={handleSendReply}
+                  onSelectOrder={handleSelectOrder}
                 />
               )}
             </section>
@@ -1350,6 +1490,7 @@ function Dashboard({ currentUser, onLogout }) {
                   onAddNote={handleAddNote}
                   onCategoryChange={handleCategoryChange}
                   onStatusChange={handleStatusChange}
+                  onSelectOrder={handleSelectOrder}
                 />
               </>
             ) : null}

@@ -46,6 +46,7 @@ class Conversation(Base):
     provider_conversation_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
     reference_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     reference_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    linked_order_record_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey('orders.id'), nullable=True)
     unread_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     status: Mapped[ConversationStatus] = mapped_column(
         Enum(ConversationStatus, name='conversation_status'),
@@ -64,6 +65,7 @@ class Conversation(Base):
     )
 
     category = relationship('Category')
+    linked_order = relationship('EbayOrder')
     messages = relationship(
         'Message',
         back_populates='conversation',
@@ -142,9 +144,13 @@ class MessageAttachment(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     message_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey('messages.id'), nullable=False)
+    account_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey('ebay_accounts.id'), nullable=True)
     provider: Mapped[str] = mapped_column(String(50), nullable=False)
     provider_attachment_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     file_name: Mapped[str] = mapped_column(String(500), nullable=False)
+    media_name: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    media_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    media_type: Mapped[str | None] = mapped_column(String(80), nullable=True)
     mime_type: Mapped[str | None] = mapped_column(String(120), nullable=True)
     file_size: Mapped[int | None] = mapped_column(Integer, nullable=True)
     download_url: Mapped[str | None] = mapped_column(Text, nullable=True)
