@@ -8,6 +8,7 @@ from app.models.conversation import (
     ConversationParticipant,
     ConversationStatusHistory,
     Message,
+    MessageAttachment,
     SyncLog,
 )
 from app.models.ebay_account import EbayAccount
@@ -30,6 +31,7 @@ __all__ = [
     'ConversationStatusHistory',
     'EbayAccount',
     'Message',
+    'MessageAttachment',
     'Notification',
     'PasswordResetToken',
     'RefreshToken',

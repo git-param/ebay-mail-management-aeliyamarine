@@ -4,7 +4,7 @@ from sqlalchemy import and_, exists, func, or_, select
 from sqlalchemy.orm import Session, joinedload, selectinload
 
 from app.models.category import CategoryUserAssignment
-from app.models.conversation import Conversation, ConversationAssignment, ConversationNote, ConversationStatus, Message
+from app.models.conversation import Conversation, ConversationAssignment, ConversationNote, ConversationStatus, Message, MessageAttachment
 
 
 class ConversationRepository:
@@ -35,7 +35,7 @@ class ConversationRepository:
         ).options(
             selectinload(Conversation.assignments).joinedload(ConversationAssignment.assignee),
             selectinload(Conversation.assignments).joinedload(ConversationAssignment.assigner),
-            selectinload(Conversation.messages),
+            selectinload(Conversation.messages).selectinload(Message.attachments),
             joinedload(Conversation.category),
         ).order_by(Conversation.last_message_at.desc().nullslast(), Conversation.created_at.desc())
         if offset:
@@ -72,7 +72,7 @@ class ConversationRepository:
             .options(
                 selectinload(Conversation.assignments).joinedload(ConversationAssignment.assignee),
                 selectinload(Conversation.assignments).joinedload(ConversationAssignment.assigner),
-                selectinload(Conversation.messages),
+                selectinload(Conversation.messages).selectinload(Message.attachments),
                 selectinload(Conversation.notes).joinedload(ConversationNote.author),
                 joinedload(Conversation.category),
             )

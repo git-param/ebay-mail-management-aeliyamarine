@@ -65,6 +65,28 @@ class MessageResponse(BaseModel):
     is_inbound: bool
     sent_at: datetime
     created_at: datetime
+    attachments: list['MessageAttachmentResponse'] = Field(default_factory=list)
+
+
+class MessageAttachmentResponse(BaseModel):
+    id: UUID
+    message_id: UUID
+    provider: str
+    provider_attachment_id: str | None = None
+    file_name: str
+    mime_type: str | None = None
+    file_size: int | None = None
+    download_url: str | None = None
+    created_at: datetime
+
+
+class ReplyValidationResponse(BaseModel):
+    valid: bool
+    violations: list[str] = Field(default_factory=list)
+
+
+class ReplyConversationRequest(BaseModel):
+    body: str = Field(min_length=1, max_length=2000)
 
 
 class ConversationDetailResponse(ConversationSummaryResponse):

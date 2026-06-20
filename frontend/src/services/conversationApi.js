@@ -17,7 +17,7 @@ function getErrorMessage(status, data) {
     500: 'The server could not complete the request. Please try again later.',
   }
 
-  return messages[status] || 'Something went wrong. Please try again.'
+  return messages[status] || `Conversation request failed (${status}). Please try again.`
 }
 
 function buildQuery(params = {}) {
@@ -97,5 +97,19 @@ export function updateConversationStatus(conversationId, status) {
   return request(`/conversations/${conversationId}/status`, {
     method: 'PATCH',
     body: JSON.stringify({ status }),
+  })
+}
+
+export function validateConversationReply(conversationId, body) {
+  return request(`/conversations/${conversationId}/reply/validate`, {
+    method: 'POST',
+    body: JSON.stringify({ body }),
+  })
+}
+
+export function sendConversationReply(conversationId, body) {
+  return request(`/conversations/${conversationId}/reply`, {
+    method: 'POST',
+    body: JSON.stringify({ body }),
   })
 }

@@ -327,13 +327,40 @@ class EbayAuthClient:
         except json.JSONDecodeError:
             return response_body
 
-    def _request_message_api_raw(self, access_token: str, *, request_url: str, method: str) -> EbayRawApiResponse:
+    def send_conversation_message(
+        self,
+        access_token: str,
+        *,
+        conversation_id: str,
+        message_body: str,
+    ) -> EbayRawApiResponse:
+        request_url = f'{self.conversations_url}/{conversation_id}/message'
+        return self._request_message_api_raw(
+            access_token,
+            request_url=request_url,
+            method='POST',
+            payload={'messageBody': message_body},
+        )
+
+    def _request_message_api_raw(
+        self,
+        access_token: str,
+        *,
+        request_url: str,
+        method: str,
+        payload: dict | None = None,
+    ) -> EbayRawApiResponse:
+        data = json.dumps(payload).encode('utf-8') if payload is not None else None
+        headers = {
+            'Authorization': f'Bearer {access_token}',
+            'Accept': 'application/json',
+        }
+        if payload is not None:
+            headers['Content-Type'] = 'application/json'
         request = Request(
             request_url,
-            headers={
-                'Authorization': f'Bearer {access_token}',
-                'Accept': 'application/json',
-            },
+            data=data,
+            headers=headers,
             method=method,
         )
         logger.info('Calling eBay Message API url=%s method=%s', request_url, method)

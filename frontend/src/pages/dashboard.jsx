@@ -8,9 +8,11 @@ import {
   createConversationNote,
   fetchConversation,
   fetchConversationNotes,
+  sendConversationReply,
   fetchConversations,
   updateConversationCategory,
   updateConversationStatus,
+  validateConversationReply,
 } from '../services/conversationApi'
 import { fetchEbayAccounts } from '../services/ebayAccountApi'
 import { fetchUsers } from '../services/userApi'
@@ -427,10 +429,84 @@ function MessageThread({ messages }) {
             <time>{formatDate(message.sent_at)}</time>
           </div>
           <p>{message.body}</p>
+          {message.attachments?.length ? (
+            <div className="message-attachments">
+              {message.attachments.map((attachment) => (
+                attachment.download_url ? (
+                  <a href={attachment.download_url} target="_blank" rel="noreferrer" key={attachment.id}>
+                    {attachment.file_name}
+                    {attachment.file_size ? <small>{Math.round(attachment.file_size / 1024)} KB</small> : null}
+                  </a>
+                ) : (
+                  <span key={attachment.id}>
+                    {attachment.file_name}
+                    {attachment.file_size ? <small>{Math.round(attachment.file_size / 1024)} KB</small> : null}
+                  </span>
+                )
+              ))}
+            </div>
+          ) : null}
           <span>{message.read_status ? 'Read' : 'Unread'}</span>
         </article>
       ))}
     </div>
+  )
+}
+
+function ReplyComposer({ conversationId, isSubmitting, onSendReply }) {
+  const [body, setBody] = useState('')
+  const [violations, setViolations] = useState([])
+  const [isValidating, setIsValidating] = useState(false)
+
+  async function submitReply(event) {
+    event.preventDefault()
+    const trimmedBody = body.trim()
+    if (!trimmedBody || !conversationId) {
+      return
+    }
+    setIsValidating(true)
+    setViolations([])
+    try {
+      const validation = await validateConversationReply(conversationId, trimmedBody)
+      if (!validation.valid) {
+        setViolations(validation.violations || ['Reply violates eBay messaging policy.'])
+        return
+      }
+      await onSendReply(trimmedBody)
+      setBody('')
+    } catch (caughtError) {
+      setViolations([caughtError.message])
+    } finally {
+      setIsValidating(false)
+    }
+  }
+
+  return (
+    <form className="reply-composer" onSubmit={submitReply}>
+      <label className="field">
+        <span>Reply to buyer</span>
+        <textarea
+          value={body}
+          onChange={(event) => setBody(event.target.value)}
+          rows="4"
+          maxLength={2000}
+          placeholder="Write a reply without email, phone, external links, or abusive language"
+        />
+      </label>
+      {violations.length ? (
+        <div className="reply-policy-warning" role="alert">
+          {violations.map((violation) => (
+            <p key={violation}>{violation}</p>
+          ))}
+        </div>
+      ) : null}
+      <div className="reply-composer-actions">
+        <small>{body.length}/2000</small>
+        <button className="primary-button compact" type="submit" disabled={!body.trim() || isSubmitting || isValidating}>
+          {isValidating ? 'Checking...' : isSubmitting ? 'Sending...' : 'Send Reply'}
+        </button>
+      </div>
+    </form>
   )
 }
 
@@ -631,6 +707,7 @@ function DetailsPanel({
   onAddNote,
   onCategoryChange,
   onStatusChange,
+  onSendReply,
 }) {
   return (
     <aside className="side-detail-panel">
@@ -669,6 +746,7 @@ function ConversationDetail({
   onAddNote,
   onCategoryChange,
   onStatusChange,
+  onSendReply,
 }) {
   if (isLoading) {
     return <EmptyPanel title="Loading conversation..." message="Fetching the latest conversation detail." />
@@ -741,6 +819,7 @@ function ConversationDetail({
       ) : (
         <div className="thread-panel">
           <MessageThread messages={detail.messages || []} />
+          <ReplyComposer conversationId={detail.id} isSubmitting={isSubmitting} onSendReply={onSendReply} />
         </div>
       )}
     </section>
@@ -829,7 +908,8 @@ function Dashboard({ currentUser, onLogout }) {
       const response = await fetchConversation(conversationId)
       setDetail(response)
     } catch (caughtError) {
-      setDetailError(caughtError.message)
+      console.error('Failed to load conversation detail', { conversationId, error: caughtError })
+      setDetailError(caughtError.message || 'Unable to load conversation detail.')
       setDetail(null)
     } finally {
       setIsDetailLoading(false)
@@ -1094,6 +1174,22 @@ function Dashboard({ currentUser, onLogout }) {
     }
   }
 
+  async function handleSendReply(body) {
+    if (!selectedConversationId) {
+      return
+    }
+    setIsSubmitting(true)
+    setActionError('')
+    try {
+      await sendConversationReply(selectedConversationId, body)
+      await refreshSelectedConversation()
+    } catch (caughtError) {
+      setActionError(caughtError.message)
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
   return (
     <AppLayout activePage="Inbox" currentUser={currentUser} onLogout={onLogout}>
       <main
@@ -1205,37 +1301,37 @@ function Dashboard({ currentUser, onLogout }) {
 
             <section className="inbox-detail-panel">
               {detailError ? (
-                <p className="form-message error management-error" role="alert">
-                  {detailError}
-                </p>
-              ) : null}
-              <ConversationDetail
-                detail={detail || selectedConversation}
-                notes={notes}
-                users={users}
-                usersError={usersError}
-                categories={categories}
-                accounts={accounts}
-                isLoading={isDetailLoading}
-                notesLoading={isNotesLoading}
-                actionError={actionError}
-                isSubmitting={isSubmitting}
-                isDetailsOpen={isDetailsOpen}
-                mobilePane={mobilePane}
-                onBack={returnToList}
-                onOpenDetails={() => {
-                  setIsDetailsOpen(true)
-                  if (window.innerWidth <= 820) {
-                    setMobilePane('details')
-                  }
-                }}
-                onHideDetails={() => setIsDetailsOpen(false)}
-                onCloseDetails={() => setMobilePane('thread')}
-                onAssign={handleAssign}
-                onAddNote={handleAddNote}
-                onCategoryChange={handleCategoryChange}
-                onStatusChange={handleStatusChange}
-              />
+                <EmptyPanel title="Could not load conversation" message={detailError} />
+              ) : (
+                <ConversationDetail
+                  detail={detail || selectedConversation}
+                  notes={notes}
+                  users={users}
+                  usersError={usersError}
+                  categories={categories}
+                  accounts={accounts}
+                  isLoading={isDetailLoading}
+                  notesLoading={isNotesLoading}
+                  actionError={actionError}
+                  isSubmitting={isSubmitting}
+                  isDetailsOpen={isDetailsOpen}
+                  mobilePane={mobilePane}
+                  onBack={returnToList}
+                  onOpenDetails={() => {
+                    setIsDetailsOpen(true)
+                    if (window.innerWidth <= 820) {
+                      setMobilePane('details')
+                    }
+                  }}
+                  onHideDetails={() => setIsDetailsOpen(false)}
+                  onCloseDetails={() => setMobilePane('thread')}
+                  onAssign={handleAssign}
+                  onAddNote={handleAddNote}
+                  onCategoryChange={handleCategoryChange}
+                  onStatusChange={handleStatusChange}
+                  onSendReply={handleSendReply}
+                />
+              )}
             </section>
 
             {isDetailsOpen ? (

@@ -24,6 +24,9 @@ from app.schemas.conversation import (
     ConversationSummaryResponse,
     EbayAccountBriefResponse,
     MessageResponse,
+    MessageAttachmentResponse,
+    ReplyConversationRequest,
+    ReplyValidationResponse,
     UpdateConversationCategoryRequest,
     UpdateConversationStatusRequest,
     UserBriefResponse,
@@ -34,6 +37,7 @@ from app.services.category_assignment_service import CategoryAssignmentService
 from app.services.conversation_note_service import ConversationNoteService
 from app.services.conversation_service import ConversationService
 from app.services.message_service import MessageService
+from app.services.ebay_reply_service import EbayReplyService
 from app.services.notification_service import NotificationService
 
 
@@ -139,6 +143,21 @@ def serialize_message(message: Message) -> MessageResponse:
         is_inbound=message.is_inbound,
         sent_at=message.sent_at,
         created_at=message.created_at,
+        attachments=[serialize_attachment(attachment) for attachment in message.attachments],
+    )
+
+
+def serialize_attachment(attachment) -> MessageAttachmentResponse:
+    return MessageAttachmentResponse(
+        id=attachment.id,
+        message_id=attachment.message_id,
+        provider=attachment.provider,
+        provider_attachment_id=attachment.provider_attachment_id,
+        file_name=attachment.file_name,
+        mime_type=attachment.mime_type,
+        file_size=attachment.file_size,
+        download_url=attachment.download_url,
+        created_at=attachment.created_at,
     )
 
 
@@ -289,6 +308,34 @@ def list_conversation_messages(
 ) -> list[MessageResponse]:
     ConversationService(db).get_conversation(conversation_id, visible_category_ids=visible_category_ids_for_user(db, current_user))
     return [serialize_message(message) for message in MessageService(db).list_messages(conversation_id)]
+
+
+@router.post('/{conversation_id}/reply/validate', response_model=ReplyValidationResponse)
+def validate_reply(
+    conversation_id: UUID,
+    payload: ReplyConversationRequest,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_conversation_access),
+) -> ReplyValidationResponse:
+    ConversationService(db).get_conversation(conversation_id, visible_category_ids=visible_category_ids_for_user(db, current_user))
+    violations = EbayReplyService(db).validate_reply(payload.body)
+    return ReplyValidationResponse(valid=not violations, violations=violations)
+
+
+@router.post('/{conversation_id}/reply', response_model=MessageResponse)
+def reply_to_conversation(
+    conversation_id: UUID,
+    payload: ReplyConversationRequest,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_conversation_access),
+) -> MessageResponse:
+    ConversationService(db).get_conversation(conversation_id, visible_category_ids=visible_category_ids_for_user(db, current_user))
+    message = EbayReplyService(db).send_reply(
+        conversation_id=conversation_id,
+        body=payload.body.strip(),
+        actor_id=current_user.id,
+    )
+    return serialize_message(message)
 
 
 @router.post('/{conversation_id}/assign', response_model=ConversationAssignmentResponse)
