@@ -13,6 +13,7 @@ from app.models.ebay_account import EbayAccount, EbayConnectionStatus
 from app.modules.integrations.ebay.oauth.token_service import EbayTokenService
 from app.modules.integrations.ebay.providers import EBAY_PROVIDER_NAME
 from app.modules.integrations.ebay.services.ebay_message_service import EbayMessageService
+from app.services.ebay_api_usage_service import EbayApiUsageService
 from app.services.sync_log_service import SyncLogService
 
 
@@ -46,9 +47,13 @@ class EbaySyncService:
         self.token_service = EbayTokenService(db)
         self.message_service = EbayMessageService(db)
         self.sync_log_service = SyncLogService(db)
+        self.api_usage_service = EbayApiUsageService(db)
 
     def sync_account(self, account_id: UUID, *, max_conversations: int | None = None) -> EbaySyncResult:
         account = self._get_syncable_account(account_id)
+        if reserve_api_usage:
+            self.api_usage_service.reserve_calls(1)
+
         sync_log = self.sync_log_service.start_sync(
             provider=EBAY_PROVIDER_NAME,
             provider_account_id=account.id,
@@ -275,7 +280,8 @@ class EbaySyncService:
             .order_by(EbayAccount.created_at.asc())
         )
         accounts = list(self.db.scalars(statement))
-        return [self.sync_account(account.id) for account in accounts]
+        self.api_usage_service.reserve_calls(len(accounts))
+        return [self.sync_account(account.id, reserve_api_usage=False) for account in accounts]
 
     def _iter_conversation_summaries(self, access_token: str, *, max_conversations: int | None = None):
         limit = 50

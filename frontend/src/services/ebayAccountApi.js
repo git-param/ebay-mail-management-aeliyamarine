@@ -94,6 +94,10 @@ export function submitManualEbayCallback(payload) {
   })
 }
 
+export function fetchEbayApiUsage() {
+  return request('/integrations/ebay/api-usage')
+}
+
 export function syncEbayAccount(accountId) {
   return request(`/integrations/ebay/sync/${accountId}`, {
     method: 'POST',

@@ -40,6 +40,11 @@ class Settings(BaseSettings):
     ebay_runame: str = Field(default='', validation_alias='EBAY_RUNAME')
     ebay_environment: str = Field(default='SANDBOX', validation_alias='EBAY_ENVIRONMENT')
 
+    ebay_daily_api_limit: int = Field(
+        default=100,
+        validation_alias="EBAY_DAILY_API_LIMIT",
+    )
+
     model_config = SettingsConfigDict(env_file=ENV_FILE, env_file_encoding='utf-8', extra='ignore')
 
     @field_validator('database_url')

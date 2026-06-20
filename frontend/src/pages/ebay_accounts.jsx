@@ -7,6 +7,7 @@ import {
   createEbayAccount,
   deactivateEbayAccount,
   deleteEbayAccount,
+  fetchEbayApiUsage,
   fetchEbayAccount,
   fetchEbayAccounts,
   syncAllEbayAccounts,
@@ -24,6 +25,13 @@ const EMPTY_FORM = {
   ebayUsername: '',
   environment: 'SANDBOX',
   notes: '',
+}
+
+const EMPTY_API_USAGE = {
+  usageDate: '',
+  callCount: 0,
+  dailyLimit: 100,
+  remaining: 100,
 }
 
 function formatDate(value) {
@@ -84,6 +92,21 @@ function normalizeSyncResult(result) {
     messagesProcessed,
     elapsedSeconds: result.elapsed_seconds,
     errorMessage: result.error_message || '',
+  }
+}
+
+function normalizeApiUsage(usage) {
+  if (!usage) {
+    return EMPTY_API_USAGE
+  }
+
+  const dailyLimit = Number(usage.daily_limit) || EMPTY_API_USAGE.dailyLimit
+  const callCount = Number(usage.call_count) || 0
+  return {
+    usageDate: usage.usage_date || '',
+    callCount,
+    dailyLimit,
+    remaining: Number.isFinite(Number(usage.remaining)) ? Number(usage.remaining) : Math.max(dailyLimit - callCount, 0),
   }
 }
 
@@ -335,6 +358,7 @@ function EbayAccounts({ currentUser, onLogout }) {
   const [notification, setNotification] = useState('')
   const [error, setError] = useState('')
   const [syncResults, setSyncResults] = useState([])
+  const [apiUsage, setApiUsage] = useState(EMPTY_API_USAGE)
   const [connectingAccountId, setConnectingAccountId] = useState('')
   const [syncingAction, setSyncingAction] = useState('')
   const [manualAccountId, setManualAccountId] = useState('')
@@ -359,9 +383,23 @@ function EbayAccounts({ currentUser, onLogout }) {
     }
   }
 
+  async function loadApiUsage() {
+    if (!isAdmin) {
+      return
+    }
+
+    try {
+      const response = await fetchEbayApiUsage()
+      setApiUsage(normalizeApiUsage(response))
+    } catch (caughtError) {
+      setError(caughtError.message)
+    }
+  }
+
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     loadAccounts()
+    loadApiUsage()
   }, [])
 
   useEffect(() => {
@@ -378,6 +416,7 @@ function EbayAccounts({ currentUser, onLogout }) {
     }
 
     loadAccounts()
+    loadApiUsage()
     window.history.replaceState({}, document.title, window.location.pathname)
   }, [])
 
@@ -405,7 +444,7 @@ function EbayAccounts({ currentUser, onLogout }) {
   )
 
   const connectedAccounts = useMemo(
-    () => accounts.filter((account) => account.connectionStatus === 'CONNECTED'),
+    () => accounts.filter((account) => account.connectionStatus === 'CONNECTED' && account.isActive),
     [accounts],
   )
 
@@ -589,6 +628,10 @@ function EbayAccounts({ currentUser, onLogout }) {
     showNotification('Connect link copied.')
   }
 
+  function hasApiUsageRemaining(requiredCalls) {
+    return apiUsage.remaining >= requiredCalls
+  }
+
   async function runSync(label, syncRequest) {
     setSyncingAction(label)
     setError('')
@@ -600,10 +643,13 @@ function EbayAccounts({ currentUser, onLogout }) {
         ? response.results.map(normalizeSyncResult)
         : [normalizeSyncResult(response)]
       setSyncResults(results)
+      setApiUsage(normalizeApiUsage(response.api_usage || response.results?.find((result) => result.api_usage)?.api_usage))
       showNotification('Sync completed successfully.')
       await loadAccounts()
+      await loadApiUsage()
     } catch (caughtError) {
       showError(caughtError)
+      await loadApiUsage()
     } finally {
       setSyncingAction('')
     }
@@ -619,9 +665,13 @@ function EbayAccounts({ currentUser, onLogout }) {
       return
     }
 
-    await runSync('selected', async () => ({
-      results: await Promise.all(accountIds.map((accountId) => syncEbayAccount(accountId))),
-    }))
+    await runSync('selected', async () => {
+      const results = []
+      for (const accountId of accountIds) {
+        results.push(await syncEbayAccount(accountId))
+      }
+      return { results, api_usage: results.at(-1)?.api_usage }
+    })
   }
 
   async function syncAllConnectedAccounts() {
@@ -653,14 +703,26 @@ function EbayAccounts({ currentUser, onLogout }) {
           <StatCard label="Active Accounts" value={stats.active} />
           <StatCard label="Connected Accounts" value={stats.connected} />
           <StatCard label="Last Sync Status" value={stats.lastSync} />
+          {isAdmin ? <StatCard label="Daily API Calls" value={`${apiUsage.callCount}/${apiUsage.dailyLimit}`} /> : null}
         </section>
 
         {isAdmin ? (
           <section className="sync-controls" aria-label="eBay sync controls">
+            <div className="api-usage-meter" aria-label="Daily eBay API usage">
+              <div>
+                <strong>{apiUsage.remaining}</strong>
+                <span>calls remaining today</span>
+              </div>
+              <progress value={apiUsage.callCount} max={apiUsage.dailyLimit} />
+            </div>
             <button
               className="secondary-button"
               type="button"
-              disabled={!selectedConnectedAccountIds.length || Boolean(syncingAction)}
+              disabled={
+                !selectedConnectedAccountIds.length ||
+                Boolean(syncingAction) ||
+                !hasApiUsageRemaining(selectedConnectedAccountIds.length)
+              }
               onClick={syncSelectedAccounts}
             >
               {syncingAction === 'selected' ? 'Syncing...' : `Sync Selected (${selectedConnectedAccountIds.length})`}
@@ -668,7 +730,7 @@ function EbayAccounts({ currentUser, onLogout }) {
             <button
               className="secondary-button"
               type="button"
-              disabled={!connectedAccounts.length || Boolean(syncingAction)}
+              disabled={!connectedAccounts.length || Boolean(syncingAction) || !hasApiUsageRemaining(connectedAccounts.length)}
               onClick={syncAllConnectedAccounts}
             >
               {syncingAction === 'all' ? 'Syncing...' : 'Sync All Connected'}
@@ -800,7 +862,7 @@ function EbayAccounts({ currentUser, onLogout }) {
                             className="secondary-button compact-action"
                             type="button"
                             onClick={() => syncSingleAccount(account)}
-                            disabled={Boolean(syncingAction)}
+                            disabled={Boolean(syncingAction) || !hasApiUsageRemaining(1)}
                           >
                             {syncingAction === account.id ? 'Syncing...' : 'Sync'}
                           </button>
