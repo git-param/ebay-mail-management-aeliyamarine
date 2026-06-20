@@ -39,9 +39,13 @@ class EbayReplyService:
             account.access_token,
             conversation_id=conversation.provider_conversation_id,
             message_body=body,
+            conversation_type=conversation.provider_conversation_type or 'FROM_MEMBERS',
         )
         if not response.ok:
-            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail='eBay reply request failed')
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=self._reply_error_detail(response.payload),
+            )
 
         provider_message_id = self._provider_message_id(response.payload) or f'local-reply-{uuid4()}'
         message = Message(
@@ -90,3 +94,17 @@ class EbayReplyService:
             return None
         value = payload.get('messageId') or payload.get('id')
         return value.strip() if isinstance(value, str) and value.strip() else None
+
+    def _reply_error_detail(self, payload: object) -> str:
+        if not isinstance(payload, dict):
+            return 'eBay reply request failed'
+
+        errors = payload.get('errors')
+        if isinstance(errors, list) and errors:
+            first_error = errors[0]
+            if isinstance(first_error, dict):
+                message = first_error.get('longMessage') or first_error.get('message')
+                if isinstance(message, str) and message.strip():
+                    return f'eBay reply request failed: {message.strip()}'
+
+        return 'eBay reply request failed'

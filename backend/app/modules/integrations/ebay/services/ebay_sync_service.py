@@ -51,8 +51,8 @@ class EbaySyncService:
 
     def sync_account(self, account_id: UUID, *, max_conversations: int | None = None) -> EbaySyncResult:
         account = self._get_syncable_account(account_id)
-        if reserve_api_usage:
-            self.api_usage_service.reserve_calls(1)
+        # if reserve_api_usage:
+        self.api_usage_service.reserve_calls(1)
 
         sync_log = self.sync_log_service.start_sync(
             provider=EBAY_PROVIDER_NAME,

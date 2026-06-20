@@ -333,13 +333,18 @@ class EbayAuthClient:
         *,
         conversation_id: str,
         message_body: str,
+        conversation_type: str = 'FROM_MEMBERS',
     ) -> EbayRawApiResponse:
-        request_url = f'{self.conversations_url}/{conversation_id}/message'
+        request_url = self.conversations_url.replace('/conversation', '/send_message')
         return self._request_message_api_raw(
             access_token,
             request_url=request_url,
             method='POST',
-            payload={'messageBody': message_body},
+            payload={
+                'conversationId': conversation_id,
+                'conversationType': conversation_type,
+                'messageText': message_body,
+            },
         )
 
     def _request_message_api_raw(
