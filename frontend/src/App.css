@@ -2028,6 +2028,19 @@
   margin-top: 6px;
 }
 
+.reply-attachment-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.reply-attachment-list span {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 0.8rem;
+}
+
 .reply-composer-actions {
   display: flex;
   align-items: center;

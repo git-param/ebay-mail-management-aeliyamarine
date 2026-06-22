@@ -3,7 +3,7 @@ from uuid import UUID
 from sqlalchemy import and_, exists, func, or_, select
 from sqlalchemy.orm import Session, joinedload, selectinload
 
-from app.models.category import CategoryUserAssignment
+from app.models.category import Category
 from app.models.conversation import Conversation, ConversationAssignment, ConversationNote, ConversationStatus, Message, MessageAttachment
 
 
@@ -23,7 +23,9 @@ class ConversationRepository:
         assigned_user_id: UUID | None = None,
         category_id: UUID | None = None,
         visible_category_ids: set[UUID] | None = None,
+        visibility_user_id: UUID | None = None,
     ) -> list[Conversation]:
+        """List conversations filtered by search criteria and optional agent visibility."""
         statement = self._filtered_statement(
             search=search,
             status=status,
@@ -32,6 +34,7 @@ class ConversationRepository:
             assigned_user_id=assigned_user_id,
             category_id=category_id,
             visible_category_ids=visible_category_ids,
+            visibility_user_id=visibility_user_id,
         ).options(
             selectinload(Conversation.assignments).joinedload(ConversationAssignment.assignee),
             selectinload(Conversation.assignments).joinedload(ConversationAssignment.assigner),
@@ -54,7 +57,9 @@ class ConversationRepository:
         assigned_user_id: UUID | None = None,
         category_id: UUID | None = None,
         visible_category_ids: set[UUID] | None = None,
+        visibility_user_id: UUID | None = None,
     ) -> int:
+        """Count conversations with the same filters used by the list endpoint."""
         statement = self._filtered_statement(
             search=search,
             status=status,
@@ -63,10 +68,17 @@ class ConversationRepository:
             assigned_user_id=assigned_user_id,
             category_id=category_id,
             visible_category_ids=visible_category_ids,
+            visibility_user_id=visibility_user_id,
         )
         return int(self.db.scalar(select(func.count()).select_from(statement.subquery())) or 0)
 
-    def get_by_id(self, conversation_id: UUID, visible_category_ids: set[UUID] | None = None) -> Conversation | None:
+    def get_by_id(
+        self,
+        conversation_id: UUID,
+        visible_category_ids: set[UUID] | None = None,
+        visibility_user_id: UUID | None = None,
+    ) -> Conversation | None:
+        """Fetch a conversation only when it matches the optional visibility scope."""
         statement = (
             select(Conversation)
             .options(
@@ -78,7 +90,9 @@ class ConversationRepository:
             )
             .where(Conversation.id == conversation_id)
         )
-        if visible_category_ids is not None:
+        if visible_category_ids is not None and visibility_user_id is not None:
+            statement = statement.where(self._agent_visibility_filter(visible_category_ids, visibility_user_id))
+        elif visible_category_ids is not None:
             statement = statement.where(Conversation.category_id.in_(visible_category_ids))
         return self.db.scalar(statement)
 
@@ -119,7 +133,9 @@ class ConversationRepository:
         assigned_user_id: UUID | None = None,
         category_id: UUID | None = None,
         visible_category_ids: set[UUID] | None = None,
+        visibility_user_id: UUID | None = None,
     ):
+        """Build the base conversation query with optional agent visibility filtering."""
         statement = select(Conversation)
         if search:
             normalized_search = f'%{search.strip()}%'
@@ -157,6 +173,38 @@ class ConversationRepository:
             )
         if category_id:
             statement = statement.where(Conversation.category_id == category_id)
-        if visible_category_ids is not None:
+        if visible_category_ids is not None and visibility_user_id is not None:
+            statement = statement.where(self._agent_visibility_filter(visible_category_ids, visibility_user_id))
+        elif visible_category_ids is not None:
             statement = statement.where(Conversation.category_id.in_(visible_category_ids))
         return statement
+
+    def _agent_visibility_filter(self, visible_category_ids: set[UUID], user_id: UUID):
+        """Allow assigned conversations plus unassigned conversations in permitted categories."""
+        assigned_to_user = exists(
+            select(ConversationAssignment.id).where(
+                and_(
+                    ConversationAssignment.conversation_id == Conversation.id,
+                    ConversationAssignment.assigned_to == user_id,
+                    ConversationAssignment.unassigned_at.is_(None),
+                )
+            )
+        )
+        assigned_to_anyone = exists(
+            select(ConversationAssignment.id).where(
+                and_(
+                    ConversationAssignment.conversation_id == Conversation.id,
+                    ConversationAssignment.unassigned_at.is_(None),
+                )
+            )
+        )
+        other_category = exists(
+            select(Category.id).where(
+                and_(
+                    Category.id == Conversation.category_id,
+                    func.upper(Category.name) == 'OTHER',
+                )
+            )
+        )
+        category_allowed = or_(Conversation.category_id.in_(visible_category_ids), other_category)
+        return or_(assigned_to_user, and_(category_allowed, ~assigned_to_anyone))

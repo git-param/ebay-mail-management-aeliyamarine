@@ -10,6 +10,8 @@ import Login from './pages/login'
 import LoginSuccess from './pages/login_success'
 import ResetPassword from './pages/reset_password'
 import Users from './pages/users'
+import { logoutUser } from './services/authApi'
+import { clearStoredSession } from './services/http'
 import { normalizeRole } from './utils/roles'
 import './App.css'
 
@@ -75,27 +77,24 @@ const PROTECTED_ROUTES = [
 ]
 
 function getStoredAuth() {
-  const accessToken = localStorage.getItem('accessToken')
   const currentUser = localStorage.getItem('currentUser')
 
-  if (!accessToken || !currentUser) {
+  localStorage.removeItem('accessToken')
+  localStorage.removeItem('refreshToken')
+
+  if (!currentUser) {
     return {
-      accessToken: '',
       currentUser: null,
     }
   }
 
   try {
     return {
-      accessToken,
       currentUser: JSON.parse(currentUser),
     }
   } catch {
-    localStorage.removeItem('accessToken')
-    localStorage.removeItem('refreshToken')
-    localStorage.removeItem('currentUser')
+    clearStoredSession()
     return {
-      accessToken: '',
       currentUser: null,
     }
   }
@@ -137,15 +136,17 @@ function Redirect({ to }) {
 function App() {
   const [auth, setAuth] = useState(getStoredAuth)
   const currentPath = normalizePath(window.location.pathname)
-  const isAuthenticated = Boolean(auth.accessToken && auth.currentUser)
+  const isAuthenticated = Boolean(auth.currentUser)
   const currentRole = normalizeRole(auth.currentUser?.role)
 
-  function logout() {
-    localStorage.removeItem('accessToken')
-    localStorage.removeItem('refreshToken')
-    localStorage.removeItem('currentUser')
+  async function logout() {
+    try {
+      await logoutUser()
+    } catch {
+      // Local cleanup must still happen if the server session already expired.
+    }
+    clearStoredSession()
     setAuth({
-      accessToken: '',
       currentUser: null,
     })
     window.location.assign('/login')

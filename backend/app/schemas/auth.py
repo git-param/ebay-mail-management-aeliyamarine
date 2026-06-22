@@ -9,10 +9,14 @@ class LoginRequest(BaseModel):
 
 
 class RefreshRequest(BaseModel):
-    refresh_token: str
+    """Optional refresh token payload for legacy non-cookie clients."""
+
+    refresh_token: str | None = None
 
 
 class LogoutRequest(BaseModel):
+    """Optional logout payload for legacy non-cookie clients."""
+
     refresh_token: str | None = None
 
 
@@ -34,8 +38,10 @@ class UserSession(BaseModel):
 
 
 class TokenResponse(BaseModel):
-    access_token: str
-    refresh_token: str
+    """Authentication response with tokens delivered through HttpOnly cookies."""
+
+    access_token: str | None = None
+    refresh_token: str | None = None
     token_type: str = 'bearer'
     expires_in: int
     user: UserSession

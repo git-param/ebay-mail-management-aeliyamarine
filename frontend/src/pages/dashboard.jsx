@@ -9,6 +9,7 @@ import {
   fetchConversation,
   fetchConversationNotes,
   sendConversationReply,
+  sendConversationReplyWithAttachments,
   selectConversationOrder,
   fetchConversations,
   updateConversationCategory,
@@ -16,6 +17,7 @@ import {
   validateConversationReply,
 } from '../services/conversationApi'
 import { fetchEbayAccounts } from '../services/ebayAccountApi'
+import { fetchTemplates } from '../services/templateApi'
 import { fetchUsers } from '../services/userApi'
 import { normalizeRole } from '../utils/roles'
 
@@ -23,6 +25,8 @@ const PAGE_SIZE = 25
 const STATUSES = ['OPEN', 'PENDING', 'RESOLVED', 'CLOSED']
 const LIST_WIDTH_KEY = 'inboxListPanelWidth'
 const DETAILS_WIDTH_KEY = 'inboxDetailsPanelWidth'
+const REPLY_ATTACHMENT_MAX_BYTES = 5 * 1024 * 1024
+const REPLY_ATTACHMENT_TYPES = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp', 'text/plain']
 
 function getStoredNumber(key, fallback) {
   const value = Number(localStorage.getItem(key))
@@ -485,10 +489,26 @@ function MessageThread({ messages }) {
   )
 }
 
-function ReplyComposer({ conversationId, isSubmitting, onSendReply }) {
+function ReplyComposer({ conversationId, isSubmitting, onSendReply, templates }) {
   const [body, setBody] = useState('')
+  const [files, setFiles] = useState([])
   const [violations, setViolations] = useState([])
   const [isValidating, setIsValidating] = useState(false)
+
+  function changeFiles(event) {
+    const selectedFiles = Array.from(event.target.files || [])
+    const invalidFile = selectedFiles.find(
+      (file) => !REPLY_ATTACHMENT_TYPES.includes(file.type) || file.size > REPLY_ATTACHMENT_MAX_BYTES,
+    )
+    if (invalidFile) {
+      setViolations(['Attachments must be PDF, PNG, JPEG, WEBP, or TXT files up to 5 MB each.'])
+      event.target.value = ''
+      setFiles([])
+      return
+    }
+    setViolations([])
+    setFiles(selectedFiles)
+  }
 
   async function submitReply(event) {
     event.preventDefault()
@@ -504,8 +524,9 @@ function ReplyComposer({ conversationId, isSubmitting, onSendReply }) {
         setViolations(validation.violations || ['Reply violates eBay messaging policy.'])
         return
       }
-      await onSendReply(trimmedBody)
+      await onSendReply(trimmedBody, files)
       setBody('')
+      setFiles([])
     } catch (caughtError) {
       setViolations([caughtError.message])
     } finally {
@@ -517,6 +538,24 @@ function ReplyComposer({ conversationId, isSubmitting, onSendReply }) {
     <form className="reply-composer" onSubmit={submitReply}>
       <label className="field">
         <span>Reply to buyer</span>
+        {templates.length ? (
+          <select
+            value=""
+            onChange={(event) => {
+              const template = templates.find((item) => item.id === event.target.value)
+              if (template) {
+                setBody(template.body)
+              }
+            }}
+          >
+            <option value="">Use a template</option>
+            {templates.map((template) => (
+              <option value={template.id} key={template.id}>
+                {template.title}
+              </option>
+            ))}
+          </select>
+        ) : null}
         <textarea
           value={body}
           onChange={(event) => setBody(event.target.value)}
@@ -525,6 +564,17 @@ function ReplyComposer({ conversationId, isSubmitting, onSendReply }) {
           placeholder="Write a reply without email, phone, external links, or abusive language"
         />
       </label>
+      <label className="field">
+        <span>Attachments</span>
+        <input type="file" multiple accept=".pdf,.png,.jpg,.jpeg,.webp,.txt" onChange={changeFiles} />
+      </label>
+      {files.length ? (
+        <div className="reply-attachment-list">
+          {files.map((file) => (
+            <span key={`${file.name}-${file.size}`}>{file.name}</span>
+          ))}
+        </div>
+      ) : null}
       {violations.length ? (
         <div className="reply-policy-warning" role="alert">
           {violations.map((violation) => (
@@ -826,6 +876,7 @@ function DetailsPanel({
   onCategoryChange,
   onStatusChange,
   onSendReply,
+  templates,
   onSelectOrder,
 }) {
   return (
@@ -852,6 +903,7 @@ function ConversationDetail({
   usersError,
   categories,
   accounts,
+  templates = [],
   isLoading,
   notesLoading,
   actionError,
@@ -941,7 +993,7 @@ function ConversationDetail({
       ) : (
         <div className="thread-panel">
           <MessageThread messages={detail.messages || []} />
-          <ReplyComposer conversationId={detail.id} isSubmitting={isSubmitting} onSendReply={onSendReply} />
+          <ReplyComposer conversationId={detail.id} isSubmitting={isSubmitting} onSendReply={onSendReply} templates={templates} />
         </div>
       )}
     </section>
@@ -969,6 +1021,7 @@ function Dashboard({ currentUser, onLogout }) {
   const [users, setUsers] = useState([])
   const [categories, setCategories] = useState([])
   const [accounts, setAccounts] = useState([])
+  const [templates, setTemplates] = useState([])
   const [listWidth, setListWidth] = useState(() => getStoredNumber(LIST_WIDTH_KEY, 420))
   const [detailsWidth, setDetailsWidth] = useState(() => getStoredNumber(DETAILS_WIDTH_KEY, 360))
   const [isDetailsOpen, setIsDetailsOpen] = useState(true)
@@ -1057,10 +1110,11 @@ function Dashboard({ currentUser, onLogout }) {
   }, [])
 
   async function loadSupportData() {
-    const [categoryResult, accountResult, userResult] = await Promise.allSettled([
+    const [categoryResult, accountResult, userResult, templateResult] = await Promise.allSettled([
       fetchCategories(),
       fetchEbayAccounts(),
       fetchUsers(),
+      fetchTemplates(),
     ])
 
     if (categoryResult.status === 'fulfilled') {
@@ -1076,6 +1130,12 @@ function Dashboard({ currentUser, onLogout }) {
       setUsersError('')
     } else {
       setUsersError(userResult.reason?.message || 'Users are unavailable for assignment.')
+    }
+
+    if (templateResult.status === 'fulfilled') {
+      setTemplates(getList(templateResult.value).filter((template) => template.is_active !== false))
+    } else {
+      setTemplates([])
     }
   }
 
@@ -1296,14 +1356,18 @@ function Dashboard({ currentUser, onLogout }) {
     }
   }
 
-  async function handleSendReply(body) {
+  async function handleSendReply(body, files = []) {
     if (!selectedConversationId) {
       return
     }
     setIsSubmitting(true)
     setActionError('')
     try {
-      await sendConversationReply(selectedConversationId, body)
+      if (files.length) {
+        await sendConversationReplyWithAttachments(selectedConversationId, body, files)
+      } else {
+        await sendConversationReply(selectedConversationId, body)
+      }
       await refreshSelectedConversation()
     } catch (caughtError) {
       setActionError(caughtError.message)
@@ -1449,6 +1513,7 @@ function Dashboard({ currentUser, onLogout }) {
                   usersError={usersError}
                   categories={categories}
                   accounts={accounts}
+                  templates={templates}
                   isLoading={isDetailLoading}
                   notesLoading={isNotesLoading}
                   actionError={actionError}
@@ -1484,6 +1549,7 @@ function Dashboard({ currentUser, onLogout }) {
                   usersError={usersError}
                   categories={categories}
                   accounts={accounts}
+                  templates={templates}
                   notesLoading={isNotesLoading}
                   isSubmitting={isSubmitting}
                   onAssign={handleAssign}

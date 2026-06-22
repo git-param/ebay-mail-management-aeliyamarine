@@ -1,8 +1,6 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api/v1'
+import { apiFormRequest } from './http'
 
-function getAuthToken() {
-  return localStorage.getItem('accessToken') || ''
-}
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api/v1'
 
 function getErrorMessage(status, data) {
   if (data.detail || data.message) {
@@ -34,11 +32,10 @@ function buildQuery(params = {}) {
 }
 
 async function request(path, options = {}) {
-  const token = getAuthToken()
   const response = await fetch(`${API_BASE_URL}${path}`, {
+    credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...options.headers,
     },
     ...options,
@@ -112,6 +109,13 @@ export function sendConversationReply(conversationId, body) {
     method: 'POST',
     body: JSON.stringify({ body }),
   })
+}
+
+export function sendConversationReplyWithAttachments(conversationId, body, files = []) {
+  const formData = new FormData()
+  formData.set('body', body)
+  files.forEach((file) => formData.append('attachments', file))
+  return apiFormRequest(`/conversations/${conversationId}/reply`, formData, getErrorMessage)
 }
 
 export function selectConversationOrder(conversationId, orderRecordId) {

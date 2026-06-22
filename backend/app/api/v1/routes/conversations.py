@@ -1,14 +1,15 @@
 from datetime import timedelta
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile, status
+from fastapi.responses import FileResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.dependencies import can_manage_operations, get_current_user, is_admin, is_operations_manager, is_support_agent
 from app.db.session import get_db
-from app.models.category import Category
-from app.models.conversation import Conversation, ConversationAssignment, ConversationNote, ConversationStatus, Message
+from app.models.category import Category, CategoryUserAssignment
+from app.models.conversation import Conversation, ConversationAssignment, ConversationNote, ConversationStatus, Message, MessageAttachment
 from app.models.ebay_account import EbayAccount
 from app.models.user import User
 from app.schemas.conversation import (
@@ -41,6 +42,7 @@ from app.services.message_service import MessageService
 from app.services.ebay_reply_service import EbayReplyService
 from app.services.notification_service import NotificationService
 from app.services.order_context_service import OrderContextService
+from app.services.reply_attachment_service import ReplyAttachmentService
 
 
 router = APIRouter()
@@ -51,7 +53,20 @@ def require_conversation_access(current_user=Depends(get_current_user)):
 
 
 def visible_category_ids_for_user(db: Session, current_user) -> set[UUID] | None:
-    return None
+    """Return category IDs assigned to an agent, or None for unrestricted roles."""
+    if not is_support_agent(current_user):
+        return None
+    return {
+        category_id
+        for category_id in db.scalars(
+            select(CategoryUserAssignment.category_id).where(CategoryUserAssignment.user_id == current_user.id)
+        )
+    }
+
+
+def visibility_user_id_for_user(current_user) -> UUID | None:
+    """Return the agent ID used to include explicit assignments in visibility filters."""
+    return current_user.id if is_support_agent(current_user) else None
 
 
 def can_assign_conversations(current_user) -> bool:
@@ -335,6 +350,7 @@ def list_conversations(
 ) -> ConversationPageResponse:
     service = ConversationService(db)
     visible_category_ids = visible_category_ids_for_user(db, current_user)
+    visibility_user_id = visibility_user_id_for_user(current_user)
     conversations = service.list_conversations(
         limit=limit,
         offset=offset,
@@ -345,6 +361,7 @@ def list_conversations(
         assigned_user_id=assigned_user_id,
         category_id=category_id,
         visible_category_ids=visible_category_ids,
+        visibility_user_id=visibility_user_id,
     )
     seller_accounts = get_seller_account_map(db, conversations)
     return ConversationPageResponse(
@@ -360,10 +377,36 @@ def list_conversations(
             assigned_user_id=assigned_user_id,
             category_id=category_id,
             visible_category_ids=visible_category_ids,
+            visibility_user_id=visibility_user_id,
         ),
         limit=limit,
         offset=offset,
     )
+
+
+@router.get('/attachments/{stored_name}')
+def download_reply_attachment(
+    stored_name: str,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_conversation_access),
+) -> FileResponse:
+    """Download a locally stored reply attachment."""
+    path = ReplyAttachmentService().resolve_download_path(stored_name)
+    attachment = db.scalar(
+        select(MessageAttachment)
+        .join(Message, Message.id == MessageAttachment.message_id)
+        .where(MessageAttachment.storage_path == str(path))
+    )
+    if not attachment:
+        from fastapi import HTTPException, status
+
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Attachment not found')
+    ConversationService(db).get_conversation(
+        attachment.message.conversation_id,
+        visible_category_ids=visible_category_ids_for_user(db, current_user),
+        visibility_user_id=visibility_user_id_for_user(current_user),
+    )
+    return FileResponse(path)
 
 
 @router.get('/{conversation_id}', response_model=ConversationDetailResponse)
@@ -373,7 +416,11 @@ def get_conversation(
     current_user=Depends(require_conversation_access),
 ) -> ConversationDetailResponse:
     service = ConversationService(db)
-    conversation = service.get_conversation(conversation_id, visible_category_ids=visible_category_ids_for_user(db, current_user))
+    conversation = service.get_conversation(
+        conversation_id,
+        visible_category_ids=visible_category_ids_for_user(db, current_user),
+        visibility_user_id=visibility_user_id_for_user(current_user),
+    )
     seller_account = db.get(EbayAccount, conversation.provider_account_id) if conversation.provider_account_id else None
     order_context = OrderContextService(db).context_for_conversation(conversation)
     return serialize_conversation(conversation, service.get_current_assignee_id(conversation.id), seller_account, order_context)
@@ -387,7 +434,11 @@ def select_conversation_order(
     current_user=Depends(require_conversation_access),
 ) -> ConversationDetailResponse:
     service = ConversationService(db)
-    conversation = service.get_conversation(conversation_id, visible_category_ids=visible_category_ids_for_user(db, current_user))
+    conversation = service.get_conversation(
+        conversation_id,
+        visible_category_ids=visible_category_ids_for_user(db, current_user),
+        visibility_user_id=visibility_user_id_for_user(current_user),
+    )
     conversation = OrderContextService(db).select_order(conversation, payload.order_record_id)
     seller_account = db.get(EbayAccount, conversation.provider_account_id) if conversation.provider_account_id else None
     order_context = OrderContextService(db).context_for_conversation(conversation)
@@ -400,7 +451,11 @@ def list_conversation_messages(
     db: Session = Depends(get_db),
     current_user=Depends(require_conversation_access),
 ) -> list[MessageResponse]:
-    ConversationService(db).get_conversation(conversation_id, visible_category_ids=visible_category_ids_for_user(db, current_user))
+    ConversationService(db).get_conversation(
+        conversation_id,
+        visible_category_ids=visible_category_ids_for_user(db, current_user),
+        visibility_user_id=visibility_user_id_for_user(current_user),
+    )
     return [serialize_message(message) for message in MessageService(db).list_messages(conversation_id)]
 
 
@@ -411,23 +466,42 @@ def validate_reply(
     db: Session = Depends(get_db),
     current_user=Depends(require_conversation_access),
 ) -> ReplyValidationResponse:
-    ConversationService(db).get_conversation(conversation_id, visible_category_ids=visible_category_ids_for_user(db, current_user))
+    ConversationService(db).get_conversation(
+        conversation_id,
+        visible_category_ids=visible_category_ids_for_user(db, current_user),
+        visibility_user_id=visibility_user_id_for_user(current_user),
+    )
     violations = EbayReplyService(db).validate_reply(payload.body)
     return ReplyValidationResponse(valid=not violations, violations=violations)
 
 
 @router.post('/{conversation_id}/reply', response_model=MessageResponse)
-def reply_to_conversation(
+async def reply_to_conversation(
     conversation_id: UUID,
-    payload: ReplyConversationRequest,
+    request: Request,
+    body: str | None = Form(default=None),
+    attachments: list[UploadFile] | None = File(default=None),
     db: Session = Depends(get_db),
     current_user=Depends(require_conversation_access),
 ) -> MessageResponse:
-    ConversationService(db).get_conversation(conversation_id, visible_category_ids=visible_category_ids_for_user(db, current_user))
-    message = EbayReplyService(db).send_reply(
+    """Send a reply, accepting JSON for text-only replies or multipart with attachments."""
+    reply_body = body
+    if not reply_body and request.headers.get('content-type', '').startswith('application/json'):
+        payload = await request.json()
+        reply_body = str(payload.get('body') or '')
+    reply_body = (reply_body or '').strip()
+    if not reply_body or len(reply_body) > 2000:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='Reply body must be between 1 and 2000 characters')
+    ConversationService(db).get_conversation(
+        conversation_id,
+        visible_category_ids=visible_category_ids_for_user(db, current_user),
+        visibility_user_id=visibility_user_id_for_user(current_user),
+    )
+    message = await EbayReplyService(db).send_reply(
         conversation_id=conversation_id,
-        body=payload.body.strip(),
+        body=reply_body,
         actor_id=current_user.id,
+        attachments=attachments or [],
     )
     return serialize_message(message)
 
@@ -440,7 +514,11 @@ def assign_conversation(
     current_user=Depends(require_conversation_access),
 ) -> ConversationAssignmentResponse:
     ensure_can_assign_conversation(current_user)
-    conversation = ConversationService(db).get_conversation(conversation_id)
+    conversation = ConversationService(db).get_conversation(
+        conversation_id,
+        visible_category_ids=visible_category_ids_for_user(db, current_user),
+        visibility_user_id=visibility_user_id_for_user(current_user),
+    )
     assignment = AssignmentService(db).assign_conversation(
         conversation_id=conversation_id,
         assigned_to=payload.assigned_to,
@@ -475,7 +553,11 @@ def create_conversation_note(
     db: Session = Depends(get_db),
     current_user=Depends(require_conversation_access),
 ) -> ConversationNoteResponse:
-    ConversationService(db).get_conversation(conversation_id, visible_category_ids=visible_category_ids_for_user(db, current_user))
+    ConversationService(db).get_conversation(
+        conversation_id,
+        visible_category_ids=visible_category_ids_for_user(db, current_user),
+        visibility_user_id=visibility_user_id_for_user(current_user),
+    )
     note = ConversationNoteService(db).add_note(
         conversation_id=conversation_id,
         author_id=current_user.id,
@@ -490,7 +572,11 @@ def list_conversation_notes(
     db: Session = Depends(get_db),
     current_user=Depends(require_conversation_access),
 ) -> list[ConversationNoteResponse]:
-    ConversationService(db).get_conversation(conversation_id, visible_category_ids=visible_category_ids_for_user(db, current_user))
+    ConversationService(db).get_conversation(
+        conversation_id,
+        visible_category_ids=visible_category_ids_for_user(db, current_user),
+        visibility_user_id=visibility_user_id_for_user(current_user),
+    )
     return [serialize_note(note) for note in ConversationNoteService(db).list_notes(conversation_id)]
 
 
@@ -502,7 +588,11 @@ def update_conversation_status(
     current_user=Depends(require_conversation_access),
 ) -> ConversationDetailResponse:
     service = ConversationService(db)
-    service.get_conversation(conversation_id, visible_category_ids=visible_category_ids_for_user(db, current_user))
+    service.get_conversation(
+        conversation_id,
+        visible_category_ids=visible_category_ids_for_user(db, current_user),
+        visibility_user_id=visibility_user_id_for_user(current_user),
+    )
     conversation = service.update_status(
         conversation_id=conversation_id,
         new_status=payload.status,
@@ -531,6 +621,11 @@ def update_conversation_category(
     current_user=Depends(require_conversation_access),
 ) -> ConversationDetailResponse:
     service = ConversationService(db)
+    service.get_conversation(
+        conversation_id,
+        visible_category_ids=visible_category_ids_for_user(db, current_user),
+        visibility_user_id=visibility_user_id_for_user(current_user),
+    )
     ensure_can_manage_conversation(current_user)
     conversation = service.update_category(
         conversation_id=conversation_id,
@@ -574,7 +669,11 @@ def bulk_update_conversations(
 
     for conversation_id in payload.conversation_ids:
         try:
-            conversation = service.get_conversation(conversation_id)
+            conversation = service.get_conversation(
+                conversation_id,
+                visible_category_ids=visible_category_ids_for_user(db, current_user),
+                visibility_user_id=visibility_user_id_for_user(current_user),
+            )
             if payload.category_id is not None:
                 service.update_category(
                     conversation_id=conversation_id,

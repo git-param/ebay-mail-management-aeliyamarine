@@ -1,9 +1,5 @@
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api/v1'
 
-function getAuthToken() {
-  return localStorage.getItem('accessToken') || ''
-}
-
 function buildQuery(params = {}) {
   const query = new URLSearchParams()
   Object.entries(params).forEach(([key, value]) => {
@@ -16,11 +12,8 @@ function buildQuery(params = {}) {
 }
 
 export async function fetchAuditLogs(params) {
-  const token = getAuthToken()
   const response = await fetch(`${API_BASE_URL}/audit-logs${buildQuery(params)}`, {
-    headers: {
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
+    credentials: 'include',
   })
   const data = await response.json().catch(() => ({}))
   if (!response.ok) {
@@ -30,11 +23,8 @@ export async function fetchAuditLogs(params) {
 }
 
 export async function exportAuditLogs() {
-  const token = getAuthToken()
   const response = await fetch(`${API_BASE_URL}/audit-logs/export`, {
-    headers: {
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
+    credentials: 'include',
   })
   if (!response.ok) {
     throw new Error('Unable to export audit logs')

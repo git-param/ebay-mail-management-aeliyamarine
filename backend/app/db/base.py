@@ -20,8 +20,11 @@ from app.models import (
     EbayOrderLineItem,
     EbayReturn,
     PasswordResetToken,
+    Permission,
     RefreshToken,
+    ReplyTemplate,
     Role,
+    RolePermission,
     SyncLog,
     User,
 )
@@ -48,8 +51,11 @@ __all__ = [
     'EbayOrderLineItem',
     'EbayReturn',
     'PasswordResetToken',
+    'Permission',
     'RefreshToken',
+    'ReplyTemplate',
     'Role',
+    'RolePermission',
     'SyncLog',
     'User',
 ]

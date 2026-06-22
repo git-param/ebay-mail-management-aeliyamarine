@@ -23,10 +23,6 @@ class ReplyPolicyService:
     def validate(self, body: str) -> list[str]:
         violations = []
         normalized_body = ' '.join(body.split())
-        for pattern, message in CONTACT_PATTERNS:
-            if pattern.search(normalized_body):
-                violations.append(message)
-
         words = {word.strip(".,!?;:'\"()[]{}").lower() for word in normalized_body.split()}
         abusive_matches = sorted(words.intersection(ABUSIVE_TERMS))
         if abusive_matches:

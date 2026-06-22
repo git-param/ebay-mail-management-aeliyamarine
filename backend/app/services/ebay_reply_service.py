@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
-from fastapi import HTTPException, status
+from fastapi import HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
 
 from app.models.conversation import Message, MessageSenderType
@@ -11,6 +11,7 @@ from app.modules.integrations.ebay.providers import EBAY_PROVIDER_NAME
 from app.services.audit_service import AuditService
 from app.services.conversation_service import ConversationService
 from app.services.reply_policy_service import ReplyPolicyService
+from app.services.reply_attachment_service import ReplyAttachmentService
 
 
 class EbayReplyService:
@@ -22,7 +23,15 @@ class EbayReplyService:
     def validate_reply(self, body: str) -> list[str]:
         return self.reply_policy.validate(body)
 
-    def send_reply(self, *, conversation_id: UUID, body: str, actor_id: UUID) -> Message:
+    async def send_reply(
+        self,
+        *,
+        conversation_id: UUID,
+        body: str,
+        actor_id: UUID,
+        attachments: list[UploadFile] | None = None,
+    ) -> Message:
+        """Send an eBay text reply and persist local attachment metadata when provided."""
         violations = self.validate_reply(body)
         if violations:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=' '.join(violations))
@@ -62,6 +71,15 @@ class EbayReplyService:
             raw_payload=response.payload if isinstance(response.payload, dict) else {'response': response.payload},
         )
         self.db.add(message)
+        self.db.flush()
+        if attachments:
+            saved_attachments = await ReplyAttachmentService().save_uploads(
+                uploads=attachments,
+                message_id=message.id,
+                account_id=account.id,
+            )
+            for attachment in saved_attachments:
+                message.attachments.append(attachment)
         conversation.last_message_at = message.sent_at
         AuditService(self.db).log(
             action='MESSAGE_REPLY_SENT',

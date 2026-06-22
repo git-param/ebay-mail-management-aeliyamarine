@@ -19,6 +19,8 @@ class Settings(BaseSettings):
 
     access_token_expire_minutes: int = Field(default=15, validation_alias='ACCESS_TOKEN_EXPIRE_MINUTES')
     refresh_token_expire_days: int = Field(default=30, validation_alias='REFRESH_TOKEN_EXPIRE_DAYS')
+    auth_cookie_secure: bool = Field(default=False, validation_alias='AUTH_COOKIE_SECURE')
+    auth_cookie_samesite: str = Field(default='lax', validation_alias='AUTH_COOKIE_SAMESITE')
     password_reset_token_expire_minutes: int = Field(
         default=30,
         validation_alias='PASSWORD_RESET_TOKEN_EXPIRE_MINUTES',
@@ -44,6 +46,8 @@ class Settings(BaseSettings):
         default=100,
         validation_alias='EBAY_DAILY_API_LIMIT',
     )
+    reply_attachment_max_bytes: int = Field(default=5 * 1024 * 1024, validation_alias='REPLY_ATTACHMENT_MAX_BYTES')
+    reply_attachment_upload_dir: str = Field(default='uploads/reply_attachments', validation_alias='REPLY_ATTACHMENT_UPLOAD_DIR')
 
     model_config = SettingsConfigDict(env_file=ENV_FILE, env_file_encoding='utf-8', extra='ignore')
 
@@ -70,6 +74,14 @@ class Settings(BaseSettings):
         if value < 1:
             raise ValueError('EBAY_DAILY_API_LIMIT must be at least 1')
         return value
+
+    @field_validator('auth_cookie_samesite')
+    @classmethod
+    def validate_auth_cookie_samesite(cls, value: str) -> str:
+        normalized_value = value.strip().lower()
+        if normalized_value not in {'lax', 'strict', 'none'}:
+            raise ValueError('AUTH_COOKIE_SAMESITE must be lax, strict, or none')
+        return normalized_value
 
     @property
     def cors_origins(self) -> list[str]:
