@@ -31,7 +31,9 @@ class ConversationService:
         assigned_user_id: UUID | None = None,
         category_id: UUID | None = None,
         visible_category_ids: set[UUID] | None = None,
+        visibility_user_id: UUID | None = None,
     ) -> list[Conversation]:
+        """Return conversations within the caller's optional visibility scope."""
         return self.repository.list(
             limit=limit,
             offset=offset,
@@ -42,6 +44,7 @@ class ConversationService:
             assigned_user_id=assigned_user_id,
             category_id=category_id,
             visible_category_ids=visible_category_ids,
+            visibility_user_id=visibility_user_id,
         )
 
     def count_conversations(
@@ -54,7 +57,9 @@ class ConversationService:
         assigned_user_id: UUID | None = None,
         category_id: UUID | None = None,
         visible_category_ids: set[UUID] | None = None,
+        visibility_user_id: UUID | None = None,
     ) -> int:
+        """Return the filtered conversation total for pagination and dashboards."""
         return self.repository.count(
             search=search,
             status=status,
@@ -63,10 +68,21 @@ class ConversationService:
             assigned_user_id=assigned_user_id,
             category_id=category_id,
             visible_category_ids=visible_category_ids,
+            visibility_user_id=visibility_user_id,
         )
 
-    def get_conversation(self, conversation_id: UUID, visible_category_ids: set[UUID] | None = None) -> Conversation:
-        conversation = self.repository.get_by_id(conversation_id, visible_category_ids=visible_category_ids)
+    def get_conversation(
+        self,
+        conversation_id: UUID,
+        visible_category_ids: set[UUID] | None = None,
+        visibility_user_id: UUID | None = None,
+    ) -> Conversation:
+        """Return one conversation or hide it when the caller lacks visibility."""
+        conversation = self.repository.get_by_id(
+            conversation_id,
+            visible_category_ids=visible_category_ids,
+            visibility_user_id=visibility_user_id,
+        )
         if not conversation:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Conversation not found')
         return conversation

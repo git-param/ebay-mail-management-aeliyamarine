@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Cookie, Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
@@ -15,13 +15,15 @@ bearer_scheme = HTTPBearer(auto_error=False)
 
 def get_current_user(
     credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+    access_token_cookie: str | None = Cookie(default=None, alias='access_token'),
     db: Session = Depends(get_db),
 ):
-    if credentials is None:
+    token = credentials.credentials if credentials else access_token_cookie
+    if not token:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=AuthMessages.MISSING_AUTH_TOKEN)
 
     try:
-        payload = decode_token(credentials.credentials)
+        payload = decode_token(token)
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=AuthMessages.INVALID_AUTH_TOKEN) from exc
 

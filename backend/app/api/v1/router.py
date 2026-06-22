@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.api.v1.routes import analytics, audit_logs, auth, categories, conversations, ebay_accounts, notifications, users
+from app.api.v1.routes import analytics, audit_logs, auth, categories, conversations, ebay_accounts, notifications, templates, users
 from app.modules.integrations.ebay.routes import ebay_oauth_routes
 
 
@@ -13,6 +13,7 @@ api_router.include_router(conversations.router, prefix='/conversations', tags=['
 api_router.include_router(notifications.router, prefix='/notifications', tags=['notifications'])
 api_router.include_router(audit_logs.router, prefix='/audit-logs', tags=['audit-logs'])
 api_router.include_router(analytics.router, prefix='/analytics', tags=['analytics'])
+api_router.include_router(templates.router, prefix='/templates', tags=['templates'])
 api_router.include_router(
     ebay_oauth_routes.router,
     prefix='/integrations/ebay',

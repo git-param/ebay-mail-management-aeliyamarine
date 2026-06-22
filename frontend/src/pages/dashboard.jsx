@@ -16,6 +16,7 @@ import {
   validateConversationReply,
 } from '../services/conversationApi'
 import { fetchEbayAccounts } from '../services/ebayAccountApi'
+import { fetchTemplates } from '../services/templateApi'
 import { fetchUsers } from '../services/userApi'
 import { normalizeRole } from '../utils/roles'
 
@@ -23,6 +24,7 @@ const PAGE_SIZE = 25
 const STATUSES = ['OPEN', 'PENDING', 'RESOLVED', 'CLOSED']
 const LIST_WIDTH_KEY = 'inboxListPanelWidth'
 const DETAILS_WIDTH_KEY = 'inboxDetailsPanelWidth'
+const SHOW_MESSAGE_ATTACHMENTS = false
 
 function getStoredNumber(key, fallback) {
   const value = Number(localStorage.getItem(key))
@@ -447,7 +449,7 @@ function MessageThread({ messages }) {
             <time>{formatDate(message.sent_at)}</time>
           </div>
           <p>{message.body}</p>
-          {message.attachments?.length ? (
+          {SHOW_MESSAGE_ATTACHMENTS && message.attachments?.length ? (
             <div className="message-attachments">
               {message.attachments.map((attachment) => {
                 const attachmentUrl = attachment.media_url || attachment.download_url
@@ -485,7 +487,7 @@ function MessageThread({ messages }) {
   )
 }
 
-function ReplyComposer({ conversationId, isSubmitting, onSendReply }) {
+function ReplyComposer({ conversationId, isSubmitting, onSendReply, templates }) {
   const [body, setBody] = useState('')
   const [violations, setViolations] = useState([])
   const [isValidating, setIsValidating] = useState(false)
@@ -517,6 +519,28 @@ function ReplyComposer({ conversationId, isSubmitting, onSendReply }) {
     <form className="reply-composer" onSubmit={submitReply}>
       <label className="field">
         <span>Reply to buyer</span>
+        {templates.length ? (
+          <select
+            className="template-picker"
+            value=""
+            onChange={(event) => {
+              const template = templates.find((item) => item.id === event.target.value)
+              if (template) {
+                setBody((current) => {
+                  const separator = current.trim() ? '\n\n' : ''
+                  return `${current}${separator}${template.body}`
+                })
+              }
+            }}
+          >
+            <option value="">Insert template</option>
+            {templates.map((template) => (
+              <option value={template.id} key={template.id}>
+                {template.title}
+              </option>
+            ))}
+          </select>
+        ) : null}
         <textarea
           value={body}
           onChange={(event) => setBody(event.target.value)}
@@ -825,7 +849,6 @@ function DetailsPanel({
   onAddNote,
   onCategoryChange,
   onStatusChange,
-  onSendReply,
   onSelectOrder,
 }) {
   return (
@@ -852,6 +875,7 @@ function ConversationDetail({
   usersError,
   categories,
   accounts,
+  templates = [],
   isLoading,
   notesLoading,
   actionError,
@@ -941,7 +965,12 @@ function ConversationDetail({
       ) : (
         <div className="thread-panel">
           <MessageThread messages={detail.messages || []} />
-          <ReplyComposer conversationId={detail.id} isSubmitting={isSubmitting} onSendReply={onSendReply} />
+          <ReplyComposer
+            conversationId={detail.id}
+            isSubmitting={isSubmitting}
+            onSendReply={onSendReply}
+            templates={templates}
+          />
         </div>
       )}
     </section>
@@ -969,6 +998,7 @@ function Dashboard({ currentUser, onLogout }) {
   const [users, setUsers] = useState([])
   const [categories, setCategories] = useState([])
   const [accounts, setAccounts] = useState([])
+  const [templates, setTemplates] = useState([])
   const [listWidth, setListWidth] = useState(() => getStoredNumber(LIST_WIDTH_KEY, 420))
   const [detailsWidth, setDetailsWidth] = useState(() => getStoredNumber(DETAILS_WIDTH_KEY, 360))
   const [isDetailsOpen, setIsDetailsOpen] = useState(true)
@@ -1057,10 +1087,11 @@ function Dashboard({ currentUser, onLogout }) {
   }, [])
 
   async function loadSupportData() {
-    const [categoryResult, accountResult, userResult] = await Promise.allSettled([
+    const [categoryResult, accountResult, userResult, templateResult] = await Promise.allSettled([
       fetchCategories(),
       fetchEbayAccounts(),
       fetchUsers(),
+      fetchTemplates(),
     ])
 
     if (categoryResult.status === 'fulfilled') {
@@ -1076,6 +1107,12 @@ function Dashboard({ currentUser, onLogout }) {
       setUsersError('')
     } else {
       setUsersError(userResult.reason?.message || 'Users are unavailable for assignment.')
+    }
+
+    if (templateResult.status === 'fulfilled') {
+      setTemplates(getList(templateResult.value).filter((template) => template.is_active !== false))
+    } else {
+      setTemplates([])
     }
   }
 
@@ -1106,6 +1143,9 @@ function Dashboard({ currentUser, onLogout }) {
   )
 
   const bulkSelectedCount = bulkSelectedIds.size
+  const activeFilterCount = Object.entries(filters).filter(([key, value]) => key !== 'provider' && Boolean(value)).length
+  const openConversationCount = conversations.filter((conversation) => conversation.status === 'OPEN').length
+  const urgentConversationCount = conversations.filter((conversation) => deadlineTone(conversation.response_due_at) === 'danger').length
 
   function beginListResize(event) {
     event.preventDefault()
@@ -1339,17 +1379,37 @@ function Dashboard({ currentUser, onLogout }) {
         <section className="inbox-list-panel" aria-label="Conversation list">
           <div className="inbox-header">
             <div>
+              <span className="inbox-kicker">Live workspace</span>
               <h1>Inbox</h1>
-              <p>{total} conversations</p>
+              <p>{total} conversations across your eBay support queue</p>
             </div>
             <div className="inbox-header-actions">
               <button className="secondary-button compact-action" type="button" onClick={() => setIsFiltersOpen(true)}>
-                Filters
+                Filters{activeFilterCount ? ` (${activeFilterCount})` : ''}
               </button>
               <button className="icon-button" type="button" onClick={loadConversations} aria-label="Refresh conversations">
                 <Icon name="activate" />
               </button>
             </div>
+          </div>
+
+          <div className="inbox-signal-strip" aria-label="Inbox summary">
+            <button className="inbox-signal-card" type="button" onClick={() => changeFilter('status', 'OPEN')}>
+              <span>Open</span>
+              <strong>{openConversationCount}</strong>
+            </button>
+            <button className="inbox-signal-card urgent" type="button" onClick={() => setIsFiltersOpen(true)}>
+              <span>Needs attention</span>
+              <strong>{urgentConversationCount}</strong>
+            </button>
+            <button className="inbox-signal-card" type="button" onClick={() => setIsFiltersOpen(true)}>
+              <span>Active filters</span>
+              <strong>{activeFilterCount}</strong>
+            </button>
+            <button className="inbox-signal-card selected" type="button" onClick={bulkSelectedCount ? clearBulkSelection : undefined}>
+              <span>Selected</span>
+              <strong>{bulkSelectedCount}</strong>
+            </button>
           </div>
 
           <form
@@ -1449,6 +1509,7 @@ function Dashboard({ currentUser, onLogout }) {
                   usersError={usersError}
                   categories={categories}
                   accounts={accounts}
+                  templates={templates}
                   isLoading={isDetailLoading}
                   notesLoading={isNotesLoading}
                   actionError={actionError}
@@ -1484,6 +1545,7 @@ function Dashboard({ currentUser, onLogout }) {
                   usersError={usersError}
                   categories={categories}
                   accounts={accounts}
+                  templates={templates}
                   notesLoading={isNotesLoading}
                   isSubmitting={isSubmitting}
                   onAssign={handleAssign}

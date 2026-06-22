@@ -2,6 +2,7 @@ import { useState } from 'react'
 
 import { LOGIN_TEXT } from '../constants/loginConstants'
 import { loginUser } from '../services/authApi'
+import { storeSessionUser } from '../services/http'
 
 function Login() {
   const [error, setError] = useState('')
@@ -20,9 +21,7 @@ function Login() {
         password: formData.get('password'),
       })
 
-      localStorage.setItem('accessToken', session.access_token)
-      localStorage.setItem('refreshToken', session.refresh_token)
-      localStorage.setItem('currentUser', JSON.stringify(session.user))
+      storeSessionUser(session.user)
       window.location.assign('/inbox')
     } catch (caughtError) {
       setError(caughtError.message || LOGIN_TEXT.defaultError)
