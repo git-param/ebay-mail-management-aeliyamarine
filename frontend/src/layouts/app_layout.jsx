@@ -29,6 +29,12 @@ const NAV_ITEMS = [
     roles: ['ADMIN', 'OPS_MANAGER'],
   },
   {
+    label: 'Templates',
+    path: '/templates',
+    icon: 'message',
+    roles: ['ADMIN', 'OPS_MANAGER'],
+  },
+  {
     label: 'Analytics',
     path: '/analytics',
     icon: 'chart',
@@ -53,6 +59,24 @@ function getInitials(name) {
     .join('')
     .slice(0, 2)
     .toUpperCase()
+}
+
+function formatNotificationTime(value) {
+  if (!value) {
+    return 'Just now'
+  }
+
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) {
+    return value
+  }
+
+  return date.toLocaleString(undefined, {
+    month: 'short',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
 }
 
 export function Icon({ name }) {
@@ -172,28 +196,44 @@ function AppLayout({ activePage, children, currentUser, onLogout }) {
         <header className="top-nav">
           <div className="top-actions">
             <div className="notification-menu-wrap">
-            <button
-              className="icon-button"
-              type="button"
-              aria-label="Notifications"
-              aria-expanded={isNotificationsOpen}
-              onClick={toggleNotifications}
-            >
-              <Icon name="bell" />
-              <span className="notify-dot">{unreadCount}</span>
-            </button>
+              <button
+                className={`icon-button notification-trigger ${unreadCount ? 'has-unread' : ''}`}
+                type="button"
+                aria-label="Notifications"
+                aria-expanded={isNotificationsOpen}
+                onClick={toggleNotifications}
+              >
+                <Icon name="bell" />
+                {unreadCount ? <span className="notify-dot">{unreadCount}</span> : null}
+              </button>
               {isNotificationsOpen ? (
                 <div className="notification-menu">
-                  <strong>Notifications</strong>
+                  <div className="notification-menu-header">
+                    <div>
+                      <strong>Notifications</strong>
+                      <p>{unreadCount ? `${unreadCount} unread alert${unreadCount === 1 ? '' : 's'}` : 'All caught up'}</p>
+                    </div>
+                  </div>
                   {notifications.length ? (
                     notifications.map((notification) => (
-                      <a href={notification.resource_type === 'CONVERSATION' ? `/inbox` : '#'} key={notification.id}>
-                        <span>{notification.title}</span>
+                      <a
+                        className={`notification-item ${notification.is_read ? '' : 'unread'}`}
+                        href={notification.resource_type === 'CONVERSATION' ? `/inbox` : '#'}
+                        key={notification.id}
+                      >
+                        <span>
+                          <span className="notification-pulse" aria-hidden="true" />
+                          {notification.title}
+                        </span>
                         <p>{notification.body}</p>
+                        <time>{formatNotificationTime(notification.created_at || notification.createdAt)}</time>
                       </a>
                     ))
                   ) : (
-                    <p>No new notifications right now.</p>
+                    <div className="notification-empty">
+                      <Icon name="bell" />
+                      <p>No new notifications right now.</p>
+                    </div>
                   )}
                 </div>
               ) : null}

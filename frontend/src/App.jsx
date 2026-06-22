@@ -9,6 +9,7 @@ import ForgotPassword from './pages/forgot_password'
 import Login from './pages/login'
 import LoginSuccess from './pages/login_success'
 import ResetPassword from './pages/reset_password'
+import Templates from './pages/templates'
 import Users from './pages/users'
 import { logoutUser } from './services/authApi'
 import { clearStoredSession } from './services/http'
@@ -62,6 +63,11 @@ const PROTECTED_ROUTES = [
   {
     path: '/categories',
     component: Categories,
+    allowedRoles: ['ADMIN', 'OPS_MANAGER'],
+  },
+  {
+    path: '/templates',
+    component: Templates,
     allowedRoles: ['ADMIN', 'OPS_MANAGER'],
   },
   {

@@ -9,7 +9,6 @@ import {
   fetchConversation,
   fetchConversationNotes,
   sendConversationReply,
-  sendConversationReplyWithAttachments,
   selectConversationOrder,
   fetchConversations,
   updateConversationCategory,
@@ -25,8 +24,7 @@ const PAGE_SIZE = 25
 const STATUSES = ['OPEN', 'PENDING', 'RESOLVED', 'CLOSED']
 const LIST_WIDTH_KEY = 'inboxListPanelWidth'
 const DETAILS_WIDTH_KEY = 'inboxDetailsPanelWidth'
-const REPLY_ATTACHMENT_MAX_BYTES = 5 * 1024 * 1024
-const REPLY_ATTACHMENT_TYPES = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp', 'text/plain']
+const SHOW_MESSAGE_ATTACHMENTS = false
 
 function getStoredNumber(key, fallback) {
   const value = Number(localStorage.getItem(key))
@@ -451,7 +449,7 @@ function MessageThread({ messages }) {
             <time>{formatDate(message.sent_at)}</time>
           </div>
           <p>{message.body}</p>
-          {message.attachments?.length ? (
+          {SHOW_MESSAGE_ATTACHMENTS && message.attachments?.length ? (
             <div className="message-attachments">
               {message.attachments.map((attachment) => {
                 const attachmentUrl = attachment.media_url || attachment.download_url
@@ -491,24 +489,8 @@ function MessageThread({ messages }) {
 
 function ReplyComposer({ conversationId, isSubmitting, onSendReply, templates }) {
   const [body, setBody] = useState('')
-  const [files, setFiles] = useState([])
   const [violations, setViolations] = useState([])
   const [isValidating, setIsValidating] = useState(false)
-
-  function changeFiles(event) {
-    const selectedFiles = Array.from(event.target.files || [])
-    const invalidFile = selectedFiles.find(
-      (file) => !REPLY_ATTACHMENT_TYPES.includes(file.type) || file.size > REPLY_ATTACHMENT_MAX_BYTES,
-    )
-    if (invalidFile) {
-      setViolations(['Attachments must be PDF, PNG, JPEG, WEBP, or TXT files up to 5 MB each.'])
-      event.target.value = ''
-      setFiles([])
-      return
-    }
-    setViolations([])
-    setFiles(selectedFiles)
-  }
 
   async function submitReply(event) {
     event.preventDefault()
@@ -524,9 +506,8 @@ function ReplyComposer({ conversationId, isSubmitting, onSendReply, templates })
         setViolations(validation.violations || ['Reply violates eBay messaging policy.'])
         return
       }
-      await onSendReply(trimmedBody, files)
+      await onSendReply(trimmedBody)
       setBody('')
-      setFiles([])
     } catch (caughtError) {
       setViolations([caughtError.message])
     } finally {
@@ -540,15 +521,19 @@ function ReplyComposer({ conversationId, isSubmitting, onSendReply, templates })
         <span>Reply to buyer</span>
         {templates.length ? (
           <select
+            className="template-picker"
             value=""
             onChange={(event) => {
               const template = templates.find((item) => item.id === event.target.value)
               if (template) {
-                setBody(template.body)
+                setBody((current) => {
+                  const separator = current.trim() ? '\n\n' : ''
+                  return `${current}${separator}${template.body}`
+                })
               }
             }}
           >
-            <option value="">Use a template</option>
+            <option value="">Insert template</option>
             {templates.map((template) => (
               <option value={template.id} key={template.id}>
                 {template.title}
@@ -564,17 +549,6 @@ function ReplyComposer({ conversationId, isSubmitting, onSendReply, templates })
           placeholder="Write a reply without email, phone, external links, or abusive language"
         />
       </label>
-      <label className="field">
-        <span>Attachments</span>
-        <input type="file" multiple accept=".pdf,.png,.jpg,.jpeg,.webp,.txt" onChange={changeFiles} />
-      </label>
-      {files.length ? (
-        <div className="reply-attachment-list">
-          {files.map((file) => (
-            <span key={`${file.name}-${file.size}`}>{file.name}</span>
-          ))}
-        </div>
-      ) : null}
       {violations.length ? (
         <div className="reply-policy-warning" role="alert">
           {violations.map((violation) => (
@@ -875,8 +849,6 @@ function DetailsPanel({
   onAddNote,
   onCategoryChange,
   onStatusChange,
-  onSendReply,
-  templates,
   onSelectOrder,
 }) {
   return (
@@ -993,7 +965,12 @@ function ConversationDetail({
       ) : (
         <div className="thread-panel">
           <MessageThread messages={detail.messages || []} />
-          <ReplyComposer conversationId={detail.id} isSubmitting={isSubmitting} onSendReply={onSendReply} templates={templates} />
+          <ReplyComposer
+            conversationId={detail.id}
+            isSubmitting={isSubmitting}
+            onSendReply={onSendReply}
+            templates={templates}
+          />
         </div>
       )}
     </section>
@@ -1166,6 +1143,9 @@ function Dashboard({ currentUser, onLogout }) {
   )
 
   const bulkSelectedCount = bulkSelectedIds.size
+  const activeFilterCount = Object.entries(filters).filter(([key, value]) => key !== 'provider' && Boolean(value)).length
+  const openConversationCount = conversations.filter((conversation) => conversation.status === 'OPEN').length
+  const urgentConversationCount = conversations.filter((conversation) => deadlineTone(conversation.response_due_at) === 'danger').length
 
   function beginListResize(event) {
     event.preventDefault()
@@ -1356,18 +1336,14 @@ function Dashboard({ currentUser, onLogout }) {
     }
   }
 
-  async function handleSendReply(body, files = []) {
+  async function handleSendReply(body) {
     if (!selectedConversationId) {
       return
     }
     setIsSubmitting(true)
     setActionError('')
     try {
-      if (files.length) {
-        await sendConversationReplyWithAttachments(selectedConversationId, body, files)
-      } else {
-        await sendConversationReply(selectedConversationId, body)
-      }
+      await sendConversationReply(selectedConversationId, body)
       await refreshSelectedConversation()
     } catch (caughtError) {
       setActionError(caughtError.message)
@@ -1403,17 +1379,37 @@ function Dashboard({ currentUser, onLogout }) {
         <section className="inbox-list-panel" aria-label="Conversation list">
           <div className="inbox-header">
             <div>
+              <span className="inbox-kicker">Live workspace</span>
               <h1>Inbox</h1>
-              <p>{total} conversations</p>
+              <p>{total} conversations across your eBay support queue</p>
             </div>
             <div className="inbox-header-actions">
               <button className="secondary-button compact-action" type="button" onClick={() => setIsFiltersOpen(true)}>
-                Filters
+                Filters{activeFilterCount ? ` (${activeFilterCount})` : ''}
               </button>
               <button className="icon-button" type="button" onClick={loadConversations} aria-label="Refresh conversations">
                 <Icon name="activate" />
               </button>
             </div>
+          </div>
+
+          <div className="inbox-signal-strip" aria-label="Inbox summary">
+            <button className="inbox-signal-card" type="button" onClick={() => changeFilter('status', 'OPEN')}>
+              <span>Open</span>
+              <strong>{openConversationCount}</strong>
+            </button>
+            <button className="inbox-signal-card urgent" type="button" onClick={() => setIsFiltersOpen(true)}>
+              <span>Needs attention</span>
+              <strong>{urgentConversationCount}</strong>
+            </button>
+            <button className="inbox-signal-card" type="button" onClick={() => setIsFiltersOpen(true)}>
+              <span>Active filters</span>
+              <strong>{activeFilterCount}</strong>
+            </button>
+            <button className="inbox-signal-card selected" type="button" onClick={bulkSelectedCount ? clearBulkSelection : undefined}>
+              <span>Selected</span>
+              <strong>{bulkSelectedCount}</strong>
+            </button>
           </div>
 
           <form

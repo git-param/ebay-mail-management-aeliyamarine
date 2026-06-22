@@ -16,8 +16,9 @@ async function request(path, options = {}) {
   return data
 }
 
-export function fetchTemplates() {
-  return request('/templates')
+export function fetchTemplates({ includeInactive = false } = {}) {
+  const query = includeInactive ? '?include_inactive=true' : ''
+  return request(`/templates${query}`)
 }
 
 export function createTemplate(payload) {
