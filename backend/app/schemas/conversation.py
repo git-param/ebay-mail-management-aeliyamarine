@@ -53,6 +53,8 @@ class ConversationSummaryResponse(BaseModel):
 
 
 class MessageResponse(BaseModel):
+    """API representation of a conversation message."""
+
     id: UUID
     conversation_id: UUID
     provider: str
@@ -66,9 +68,12 @@ class MessageResponse(BaseModel):
     sent_at: datetime
     created_at: datetime
     attachments: list['MessageAttachmentResponse'] = Field(default_factory=list)
+    attachment_delivery_warning: str | None = None
 
 
 class MessageAttachmentResponse(BaseModel):
+    """API representation of a message attachment."""
+
     id: UUID
     message_id: UUID
     account_id: UUID | None = None

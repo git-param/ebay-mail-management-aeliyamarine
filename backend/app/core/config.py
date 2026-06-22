@@ -26,6 +26,7 @@ class Settings(BaseSettings):
         validation_alias='PASSWORD_RESET_TOKEN_EXPIRE_MINUTES',
     )
     frontend_url: str = Field(default='http://localhost:5173', validation_alias='FRONTEND_URL')
+    public_backend_url: str = Field(default='', validation_alias='PUBLIC_BACKEND_URL')
     backend_cors_origins: str = Field(
         default='http://localhost:5173,http://127.0.0.1:5173',
         validation_alias='BACKEND_CORS_ORIGINS',
@@ -86,6 +87,11 @@ class Settings(BaseSettings):
     @property
     def cors_origins(self) -> list[str]:
         return [origin.strip() for origin in self.backend_cors_origins.split(',') if origin.strip()]
+
+    @property
+    def reply_attachment_public_base_url(self) -> str:
+        """Return the public HTTPS backend origin used for eBay media URLs."""
+        return self.public_backend_url.rstrip('/')
 
 
 @lru_cache
