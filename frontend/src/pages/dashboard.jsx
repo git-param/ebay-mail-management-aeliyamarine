@@ -9,6 +9,7 @@ import {
   fetchConversation,
   fetchConversationNotes,
   sendConversationReply,
+  sendConversationReplyWithAttachments,
   selectConversationOrder,
   fetchConversations,
   updateConversationCategory,
@@ -24,7 +25,7 @@ const PAGE_SIZE = 25
 const STATUSES = ['OPEN', 'PENDING', 'RESOLVED', 'CLOSED']
 const LIST_WIDTH_KEY = 'inboxListPanelWidth'
 const DETAILS_WIDTH_KEY = 'inboxDetailsPanelWidth'
-const SHOW_MESSAGE_ATTACHMENTS = false
+const SHOW_MESSAGE_ATTACHMENTS = true
 
 function getStoredNumber(key, fallback) {
   const value = Number(localStorage.getItem(key))
@@ -489,8 +490,22 @@ function MessageThread({ messages }) {
 
 function ReplyComposer({ conversationId, isSubmitting, onSendReply, templates }) {
   const [body, setBody] = useState('')
+  const [files, setFiles] = useState([])
+  const [fileInputKey, setFileInputKey] = useState(0)
   const [violations, setViolations] = useState([])
   const [isValidating, setIsValidating] = useState(false)
+
+  function updateFiles(event) {
+    const selectedFiles = Array.from(event.target.files || [])
+    if (selectedFiles.length > 5) {
+      setViolations(['eBay allows a maximum of 5 attachments per reply.'])
+      setFiles([])
+      setFileInputKey((current) => current + 1)
+      return
+    }
+    setViolations([])
+    setFiles(selectedFiles)
+  }
 
   async function submitReply(event) {
     event.preventDefault()
@@ -506,8 +521,10 @@ function ReplyComposer({ conversationId, isSubmitting, onSendReply, templates })
         setViolations(validation.violations || ['Reply violates eBay messaging policy.'])
         return
       }
-      await onSendReply(trimmedBody)
+      await onSendReply(trimmedBody, files)
       setBody('')
+      setFiles([])
+      setFileInputKey((current) => current + 1)
     } catch (caughtError) {
       setViolations([caughtError.message])
     } finally {
@@ -549,6 +566,23 @@ function ReplyComposer({ conversationId, isSubmitting, onSendReply, templates })
           placeholder="Write a reply without email, phone, external links, or abusive language"
         />
       </label>
+      <label className="field">
+        <span>Attachments</span>
+        <input
+          key={fileInputKey}
+          type="file"
+          multiple
+          onChange={updateFiles}
+          accept=".pdf,.txt,.jpg,.jpeg,.png,application/pdf,text/plain,image/jpeg,image/png"
+        />
+      </label>
+      {files.length ? (
+        <div className="reply-attachment-list" aria-label="Selected attachments">
+          {files.map((file) => (
+            <span key={`${file.name}-${file.size}`}>{file.name}</span>
+          ))}
+        </div>
+      ) : null}
       {violations.length ? (
         <div className="reply-policy-warning" role="alert">
           {violations.map((violation) => (
@@ -1336,15 +1370,20 @@ function Dashboard({ currentUser, onLogout }) {
     }
   }
 
-  async function handleSendReply(body) {
+  async function handleSendReply(body, files = []) {
     if (!selectedConversationId) {
       return
     }
     setIsSubmitting(true)
     setActionError('')
     try {
-      await sendConversationReply(selectedConversationId, body)
+      const response = files.length
+        ? await sendConversationReplyWithAttachments(selectedConversationId, body, files)
+        : await sendConversationReply(selectedConversationId, body)
       await refreshSelectedConversation()
+      if (response.attachment_delivery_warning) {
+        setActionError(response.attachment_delivery_warning)
+      }
     } catch (caughtError) {
       setActionError(caughtError.message)
     } finally {

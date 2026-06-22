@@ -158,6 +158,8 @@ def serialize_conversation_summary(
 
 
 def serialize_message(message: Message) -> MessageResponse:
+    """Serialize a message with attachments and delivery warnings."""
+    raw_payload = message.raw_payload if isinstance(message.raw_payload, dict) else {}
     return MessageResponse(
         id=message.id,
         conversation_id=message.conversation_id,
@@ -172,10 +174,12 @@ def serialize_message(message: Message) -> MessageResponse:
         sent_at=message.sent_at,
         created_at=message.created_at,
         attachments=[serialize_attachment(attachment) for attachment in message.attachments],
+        attachment_delivery_warning=raw_payload.get('attachment_delivery_warning'),
     )
 
 
 def serialize_attachment(attachment) -> MessageAttachmentResponse:
+    """Serialize attachment metadata for chat rendering and downloads."""
     return MessageAttachmentResponse(
         id=attachment.id,
         message_id=attachment.message_id,
@@ -406,7 +410,20 @@ def download_reply_attachment(
         visible_category_ids=visible_category_ids_for_user(db, current_user),
         visibility_user_id=visibility_user_id_for_user(current_user),
     )
-    return FileResponse(path)
+    return FileResponse(path, media_type=attachment.mime_type, filename=attachment.file_name)
+
+
+@router.get('/public/attachments/{attachment_id}/download')
+def download_public_reply_attachment(
+    attachment_id: UUID,
+    db: Session = Depends(get_db),
+) -> FileResponse:
+    """Serve a stored reply attachment through a public unguessable URL."""
+    attachment = db.get(MessageAttachment, attachment_id)
+    if not attachment or not attachment.storage_path:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Attachment not found')
+    path = ReplyAttachmentService().resolve_storage_path(attachment.storage_path)
+    return FileResponse(path, media_type=attachment.mime_type, filename=attachment.file_name)
 
 
 @router.get('/{conversation_id}', response_model=ConversationDetailResponse)

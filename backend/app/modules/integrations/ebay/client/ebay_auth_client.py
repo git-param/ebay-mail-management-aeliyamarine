@@ -344,17 +344,22 @@ class EbayAuthClient:
         conversation_id: str,
         message_body: str,
         conversation_type: str = 'FROM_MEMBERS',
+        message_media: list[dict] | None = None,
     ) -> EbayRawApiResponse:
+        """Send a conversation reply through the eBay Message API."""
         request_url = self.conversations_url.replace('/conversation', '/send_message')
+        payload = {
+            'conversationId': conversation_id,
+            'conversationType': conversation_type,
+            'messageText': message_body,
+        }
+        if message_media:
+            payload['messageMedia'] = message_media
         return self._request_message_api_raw(
             access_token,
             request_url=request_url,
             method='POST',
-            payload={
-                'conversationId': conversation_id,
-                'conversationType': conversation_type,
-                'messageText': message_body,
-            },
+            payload=payload,
         )
 
     def _request_message_api_raw(
@@ -378,7 +383,7 @@ class EbayAuthClient:
             headers=headers,
             method=method,
         )
-        logger.info('Calling eBay Message API url=%s method=%s', request_url, method)
+        logger.info('Calling eBay Message API url=%s method=%s payload=%s', request_url, method, payload)
         try:
             with urlopen(request, timeout=20) as response:
                 response_body = response.read().decode('utf-8')
