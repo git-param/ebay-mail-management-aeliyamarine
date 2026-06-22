@@ -3,8 +3,12 @@ import json
 import logging
 from dataclasses import dataclass
 from urllib.error import HTTPError, URLError
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urljoin
 from urllib.request import Request, urlopen
+
+from typing import Any
+
+import requests
 
 from fastapi import HTTPException, status
 
@@ -14,8 +18,10 @@ logger = logging.getLogger(__name__)
 EBAY_OAUTH_SCOPES = [
     'https://api.ebay.com/oauth/api_scope/commerce.message',
     'https://api.ebay.com/oauth/api_scope/commerce.identity.readonly',
+    'https://api.ebay.com/oauth/api_scope/sell.inventory',
 ]
-EBAY_REFRESH_SCOPES = ['https://api.ebay.com/oauth/api_scope/commerce.message']
+EBAY_REFRESH_SCOPES = ['https://api.ebay.com/oauth/api_scope/commerce.message',
+                       'https://api.ebay.com/oauth/api_scope/sell.inventory',]
 
 
 @dataclass(frozen=True)
@@ -41,6 +47,12 @@ class EbayRawApiResponse:
     ok: bool
     request_url: str
 
+@dataclass
+class EbayMediaUploadResponse:
+    ok: bool
+    status_code: int
+    payload: Any
+    headers: dict[str, str]
 
 class EbayAuthClient:
     def __init__(
@@ -477,3 +489,127 @@ class EbayAuthClient:
                 status_code=status.HTTP_502_BAD_GATEWAY,
                 detail='Unable to reach eBay API',
             ) from exc
+    def upload_message_media(
+        self,
+        access_token: str,
+        *,
+        file_bytes: bytes,
+        mime_type: str,
+        media_name: str,
+    ) -> EbayMediaUploadResponse:
+        """
+        Upload an image to eBay Media API and return mediaUrl for MessageMedia.
+        """
+
+        media_base_url = getattr(
+            self,
+            "media_base_url",
+            "https://apim.ebay.com/commerce/media/v1_beta",
+        )
+
+        create_url = f"{media_base_url.rstrip('/')}/image/create_image_from_file"
+
+        headers = {
+            "Authorization": f"Bearer {access_token}",
+            "Accept": "application/json",
+        }
+
+        files = {
+            "image": (
+                media_name,
+                file_bytes,
+                mime_type,
+            )
+        }
+
+        try:
+            create_response = requests.post(
+                create_url,
+                headers=headers,
+                files=files,
+                timeout=60,
+            )
+
+            try:
+                create_payload = create_response.json()
+            except ValueError:
+                create_payload = {"raw": create_response.text}
+
+            if not create_response.ok:
+                return EbayMediaUploadResponse(
+                    ok=False,
+                    status_code=create_response.status_code,
+                    payload=create_payload,
+                    headers=dict(create_response.headers),
+                )
+
+            # eBay createImageFromFile can return the image resource in Location header.
+            location = create_response.headers.get("Location")
+
+            final_payload = create_payload if isinstance(create_payload, dict) else {}
+
+            # Sometimes imageUrl may already be present.
+            image_url = (
+                final_payload.get("imageUrl")
+                or final_payload.get("maxDimensionImageUrl")
+                or final_payload.get("mediaUrl")
+            )
+
+            # If imageUrl is not directly returned, call getImage using Location.
+            if not image_url and location:
+                get_url = location if location.startswith("http") else urljoin(media_base_url.rstrip("/") + "/", location.lstrip("/"))
+
+                get_response = requests.get(
+                    get_url,
+                    headers=headers,
+                    timeout=60,
+                )
+
+                try:
+                    get_payload = get_response.json()
+                except ValueError:
+                    get_payload = {"raw": get_response.text}
+
+                if not get_response.ok:
+                    return EbayMediaUploadResponse(
+                        ok=False,
+                        status_code=get_response.status_code,
+                        payload=get_payload,
+                        headers=dict(get_response.headers),
+                    )
+
+                if isinstance(get_payload, dict):
+                    final_payload.update(get_payload)
+                    image_url = (
+                        get_payload.get("imageUrl")
+                        or get_payload.get("maxDimensionImageUrl")
+                        or get_payload.get("mediaUrl")
+                    )
+
+            if image_url:
+                final_payload["mediaUrl"] = image_url
+
+            if location:
+                final_payload["location"] = location
+
+            return EbayMediaUploadResponse(
+                ok=True,
+                status_code=create_response.status_code,
+                payload=final_payload,
+                headers=dict(create_response.headers),
+            )
+
+        except requests.RequestException as exc:
+            return EbayMediaUploadResponse(
+                ok=False,
+                status_code=0,
+                payload={
+                    "errors": [
+                        {
+                            "message": str(exc),
+                            "longMessage": f"eBay media upload request failed: {exc}",
+                        }
+                    ]
+                },
+                headers={},
+            )

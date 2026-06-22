@@ -10,3 +10,4 @@ python-jose[cryptography]
 sqlalchemy
 uvicorn
 python-multipart
+requests
