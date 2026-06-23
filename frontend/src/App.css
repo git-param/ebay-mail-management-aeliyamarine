@@ -1811,6 +1811,24 @@
   font-size: 13px;
 }
 
+.reply-indicator {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  margin-right: 6px;
+  border-radius: 999px;
+  background: #e0f2fe;
+  color: #0369a1;
+  vertical-align: text-bottom;
+}
+
+.reply-indicator .ui-icon {
+  width: 13px;
+  height: 13px;
+}
+
 .conversation-tags {
   display: flex;
   flex-wrap: wrap;
@@ -1910,6 +1928,11 @@
   box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
 }
 
+.message-bubble:has(.ebay-html-message) {
+  width: min(760px, 100%);
+  max-width: 100%;
+}
+
 .message-bubble.outbound {
   justify-self: end;
   border-color: #bbf7d0;
@@ -1929,6 +1952,15 @@
   color: #64748b;
   font-size: 12px;
   font-weight: 750;
+}
+
+.ebay-html-message {
+  width: 100%;
+  min-height: 720px;
+  margin-top: 12px;
+  border: 1px solid #d8e4f3;
+  border-radius: 8px;
+  background: #ffffff;
 }
 
 .message-attachments {
@@ -2004,6 +2036,29 @@
   border: 1px solid #d8e4f3;
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.92);
+}
+
+.reply-unavailable {
+  display: grid;
+  gap: 4px;
+  margin-top: 16px;
+  padding: 14px;
+  border: 1px solid #d8e4f3;
+  border-radius: 14px;
+  background: #f8fafc;
+}
+
+.reply-unavailable strong {
+  color: #0f172a;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.reply-unavailable p {
+  margin: 0;
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.45;
 }
 
 .reply-composer textarea {
@@ -4138,6 +4193,7 @@ html[data-theme='dark'] .notification-menu-header {
 
 html[data-theme='dark'] .inbox-signal-card,
 html[data-theme='dark'] .reply-composer,
+html[data-theme='dark'] .reply-unavailable,
 html[data-theme='dark'] .notification-menu {
   border-color: #243247;
   background: #111827;

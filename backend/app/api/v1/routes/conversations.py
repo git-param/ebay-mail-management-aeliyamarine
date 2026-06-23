@@ -1,4 +1,5 @@
 from datetime import timedelta
+from html.parser import HTMLParser
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile, status
@@ -46,6 +47,46 @@ from app.services.reply_attachment_service import ReplyAttachmentService
 
 
 router = APIRouter()
+
+
+class BodyTextExtractor(HTMLParser):
+    """Extract readable text from provider HTML emails for compact previews."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.parts: list[str] = []
+        self.skip_depth = 0
+
+    def handle_starttag(self, tag: str, attrs) -> None:
+        if tag.lower() in {'script', 'style', 'head'}:
+            self.skip_depth += 1
+        elif tag.lower() in {'br', 'p', 'div', 'tr', 'h1', 'h2', 'h3', 'li'}:
+            self.parts.append(' ')
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag.lower() in {'script', 'style', 'head'} and self.skip_depth:
+            self.skip_depth -= 1
+        elif tag.lower() in {'p', 'div', 'tr', 'h1', 'h2', 'h3', 'li'}:
+            self.parts.append(' ')
+
+    def handle_data(self, data: str) -> None:
+        if not self.skip_depth and data.strip():
+            self.parts.append(data)
+
+    def text(self) -> str:
+        return ' '.join(' '.join(self.parts).split())
+
+
+def plain_text_from_body(body: str) -> str:
+    if '<' not in body or '>' not in body:
+        return ' '.join(body.split())
+    parser = BodyTextExtractor()
+    parser.feed(body)
+    return parser.text()
+
+
+def is_ebay_system_conversation(conversation: Conversation) -> bool:
+    return (conversation.provider_conversation_type or '').upper() == 'FROM_EBAY'
 
 
 def require_conversation_access(current_user=Depends(get_current_user)):
@@ -528,7 +569,7 @@ def latest_message_preview(conversation: Conversation, limit: int = 180) -> str 
         return None
 
     latest_message = max(conversation.messages, key=lambda message: message.sent_at)
-    preview = ' '.join(latest_message.body.split())
+    preview = plain_text_from_body(latest_message.body)
     if len(preview) <= limit:
         return preview
     return f'{preview[: limit - 3]}...'
@@ -608,7 +649,7 @@ def last_message_direction(conversation: Conversation) -> str | None:
 
 def is_replied_conversation(conversation: Conversation) -> bool:
     """
-    Determine whether a conversation has an agent reply.
+    Determine whether the latest conversation activity is a seller reply.
 
     Purpose:
     Calculates the Replied status without requiring a stored duplicate field.
@@ -617,12 +658,14 @@ def is_replied_conversation(conversation: Conversation) -> bool:
     conversation: Conversation with messages loaded.
 
     Returns:
-    True when any outbound agent message exists.
+    True when the latest message is outbound from the seller.
 
     Business Logic:
-    Any message with sender_type AGENT or is_inbound false counts as a reply.
+    The overview arrow is a last-message indicator, so older replies do not
+    count once a buyer or provider message arrives after them.
     """
-    return any(message.sender_type.value == 'AGENT' or not message.is_inbound for message in conversation.messages)
+    message = latest_message_for(conversation)
+    return bool(message and (message.sender_type.value == 'AGENT' or not message.is_inbound))
 
 
 def is_not_read_conversation(conversation: Conversation) -> bool:
@@ -677,6 +720,7 @@ def list_conversations(
     search: str | None = Query(default=None, min_length=1),
     status: ConversationStatus | None = Query(default=None),
     provider: str | None = Query(default=None, min_length=1),
+    conversation_type: str | None = Query(default=None, min_length=1),
     ebay_account_id: UUID | None = Query(default=None),
     assigned_user_id: UUID | None = Query(default=None),
     category_id: UUID | None = Query(default=None),
@@ -692,6 +736,7 @@ def list_conversations(
         search=search,
         status=status,
         provider=provider,
+        conversation_type=conversation_type,
         provider_account_id=ebay_account_id,
         assigned_user_id=assigned_user_id,
         category_id=category_id,
@@ -708,6 +753,7 @@ def list_conversations(
             search=search,
             status=status,
             provider=provider,
+            conversation_type=conversation_type,
             provider_account_id=ebay_account_id,
             assigned_user_id=assigned_user_id,
             category_id=category_id,
@@ -769,6 +815,8 @@ def get_conversation(
         visible_category_ids=visible_category_ids_for_user(db, current_user),
         visibility_user_id=visibility_user_id_for_user(current_user),
     )
+    if is_not_read_conversation(conversation):
+        conversation = service.mark_read(conversation)
     seller_account = db.get(EbayAccount, conversation.provider_account_id) if conversation.provider_account_id else None
     order_context = OrderContextService(db).context_for_conversation(conversation)
     return serialize_conversation(conversation, service.get_current_assignee_id(conversation.id), seller_account, order_context)
@@ -814,11 +862,13 @@ def validate_reply(
     db: Session = Depends(get_db),
     current_user=Depends(require_conversation_access),
 ) -> ReplyValidationResponse:
-    ConversationService(db).get_conversation(
+    conversation = ConversationService(db).get_conversation(
         conversation_id,
         visible_category_ids=visible_category_ids_for_user(db, current_user),
         visibility_user_id=visibility_user_id_for_user(current_user),
     )
+    if is_ebay_system_conversation(conversation):
+        return ReplyValidationResponse(valid=False, violations=['eBay system conversations cannot be replied to.'])
     violations = EbayReplyService(db).validate_reply(payload.body)
     return ReplyValidationResponse(valid=not violations, violations=violations)
 

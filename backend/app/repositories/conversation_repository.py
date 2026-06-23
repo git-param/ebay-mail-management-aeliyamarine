@@ -19,6 +19,7 @@ class ConversationRepository:
         search: str | None = None,
         status: ConversationStatus | None = None,
         provider: str | None = None,
+        conversation_type: str | None = None,
         provider_account_id: UUID | None = None,
         assigned_user_id: UUID | None = None,
         category_id: UUID | None = None,
@@ -30,6 +31,7 @@ class ConversationRepository:
             search=search,
             status=status,
             provider=provider,
+            conversation_type=conversation_type,
             provider_account_id=provider_account_id,
             assigned_user_id=assigned_user_id,
             category_id=category_id,
@@ -53,6 +55,7 @@ class ConversationRepository:
         search: str | None = None,
         status: ConversationStatus | None = None,
         provider: str | None = None,
+        conversation_type: str | None = None,
         provider_account_id: UUID | None = None,
         assigned_user_id: UUID | None = None,
         category_id: UUID | None = None,
@@ -64,6 +67,7 @@ class ConversationRepository:
             search=search,
             status=status,
             provider=provider,
+            conversation_type=conversation_type,
             provider_account_id=provider_account_id,
             assigned_user_id=assigned_user_id,
             category_id=category_id,
@@ -129,6 +133,7 @@ class ConversationRepository:
         search: str | None = None,
         status: ConversationStatus | None = None,
         provider: str | None = None,
+        conversation_type: str | None = None,
         provider_account_id: UUID | None = None,
         assigned_user_id: UUID | None = None,
         category_id: UUID | None = None,
@@ -157,6 +162,8 @@ class ConversationRepository:
             statement = statement.where(Conversation.status == status)
         if provider:
             statement = statement.where(Conversation.provider == provider)
+        if conversation_type:
+            statement = statement.where(Conversation.provider_conversation_type == conversation_type)
         if provider_account_id:
             statement = statement.where(Conversation.provider_account_id == provider_account_id)
         if assigned_user_id:

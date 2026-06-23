@@ -118,6 +118,22 @@ function normalizeAccount(account) {
   }
 }
 
+function conversationTypeLabel(value) {
+  const labels = {
+    FROM_MEMBERS: 'From members',
+    FROM_EBAY: 'From eBay',
+  }
+  return labels[value] || value || 'Unknown source'
+}
+
+function isEbaySystemConversation(conversation) {
+  return conversation?.provider_conversation_type === 'FROM_EBAY'
+}
+
+function isHtmlBody(value) {
+  return /<\/?[a-z][\s\S]*>/i.test(value || '')
+}
+
 function getList(response) {
   if (Array.isArray(response)) {
     return response
@@ -255,7 +271,14 @@ function ConversationRow({ conversation, isSelected, isBulkSelected, onSelect, o
         <small>{conversation.seller_account?.account_name || 'Seller account'}</small>
       </span>
       <span className="ticket-message">
-        <span className="conversation-preview">{getLastMessagePreview(conversation)}</span>
+        <span className="conversation-preview">
+          {conversation.is_replied ? (
+            <span className="reply-indicator" title="Last message is from seller" aria-label="Replied">
+              <Icon name="reply" />
+            </span>
+          ) : null}
+          {getLastMessagePreview(conversation)}
+        </span>
         <span className="conversation-tags">
           <ConversationBadge tone={direction.toLowerCase()}>
             Last: {direction}
@@ -263,6 +286,7 @@ function ConversationRow({ conversation, isSelected, isBulkSelected, onSelect, o
           <ConversationBadge tone="category" color={categoryColor}>
             {conversation.category?.name || 'No category'}
           </ConversationBadge>
+          <ConversationBadge>{conversationTypeLabel(conversation.provider_conversation_type)}</ConversationBadge>
           <ConversationBadge tone={displayStatus?.toLowerCase().replace(/\s+/g, '-')}>{displayStatus}</ConversationBadge>
         </span>
       </span>
@@ -390,6 +414,16 @@ function FiltersDrawer({
           </FilterSelect>
 
           <FilterSelect
+            label="Conversation type"
+            value={filters.conversation_type}
+            onChange={(value) => onFilterChange('conversation_type', value)}
+          >
+            <option value="">All conversation types</option>
+            <option value="FROM_MEMBERS">From members</option>
+            <option value="FROM_EBAY">From eBay</option>
+          </FilterSelect>
+
+          <FilterSelect
             label="eBay Account"
             value={filters.ebay_account_id}
             onChange={(value) => onFilterChange('ebay_account_id', value)}
@@ -442,7 +476,7 @@ function FiltersDrawer({
   )
 }
 
-function MessageThread({ messages }) {
+function MessageThread({ messages, isSystemConversation }) {
   if (!messages.length) {
     return <EmptyPanel title="No messages yet" message="This conversation has no stored message bodies." />
   }
@@ -455,7 +489,16 @@ function MessageThread({ messages }) {
             <strong>{message.sender_identifier || message.sender_type}</strong>
             <time>{formatDate(message.sent_at)}</time>
           </div>
-          <p>{message.body}</p>
+          {isSystemConversation && isHtmlBody(message.body) ? (
+            <iframe
+              className="ebay-html-message"
+              title={`eBay message ${message.id}`}
+              srcDoc={message.body}
+              sandbox="allow-popups allow-popups-to-escape-sandbox"
+            />
+          ) : (
+            <p>{message.body}</p>
+          )}
           {SHOW_MESSAGE_ATTACHMENTS && message.attachments?.length ? (
             <div className="message-attachments">
               {message.attachments.map((attachment) => {
@@ -603,6 +646,15 @@ function ReplyComposer({ conversationId, isSubmitting, onSendReply, templates })
         </button>
       </div>
     </form>
+  )
+}
+
+function ReplyUnavailableNotice() {
+  return (
+    <div className="reply-unavailable" role="note">
+      <strong>Reply unavailable</strong>
+      <p>eBay system conversations are read-only and cannot receive replies from this workspace.</p>
+    </div>
   )
 }
 
@@ -1004,13 +1056,17 @@ function ConversationDetail({
         />
       ) : (
         <div className="thread-panel">
-          <MessageThread messages={detail.messages || []} />
-          <ReplyComposer
-            conversationId={detail.id}
-            isSubmitting={isSubmitting}
-            onSendReply={onSendReply}
-            templates={templates}
-          />
+          <MessageThread messages={detail.messages || []} isSystemConversation={isEbaySystemConversation(detail)} />
+          {isEbaySystemConversation(detail) ? (
+            <ReplyUnavailableNotice />
+          ) : (
+            <ReplyComposer
+              conversationId={detail.id}
+              isSubmitting={isSubmitting}
+              onSendReply={onSendReply}
+              templates={templates}
+            />
+          )}
         </div>
       )}
     </section>
@@ -1023,6 +1079,7 @@ function Dashboard({ currentUser, onLogout }) {
     search: '',
     status: '',
     provider: 'ebay',
+    conversation_type: '',
     ebay_account_id: '',
     assigned_user_id: '',
     category_id: '',
@@ -1099,6 +1156,7 @@ function Dashboard({ currentUser, onLogout }) {
     try {
       const response = await fetchConversation(conversationId)
       setDetail(response)
+      setConversations((items) => items.map((item) => (item.id === response.id ? { ...item, ...response } : item)))
     } catch (caughtError) {
       console.error('Failed to load conversation detail', { conversationId, error: caughtError })
       setDetailError(caughtError.message || 'Unable to load conversation detail.')
@@ -1258,6 +1316,7 @@ function Dashboard({ currentUser, onLogout }) {
       search: '',
       status: '',
       provider: 'ebay',
+      conversation_type: '',
       ebay_account_id: '',
       assigned_user_id: '',
       category_id: '',

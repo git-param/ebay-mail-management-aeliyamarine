@@ -46,6 +46,7 @@ class EbayRawApiResponse:
     payload: dict | list | str
     ok: bool
     request_url: str
+    request_headers: dict[str, str]
 
 @dataclass
 class EbayMediaUploadResponse:
@@ -395,7 +396,8 @@ class EbayAuthClient:
             headers=headers,
             method=method,
         )
-        logger.info('Calling eBay Message API url=%s method=%s payload=%s', request_url, method, payload)
+        sanitized_headers = self._sanitize_headers(headers)
+        logger.info('Calling eBay Message API url=%s method=%s headers=%s payload=%s', request_url, method, sanitized_headers, payload)
         try:
             with urlopen(request, timeout=20) as response:
                 response_body = response.read().decode('utf-8')
@@ -411,6 +413,7 @@ class EbayAuthClient:
                     payload=self._decode_response_body(response_body),
                     ok=True,
                     request_url=request_url,
+                    request_headers=sanitized_headers,
                 )
         except HTTPError as exc:
             error_body = ''
@@ -430,6 +433,7 @@ class EbayAuthClient:
                 payload=self._decode_response_body(error_body),
                 ok=False,
                 request_url=request_url,
+                request_headers=sanitized_headers,
             )
         except (URLError, TimeoutError) as exc:
             logger.warning('Unable to reach eBay Message API endpoint url=%s method=%s', request_url, method)
@@ -454,7 +458,8 @@ class EbayAuthClient:
         if payload is not None:
             headers['Content-Type'] = 'application/json'
         request = Request(request_url, data=data, headers=headers, method=method)
-        logger.info('Calling eBay JSON API url=%s method=%s', request_url, method)
+        sanitized_headers = self._sanitize_headers(headers)
+        logger.info('Calling eBay JSON API url=%s method=%s headers=%s', request_url, method, sanitized_headers)
         try:
             with urlopen(request, timeout=20) as response:
                 response_body = response.read().decode('utf-8')
@@ -463,6 +468,7 @@ class EbayAuthClient:
                     payload=self._decode_response_body(response_body),
                     ok=True,
                     request_url=request_url,
+                    request_headers=sanitized_headers,
                 )
         except HTTPError as exc:
             error_body = ''
@@ -482,6 +488,7 @@ class EbayAuthClient:
                 payload=self._decode_response_body(error_body),
                 ok=False,
                 request_url=request_url,
+                request_headers=sanitized_headers,
             )
         except (URLError, TimeoutError) as exc:
             logger.warning('Unable to reach eBay JSON API endpoint url=%s method=%s', request_url, method)
@@ -613,3 +620,10 @@ class EbayAuthClient:
                 },
                 headers={},
             )
+
+    def _sanitize_headers(self, headers: dict[str, str]) -> dict[str, str]:
+        sanitized_headers = dict(headers)
+        if 'Authorization' in sanitized_headers:
+            scheme = sanitized_headers['Authorization'].split(' ', 1)[0]
+            sanitized_headers['Authorization'] = f'{scheme} ***'
+        return sanitized_headers

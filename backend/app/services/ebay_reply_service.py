@@ -129,6 +129,11 @@ class EbayReplyService:
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail='Only eBay conversations can be replied to from this action',
             )
+        if (conversation.provider_conversation_type or '').upper() == 'FROM_EBAY':
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail='eBay system conversations cannot be replied to.',
+            )
         if not conversation.provider_account_id:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
