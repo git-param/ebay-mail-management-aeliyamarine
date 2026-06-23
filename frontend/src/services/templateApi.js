@@ -1,19 +1,7 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api/v1'
+import { apiRequest } from './http'
 
 async function request(path, options = {}) {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    credentials: 'include',
-    headers: {
-      'Content-Type': 'application/json',
-      ...options.headers,
-    },
-    ...options,
-  })
-  const data = await response.json().catch(() => ({}))
-  if (!response.ok) {
-    throw new Error(data.detail || data.message || 'Unable to load templates')
-  }
-  return data
+  return apiRequest(path, options, (status, data) => data.detail || data.message || 'Unable to load templates')
 }
 
 export function fetchTemplates({ includeInactive = false } = {}) {

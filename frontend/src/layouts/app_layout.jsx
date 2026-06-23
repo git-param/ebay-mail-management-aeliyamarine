@@ -72,6 +72,7 @@ function formatNotificationTime(value) {
   }
 
   return date.toLocaleString(undefined, {
+    year: 'numeric',
     month: 'short',
     day: '2-digit',
     hour: '2-digit',

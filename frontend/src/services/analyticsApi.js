@@ -1,4 +1,4 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api/v1'
+import { apiFetch } from './http'
 
 /**
  * Builds a query string for analytics filters.
@@ -42,9 +42,7 @@ function buildQuery(params = {}) {
  * The backend enforces role scoping, including personal-only analytics for agents.
  */
 export async function fetchAnalyticsDashboard(params = {}) {
-  const response = await fetch(`${API_BASE_URL}/analytics/dashboard${buildQuery(params)}`, {
-    credentials: 'include',
-  })
+  const response = await apiFetch(`/analytics/dashboard${buildQuery(params)}`)
   const data = await response.json().catch(() => ({}))
   if (!response.ok) {
     throw new Error(data.detail || data.message || 'Unable to load analytics')
@@ -68,9 +66,7 @@ export async function fetchAnalyticsDashboard(params = {}) {
  * Uses the same filters as the dashboard so exported values match visible metrics.
  */
 export async function exportAnalyticsDashboard(params = {}) {
-  const response = await fetch(`${API_BASE_URL}/analytics/dashboard/export${buildQuery(params)}`, {
-    credentials: 'include',
-  })
+  const response = await apiFetch(`/analytics/dashboard/export${buildQuery(params)}`)
   if (!response.ok) {
     const data = await response.json().catch(() => ({}))
     throw new Error(data.detail || data.message || 'Unable to export analytics')

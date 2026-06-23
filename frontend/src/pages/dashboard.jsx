@@ -21,7 +21,8 @@ import { fetchTemplates } from '../services/templateApi'
 import { fetchUsers } from '../services/userApi'
 import { normalizeRole } from '../utils/roles'
 
-const PAGE_SIZE = 25
+const DEFAULT_PAGE_SIZE = 20
+const PAGE_SIZE_OPTIONS = [10, 20, 50, 100]
 const STATUSES = ['OPEN', 'PENDING', 'RESOLVED', 'CLOSED']
 const LIST_WIDTH_KEY = 'inboxListPanelWidth'
 const DETAILS_WIDTH_KEY = 'inboxDetailsPanelWidth'
@@ -47,6 +48,7 @@ function formatDate(value) {
   }
 
   return date.toLocaleString(undefined, {
+    year: 'numeric',
     month: 'short',
     day: '2-digit',
     hour: '2-digit',
@@ -206,6 +208,55 @@ function moneyLabel(value, currency) {
   return `${currency || ''} ${Number(value).toFixed(2)}`.trim()
 }
 
+function formatFileSize(bytes) {
+  if (!Number.isFinite(bytes) || bytes <= 0) {
+    return 'Unknown size'
+  }
+  if (bytes < 1024) {
+    return `${bytes} B`
+  }
+  if (bytes < 1024 * 1024) {
+    return `${Math.round(bytes / 1024)} KB`
+  }
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
+function getVisiblePageItems(currentPage, pageCount) {
+  if (pageCount <= 7) {
+    return Array.from({ length: pageCount }, (_, index) => index)
+  }
+
+  const pages = new Set([0, pageCount - 1, currentPage])
+  if (currentPage > 0) {
+    pages.add(currentPage - 1)
+  }
+  if (currentPage + 1 < pageCount) {
+    pages.add(currentPage + 1)
+  }
+  if (currentPage <= 2) {
+    pages.add(1)
+    pages.add(2)
+    pages.add(3)
+  }
+  if (currentPage >= pageCount - 3) {
+    pages.add(pageCount - 2)
+    pages.add(pageCount - 3)
+    pages.add(pageCount - 4)
+  }
+
+  const sortedPages = Array.from(pages)
+    .filter((value) => value >= 0 && value < pageCount)
+    .sort((a, b) => a - b)
+  const items = []
+  sortedPages.forEach((pageNumber, index) => {
+    if (index > 0 && pageNumber - sortedPages[index - 1] > 1) {
+      items.push(`ellipsis-${pageNumber}`)
+    }
+    items.push(pageNumber)
+  })
+  return items
+}
+
 function firstLineItem(order) {
   return order?.line_items?.[0] || null
 }
@@ -336,6 +387,67 @@ function BulkAssignBar({ selectedCount, selectedUser, users, usersError, error, 
         </p>
       ) : null}
     </form>
+  )
+}
+
+function InboxPagination({ page, pageCount, pageSize, total, onPageChange, onPageSizeChange }) {
+  const pageItems = getVisiblePageItems(page, pageCount)
+  const start = total ? page * pageSize + 1 : 0
+  const end = Math.min((page + 1) * pageSize, total)
+
+  return (
+    <div className="pagination-bar">
+      <div className="pagination-summary">
+        <strong>
+          Showing {start}-{end}
+        </strong>
+        <span>of {total} conversations</span>
+      </div>
+
+      <div className="pagination-controls" aria-label="Conversation pagination">
+        <button className="pagination-button" type="button" disabled={page === 0} onClick={() => onPageChange(page - 1)}>
+          Previous
+        </button>
+        <div className="pagination-pages">
+          {pageItems.map((item) =>
+            typeof item === 'string' ? (
+              <span className="pagination-ellipsis" key={item}>
+                ...
+              </span>
+            ) : (
+              <button
+                className={`pagination-page ${item === page ? 'active' : ''}`}
+                type="button"
+                aria-current={item === page ? 'page' : undefined}
+                onClick={() => onPageChange(item)}
+                key={item}
+              >
+                {item + 1}
+              </button>
+            ),
+          )}
+        </div>
+        <button
+          className="pagination-button"
+          type="button"
+          disabled={page + 1 >= pageCount}
+          onClick={() => onPageChange(page + 1)}
+        >
+          Next
+        </button>
+      </div>
+
+      <label className="pagination-size">
+        <span>Rows</span>
+        <select value={pageSize} onChange={(event) => onPageSizeChange(Number(event.target.value))}>
+          {PAGE_SIZE_OPTIONS.map((option) => (
+            <option value={option} key={option}>
+              {option}
+            </option>
+          ))}
+        </select>
+      </label>
+    </div>
   )
 }
 
@@ -542,18 +654,54 @@ function ReplyComposer({ conversationId, isSubmitting, onSendReply, templates })
   const [files, setFiles] = useState([])
   const [fileInputKey, setFileInputKey] = useState(0)
   const [violations, setViolations] = useState([])
+  const [draftMessage, setDraftMessage] = useState('')
   const [isValidating, setIsValidating] = useState(false)
+  const [isDraggingFiles, setIsDraggingFiles] = useState(false)
 
-  function updateFiles(event) {
-    const selectedFiles = Array.from(event.target.files || [])
-    if (selectedFiles.length > 5) {
+  function addFiles(selectedFiles) {
+    const nextFiles = [...files, ...selectedFiles]
+    if (nextFiles.length > 5) {
       setViolations(['eBay allows a maximum of 5 attachments per reply.'])
-      setFiles([])
       setFileInputKey((current) => current + 1)
       return
     }
     setViolations([])
-    setFiles(selectedFiles)
+    setDraftMessage('')
+    setFiles(nextFiles)
+    setFileInputKey((current) => current + 1)
+  }
+
+  function updateFiles(event) {
+    addFiles(Array.from(event.target.files || []))
+  }
+
+  function removeFile(fileIndex) {
+    setFiles((current) => current.filter((_, index) => index !== fileIndex))
+    setDraftMessage('')
+  }
+
+  function handleAttachmentDrag(event) {
+    event.preventDefault()
+    event.stopPropagation()
+    setIsDraggingFiles(true)
+  }
+
+  function handleAttachmentDragLeave(event) {
+    event.preventDefault()
+    event.stopPropagation()
+    setIsDraggingFiles(false)
+  }
+
+  function handleAttachmentDrop(event) {
+    event.preventDefault()
+    event.stopPropagation()
+    setIsDraggingFiles(false)
+    addFiles(Array.from(event.dataTransfer.files || []))
+  }
+
+  function saveDraft() {
+    setViolations([])
+    setDraftMessage('Draft saved locally for this conversation.')
   }
 
   async function submitReply(event) {
@@ -564,6 +712,7 @@ function ReplyComposer({ conversationId, isSubmitting, onSendReply, templates })
     }
     setIsValidating(true)
     setViolations([])
+    setDraftMessage('')
     try {
       const validation = await validateConversationReply(conversationId, trimmedBody)
       if (!validation.valid) {
@@ -573,6 +722,7 @@ function ReplyComposer({ conversationId, isSubmitting, onSendReply, templates })
       await onSendReply(trimmedBody, files)
       setBody('')
       setFiles([])
+      setDraftMessage('')
       setFileInputKey((current) => current + 1)
     } catch (caughtError) {
       setViolations([caughtError.message])
@@ -583,52 +733,84 @@ function ReplyComposer({ conversationId, isSubmitting, onSendReply, templates })
 
   return (
     <form className="reply-composer" onSubmit={submitReply}>
-      <label className="field">
-        <span>Reply to buyer</span>
+      <div className="composer-toolbar">
         {templates.length ? (
-          <select
-            className="template-picker"
-            value=""
-            onChange={(event) => {
-              const template = templates.find((item) => item.id === event.target.value)
-              if (template) {
-                setBody((current) => {
-                  const separator = current.trim() ? '\n\n' : ''
-                  return `${current}${separator}${template.body}`
-                })
-              }
-            }}
-          >
-            <option value="">Insert template</option>
-            {templates.map((template) => (
-              <option value={template.id} key={template.id}>
-                {template.title}
-              </option>
-            ))}
-          </select>
+          <label className="template-toolbar-control">
+            <Icon name="message" />
+            <span>Template</span>
+            <select
+              className="template-picker"
+              value=""
+              aria-label="Insert reply template"
+              onChange={(event) => {
+                const template = templates.find((item) => item.id === event.target.value)
+                if (template) {
+                  setBody((current) => {
+                    const separator = current.trim() ? '\n\n' : ''
+                    return `${current}${separator}${template.body}`
+                  })
+                }
+              }}
+            >
+              <option value="">Choose</option>
+              {templates.map((template) => (
+                <option value={template.id} key={template.id}>
+                  {template.title}
+                </option>
+              ))}
+            </select>
+          </label>
         ) : null}
+      </div>
+
+      <label className="field composer-editor">
+        <span>Reply to buyer</span>
         <textarea
           value={body}
-          onChange={(event) => setBody(event.target.value)}
+          onChange={(event) => {
+            setBody(event.target.value)
+            setDraftMessage('')
+          }}
           rows="4"
           maxLength={2000}
           placeholder="Write a reply without email, phone, external links, or abusive language"
         />
       </label>
-      <label className="field">
-        <span>Attachments</span>
+
+      <div
+        className={`attachment-dropzone ${isDraggingFiles ? 'dragging' : ''}`}
+        onDragOver={handleAttachmentDrag}
+        onDragEnter={handleAttachmentDrag}
+        onDragLeave={handleAttachmentDragLeave}
+        onDrop={handleAttachmentDrop}
+      >
         <input
+          id={`reply-attachments-${conversationId}`}
           key={fileInputKey}
           type="file"
           multiple
           onChange={updateFiles}
           accept=".pdf,.txt,.jpg,.jpeg,.png,application/pdf,text/plain,image/jpeg,image/png"
         />
-      </label>
+        <label htmlFor={`reply-attachments-${conversationId}`}>
+          <Icon name="message" />
+          <strong>Add attachments</strong>
+          <span>Click to upload or drag and drop files here</span>
+        </label>
+      </div>
+
       {files.length ? (
         <div className="reply-attachment-list" aria-label="Selected attachments">
-          {files.map((file) => (
-            <span key={`${file.name}-${file.size}`}>{file.name}</span>
+          {files.map((file, index) => (
+            <span className="reply-attachment-chip" key={`${file.name}-${file.size}-${index}`}>
+              <span>
+                <strong>{file.name}</strong>
+                <small>{formatFileSize(file.size)}</small>
+              </span>
+              <button type="button" onClick={() => removeFile(index)} aria-label={`Remove ${file.name}`}>
+                x
+              </button>
+            </span>
           ))}
         </div>
       ) : null}
@@ -639,8 +821,18 @@ function ReplyComposer({ conversationId, isSubmitting, onSendReply, templates })
           ))}
         </div>
       ) : null}
+      {draftMessage ? (
+        <div className="reply-draft-message" role="status">
+          <p>{draftMessage}</p>
+        </div>
+      ) : null}
       <div className="reply-composer-actions">
-        <small>{body.length}/2000</small>
+        <small>
+          {files.length} file{files.length === 1 ? '' : 's'} selected | {body.length}/2000 characters
+        </small>
+        <button className="secondary-button compact" type="button" onClick={saveDraft} disabled={!body.trim() && !files.length}>
+          Save Draft
+        </button>
         <button className="primary-button compact" type="submit" disabled={!body.trim() || isSubmitting || isValidating}>
           {isValidating ? 'Checking...' : isSubmitting ? 'Sending...' : 'Send Reply'}
         </button>
@@ -1098,6 +1290,7 @@ function Dashboard({ currentUser, onLogout }) {
   const [templates, setTemplates] = useState([])
   const [listWidth, setListWidth] = useState(() => getStoredNumber(LIST_WIDTH_KEY, 420))
   const [detailsWidth, setDetailsWidth] = useState(() => getStoredNumber(DETAILS_WIDTH_KEY, 360))
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
   const [isDetailsOpen, setIsDetailsOpen] = useState(true)
   const [isFiltersOpen, setIsFiltersOpen] = useState(false)
   const [mobilePane, setMobilePane] = useState('list')
@@ -1110,8 +1303,8 @@ function Dashboard({ currentUser, onLogout }) {
   const [actionError, setActionError] = useState('')
   const [usersError, setUsersError] = useState('')
 
-  const offset = page * PAGE_SIZE
-  const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE))
+  const offset = page * pageSize
+  const pageCount = Math.max(1, Math.ceil(total / pageSize))
   const hasSelectedConversation = Boolean(selectedConversationId)
 
   const workspaceStyle = hasSelectedConversation
@@ -1128,7 +1321,7 @@ function Dashboard({ currentUser, onLogout }) {
 
     try {
       const response = await fetchConversations({
-        limit: PAGE_SIZE,
+        limit: pageSize,
         offset,
         ...filters,
       })
@@ -1141,7 +1334,7 @@ function Dashboard({ currentUser, onLogout }) {
     } finally {
       setIsListLoading(false)
     }
-  }, [filters, offset])
+  }, [filters, offset, pageSize])
 
   const loadConversationDetail = useCallback(async (conversationId) => {
     if (!conversationId) {
@@ -1223,6 +1416,12 @@ function Dashboard({ currentUser, onLogout }) {
   }, [loadConversations])
 
   useEffect(() => {
+    if (page >= pageCount) {
+      setPage(pageCount - 1)
+    }
+  }, [page, pageCount])
+
+  useEffect(() => {
     loadConversationDetail(selectedConversationId)
     loadNotes(selectedConversationId)
   }, [loadConversationDetail, loadNotes, selectedConversationId])
@@ -1302,6 +1501,11 @@ function Dashboard({ currentUser, onLogout }) {
     setDetail(null)
     setNotes([])
     setMobilePane('list')
+  }
+
+  function changePageSize(nextPageSize) {
+    setPageSize(nextPageSize)
+    setPage(0)
   }
 
   function changeFilter(key, value) {
@@ -1559,22 +1763,14 @@ function Dashboard({ currentUser, onLogout }) {
             )}
           </div>
 
-          <div className="pagination-bar">
-            <button className="secondary-button" type="button" disabled={page === 0} onClick={() => setPage(page - 1)}>
-              Previous
-            </button>
-            <span>
-              Page {page + 1} of {pageCount}
-            </span>
-            <button
-              className="secondary-button"
-              type="button"
-              disabled={page + 1 >= pageCount}
-              onClick={() => setPage(page + 1)}
-            >
-              Next
-            </button>
-          </div>
+          <InboxPagination
+            page={page}
+            pageCount={pageCount}
+            pageSize={pageSize}
+            total={total}
+            onPageChange={setPage}
+            onPageSizeChange={changePageSize}
+          />
         </section>
 
         {hasSelectedConversation ? (
