@@ -63,7 +63,7 @@ const PROTECTED_ROUTES = [
   {
     path: '/categories',
     component: Categories,
-    allowedRoles: ['ADMIN', 'OPS_MANAGER'],
+    allowedRoles: ['ADMIN', 'OPS_MANAGER', 'AGENT'],
   },
   {
     path: '/templates',
@@ -73,7 +73,7 @@ const PROTECTED_ROUTES = [
   {
     path: '/analytics',
     component: Analytics,
-    allowedRoles: ['ADMIN', 'OPS_MANAGER'],
+    allowedRoles: ['ADMIN', 'OPS_MANAGER', 'AGENT'],
   },
   {
     path: '/audit-logs',

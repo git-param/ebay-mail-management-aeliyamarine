@@ -93,6 +93,25 @@ def serialize_conversation(
     seller_account: EbayAccount | None = None,
     order_context: dict | None = None,
 ) -> ConversationDetailResponse:
+    """
+    Serialize a full conversation with messages, notes, assignment, and audit-derived indicators.
+
+    Purpose:
+    Builds the detail response used by the inbox thread and side panels.
+
+    Parameters:
+    conversation: Conversation ORM object with related data loaded.
+    current_assignee_id: Optional UUID of the current assignee.
+    seller_account: Optional eBay account associated with the conversation.
+    order_context: Optional resolved order context for the conversation.
+
+    Returns:
+    ConversationDetailResponse ready for API serialization.
+
+    Business Logic:
+    Includes calculated visibility fields such as last message direction,
+    Not Read status, and Replied status without persisting duplicate columns.
+    """
     assignments = [serialize_assignment(assignment) for assignment in conversation.assignments]
     return ConversationDetailResponse(
         id=conversation.id,
@@ -108,6 +127,10 @@ def serialize_conversation(
         unread_count=conversation.unread_count,
         message_count=len(conversation.messages),
         last_message_preview=latest_message_preview(conversation),
+        last_message_direction=last_message_direction(conversation),
+        calculated_status=calculated_conversation_status(conversation),
+        is_not_read=is_not_read_conversation(conversation),
+        is_replied=is_replied_conversation(conversation),
         response_due_at=response_due_at(conversation),
         status=conversation.status,
         category_id=conversation.category_id,
@@ -130,6 +153,24 @@ def serialize_conversation_summary(
     conversation: Conversation,
     seller_account: EbayAccount | None = None,
 ) -> ConversationSummaryResponse:
+    """
+    Serialize a conversation row for the listing screen.
+
+    Purpose:
+    Provides compact data needed to render the inbox table.
+
+    Parameters:
+    conversation: Conversation ORM object with category, messages, and
+    assignment history loaded.
+    seller_account: Optional seller account metadata.
+
+    Returns:
+    ConversationSummaryResponse for one list row.
+
+    Business Logic:
+    Conversation status indicators are calculated from message history so the
+    UI reflects the latest buyer/agent/system activity automatically.
+    """
     return ConversationSummaryResponse(
         id=conversation.id,
         provider=conversation.provider,
@@ -144,6 +185,10 @@ def serialize_conversation_summary(
         unread_count=conversation.unread_count,
         message_count=len(conversation.messages),
         last_message_preview=latest_message_preview(conversation),
+        last_message_direction=last_message_direction(conversation),
+        calculated_status=calculated_conversation_status(conversation),
+        is_not_read=is_not_read_conversation(conversation),
+        is_replied=is_replied_conversation(conversation),
         response_due_at=response_due_at(conversation),
         status=conversation.status,
         category_id=conversation.category_id,
@@ -198,6 +243,23 @@ def serialize_attachment(attachment) -> MessageAttachmentResponse:
 
 
 def serialize_order_context(context: dict):
+    """
+    Serialize resolved order context for the conversation detail panel.
+
+    Purpose:
+    Converts order-context service output into API-safe nested dictionaries.
+
+    Parameters:
+    context: Service dictionary containing selected order, candidates, linking,
+    and deep links.
+
+    Returns:
+    Dictionary matching OrderContextResponse.
+
+    Business Logic:
+    Missing linking metadata falls back to a NO_MATCH result so the UI can
+    render a stable state.
+    """
     return {
         'selected_order': serialize_order_context_order(context.get('selected_order')),
         'candidate_orders': [serialize_order_context_order(order) for order in context.get('candidate_orders', [])],
@@ -207,6 +269,22 @@ def serialize_order_context(context: dict):
 
 
 def serialize_order_context_order(order):
+    """
+    Serialize one linked order candidate.
+
+    Purpose:
+    Provides compact order, return, cancellation, and line-item context for
+    support agents.
+
+    Parameters:
+    order: EbayOrder ORM object or None.
+
+    Returns:
+    Dictionary representation of the order, or None.
+
+    Business Logic:
+    Generates eBay deep links from provider order identifiers for quick review.
+    """
     if not order:
         return None
     return {
@@ -259,6 +337,23 @@ def serialize_order_context_order(order):
 
 
 def serialize_assignment(assignment: ConversationAssignment) -> ConversationAssignmentResponse:
+    """
+    Serialize an assignment history row.
+
+    Purpose:
+    Exposes assigned by, assigned to, and assignment timestamps for audit
+    visibility.
+
+    Parameters:
+    assignment: ConversationAssignment ORM object.
+
+    Returns:
+    ConversationAssignmentResponse.
+
+    Business Logic:
+    Includes nested assigner and assignee summaries when relationships are
+    loaded.
+    """
     return ConversationAssignmentResponse(
         id=assignment.id,
         conversation_id=assignment.conversation_id,
@@ -272,6 +367,22 @@ def serialize_assignment(assignment: ConversationAssignment) -> ConversationAssi
 
 
 def serialize_note(note: ConversationNote) -> ConversationNoteResponse:
+    """
+    Serialize an internal conversation note.
+
+    Purpose:
+    Returns note content and author metadata to the detail panel.
+
+    Parameters:
+    note: ConversationNote ORM object.
+
+    Returns:
+    ConversationNoteResponse.
+
+    Business Logic:
+    Author metadata is optional to preserve notes even if a user record is
+    unavailable.
+    """
     return ConversationNoteResponse(
         id=note.id,
         conversation_id=note.conversation_id,
@@ -284,6 +395,21 @@ def serialize_note(note: ConversationNote) -> ConversationNoteResponse:
 
 
 def serialize_user_brief(user: User) -> UserBriefResponse:
+    """
+    Serialize compact user identity information.
+
+    Purpose:
+    Avoids exposing full user records in assignment and note responses.
+
+    Parameters:
+    user: User ORM object.
+
+    Returns:
+    UserBriefResponse containing ID, name, email, and role.
+
+    Business Logic:
+    Role is returned as an empty string if the relationship is unavailable.
+    """
     return UserBriefResponse(
         id=user.id,
         full_name=user.full_name,
@@ -293,10 +419,40 @@ def serialize_user_brief(user: User) -> UserBriefResponse:
 
 
 def serialize_category_brief(category: Category) -> CategoryBriefResponse:
+    """
+    Serialize compact category metadata.
+
+    Purpose:
+    Supplies label and color data for inbox badges and filters.
+
+    Parameters:
+    category: Category ORM object.
+
+    Returns:
+    CategoryBriefResponse.
+
+    Business Logic:
+    Only presentation-safe category fields are exposed.
+    """
     return CategoryBriefResponse(id=category.id, name=category.name, color=category.color)
 
 
 def serialize_ebay_account_brief(account: EbayAccount) -> EbayAccountBriefResponse:
+    """
+    Serialize compact seller account metadata.
+
+    Purpose:
+    Lets the inbox list show which seller account owns a conversation.
+
+    Parameters:
+    account: EbayAccount ORM object.
+
+    Returns:
+    EbayAccountBriefResponse.
+
+    Business Logic:
+    Includes store name when available for clearer seller identification.
+    """
     return EbayAccountBriefResponse(
         id=account.id,
         account_name=account.account_name,
@@ -306,6 +462,22 @@ def serialize_ebay_account_brief(account: EbayAccount) -> EbayAccountBriefRespon
 
 
 def get_seller_account_map(db: Session, conversations: list[Conversation]) -> dict[UUID, EbayAccount]:
+    """
+    Load seller accounts for a page of conversations.
+
+    Purpose:
+    Avoids per-row account queries while serializing conversation lists.
+
+    Parameters:
+    db: Active database session.
+    conversations: Conversations being serialized.
+
+    Returns:
+    Mapping of account UUID to EbayAccount.
+
+    Business Logic:
+    Conversations without provider accounts are ignored.
+    """
     account_ids = {conversation.provider_account_id for conversation in conversations if conversation.provider_account_id}
     if not account_ids:
         return {}
@@ -317,10 +489,41 @@ def get_seller_account_map(db: Session, conversations: list[Conversation]) -> di
 
 
 def current_assignment_for(conversation: Conversation) -> ConversationAssignment | None:
+    """
+    Return the current assignment for a conversation.
+
+    Purpose:
+    Supports list-row assignment display and filtering.
+
+    Parameters:
+    conversation: Conversation with assignment history loaded.
+
+    Returns:
+    Current ConversationAssignment, or None.
+
+    Business Logic:
+    The current assignment is the assignment whose unassigned_at value is null.
+    """
     return next((assignment for assignment in conversation.assignments if assignment.unassigned_at is None), None)
 
 
 def latest_message_preview(conversation: Conversation, limit: int = 180) -> str | None:
+    """
+    Build a compact preview from the latest message body.
+
+    Purpose:
+    Shows meaningful conversation context in the inbox list.
+
+    Parameters:
+    conversation: Conversation with messages loaded.
+    limit: Maximum preview length.
+
+    Returns:
+    Preview text or None when no messages exist.
+
+    Business Logic:
+    Whitespace is normalized and long previews are truncated with ellipsis.
+    """
     if not conversation.messages:
         return None
 
@@ -332,11 +535,139 @@ def latest_message_preview(conversation: Conversation, limit: int = 180) -> str 
 
 
 def response_due_at(conversation: Conversation):
+    """
+    Calculate the response deadline for a conversation.
+
+    Purpose:
+    Drives SLA labels in the inbox list and detail panel.
+
+    Parameters:
+    conversation: Conversation with category loaded.
+
+    Returns:
+    Datetime deadline or None when there is no message timestamp.
+
+    Business Logic:
+    Uses category SLA hours when configured and falls back to 24 hours.
+    """
     if not conversation.last_message_at:
         return None
 
     sla_hours = conversation.category.sla_hours if conversation.category else 24
     return conversation.last_message_at + timedelta(hours=sla_hours)
+
+
+def latest_message_for(conversation: Conversation) -> Message | None:
+    """
+    Return the latest message in a conversation.
+
+    Purpose:
+    Shares latest-message selection across preview, direction, and status
+    calculations.
+
+    Parameters:
+    conversation: Conversation with messages loaded.
+
+    Returns:
+    Latest Message by sent_at, or None.
+
+    Business Logic:
+    Message sent_at is authoritative for provider conversation chronology.
+    """
+    if not conversation.messages:
+        return None
+    return max(conversation.messages, key=lambda message: message.sent_at)
+
+
+def last_message_direction(conversation: Conversation) -> str | None:
+    """
+    Calculate the latest message direction label.
+
+    Purpose:
+    Feeds the Last Message Direction indicator on conversation rows.
+
+    Parameters:
+    conversation: Conversation with messages loaded.
+
+    Returns:
+    Buyer, Agent, System, or None.
+
+    Business Logic:
+    Inbound provider/customer messages are Buyer, outbound agent messages are
+    Agent, and explicit system messages are System.
+    """
+    message = latest_message_for(conversation)
+    if not message:
+        return None
+    if message.sender_type.value == 'SYSTEM':
+        return 'System'
+    if message.sender_type.value == 'AGENT' or not message.is_inbound:
+        return 'Agent'
+    return 'Buyer'
+
+
+def is_replied_conversation(conversation: Conversation) -> bool:
+    """
+    Determine whether a conversation has an agent reply.
+
+    Purpose:
+    Calculates the Replied status without requiring a stored duplicate field.
+
+    Parameters:
+    conversation: Conversation with messages loaded.
+
+    Returns:
+    True when any outbound agent message exists.
+
+    Business Logic:
+    Any message with sender_type AGENT or is_inbound false counts as a reply.
+    """
+    return any(message.sender_type.value == 'AGENT' or not message.is_inbound for message in conversation.messages)
+
+
+def is_not_read_conversation(conversation: Conversation) -> bool:
+    """
+    Determine whether a conversation should be highlighted as Not Read.
+
+    Purpose:
+    Controls the black-dot unread indicator on the conversation listing.
+
+    Parameters:
+    conversation: Conversation with latest message data loaded.
+
+    Returns:
+    True when the latest message is inbound and unread.
+
+    Business Logic:
+    Conversation unread_count and latest message read_status are both honored
+    because provider syncs may populate either field.
+    """
+    message = latest_message_for(conversation)
+    return bool(message and message.is_inbound and (message.read_status is False or conversation.unread_count > 0))
+
+
+def calculated_conversation_status(conversation: Conversation) -> str:
+    """
+    Calculate the business-facing conversation status.
+
+    Purpose:
+    Adds Replied and Not Read statuses derived from conversation history.
+
+    Parameters:
+    conversation: Conversation with messages loaded.
+
+    Returns:
+    Not Read, Replied, or the stored workflow status.
+
+    Business Logic:
+    Not Read takes priority over Replied because unread buyer activity needs
+    immediate visibility even if the thread has older agent replies.
+    """
+    if is_not_read_conversation(conversation):
+        return 'Not Read'
+    if is_replied_conversation(conversation):
+        return 'Replied'
+    return conversation.status.value
 
 
 @router.get('', response_model=ConversationPageResponse)

@@ -49,7 +49,7 @@ def role_name(current_user) -> str:
 
 
 def require_category_access(current_user=Depends(get_current_user)):
-    if role_name(current_user) not in {'Admin', 'Operations Manager'}:
+    if role_name(current_user) not in {'Admin', 'Operations Manager', 'Support Agent'}:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='You do not have access to categories')
     return current_user
 
