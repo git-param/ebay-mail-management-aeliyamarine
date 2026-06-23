@@ -218,6 +218,8 @@ function ConversationRow({ conversation, isSelected, isBulkSelected, onSelect, o
   const title = conversation.subject || conversation.reference_id || 'Customer message'
   const categoryColor = conversation.category?.color
   const deadline = formatRelativeDeadline(conversation.response_due_at)
+  const displayStatus = conversation.calculated_status || conversation.status
+  const direction = conversation.last_message_direction || 'System'
 
   return (
     <div
@@ -240,7 +242,8 @@ function ConversationRow({ conversation, isSelected, isBulkSelected, onSelect, o
           aria-label={`Select ${conversation.buyer_identifier || 'conversation'}`}
         />
       </span>
-      <span className="ticket-username">
+      <span className={`ticket-username ${conversation.is_not_read ? 'ticket-not-read' : ''}`}>
+        {conversation.is_not_read ? <span className="unread-dot" aria-label="Not read" /> : null}
         <span className="conversation-avatar">{getInitials(conversation.buyer_identifier)}</span>
         <span>
           <strong>{conversation.buyer_identifier || 'Unknown buyer'}</strong>
@@ -254,10 +257,13 @@ function ConversationRow({ conversation, isSelected, isBulkSelected, onSelect, o
       <span className="ticket-message">
         <span className="conversation-preview">{getLastMessagePreview(conversation)}</span>
         <span className="conversation-tags">
+          <ConversationBadge tone={direction.toLowerCase()}>
+            Last: {direction}
+          </ConversationBadge>
           <ConversationBadge tone="category" color={categoryColor}>
             {conversation.category?.name || 'No category'}
           </ConversationBadge>
-          <ConversationBadge tone={conversation.status?.toLowerCase()}>{conversation.status}</ConversationBadge>
+          <ConversationBadge tone={displayStatus?.toLowerCase().replace(/\s+/g, '-')}>{displayStatus}</ConversationBadge>
         </span>
       </span>
       <span className="ticket-category">
@@ -1178,8 +1184,6 @@ function Dashboard({ currentUser, onLogout }) {
 
   const bulkSelectedCount = bulkSelectedIds.size
   const activeFilterCount = Object.entries(filters).filter(([key, value]) => key !== 'provider' && Boolean(value)).length
-  const openConversationCount = conversations.filter((conversation) => conversation.status === 'OPEN').length
-  const urgentConversationCount = conversations.filter((conversation) => deadlineTone(conversation.response_due_at) === 'danger').length
 
   function beginListResize(event) {
     event.preventDefault()
@@ -1430,25 +1434,6 @@ function Dashboard({ currentUser, onLogout }) {
                 <Icon name="activate" />
               </button>
             </div>
-          </div>
-
-          <div className="inbox-signal-strip" aria-label="Inbox summary">
-            <button className="inbox-signal-card" type="button" onClick={() => changeFilter('status', 'OPEN')}>
-              <span>Open</span>
-              <strong>{openConversationCount}</strong>
-            </button>
-            <button className="inbox-signal-card urgent" type="button" onClick={() => setIsFiltersOpen(true)}>
-              <span>Needs attention</span>
-              <strong>{urgentConversationCount}</strong>
-            </button>
-            <button className="inbox-signal-card" type="button" onClick={() => setIsFiltersOpen(true)}>
-              <span>Active filters</span>
-              <strong>{activeFilterCount}</strong>
-            </button>
-            <button className="inbox-signal-card selected" type="button" onClick={bulkSelectedCount ? clearBulkSelection : undefined}>
-              <span>Selected</span>
-              <strong>{bulkSelectedCount}</strong>
-            </button>
           </div>
 
           <form

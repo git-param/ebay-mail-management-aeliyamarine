@@ -11,3 +11,4 @@ sqlalchemy
 uvicorn
 python-multipart
 requests
+openpyxl

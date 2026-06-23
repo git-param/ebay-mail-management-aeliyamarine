@@ -26,7 +26,7 @@ const NAV_ITEMS = [
     label: 'Categories',
     path: '/categories',
     icon: 'tag',
-    roles: ['ADMIN', 'OPS_MANAGER'],
+    roles: ['ADMIN', 'OPS_MANAGER', 'AGENT'],
   },
   {
     label: 'Templates',
@@ -38,7 +38,7 @@ const NAV_ITEMS = [
     label: 'Analytics',
     path: '/analytics',
     icon: 'chart',
-    roles: ['ADMIN', 'OPS_MANAGER'],
+    roles: ['ADMIN', 'OPS_MANAGER', 'AGENT'],
   },
   {
     label: 'Audit Logs',

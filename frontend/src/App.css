@@ -3191,6 +3191,21 @@
   display: flex;
   align-items: center;
   gap: 12px;
+  position: relative;
+}
+
+.ticket-not-read {
+  padding-left: 14px;
+}
+
+.unread-dot {
+  position: absolute;
+  left: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #020617;
+  box-shadow: 0 0 0 2px rgba(2, 6, 23, 0.12);
 }
 
 .ticket-username > span:last-child,
@@ -3340,10 +3355,65 @@ html[data-theme='dark'] .detail-account-summary dt {
 .ebay-list-header h2,
 .oauth-helper-panel h2,
 .analytics-panel h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   margin: 0;
   color: #061426;
   font-size: 20px;
   line-height: 1.2;
+}
+
+.graph-info {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border: 1px solid #cbd5e1;
+  border-radius: 50%;
+  color: #334155;
+  font-size: 11px;
+  font-weight: 950;
+  cursor: help;
+}
+
+.graph-tooltip {
+  position: absolute;
+  z-index: 20;
+  top: 26px;
+  left: 50%;
+  width: min(280px, 78vw);
+  display: none;
+  transform: translateX(-50%);
+  padding: 12px;
+  border: 1px solid #dbe4f0;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.18);
+  color: #334155;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.graph-tooltip strong,
+.graph-tooltip span {
+  display: block;
+}
+
+.graph-tooltip strong {
+  margin-bottom: 6px;
+  color: #0f172a;
+  font-size: 13px;
+}
+
+.graph-tooltip span + span {
+  margin-top: 6px;
+}
+
+.graph-info:hover .graph-tooltip,
+.graph-info:focus .graph-tooltip {
+  display: block;
 }
 
 .ebay-list-header p,
@@ -3505,6 +3575,61 @@ html[data-theme='dark'] .detail-account-summary dt {
   margin-top: 16px;
 }
 
+.analytics-filter-bar {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(130px, 1fr)) auto;
+  align-items: end;
+  gap: 12px;
+  margin: 0 0 18px;
+  padding: 14px;
+  border: 1px solid #dbe4f0;
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+.analytics-filter-actions,
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.analytics-pie-panel {
+  display: grid;
+  gap: 16px;
+}
+
+.analytics-pie {
+  width: 154px;
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  justify-self: center;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at center, #ffffff 0 48%, transparent 49%),
+    conic-gradient(#16a34a 0 var(--pie-value), #ef4444 var(--pie-value) 100%);
+}
+
+.analytics-pie strong,
+.analytics-pie span {
+  grid-area: 1 / 1;
+}
+
+.analytics-pie strong {
+  margin-top: -18px;
+  color: #0f172a;
+  font-size: 24px;
+  font-weight: 950;
+}
+
+.analytics-pie span {
+  margin-top: 26px;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 850;
+}
+
 .analytics-list > div,
 .analytics-bar-row {
   display: grid;
@@ -3536,9 +3661,9 @@ html[data-theme='dark'] .detail-account-summary dt {
 
 .trend-chart {
   display: flex;
-  align-items: end;
+  align-items: stretch;
   gap: 8px;
-  height: 180px;
+  height: 210px;
   margin-top: 18px;
   padding: 16px;
   border-radius: 14px;
@@ -3547,11 +3672,36 @@ html[data-theme='dark'] .detail-account-summary dt {
     #f8fbff;
 }
 
-.trend-chart span {
+.trend-chart-item {
   flex: 1;
+  min-width: 18px;
+  display: grid;
+  grid-template-rows: 22px minmax(0, 1fr) 18px;
+  align-items: end;
+  gap: 6px;
+  text-align: center;
+}
+
+.trend-chart-item strong {
+  color: #1e293b;
+  font-size: 12px;
+  font-weight: 950;
+}
+
+.trend-chart-item span {
+  width: 100%;
   min-width: 10px;
   border-radius: 8px 8px 3px 3px;
   background: linear-gradient(180deg, #7c3aed, #38bdf8);
+}
+
+.trend-chart-item small {
+  overflow: hidden;
+  color: #64748b;
+  font-size: 10px;
+  font-weight: 850;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 html[data-theme='dark'] .sync-summary {
@@ -3568,6 +3718,7 @@ html[data-theme='dark'] .analytics-panel h2 {
 
 html[data-theme='dark'] .oauth-helper-panel,
 html[data-theme='dark'] .analytics-panel,
+html[data-theme='dark'] .analytics-filter-bar,
 html[data-theme='dark'] .oauth-step-card {
   border-color: #243247;
   background: #111827;
@@ -3581,6 +3732,36 @@ html[data-theme='dark'] .trend-chart {
 
 html[data-theme='dark'] .analytics-bar-track {
   background: #243247;
+}
+
+html[data-theme='dark'] .analytics-pie {
+  background:
+    radial-gradient(circle at center, #111827 0 48%, transparent 49%),
+    conic-gradient(#22c55e 0 var(--pie-value), #f87171 var(--pie-value) 100%);
+}
+
+html[data-theme='dark'] .analytics-pie strong {
+  color: #f8fafc;
+}
+
+html[data-theme='dark'] .graph-info {
+  border-color: #475569;
+  color: #cbd5e1;
+}
+
+html[data-theme='dark'] .graph-tooltip {
+  border-color: #334155;
+  background: #0f172a;
+  color: #cbd5e1;
+}
+
+html[data-theme='dark'] .graph-tooltip strong,
+html[data-theme='dark'] .trend-chart-item strong {
+  color: #f8fafc;
+}
+
+html[data-theme='dark'] .trend-chart-item small {
+  color: #94a3b8;
 }
 
 html[data-theme='dark'] .sync-summary strong {
@@ -3626,6 +3807,16 @@ html[data-theme='dark'] .sync-summary strong {
   .analytics-bar-row {
     grid-template-columns: 1fr;
     gap: 7px;
+  }
+
+  .analytics-filter-bar {
+    grid-template-columns: 1fr;
+  }
+
+  .analytics-filter-actions,
+  .header-actions {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .trend-chart {

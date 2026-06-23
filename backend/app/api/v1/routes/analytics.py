@@ -1,98 +1,135 @@
-from datetime import UTC, datetime, timedelta
+from datetime import date
+from pathlib import Path
+from uuid import UUID
 
-from fastapi import APIRouter, Depends
-from sqlalchemy import func, select
-from sqlalchemy.orm import Session, joinedload
+from fastapi import APIRouter, Depends, Query
+from fastapi.responses import FileResponse
+from sqlalchemy.orm import Session
 
-from app.api.dependencies import require_operations_manager_or_admin
+from app.api.dependencies import get_current_user
 from app.db.session import get_db
-from app.models.category import Category
-from app.models.conversation import Conversation, ConversationAssignment, ConversationStatus
-from app.models.user import User
+from app.models.conversation import ConversationStatus
 from app.schemas.analytics import AnalyticsDashboardResponse, MetricResponse
+from app.services.analytics_service import AnalyticsFilters, AnalyticsService
 
 
 router = APIRouter()
 
 
 def metric(label: str, value) -> MetricResponse:
+    """
+    Build a dashboard metric response object.
+
+    Purpose:
+    Keeps legacy metric construction available for callers that expect the
+    MetricResponse shape.
+
+    Parameters:
+    label: Human-readable metric label.
+    value: Metric value.
+
+    Returns:
+    MetricResponse with the supplied label and value.
+
+    Business Logic:
+    This helper performs no calculation; analytics calculations live in
+    AnalyticsService to avoid duplicated business logic.
+    """
     return MetricResponse(label=label, value=value)
 
 
 @router.get('/dashboard', response_model=AnalyticsDashboardResponse)
 def get_dashboard_analytics(
+    start_date: date | None = Query(default=None),
+    end_date: date | None = Query(default=None),
+    agent_id: UUID | None = Query(default=None),
+    category_id: UUID | None = Query(default=None),
+    status: ConversationStatus | None = Query(default=None),
     db: Session = Depends(get_db),
-    current_user=Depends(require_operations_manager_or_admin),
+    current_user=Depends(get_current_user),
 ) -> AnalyticsDashboardResponse:
-    now = datetime.now(UTC)
-    total = int(db.scalar(select(func.count(Conversation.id))) or 0)
-    open_count = int(db.scalar(select(func.count(Conversation.id)).where(Conversation.status == ConversationStatus.OPEN)) or 0)
-    pending_count = int(db.scalar(select(func.count(Conversation.id)).where(Conversation.status == ConversationStatus.PENDING)) or 0)
-    resolved_count = int(db.scalar(select(func.count(Conversation.id)).where(Conversation.status == ConversationStatus.RESOLVED)) or 0)
+    """
+    Return filtered analytics for admin, operations, or agent dashboards.
 
-    by_category = [
-        metric(label or 'Uncategorized', count)
-        for label, count in db.execute(
-            select(Category.name, func.count(Conversation.id))
-            .select_from(Conversation)
-            .outerjoin(Category, Category.id == Conversation.category_id)
-            .group_by(Category.name)
-            .order_by(func.count(Conversation.id).desc())
-        )
-    ]
-    by_status = [
-        metric(status.value if hasattr(status, 'value') else str(status), count)
-        for status, count in db.execute(select(Conversation.status, func.count(Conversation.id)).group_by(Conversation.status))
-    ]
-    current_assignment = (
-        select(ConversationAssignment.conversation_id, ConversationAssignment.assigned_to)
-        .where(ConversationAssignment.unassigned_at.is_(None))
-        .subquery()
+    Purpose:
+    Serves operational metrics, chart data, and summary tables for the
+    analytics screen.
+
+    Parameters:
+    start_date: Optional beginning of the reporting period.
+    end_date: Optional end of the reporting period.
+    agent_id: Optional current-assignee filter for admin/operations users.
+    category_id: Optional category filter.
+    status: Optional stored conversation status filter.
+    db: Request-scoped database session.
+    current_user: Authenticated user.
+
+    Returns:
+    AnalyticsDashboardResponse containing totals, distributions, SLA metrics,
+    trend data, and summary tables.
+
+    Business Logic:
+    Support agents are automatically scoped to their own conversations by
+    AnalyticsService. Admin and operations users can apply the full filter set.
+    """
+    return AnalyticsService(db).dashboard(
+        AnalyticsFilters(
+            start_date=start_date,
+            end_date=end_date,
+            agent_id=agent_id,
+            category_id=category_id,
+            status=status,
+        ),
+        current_user,
     )
-    by_assigned_user = [
-        metric(name or 'Unassigned', count)
-        for name, count in db.execute(
-            select(User.full_name, func.count(Conversation.id))
-            .select_from(Conversation)
-            .outerjoin(current_assignment, current_assignment.c.conversation_id == Conversation.id)
-            .outerjoin(User, User.id == current_assignment.c.assigned_to)
-            .group_by(User.full_name)
-            .order_by(func.count(Conversation.id).desc())
-        )
-    ]
-    daily_trends = [
-        metric(str(day), count)
-        for day, count in db.execute(
-            select(func.date(Conversation.created_at), func.count(Conversation.id))
-            .where(Conversation.created_at >= now - timedelta(days=30))
-            .group_by(func.date(Conversation.created_at))
-            .order_by(func.date(Conversation.created_at))
-        )
-    ]
-    active_conversations = list(
-        db.scalars(
-            select(Conversation)
-            .options(joinedload(Conversation.category))
-            .where(Conversation.status.in_([ConversationStatus.OPEN, ConversationStatus.PENDING]))
-        )
+
+
+@router.get('/dashboard/export')
+def export_dashboard_analytics(
+    start_date: date | None = Query(default=None),
+    end_date: date | None = Query(default=None),
+    agent_id: UUID | None = Query(default=None),
+    category_id: UUID | None = Query(default=None),
+    status: ConversationStatus | None = Query(default=None),
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+) -> FileResponse:
+    """
+    Export filtered analytics to an Excel workbook.
+
+    Purpose:
+    Generates a multi-sheet XLSX report containing raw data, agent summary,
+    category summary, SLA summary, and embedded charts.
+
+    Parameters:
+    start_date: Optional beginning of the reporting period.
+    end_date: Optional end of the reporting period.
+    agent_id: Optional current-assignee filter for admin/operations users.
+    category_id: Optional category filter.
+    status: Optional stored conversation status filter.
+    db: Request-scoped database session.
+    current_user: Authenticated user.
+
+    Returns:
+    FileResponse streaming the generated Excel workbook.
+
+    Business Logic:
+    Uses the same AnalyticsService calculations as the dashboard endpoint so
+    exported totals match the UI exactly.
+    """
+    path = AnalyticsService(db).export_workbook(
+        AnalyticsFilters(
+            start_date=start_date,
+            end_date=end_date,
+            agent_id=agent_id,
+            category_id=category_id,
+            status=status,
+        ),
+        current_user,
     )
-    sla_breaches = sum(
-        1
-        for conversation in active_conversations
-        if conversation.last_message_at
-        and conversation.last_message_at + timedelta(hours=conversation.category.sla_hours if conversation.category else 24) < now
-    )
-    return AnalyticsDashboardResponse(
-        role_scope='ADMIN' if current_user.role.name == 'Admin' else 'OPERATIONS',
-        totals=[
-            metric('Total messages', total),
-            metric('Open messages', open_count),
-            metric('Pending messages', pending_count),
-            metric('Resolved messages', resolved_count),
-        ],
-        by_category=by_category,
-        by_status=by_status,
-        by_assigned_user=by_assigned_user,
-        daily_trends=daily_trends,
-        sla_metrics=[metric('SLA breaches', sla_breaches)],
+    filename = f'conversation_analytics_{date.today().isoformat()}.xlsx'
+    return FileResponse(
+        Path(path),
+        filename=filename,
+        media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     )

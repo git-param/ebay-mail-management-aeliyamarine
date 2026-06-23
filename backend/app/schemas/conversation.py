@@ -27,6 +27,8 @@ class EbayAccountBriefResponse(BaseModel):
 
 
 class ConversationSummaryResponse(BaseModel):
+    """Conversation row returned by inbox list and detail endpoints."""
+
     id: UUID
     provider: str
     provider_conversation_id: str
@@ -40,6 +42,10 @@ class ConversationSummaryResponse(BaseModel):
     unread_count: int = 0
     message_count: int = 0
     last_message_preview: str | None = None
+    last_message_direction: str | None = None
+    calculated_status: str | None = None
+    is_not_read: bool = False
+    is_replied: bool = False
     response_due_at: datetime | None = None
     status: ConversationStatus
     category_id: UUID | None

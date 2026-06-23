@@ -151,7 +151,7 @@ class EbayReplyService:
             read_status=True,
             is_inbound=False,
             sent_at=datetime.now(UTC),
-            raw_payload={},
+            raw_payload={'actor_id': str(actor_id)},
         )
         self.db.add(message)
         self.db.flush()
@@ -237,7 +237,10 @@ class EbayReplyService:
         # --- 9. Finalise the message row with the real eBay message ID ---
         provider_message_id = self._provider_message_id(response.payload) or f'local-reply-{uuid4()}'
         message.provider_message_id = provider_message_id
-        message.raw_payload = response.payload if isinstance(response.payload, dict) else {'response': response.payload}
+        message.raw_payload = {
+            **(response.payload if isinstance(response.payload, dict) else {'response': response.payload}),
+            'actor_id': str(actor_id),
+        }
 
         conversation.last_message_at = message.sent_at
 
