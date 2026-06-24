@@ -10,7 +10,6 @@ import {
   fetchConversationNotes,
   sendConversationReply,
   sendConversationReplyWithAttachments,
-  selectConversationOrder,
   fetchConversations,
   updateConversationCategory,
   updateConversationStatus,
@@ -201,13 +200,6 @@ function isImageAttachment(attachment) {
   return type.includes('image') || /\.(png|jpe?g|gif|webp)(\?|$)/.test(url)
 }
 
-function moneyLabel(value, currency) {
-  if (value === null || value === undefined || value === '') {
-    return 'Not available'
-  }
-  return `${currency || ''} ${Number(value).toFixed(2)}`.trim()
-}
-
 function formatFileSize(bytes) {
   if (!Number.isFinite(bytes) || bytes <= 0) {
     return 'Unknown size'
@@ -255,10 +247,6 @@ function getVisiblePageItems(currentPage, pageCount) {
     items.push(pageNumber)
   })
   return items
-}
-
-function firstLineItem(order) {
-  return order?.line_items?.[0] || null
 }
 
 function EmptyPanel({ title, message }) {
@@ -1034,88 +1022,42 @@ function MetadataPanel({ detail, accounts }) {
   )
 }
 
-function OrderContextPanel({ detail, onSelectOrder }) {
-  const context = detail.order_context
-  const order = context?.selected_order || (context?.candidate_orders?.length === 1 ? context.candidate_orders[0] : null)
-  const candidates = context?.candidate_orders || []
-  const lineItem = firstLineItem(order)
-  const returnInfo = order?.returns?.[0]
-  const cancellationInfo = order?.cancellations?.[0]
-  const refundStatus = order?.refund_status || (order?.refunds?.length ? 'Refund recorded' : 'Not available')
+function ProductContextBanner({ detail }) {
+  const context = detail.product_context
+
+  function copyText(value) {
+    if (value && navigator.clipboard) {
+      navigator.clipboard.writeText(value)
+    }
+  }
 
   return (
-    <section className="detail-section order-context-panel">
-      <div className="section-heading">
-        <h3>Order Context</h3>
-        <ConversationBadge>{context?.linking?.strategy || 'NO_MATCH'}</ConversationBadge>
+    <section className="product-context-banner" aria-label="Product context">
+      <a className={`product-context-main ${context?.item_url ? '' : 'is-disabled'}`} href={context?.item_url || undefined} target="_blank" rel="noreferrer">
+        <div className="product-context-thumb" aria-hidden="true">
+          {context?.image_url ? <img src={context.image_url} alt="" /> : <Icon name="package" />}
+        </div>
+        <div className="product-context-body">
+          <strong>{context?.title || 'Product information is still being enriched.'}</strong>
+          <span>Item ID: {context?.reference_id || detail.reference_id || '--'}</span>
+          <span>Seller: {context?.seller_username || detail.seller_account?.ebay_username || '--'}</span>
+          <span>SKU: {context?.sku || '--'}</span>
+          <span>Order: {context?.order_id || '--'}</span>
+        </div>
+      </a>
+      <div className="product-context-actions">
+        <a className="secondary-button compact-action" href={context?.item_url || `https://www.ebay.com/itm/${detail.reference_id || ''}`} target="_blank" rel="noreferrer">
+          Open Listing
+        </a>
+        <button className="secondary-button compact-action" type="button" onClick={() => copyText(context?.reference_id || detail.reference_id)}>
+          Copy Item ID
+        </button>
+        {context?.sku ? (
+          <button className="secondary-button compact-action" type="button" onClick={() => copyText(context.sku)}>
+            Copy SKU
+          </button>
+        ) : null}
       </div>
-
-      {order ? (
-        <>
-          <dl className="metadata-list">
-            <div><dt>Order Number</dt><dd>{order.order_id}</dd></div>
-            <div><dt>Buyer Username</dt><dd>{order.buyer_username || detail.buyer_identifier || 'Not available'}</dd></div>
-            <div><dt>Item Title</dt><dd>{lineItem?.title || 'Not available'}</dd></div>
-            <div><dt>Item ID</dt><dd>{lineItem?.item_id || detail.reference_id || 'Not available'}</dd></div>
-            <div><dt>Quantity</dt><dd>{lineItem?.quantity ?? 'Not available'}</dd></div>
-            <div><dt>Price</dt><dd>{moneyLabel(lineItem?.price_value, lineItem?.price_currency)}</dd></div>
-            <div><dt>Order Status</dt><dd>{order.fulfillment_status || 'Not available'}</dd></div>
-            <div><dt>Payment Status</dt><dd>{order.payment_status || 'Not available'}</dd></div>
-            <div><dt>Cancellation Status</dt><dd>{order.cancel_status || cancellationInfo?.cancel_state || 'Not available'}</dd></div>
-            <div><dt>Return Status</dt><dd>{returnInfo?.return_status || 'Not available'}</dd></div>
-            <div><dt>Refund Status</dt><dd>{refundStatus}</dd></div>
-          </dl>
-          <a className="secondary-button compact-action detail-link-button" href={order.ebay_url} target="_blank" rel="noreferrer">
-            Open In eBay
-          </a>
-        </>
-      ) : (
-        <p className="detail-muted">No locally synced order context is linked to this conversation.</p>
-      )}
-
-      {cancellationInfo ? (
-        <div className="order-subpanel">
-          <h4>Cancellation Requested</h4>
-          <dl className="metadata-list">
-            <div><dt>Requested By</dt><dd>{cancellationInfo.requester || 'Not available'}</dd></div>
-            <div><dt>Reason</dt><dd>{cancellationInfo.cancel_reason || 'Not available'}</dd></div>
-            <div><dt>Created Date</dt><dd>{formatDate(cancellationInfo.created_date)}</dd></div>
-            <div><dt>Current Status</dt><dd>{cancellationInfo.cancel_state || 'Not available'}</dd></div>
-          </dl>
-          <a href={cancellationInfo.ebay_url} target="_blank" rel="noreferrer">Open In eBay</a>
-        </div>
-      ) : null}
-
-      {returnInfo ? (
-        <div className="order-subpanel">
-          <h4>Return</h4>
-          <dl className="metadata-list">
-            <div><dt>Status</dt><dd>{returnInfo.return_status || 'Not available'}</dd></div>
-            <div><dt>Reason</dt><dd>{returnInfo.return_reason || 'Not available'}</dd></div>
-            <div><dt>Created Date</dt><dd>{formatDate(returnInfo.created_date)}</dd></div>
-            <div><dt>Workflow State</dt><dd>{returnInfo.return_state || 'Not available'}</dd></div>
-          </dl>
-          <a href={returnInfo.ebay_url} target="_blank" rel="noreferrer">Open In eBay</a>
-        </div>
-      ) : null}
-
-      {candidates.length > 1 ? (
-        <label className="field compact-field">
-          <span>Order candidates</span>
-          <select defaultValue="" onChange={(event) => event.target.value && onSelectOrder(event.target.value)}>
-            <option value="">Select matching order</option>
-            {candidates.map((candidate) => (
-              <option value={candidate.id} key={candidate.id}>
-                {candidate.order_id} - {candidate.buyer_username || 'Unknown buyer'}
-              </option>
-            ))}
-          </select>
-        </label>
-      ) : null}
-
-      {context?.deep_links?.messages ? (
-        <a href={context.deep_links.messages} target="_blank" rel="noreferrer">Open eBay Messages</a>
-      ) : null}
     </section>
   )
 }
@@ -1133,11 +1075,9 @@ function DetailsPanel({
   onAddNote,
   onCategoryChange,
   onStatusChange,
-  onSelectOrder,
 }) {
   return (
     <aside className="side-detail-panel">
-      <OrderContextPanel detail={detail} onSelectOrder={onSelectOrder} />
       <AssignmentPanel detail={detail} users={users} usersError={usersError} isSubmitting={isSubmitting} onAssign={onAssign} />
       <CategoryPanel
         detail={detail}
@@ -1175,7 +1115,6 @@ function ConversationDetail({
   onCategoryChange,
   onStatusChange,
   onSendReply,
-  onSelectOrder,
 }) {
   if (isLoading) {
     return <EmptyPanel title="Loading conversation..." message="Fetching the latest conversation detail." />
@@ -1244,10 +1183,10 @@ function ConversationDetail({
           onAddNote={onAddNote}
           onCategoryChange={onCategoryChange}
           onStatusChange={onStatusChange}
-          onSelectOrder={onSelectOrder}
         />
       ) : (
         <div className="thread-panel">
+          <ProductContextBanner detail={detail} />
           <MessageThread messages={detail.messages || []} isSystemConversation={isEbaySystemConversation(detail)} />
           {isEbaySystemConversation(detail) ? (
             <ReplyUnavailableNotice />
@@ -1658,23 +1597,6 @@ function Dashboard({ currentUser, onLogout }) {
     }
   }
 
-  async function handleSelectOrder(orderRecordId) {
-    if (!selectedConversationId) {
-      return
-    }
-    setIsSubmitting(true)
-    setActionError('')
-    try {
-      const response = await selectConversationOrder(selectedConversationId, orderRecordId)
-      setDetail(response)
-      await loadConversations()
-    } catch (caughtError) {
-      setActionError(caughtError.message)
-    } finally {
-      setIsSubmitting(false)
-    }
-  }
-
   return (
     <AppLayout activePage="Inbox" currentUser={currentUser} onLogout={onLogout}>
       <main
@@ -1809,7 +1731,6 @@ function Dashboard({ currentUser, onLogout }) {
                   onCategoryChange={handleCategoryChange}
                   onStatusChange={handleStatusChange}
                   onSendReply={handleSendReply}
-                  onSelectOrder={handleSelectOrder}
                 />
               )}
             </section>
@@ -1831,7 +1752,6 @@ function Dashboard({ currentUser, onLogout }) {
                   onAddNote={handleAddNote}
                   onCategoryChange={handleCategoryChange}
                   onStatusChange={handleStatusChange}
-                  onSelectOrder={handleSelectOrder}
                 />
               </>
             ) : null}

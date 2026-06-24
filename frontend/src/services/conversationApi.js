@@ -41,6 +41,10 @@ export function fetchConversation(conversationId) {
   return request(`/conversations/${conversationId}`)
 }
 
+export function fetchConversationContext(conversationId) {
+  return request(`/conversations/${conversationId}/context`)
+}
+
 export function assignConversation(conversationId, assignedTo) {
   return request(`/conversations/${conversationId}/assign`, {
     method: 'POST',
@@ -101,9 +105,3 @@ export function sendConversationReplyWithAttachments(conversationId, body, files
   return apiFormRequest(`/conversations/${conversationId}/reply`, formData, getErrorMessage)
 }
 
-export function selectConversationOrder(conversationId, orderRecordId) {
-  return request(`/conversations/${conversationId}/order`, {
-    method: 'PATCH',
-    body: JSON.stringify({ order_record_id: orderRecordId || null }),
-  })
-}

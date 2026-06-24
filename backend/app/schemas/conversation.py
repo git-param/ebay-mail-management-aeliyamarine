@@ -109,13 +109,28 @@ class ConversationDetailResponse(ConversationSummaryResponse):
     messages: list[MessageResponse] = Field(default_factory=list)
     assignments: list['ConversationAssignmentResponse'] = Field(default_factory=list)
     notes: list['ConversationNoteResponse'] = Field(default_factory=list)
+    product_context: 'ConversationProductContextResponse | None' = None
     order_context: 'OrderContextResponse | None' = None
+
+
+class ConversationProductContextResponse(BaseModel):
+    reference_id: str = ''
+    title: str = ''
+    image_url: str = ''
+    seller_username: str = ''
+    item_url: str = ''
+    sku: str | None = None
+    order_id: str | None = None
+    enrichment_status: str = ''
 
 
 class OrderLineItemResponse(BaseModel):
     id: UUID
     item_id: str | None = None
+    listing_id: str | None = None
+    sku: str | None = None
     title: str | None = None
+    image_url: str | None = None
     quantity: int | None = None
     price_value: float | None = None
     price_currency: str | None = None
@@ -167,6 +182,15 @@ class OrderContextResponse(BaseModel):
     candidate_orders: list[OrderContextOrderResponse] = Field(default_factory=list)
     linking: OrderLinkingResponse
     deep_links: dict[str, str] = Field(default_factory=dict)
+
+
+class ConversationOrderContextCardResponse(BaseModel):
+    order_id: str = ''
+    sku: str = ''
+    title: str = ''
+    image_url: str = ''
+    buyer: str = ''
+    inventory_id: str = ''
 
 
 class SelectConversationOrderRequest(BaseModel):

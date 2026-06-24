@@ -14,6 +14,7 @@ from app.modules.integrations.ebay.oauth.token_service import EbayTokenService
 from app.modules.integrations.ebay.providers import EBAY_PROVIDER_NAME
 from app.modules.integrations.ebay.services.ebay_message_service import EbayMessageService
 from app.services.ebay_api_usage_service import EbayApiUsageService
+from app.services.conversation_product_context_service import ConversationProductContextService
 from app.services.order_context_service import OrderContextService
 from app.services.sync_log_service import SyncLogService
 
@@ -51,6 +52,7 @@ class EbaySyncService:
         self.sync_log_service = SyncLogService(db)
         self.api_usage_service = EbayApiUsageService(db)
         self.order_context_service = OrderContextService(db)
+        self.product_context_service = ConversationProductContextService(db)
 
     def sync_account(
         self,
@@ -166,8 +168,8 @@ class EbaySyncService:
                             conversation_detail=conversation_detail,
                             conversation_type=conversation_type,
                         )
-                        self._sync_direct_order_context(account, conversation_summary, conversation_detail)
                         self.db.flush()
+                        self.product_context_service.enrich_conversation(conversation)
                         messages_created, messages_updated = self.message_service.upsert_messages(
                             account=account,
                             conversation=conversation,
@@ -625,10 +627,29 @@ class EbaySyncService:
             'request_headers': detail_response.request_headers,
         }
 
-    def _sync_direct_order_context(self, account: EbayAccount, conversation_summary: dict, conversation_detail: dict) -> None:
-        order_id = self._find_nested_string([conversation_summary, conversation_detail], {'orderId', 'orderID', 'order_id'})
+    def _sync_direct_order_context(
+        self,
+        account: EbayAccount,
+        conversation,
+        conversation_summary: dict,
+        conversation_detail: dict,
+    ):
+        identifiers = self.order_context_service.extract_order_identifiers(
+            conversation=conversation,
+            extra_payloads=[conversation_summary, conversation_detail],
+        )
+        order_id = identifiers.get('order_id') or identifiers.get('legacy_order_id')
+        item_id = identifiers.get('item_id') or identifiers.get('listing_id')
+        logger.info(
+            'eBay conversation order identifiers conversation_id=%s order_id=%s item_id=%s external_message_id=%s transaction_id=%s',
+            conversation.id,
+            order_id or 'not found',
+            item_id or 'not found',
+            identifiers.get('external_message_id') or 'not found',
+            identifiers.get('transaction_id') or 'not found',
+        )
         if not order_id:
-            return
+            return None
 
         response = self._get_order_with_retry(account, order_id=order_id)
         if not response.ok or not isinstance(response.payload, dict):
@@ -638,8 +659,15 @@ class EbaySyncService:
                 order_id,
                 response.status_code,
             )
-            return
-        self.order_context_service.upsert_order_payload(account_id=account.id, payload=response.payload)
+            return None
+        order = self.order_context_service.upsert_order_payload(account_id=account.id, payload=response.payload)
+        logger.info(
+            'eBay order context linked successfully conversation_id=%s order_id=%s item_id=%s',
+            conversation.id,
+            order.order_id,
+            item_id or 'not found',
+        )
+        return order
 
     def _get_order_with_retry(self, account: EbayAccount, *, order_id: str):
         response = self.token_service.client.get_order_raw(account.access_token, order_id=order_id)

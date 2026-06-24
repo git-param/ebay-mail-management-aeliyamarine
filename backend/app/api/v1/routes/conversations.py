@@ -23,6 +23,7 @@ from app.schemas.conversation import (
     ConversationNoteCreateRequest,
     ConversationNoteResponse,
     ConversationPageResponse,
+    ConversationProductContextResponse,
     ConversationSummaryResponse,
     EbayAccountBriefResponse,
     MessageResponse,
@@ -38,6 +39,7 @@ from app.services.assignment_service import AssignmentService
 from app.services.audit_service import AuditService
 from app.services.category_assignment_service import CategoryAssignmentService
 from app.services.conversation_note_service import ConversationNoteService
+from app.services.conversation_product_context_service import ConversationProductContextService
 from app.services.conversation_service import ConversationService
 from app.services.message_service import MessageService
 from app.services.ebay_reply_service import EbayReplyService
@@ -132,6 +134,7 @@ def serialize_conversation(
     conversation: Conversation,
     current_assignee_id: UUID | None = None,
     seller_account: EbayAccount | None = None,
+    product_context: dict | None = None,
     order_context: dict | None = None,
 ) -> ConversationDetailResponse:
     """
@@ -186,6 +189,7 @@ def serialize_conversation(
         messages=[serialize_message(message) for message in conversation.messages],
         assignments=assignments,
         notes=[serialize_note(note) for note in conversation.notes],
+        product_context=product_context,
         order_context=serialize_order_context(order_context) if order_context else None,
     )
 
@@ -342,7 +346,10 @@ def serialize_order_context_order(order):
             {
                 'id': line_item.id,
                 'item_id': line_item.item_id,
+                'listing_id': line_item.listing_id,
+                'sku': line_item.sku,
                 'title': line_item.title,
+                'image_url': line_item.image_url,
                 'quantity': line_item.quantity,
                 'price_value': float(line_item.price_value) if line_item.price_value is not None else None,
                 'price_currency': line_item.price_currency,
@@ -818,8 +825,15 @@ def get_conversation(
     if is_not_read_conversation(conversation):
         conversation = service.mark_read(conversation)
     seller_account = db.get(EbayAccount, conversation.provider_account_id) if conversation.provider_account_id else None
-    order_context = OrderContextService(db).context_for_conversation(conversation)
-    return serialize_conversation(conversation, service.get_current_assignee_id(conversation.id), seller_account, order_context)
+    product_service = ConversationProductContextService(db)
+    product_context = product_service.serialize(product_service.context_for_conversation(conversation))
+    db.commit()
+    return serialize_conversation(
+        conversation,
+        service.get_current_assignee_id(conversation.id),
+        seller_account,
+        product_context,
+    )
 
 
 @router.patch('/{conversation_id}/order', response_model=ConversationDetailResponse)
@@ -837,8 +851,27 @@ def select_conversation_order(
     )
     conversation = OrderContextService(db).select_order(conversation, payload.order_record_id)
     seller_account = db.get(EbayAccount, conversation.provider_account_id) if conversation.provider_account_id else None
-    order_context = OrderContextService(db).context_for_conversation(conversation)
-    return serialize_conversation(conversation, service.get_current_assignee_id(conversation.id), seller_account, order_context)
+    product_service = ConversationProductContextService(db)
+    product_context = product_service.serialize(product_service.context_for_conversation(conversation))
+    db.commit()
+    return serialize_conversation(conversation, service.get_current_assignee_id(conversation.id), seller_account, product_context)
+
+
+@router.get('/{conversation_id}/context', response_model=ConversationProductContextResponse | None)
+def get_conversation_context(
+    conversation_id: UUID,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_conversation_access),
+) -> ConversationProductContextResponse | None:
+    conversation = ConversationService(db).get_conversation(
+        conversation_id,
+        visible_category_ids=visible_category_ids_for_user(db, current_user),
+        visibility_user_id=visibility_user_id_for_user(current_user),
+    )
+    product_service = ConversationProductContextService(db)
+    context = product_service.serialize(product_service.context_for_conversation(conversation))
+    db.commit()
+    return context
 
 
 @router.get('/{conversation_id}/messages', response_model=list[MessageResponse])
@@ -1007,8 +1040,10 @@ def update_conversation_status(
     )
     db.commit()
     seller_account = db.get(EbayAccount, conversation.provider_account_id) if conversation.provider_account_id else None
-    order_context = OrderContextService(db).context_for_conversation(conversation)
-    return serialize_conversation(conversation, service.get_current_assignee_id(conversation.id), seller_account, order_context)
+    product_service = ConversationProductContextService(db)
+    product_context = product_service.serialize(product_service.context_for_conversation(conversation))
+    db.commit()
+    return serialize_conversation(conversation, service.get_current_assignee_id(conversation.id), seller_account, product_context)
 
 
 @router.patch('/{conversation_id}/category', response_model=ConversationDetailResponse)
@@ -1041,8 +1076,10 @@ def update_conversation_category(
     )
     db.commit()
     seller_account = db.get(EbayAccount, conversation.provider_account_id) if conversation.provider_account_id else None
-    order_context = OrderContextService(db).context_for_conversation(conversation)
-    return serialize_conversation(conversation, service.get_current_assignee_id(conversation.id), seller_account, order_context)
+    product_service = ConversationProductContextService(db)
+    product_context = product_service.serialize(product_service.context_for_conversation(conversation))
+    db.commit()
+    return serialize_conversation(conversation, service.get_current_assignee_id(conversation.id), seller_account, product_context)
 
 
 @router.post('/bulk-update', response_model=BulkConversationUpdateResponse)
