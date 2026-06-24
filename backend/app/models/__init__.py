@@ -14,7 +14,7 @@ from app.models.conversation import (
 from app.models.ebay_account import EbayAccount
 from app.models.ebay_api_usage import EbayApiUsage
 from app.models.notification import Notification
-from app.models.order_context import EbayCancellation, EbayOrder, EbayOrderLineItem, EbayReturn
+from app.models.order_context import ConversationOrderContext, ConversationProductContext, EbayCancellation, EbayOrder, EbayOrderLineItem, EbayReturn
 from app.models.password_reset_token import PasswordResetToken
 from app.models.permission import Permission, RolePermission
 from app.models.refresh_token import RefreshToken
@@ -33,6 +33,8 @@ __all__ = [
     'ConversationNote',
     'ConversationParticipant',
     'ConversationStatusHistory',
+    'ConversationOrderContext',
+    'ConversationProductContext',
     'EbayAccount',
     'EbayApiUsage',
     'EbayCancellation',

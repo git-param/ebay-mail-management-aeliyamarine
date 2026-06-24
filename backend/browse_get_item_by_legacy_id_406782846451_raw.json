@@ -1,0 +1,888 @@
+{
+  "status_code": 200,
+  "url": "https://api.ebay.com/buy/browse/v1/item/get_item_by_legacy_id?legacy_item_id=406782846451",
+  "json": {
+    "itemId": "v1|406782846451|0",
+    "sellerItemRevision": "17",
+    "title": "VOLCANO R4440V200-A Frame Detector Relay/Flame Monitor",
+    "shortDescription": "VOLCANO R4440V200-A. VOLCANO CO., LTD. Global Supplier of Rare, Obsolete & Hard-to-Find Industrial Spares. They are used strictly for identification purposes only. REF NO: 116482. MADE IN JAPAN. D/C 1120NF.",
+    "price": {
+      "value": "693.15",
+      "currency": "USD",
+      "convertedFromValue": "608.99",
+      "convertedFromCurrency": "EUR"
+    },
+    "categoryPath": "Business & Industrie|Automation, Antriebe & Motoren|Sonstiges Automations Equipment",
+    "categoryIdPath": "12576|42892|36802",
+    "condition": "New – Open box",
+    "conditionId": "1500",
+    "conditionDescription": "The item is in excellent, new condition with no functional defects.",
+    "itemLocation": {
+      "city": "BHAVNAGAR",
+      "stateOrProvince": "GUJARAT",
+      "postalCode": "******",
+      "country": "IN"
+    },
+    "image": {
+      "imageUrl": "https://i.ebayimg.com/images/g/z5MAAOSwoYFlsh-4/s-l1600.jpg",
+      "width": 1600,
+      "height": 1200
+    },
+    "additionalImages": [
+      {
+        "imageUrl": "https://i.ebayimg.com/images/g/3b4AAOSwBOJlsh-4/s-l1600.jpg",
+        "width": 1600,
+        "height": 1200
+      },
+      {
+        "imageUrl": "https://i.ebayimg.com/images/g/Dj8AAOSwq-Nlsh-4/s-l1600.jpg",
+        "width": 1600,
+        "height": 1200
+      },
+      {
+        "imageUrl": "https://i.ebayimg.com/images/g/6uQAAOSw209lsh-4/s-l1600.jpg",
+        "width": 1600,
+        "height": 1200
+      },
+      {
+        "imageUrl": "https://i.ebayimg.com/images/g/iA0AAOSwpA9lsh-5/s-l1600.jpg",
+        "width": 1600,
+        "height": 1200
+      },
+      {
+        "imageUrl": "https://i.ebayimg.com/images/g/FfYAAOSwXp1lsh-4/s-l1600.jpg",
+        "width": 1600,
+        "height": 1200
+      },
+      {
+        "imageUrl": "https://i.ebayimg.com/images/g/DzQAAOSw5T1lsh-5/s-l1600.jpg",
+        "width": 1600,
+        "height": 1200
+      },
+      {
+        "imageUrl": "https://i.ebayimg.com/images/g/w98AAOSwPcxlsh-5/s-l1600.jpg",
+        "width": 1600,
+        "height": 1200
+      },
+      {
+        "imageUrl": "https://i.ebayimg.com/images/g/2FkAAOSwElBlsh-5/s-l1600.jpg",
+        "width": 1600,
+        "height": 1200
+      },
+      {
+        "imageUrl": "https://i.ebayimg.com/images/g/ugwAAOSwNMtlsh-3/s-l1600.jpg",
+        "width": 1600,
+        "height": 1200
+      },
+      {
+        "imageUrl": "https://i.ebayimg.com/images/g/eiEAAOSwOZ9lsh-4/s-l1600.jpg",
+        "width": 1600,
+        "height": 1200
+      },
+      {
+        "imageUrl": "https://i.ebayimg.com/images/g/GtIAAOSwxSNlsh-4/s-l1600.jpg",
+        "width": 1600,
+        "height": 1200
+      }
+    ],
+    "brand": "Volcano",
+    "itemCreationDate": "2026-03-19T11:28:45.000Z",
+    "seller": {
+      "username": "aeliya-trade110",
+      "feedbackPercentage": "100.0",
+      "feedbackScore": 15
+    },
+    "mpn": "R4440V200-A",
+    "estimatedAvailabilities": [
+      {
+        "deliveryOptions": [
+          "SHIP_TO_HOME"
+        ],
+        "estimatedAvailabilityStatus": "IN_STOCK",
+        "estimatedAvailableQuantity": 1,
+        "estimatedSoldQuantity": 0,
+        "estimatedRemainingQuantity": 1
+      }
+    ],
+    "shippingOptions": [
+      {
+        "shippingServiceCode": "Economy Int'l Versand",
+        "type": "Economy Shipping",
+        "shippingCost": {
+          "value": "0.00",
+          "currency": "USD",
+          "convertedFromValue": "0.00",
+          "convertedFromCurrency": "EUR"
+        },
+        "quantityUsedForEstimate": 1,
+        "minEstimatedDeliveryDate": "2026-07-07T10:00:00.000Z",
+        "maxEstimatedDeliveryDate": "2026-08-07T10:00:00.000Z",
+        "additionalShippingCostPerUnit": {
+          "value": "0.00",
+          "currency": "USD",
+          "convertedFromValue": "0.00",
+          "convertedFromCurrency": "EUR"
+        },
+        "shippingCostType": "FIXED"
+      }
+    ],
+    "shipToLocations": {
+      "regionIncluded": [
+        {
+          "regionName": "Worldwide",
+          "regionType": "WORLDWIDE",
+          "regionId": "WORLDWIDE"
+        }
+      ],
+      "regionExcluded": [
+        {
+          "regionName": "Afghanistan",
+          "regionType": "COUNTRY",
+          "regionId": "AF"
+        },
+        {
+          "regionName": "Bangladesh",
+          "regionType": "COUNTRY",
+          "regionId": "BD"
+        },
+        {
+          "regionName": "Pakistan",
+          "regionType": "COUNTRY",
+          "regionId": "PK"
+        },
+        {
+          "regionName": "Israel",
+          "regionType": "COUNTRY",
+          "regionId": "IL"
+        },
+        {
+          "regionName": "Ukraine",
+          "regionType": "COUNTRY",
+          "regionId": "UA"
+        },
+        {
+          "regionName": "Russian Federation",
+          "regionType": "COUNTRY",
+          "regionId": "RU"
+        }
+      ]
+    },
+    "returnTerms": {
+      "returnsAccepted": true,
+      "returnShippingCostPayer": "SELLER",
+      "returnPeriod": {
+        "value": 30,
+        "unit": "CALENDAR_DAY"
+      },
+      "returnInstructions": "Verbrauchern steht das nachfolgende Widerrufsrecht zu:\nWiderrufsrecht\nSie haben das Recht, binnen vierzehn Tagen ohne Angabe von Gründen diesen Vertrag zu widerrufen.\nDie Widerrufsfrist beträgt vierzehn Tage ab dem Tag, an dem Sie oder ein von Ihnen benannter Dritter, der nicht der Beförderer ist, die Waren in Besitz genommen haben bzw. hat.\nUm Ihr Widerrufsrecht auszuüben, müssen Sie uns Shahnawaz Merchant, Plot 1149  Vinay Villa, 364001 Bhavnagar  Gujarat, India, ebay3@aeliyamarinetech.com mittels einer eindeutigen Erklärung (z. B. ein mit der Post versandter Brief, Telefax oder E-Mail) über Ihren Entschluss, diesen Vertrag zu widerrufen, informieren.\nSie können dafür das beigefügte Muster-Widerrufsformular verwenden, das jedoch nicht vorgeschrieben ist.\nZur Wahrung der Widerrufsfrist reicht es aus, dass Sie die Mitteilung über die Ausübung des Widerrufsrechts vor Ablauf der Widerrufsfrist absenden.\nFolgen des Widerrufs\nWenn Sie diesen Vertrag widerrufen, haben wir Ihnen alle Zahlungen, die wir von Ihnen erhalten haben, einschließlich der Lieferkosten (mit Ausnahme der zusätzlichen Kosten, die sich daraus ergeben, dass Sie eine andere Art der Lieferung als die von uns angebotene, günstigste Standardlieferung gewählt haben), unverzüglich und spätestens binnen vierzehn Tagen ab dem Tag zurückzuzahlen, an dem die Mitteilung über Ihren Widerruf dieses Vertrags bei uns eingegangen ist. Für diese Rückzahlung verwenden wir dasselbe Zahlungsmittel, das Sie bei der ursprünglichen Transaktion eingesetzt haben, es sei denn, mit Ihnen wurde ausdrücklich etwas anderes vereinbart; in keinem Fall werden Ihnen wegen dieser Rückzahlung Entgelte berechnet.\nWir können die Rückzahlung verweigern, bis wir die Waren wieder zurückerhalten haben oder bis Sie den Nachweis erbracht haben, dass Sie die Waren zurückgesandt haben, je nachdem, welches der frühere Zeitpunkt ist.\nSie haben die Waren unverzüglich und in jedem Fall spätestens binnen vierzehn Tagen ab dem Tag, an dem Sie uns über den Widerruf dieses Vertrags unterrichten, an uns zurückzusenden oder zu übergeben. Die Frist ist gewahrt, wenn Sie die Waren vor Ablauf der Frist von vierzehn Tagen absenden.\nSie müssen für einen etwaigen Wertverlust der Waren nur aufkommen, wenn dieser Wertverlust auf einen zur Prüfung der Beschaffenheit, Eigenschaften und Funktionsweise der Waren nicht notwendigen Umgang mit ihnen zurückzuführen ist.\nMuster-Widerrufsformular\n(Wenn Sie den Vertrag widerrufen wollen, dann füllen Sie bitte dieses Formular aus und senden Sie es zurück.)\n– An Shahnawaz Merchant, Plot 1149  Vinay Villa, 364001 Bhavnagar  Gujarat, India, ebay3@aeliyamarinetech.com:\n– Hiermit widerrufe(n) ich/wir (*) den von mir/uns (*) abgeschlossenen Vertrag über den Kauf der folgenden Waren (*)/die Erbringung der folgenden Dienstleistung (*)\n– Bestellt am (*)/erhalten am (*)   – Name des/der Verbraucher(s)   – Anschrift des/der Verbraucher(s)   – Unterschrift des/der Verbraucher(s) (nur bei Mitteilung auf Papier)   – Datum\n(*) Unzutreffendes streichen."
+    },
+    "taxes": [
+      {
+        "taxJurisdiction": {
+          "region": {
+            "regionName": "Alabama",
+            "regionType": "STATE_OR_PROVINCE"
+          },
+          "taxJurisdictionId": "AL"
+        },
+        "taxType": "STATE_SALES_TAX",
+        "shippingAndHandlingTaxed": true,
+        "includedInPrice": false,
+        "ebayCollectAndRemitTax": true
+      },
+      {
+        "taxJurisdiction": {
+          "region": {
+            "regionName": "Alaska",
+            "regionType": "STATE_OR_PROVINCE"
+          },
+          "taxJurisdictionId": "AK"
+        },
+        "taxType": "STATE_SALES_TAX",
+        "shippingAndHandlingTaxed": true,
+        "includedInPrice": false,
+        "ebayCollectAndRemitTax": true
+      },
+      {
+        "taxJurisdiction": {
+          "region": {
+            "regionName": "Arizona",
+            "regionType": "STATE_OR_PROVINCE"
+          },
+          "taxJurisdictionId": "AZ"
+        },
+        "taxType": "STATE_SALES_TAX",
+        "shippingAndHandlingTaxed": true,
+        "includedInPrice": false,
+        "ebayCollectAndRemitTax": true
+      },
+      {
+        "taxJurisdiction": {
+          "region": {
+            "regionName": "Arkansas",
+            "regionType": "STATE_OR_PROVINCE"
+          },
+          "taxJurisdictionId": "AR"
+        },
+        "taxType": "STATE_SALES_TAX",
+        "shippingAndHandlingTaxed": true,
+        "includedInPrice": false,
+        "ebayCollectAndRemitTax": true
+      },
+      {
+        "taxJurisdiction": {
+          "region": {
+            "regionName": "California",
+            "regionType": "STATE_OR_PROVINCE"
+          },
+          "taxJurisdictionId": "CA"
+        },
+        "taxType": "STATE_SALES_TAX",
+        "shippingAndHandlingTaxed": true,
+        "includedInPrice": false,
+        "ebayCollectAndRemitTax": true
+      },
+      {
+        "taxJurisdiction": {
+          "region": {
+            "regionName": "Colorado",
+            "regionType": "STATE_OR_PROVINCE"
+          },
+          "taxJurisdictionId": "CO"
+        },
+        "taxType": "STATE_SALES_TAX",
+        "shippingAndHandlingTaxed": true,
+        "includedInPrice": false,
+        "ebayCollectAndRemitTax": true
+      },
+      {
+        "taxJurisdiction": {
+          "region": {
+            "regionName": "Connecticut",
+            "regionType": "STATE_OR_PROVINCE"
+          },
+          "taxJurisdictionId": "CT"
+        },
+        "taxType": "STATE_SALES_TAX",
+        "shippingAndHandlingTaxed": true,
+        "includedInPrice": false,
+        "ebayCollectAndRemitTax": true
+      },
+      {
+        "taxJurisdiction": {
+          "region": {
+            "regionName": "District of Columbia",
+            "regionType": "STATE_OR_PROVINCE"
+          },
+          "taxJurisdictionId": "DC"
+        },
+        "taxType": "STATE_SALES_TAX",
+        "shippingAndHandlingTaxed": true,
+        "includedInPrice": false,
+        "ebayCollectAndRemitTax": true
+      },
+      {
+        "taxJurisdiction": {
+          "region": {
+            "regionName": "Florida",
+            "regionType": "STATE_OR_PROVINCE"
+          },
+          "taxJurisdictionId": "FL"
+        },
+        "taxType": "STATE_SALES_TAX",
+        "shippingAndHandlingTaxed": true,
+        "includedInPrice": false,
+        "ebayCollectAndRemitTax": true
+      },
+      {
+        "taxJurisdiction": {
+          "region": {
+            "regionName": "Georgia",
+            "regionType": "STATE_OR_PROVINCE"
+          },
+          "taxJurisdictionId": "GA"
+        },
+        "taxType": "STATE_SALES_TAX",
+        "shippingAndHandlingTaxed": true,
+        "includedInPrice": false,
+        "ebayCollectAndRemitTax": true
+      },
+      {
+        "taxJurisdiction": {
+          "region": {
+            "regionName": "Hawaii",
+            "regionType": "STATE_OR_PROVINCE"
+          },
+          "taxJurisdictionId": "HI"
+        },
+        "taxType": "STATE_SALES_TAX",
+        "shippingAndHandlingTaxed": true,
+        "includedInPrice": false,
+        "ebayCollectAndRemitTax": true
+      },
+      {
+        "taxJurisdiction": {
+          "region": {
+            "regionName": "Idaho",
+            "regionType": "STATE_OR_PROVINCE"
+          },
+          "taxJurisdictionId": "ID"
+        },
+        "taxType": "STATE_SALES_TAX",
+        "shippingAndHandlingTaxed": true,
+        "includedInPrice": false,
+        "ebayCollectAndRemitTax": true
+      },
+      {
+        "taxJurisdiction": {
+          "region": {
+            "regionName": "Illinois",
+            "regionType": "STATE_OR_PROVINCE"
+          },
+          "taxJurisdictionId": "IL"
+        },
+        "taxType": "STATE_SALES_TAX",
+        "shippingAndHandlingTaxed": true,
+        "includedInPrice": false,
+        "ebayCollectAndRemitTax": true
+      },
+      {
+        "taxJurisdiction": {
+          "region": {
+            "regionName": "Indiana",
+            "regionType": "STATE_OR_PROVINCE"
+          },
+          "taxJurisdictionId": "IN"
+        },
+        "taxType": "STATE_SALES_TAX",
+        "shippingAndHandlingTaxed": true,
+        "includedInPrice": false,
+        "ebayCollectAndRemitTax": true
+      },
+      {
+        "taxJurisdiction": {
+          "region": {
+            "regionName": "Iowa",
+            "regionType": "STATE_OR_PROVINCE"
+          },
+          "taxJurisdictionId": "IA"
+        },
+        "taxType": "STATE_SALES_TAX",
+        "shippingAndHandlingTaxed": true,
+        "includedInPrice": false,
+        "ebayCollectAndRemitTax": true
+      },
+      {
+        "taxJurisdiction": {
+          "region": {
+            "regionName": "Kansas",
+            "regionType": "STATE_OR_PROVINCE"
+          },
+          "taxJurisdictionId": "KS"
+        },
+        "taxType": "STATE_SALES_TAX",
+        "shippingAndHandlingTaxed": true,
+        "includedInPrice": false,
+        "ebayCollectAndRemitTax": true
+      },
+      {
+        "taxJurisdiction": {
+          "region": {
+            "regionName": "Kentucky",
+            "regionType": "STATE_OR_PROVINCE"
+          },
+          "taxJurisdictionId": "KY"
+        },
+        "taxType": "STATE_SALES_TAX",
+        "shippingAndHandlingTaxed": true,
+        "includedInPrice": false,
+        "ebayCollectAndRemitTax": true
+      },
+      {
+        "taxJurisdiction": {
+          "region": {
+            "regionName": "Louisiana",
+            "regionType": "STATE_OR_PROVINCE"
+          },
+          "taxJurisdictionId": "LA"
+        },
+        "taxType": "STATE_SALES_TAX",
+        "shippingAndHandlingTaxed": true,
+        "includedInPrice": false,
+        "ebayCollectAndRemitTax": true
+      },
+      {
+        "taxJurisdiction": {
+          "region": {
+            "regionName": "Maine",
+            "regionType": "STATE_OR_PROVINCE"
+          },
+          "taxJurisdictionId": "ME"
+        },
+        "taxType": "STATE_SALES_TAX",
+        "shippingAndHandlingTaxed": true,
+        "includedInPrice": false,
+        "ebayCollectAndRemitTax": true
+      },
+      {
+        "taxJurisdiction": {
+          "region": {
+            "regionName": "Maryland",
+            "regionType": "STATE_OR_PROVINCE"
+          },
+          "taxJurisdictionId": "MD"
+        },
+        "taxType": "STATE_SALES_TAX",
+        "shippingAndHandlingTaxed": true,
+        "includedInPrice": false,
+        "ebayCollectAndRemitTax": true
+      },
+      {
+        "taxJurisdiction": {
+          "region": {
+            "regionName": "Massachusetts",
+            "regionType": "STATE_OR_PROVINCE"
+          },
+          "taxJurisdictionId": "MA"
+        },
+        "taxType": "STATE_SALES_TAX",
+        "shippingAndHandlingTaxed": true,
+        "includedInPrice": false,
+        "ebayCollectAndRemitTax": true
+      },
+      {
+        "taxJurisdiction": {
+          "region": {
+            "regionName": "Michigan",
+            "regionType": "STATE_OR_PROVINCE"
+          },
+          "taxJurisdictionId": "MI"
+        },
+        "taxType": "STATE_SALES_TAX",
+        "shippingAndHandlingTaxed": true,
+        "includedInPrice": false,
+        "ebayCollectAndRemitTax": true
+      },
+      {
+        "taxJurisdiction": {
+          "region": {
+            "regionName": "Minnesota",
+            "regionType": "STATE_OR_PROVINCE"
+          },
+          "taxJurisdictionId": "MN"
+        },
+        "taxType": "STATE_SALES_TAX",
+        "shippingAndHandlingTaxed": true,
+        "includedInPrice": false,
+        "ebayCollectAndRemitTax": true
+      },
+      {
+        "taxJurisdiction": {
+          "region": {
+            "regionName": "Mississippi",
+            "regionType": "STATE_OR_PROVINCE"
+          },
+          "taxJurisdictionId": "MS"
+        },
+        "taxType": "STATE_SALES_TAX",
+        "shippingAndHandlingTaxed": true,
+        "includedInPrice": false,
+        "ebayCollectAndRemitTax": true
+      },
+      {
+        "taxJurisdiction": {
+          "region": {
+            "regionName": "Nebraska",
+            "regionType": "STATE_OR_PROVINCE"
+          },
+          "taxJurisdictionId": "NE"
+        },
+        "taxType": "STATE_SALES_TAX",
+        "shippingAndHandlingTaxed": true,
+        "includedInPrice": false,
+        "ebayCollectAndRemitTax": true
+      },
+      {
+        "taxJurisdiction": {
+          "region": {
+            "regionName": "Nevada",
+            "regionType": "STATE_OR_PROVINCE"
+          },
+          "taxJurisdictionId": "NV"
+        },
+        "taxType": "STATE_SALES_TAX",
+        "shippingAndHandlingTaxed": true,
+        "includedInPrice": false,
+        "ebayCollectAndRemitTax": true
+      },
+      {
+        "taxJurisdiction": {
+          "region": {
+            "regionName": "New Jersey",
+            "regionType": "STATE_OR_PROVINCE"
+          },
+          "taxJurisdictionId": "NJ"
+        },
+        "taxType": "STATE_SALES_TAX",
+        "shippingAndHandlingTaxed": true,
+        "includedInPrice": false,
+        "ebayCollectAndRemitTax": true
+      },
+      {
+        "taxJurisdiction": {
+          "region": {
+            "regionName": "New Mexico",
+            "regionType": "STATE_OR_PROVINCE"
+          },
+          "taxJurisdictionId": "NM"
+        },
+        "taxType": "STATE_SALES_TAX",
+        "shippingAndHandlingTaxed": true,
+        "includedInPrice": false,
+        "ebayCollectAndRemitTax": true
+      },
+      {
+        "taxJurisdiction": {
+          "region": {
+            "regionName": "New York",
+            "regionType": "STATE_OR_PROVINCE"
+          },
+          "taxJurisdictionId": "NY"
+        },
+        "taxType": "STATE_SALES_TAX",
+        "shippingAndHandlingTaxed": true,
+        "includedInPrice": false,
+        "ebayCollectAndRemitTax": true
+      },
+      {
+        "taxJurisdiction": {
+          "region": {
+            "regionName": "North Carolina",
+            "regionType": "STATE_OR_PROVINCE"
+          },
+          "taxJurisdictionId": "NC"
+        },
+        "taxType": "STATE_SALES_TAX",
+        "shippingAndHandlingTaxed": true,
+        "includedInPrice": false,
+        "ebayCollectAndRemitTax": true
+      },
+      {
+        "taxJurisdiction": {
+          "region": {
+            "regionName": "North Dakota",
+            "regionType": "STATE_OR_PROVINCE"
+          },
+          "taxJurisdictionId": "ND"
+        },
+        "taxType": "STATE_SALES_TAX",
+        "shippingAndHandlingTaxed": true,
+        "includedInPrice": false,
+        "ebayCollectAndRemitTax": true
+      },
+      {
+        "taxJurisdiction": {
+          "region": {
+            "regionName": "Ohio",
+            "regionType": "STATE_OR_PROVINCE"
+          },
+          "taxJurisdictionId": "OH"
+        },
+        "taxType": "STATE_SALES_TAX",
+        "shippingAndHandlingTaxed": true,
+        "includedInPrice": false,
+        "ebayCollectAndRemitTax": true
+      },
+      {
+        "taxJurisdiction": {
+          "region": {
+            "regionName": "Oklahoma",
+            "regionType": "STATE_OR_PROVINCE"
+          },
+          "taxJurisdictionId": "OK"
+        },
+        "taxType": "STATE_SALES_TAX",
+        "shippingAndHandlingTaxed": true,
+        "includedInPrice": false,
+        "ebayCollectAndRemitTax": true
+      },
+      {
+        "taxJurisdiction": {
+          "region": {
+            "regionName": "Pennsylvania",
+            "regionType": "STATE_OR_PROVINCE"
+          },
+          "taxJurisdictionId": "PA"
+        },
+        "taxType": "STATE_SALES_TAX",
+        "shippingAndHandlingTaxed": true,
+        "includedInPrice": false,
+        "ebayCollectAndRemitTax": true
+      },
+      {
+        "taxJurisdiction": {
+          "region": {
+            "regionName": "Puerto Rico",
+            "regionType": "STATE_OR_PROVINCE"
+          },
+          "taxJurisdictionId": "PR"
+        },
+        "taxType": "STATE_SALES_TAX",
+        "shippingAndHandlingTaxed": true,
+        "includedInPrice": false,
+        "ebayCollectAndRemitTax": true
+      },
+      {
+        "taxJurisdiction": {
+          "region": {
+            "regionName": "Rhode Island",
+            "regionType": "STATE_OR_PROVINCE"
+          },
+          "taxJurisdictionId": "RI"
+        },
+        "taxType": "STATE_SALES_TAX",
+        "shippingAndHandlingTaxed": true,
+        "includedInPrice": false,
+        "ebayCollectAndRemitTax": true
+      },
+      {
+        "taxJurisdiction": {
+          "region": {
+            "regionName": "South Carolina",
+            "regionType": "STATE_OR_PROVINCE"
+          },
+          "taxJurisdictionId": "SC"
+        },
+        "taxType": "STATE_SALES_TAX",
+        "shippingAndHandlingTaxed": true,
+        "includedInPrice": false,
+        "ebayCollectAndRemitTax": true
+      },
+      {
+        "taxJurisdiction": {
+          "region": {
+            "regionName": "South Dakota",
+            "regionType": "STATE_OR_PROVINCE"
+          },
+          "taxJurisdictionId": "SD"
+        },
+        "taxType": "STATE_SALES_TAX",
+        "shippingAndHandlingTaxed": true,
+        "includedInPrice": false,
+        "ebayCollectAndRemitTax": true
+      },
+      {
+        "taxJurisdiction": {
+          "region": {
+            "regionName": "Tennessee",
+            "regionType": "STATE_OR_PROVINCE"
+          },
+          "taxJurisdictionId": "TN"
+        },
+        "taxType": "STATE_SALES_TAX",
+        "shippingAndHandlingTaxed": true,
+        "includedInPrice": false,
+        "ebayCollectAndRemitTax": true
+      },
+      {
+        "taxJurisdiction": {
+          "region": {
+            "regionName": "Texas",
+            "regionType": "STATE_OR_PROVINCE"
+          },
+          "taxJurisdictionId": "TX"
+        },
+        "taxType": "STATE_SALES_TAX",
+        "shippingAndHandlingTaxed": true,
+        "includedInPrice": false,
+        "ebayCollectAndRemitTax": true
+      },
+      {
+        "taxJurisdiction": {
+          "region": {
+            "regionName": "Utah",
+            "regionType": "STATE_OR_PROVINCE"
+          },
+          "taxJurisdictionId": "UT"
+        },
+        "taxType": "STATE_SALES_TAX",
+        "shippingAndHandlingTaxed": true,
+        "includedInPrice": false,
+        "ebayCollectAndRemitTax": true
+      },
+      {
+        "taxJurisdiction": {
+          "region": {
+            "regionName": "Vermont",
+            "regionType": "STATE_OR_PROVINCE"
+          },
+          "taxJurisdictionId": "VT"
+        },
+        "taxType": "STATE_SALES_TAX",
+        "shippingAndHandlingTaxed": true,
+        "includedInPrice": false,
+        "ebayCollectAndRemitTax": true
+      },
+      {
+        "taxJurisdiction": {
+          "region": {
+            "regionName": "Virginia",
+            "regionType": "STATE_OR_PROVINCE"
+          },
+          "taxJurisdictionId": "VA"
+        },
+        "taxType": "STATE_SALES_TAX",
+        "shippingAndHandlingTaxed": true,
+        "includedInPrice": false,
+        "ebayCollectAndRemitTax": true
+      },
+      {
+        "taxJurisdiction": {
+          "region": {
+            "regionName": "Washington",
+            "regionType": "STATE_OR_PROVINCE"
+          },
+          "taxJurisdictionId": "WA"
+        },
+        "taxType": "STATE_SALES_TAX",
+        "shippingAndHandlingTaxed": true,
+        "includedInPrice": false,
+        "ebayCollectAndRemitTax": true
+      },
+      {
+        "taxJurisdiction": {
+          "region": {
+            "regionName": "West Virginia",
+            "regionType": "STATE_OR_PROVINCE"
+          },
+          "taxJurisdictionId": "WV"
+        },
+        "taxType": "STATE_SALES_TAX",
+        "shippingAndHandlingTaxed": true,
+        "includedInPrice": false,
+        "ebayCollectAndRemitTax": true
+      },
+      {
+        "taxJurisdiction": {
+          "region": {
+            "regionName": "Wisconsin",
+            "regionType": "STATE_OR_PROVINCE"
+          },
+          "taxJurisdictionId": "WI"
+        },
+        "taxType": "STATE_SALES_TAX",
+        "shippingAndHandlingTaxed": true,
+        "includedInPrice": false,
+        "ebayCollectAndRemitTax": true
+      },
+      {
+        "taxJurisdiction": {
+          "region": {
+            "regionName": "Wyoming",
+            "regionType": "STATE_OR_PROVINCE"
+          },
+          "taxJurisdictionId": "WY"
+        },
+        "taxType": "STATE_SALES_TAX",
+        "shippingAndHandlingTaxed": true,
+        "includedInPrice": false,
+        "ebayCollectAndRemitTax": true
+      }
+    ],
+    "localizedAspects": [
+      {
+        "type": "STRING",
+        "name": "Brand",
+        "value": "Volcano"
+      },
+      {
+        "type": "STRING",
+        "name": "Type",
+        "value": "Flame Monitor"
+      },
+      {
+        "type": "STRING",
+        "name": "weight",
+        "value": "350 GM"
+      },
+      {
+        "type": "STRING",
+        "name": "MPN",
+        "value": "R4440V200-A"
+      },
+      {
+        "type": "STRING",
+        "name": "Power Supply:",
+        "value": "AC200/220V 50-60Hz"
+      },
+      {
+        "type": "STRING",
+        "name": "Maßeinheit",
+        "value": "Einheit"
+      },
+      {
+        "type": "STRING",
+        "name": "Country of Origin",
+        "value": "Japan"
+      },
+      {
+        "type": "STRING",
+        "name": "Anzahl der Einheiten",
+        "value": "1"
+      }
+    ],
+    "topRatedBuyingExperience": false,
+    "buyingOptions": [
+      "FIXED_PRICE",
+      "BEST_OFFER"
+    ],
+    "itemWebUrl": "https://www.ebay.com/itm/406782846451?amdata=enc%3AAQALAAAAoGfYFPkwiKCW4ZNSs2u11xB5Wd6Og%2Fl85zFcWiyAwJ6lFNZRsB7xqc5nnL4pY4ABZKxakeXTB4EkeB07bD4Z%2BKUABAvkr4w9k%2ByiNV%2FaGeHGO72QBgt0HvulpHwGxsOX1fZJex6vzNYz1SvDZ08Ur0jmW3Nj0nr26BHnCKXP%2BzpTbfcU0FKKjI%2B1G2hUOHQIU4b9pZoUoZ8eaCaAekGiJ5E%3D",
+    "description": "\n\n<div style=\"max-width: 800px; margin: 0px auto; padding: 20px; border: 1px solid rgb(204, 204, 204); border-radius: 8px; background-color: rgb(255, 255, 255);\">\n\n    <h1 style=\"font-family: Arial, Helvetica, sans-serif; text-align: center; color: rgb(42, 93, 176);\">&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;Aeliya Marine Tech Pvt. Ltd\n    </h1>\n\n    <div style=\"font-family: Arial, Helvetica, sans-serif; text-align: center; font-size: 1.1em; color: rgb(255, 153, 0); margin-bottom: 15px;\">\n        Global Supplier of Rare, Obsolete &amp; Hard-to-Find Industrial Spares\n    </div>\n\n    <p style=\"font-family: Arial, Helvetica, sans-serif; text-align: center; font-weight: bold;\">\n        Top Rated Plus Seller | Worldwide Shipping | 30 Days Return\n    </p>\n\n    <hr style=\"font-family: Arial, Helvetica, sans-serif; border-top: 2px solid rgb(221, 221, 221);\">\n\n    <!-- ITEM DESCRIPTION -->\n    <h2 style=\"font-family: Arial, Helvetica, sans-serif; font-size: 1.3em;\">\n        Item Description\n    </h2>\n<div style=\"font-family: Arial, Helvetica, sans-serif; font-size: 1.05em; line-height: 1.5;\"><div style=\"font-size: medium; line-height: 1.5;\"><font size=\"4\"><strong>VOLCANO R4440V200-A Frame Detector Relay/Flame Monitor</strong></font></div><div style=\"font-size: medium; line-height: 1.5;\"><font size=\"4\"><strong>VOLCANO R4440V200-A</strong></font></div><div style=\"font-size: medium; line-height: 1.5;\"><font size=\"4\"><strong>VOLCANO CO., LTD</strong></font></div><div style=\"font-size: medium; line-height: 1.5;\"><font size=\"4\"><strong>N.Y.CO.,LTD.</strong></font></div><div style=\"font-size: medium; line-height: 1.5;\"><font size=\"4\"><strong>QUEEN PHENIX HYUNDAI 98</strong></font></div><div style=\"font-size: medium; line-height: 1.5;\"><font size=\"4\"><strong>FRAME DETECTOR RELAY</strong></font></div><div style=\"font-size: medium; line-height: 1.5;\"><font size=\"4\"><strong>FLAME MONITOR</strong></font></div><div style=\"font-size: medium; line-height: 1.5;\"><font size=\"4\"><strong>AFD MODEL</strong></font></div><div style=\"font-size: medium; line-height: 1.5;\"><font size=\"4\"><strong>AC200/220V 50-60HZ</strong></font></div><div style=\"font-size: medium; line-height: 1.5;\"><font size=\"4\"><strong>R4440V200-A</strong></font></div><div style=\"font-size: medium; line-height: 1.5;\"><font size=\"4\"><strong>D/C 1120NF</strong></font></div><div style=\"font-size: medium; line-height: 1.5;\"><font size=\"4\"><strong>*40V200 A 115026*</strong></font></div><div style=\"font-size: medium; line-height: 1.5;\"><font size=\"4\"><strong>14407753&nbsp; 0008-0</strong></font></div><div style=\"font-size: medium; line-height: 1.5;\"><font size=\"4\"><strong>MADE IN JAPAN</strong></font></div><div style=\"font-size: medium; line-height: 1.5;\"><font size=\"4\"><strong>WEIGHT: 350 GM</strong></font></div><div style=\"font-size: medium; line-height: 1.5;\"><font size=\"4\"><strong>REF NO: 116482</strong></font></div></div>\n    <!-- IMPORTANT NOTICE -->\n    <div style=\"font-family: Arial, Helvetica, sans-serif; margin: 10px 0px; padding: 10px; background-color: rgb(255, 243, 205); border: 1px solid rgb(240, 195, 109); font-weight: bold; text-align: center;\">\n        Buyer is responsible for any customs duties, VAT, or import charges.\n        Tracking details will be shared once the item is dispatched.\n    </div>\n\n    <!-- EXISTING ITEM DESCRIPTION -->\n    <div style=\"font-family: Arial, Helvetica, sans-serif; font-size: 1.05em; line-height: 1.5;\">\n        <!-- PASTE CURRENT ITEM DESCRIPTION HERE (AS-IS) -->\n        <!-- THIS CAN INCLUDE OCR TEXT FROM IMAGES -->\n    </div>\n\n    <hr style=\"font-family: Arial, Helvetica, sans-serif; border-top: 2px solid rgb(221, 221, 221);\">\n\n    <!-- POSITIONING -->\n    <h3 style=\"font-family: Arial, Helvetica, sans-serif; color: rgb(42, 93, 176);\">\n        About This Item\n    </h3>\n\n    <p style=\"font-family: Arial, Helvetica, sans-serif;\">\n        This item is part of our specialized inventory of\n        <strong>industrial, marine, automation, and control system spares</strong>\n        sourced from decommissioned plants, vessels, and legacy systems.\n    </p>\n\n    <p style=\"font-family: Arial, Helvetica, sans-serif;\">\n        Some items we list are <strong>obsolete, discontinued, or rarely available</strong>.\n        Quantities are usually limited to one unit, and restocking may not be possible.\n    </p>\n\n    <p style=\"font-family: Arial, Helvetica, sans-serif;\">\n        Our buyers typically include <strong>maintenance teams, procurement departments,\n        service engineers, and resellers</strong> supporting critical systems.\n    </p><p style=\"font-family: Arial, Helvetica, sans-serif;\"><span data-teams=\"true\"><strong>Trademark/Brand Disclaimer:</strong><br>\nAll product names, trademarks, brands, and logos mentioned in this listing are the property of their respective owners. They are used strictly for identification purposes only. We are an independent reseller of surplus and pre-owned industrial equipment and are not an authorized distributor, dealer, or affiliate of the manufacturer unless explicitly stated.</span></p>\n\n    <hr style=\"font-family: Arial, Helvetica, sans-serif; border-top: 2px solid rgb(221, 221, 221);\">\n\n    <!-- CONDITION -->\n    <h3 style=\"font-family: Arial, Helvetica, sans-serif; color: rgb(42, 93, 176);\">\n        Condition &amp; Important Notes\n    </h3>\n\n    <ul>\n        <li style=\"font-family: Arial, Helvetica, sans-serif;\">Item condition is based on available information.</li>\n        <li style=\"font-family: Arial, Helvetica, sans-serif;\">Items are sourced from surplus, ship recycling, or industrial decommissioning.</li><li><font face=\"Arial, Helvetica, sans-serif\">Batteries or cells are not included unless explicitly stated in the item description, due to international shipping regulations.</font></li>\n        <li style=\"font-family: Arial, Helvetica, sans-serif;\">Manufacturer labels, packaging, or markings may vary.</li>\n        <li style=\"font-family: Arial, Helvetica, sans-serif;\">Please review all details carefully before purchase.</li>\n    </ul>\n\n    <hr style=\"font-family: Arial, Helvetica, sans-serif; border-top: 2px solid rgb(221, 221, 221);\">\n\n    <!-- B2B SIGNAL -->\n    <h3 style=\"font-family: Arial, Helvetica, sans-serif; color: rgb(42, 93, 176);\">\n        For Business &amp; Bulk Buyers\n    </h3>\n\n    <p style=\"font-family: Arial, Helvetica, sans-serif;\">\n        We support <strong>ongoing and urgent sourcing requirements</strong>\n        for hard-to-find and legacy spares.\n    </p>\n\n    <p style=\"font-family: Arial, Helvetica, sans-serif;\">\n        All communication and quotations are handled strictly through\n        eBay messages, in line with platform policies.\n    </p>\n\n    <hr style=\"font-family: Arial, Helvetica, sans-serif; border-top: 2px solid rgb(221, 221, 221);\">\n\n    <!-- SHIPPING -->\n    <h3 style=\"font-family: Arial, Helvetica, sans-serif; color: rgb(74, 74, 74);\">\n        Shipping Policy\n    </h3>\n\n    <p style=\"font-family: Arial, Helvetica, sans-serif;\">\n        Orders are dispatched within <strong>1 business day</strong>\n        (heavy items within 3 business days).\n        Worldwide shipping via DHL or FedEx on DAP basis.\n    </p>\n\n    <p style=\"font-family: Arial, Helvetica, sans-serif;\">\n        Buyer is responsible for customs duties, VAT, or import charges.\n        Tracking details are shared after dispatch.\n    </p>\n\n    <hr style=\"font-family: Arial, Helvetica, sans-serif; border-top: 2px solid rgb(221, 221, 221);\">\n\n    <!-- RETURNS -->\n    <h3 style=\"font-family: Arial, Helvetica, sans-serif; color: rgb(74, 74, 74);\">\n        Return Policy\n    </h3>\n\n    <ul style=\"font-family: Arial, Helvetica, sans-serif;\">\n        <li>30-day return window from delivery date.</li>\n        <li>Item must be returned in original condition.</li>\n        <li>Refunds are processed after inspection.</li>\n        <li>Please contact us via eBay messages before opening a return.</li>\n    </ul>\n\n    <hr style=\"font-family: Arial, Helvetica, sans-serif; border-top: 2px solid rgb(221, 221, 221);\">\n\n    <!-- ABOUT -->\n    <h3 style=\"font-family: Arial, Helvetica, sans-serif; color: rgb(74, 74, 74);\">\n        About Us\n    </h3>\n\n    <p style=\"font-family: Arial, Helvetica, sans-serif;\">\n        Aeliya Marine Tech Pvt. Ltd has been supplying industrial and marine equipment\n        since 2015, serving customers worldwide with a focus on\n        <strong>rare availability, fast response, and reliable shipping</strong>.\n    </p>\n\n    <hr style=\"font-family: Arial, Helvetica, sans-serif; border-top: 2px solid rgb(221, 221, 221);\">\n\n    <p style=\"font-family: Arial, Helvetica, sans-serif; text-align: center; font-weight: bold;\">\n        Thank you for choosing Aeliya Marine Tech Pvt. Ltd&nbsp; &nbsp; &nbsp;</p></div>",
+    "paymentMethods": [
+      {
+        "paymentMethodType": "WALLET",
+        "paymentMethodBrands": [
+          {
+            "paymentMethodBrandType": "PAYPAL"
+          },
+          {
+            "paymentMethodBrandType": "APPLE_PAY"
+          },
+          {
+            "paymentMethodBrandType": "GOOGLE_PAY"
+          }
+        ]
+      },
+      {
+        "paymentMethodType": "CREDIT_CARD",
+        "paymentMethodBrands": [
+          {
+            "paymentMethodBrandType": "VISA"
+          },
+          {
+            "paymentMethodBrandType": "MASTERCARD"
+          },
+          {
+            "paymentMethodBrandType": "DINERS_CLUB"
+          }
+        ]
+      }
+    ],
+    "immediatePay": false,
+    "unitPricingMeasure": "Einheit",
+    "unitPrice": {
+      "value": "693.15",
+      "currency": "USD",
+      "convertedFromValue": "608.99",
+      "convertedFromCurrency": "EUR"
+    },
+    "enabledForGuestCheckout": true,
+    "eligibleForInlineCheckout": true,
+    "lotSize": 0,
+    "legacyItemId": "406782846451",
+    "priorityListing": true,
+    "adultOnly": false,
+    "categoryId": "36802",
+    "listingMarketplaceId": "EBAY_DE"
+  }
+}

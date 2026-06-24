@@ -66,6 +66,18 @@ class Conversation(Base):
 
     category = relationship('Category')
     linked_order = relationship('EbayOrder')
+    order_mapping = relationship(
+        'ConversationOrderContext',
+        back_populates='conversation',
+        cascade='all, delete-orphan',
+        uselist=False,
+    )
+    product_context = relationship(
+        'ConversationProductContext',
+        back_populates='conversation',
+        cascade='all, delete-orphan',
+        uselist=False,
+    )
     messages = relationship(
         'Message',
         back_populates='conversation',
