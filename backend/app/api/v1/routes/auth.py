@@ -97,9 +97,8 @@ def logout(
     response: Response,
     refresh_token_cookie: str | None = Cookie(default=None, alias=REFRESH_COOKIE_NAME),
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),
 ) -> MessageResponse:
-    AuthService(db).logout(refresh_token=payload.refresh_token or refresh_token_cookie, user_id=current_user.id)
+    AuthService(db).logout(refresh_token=payload.refresh_token or refresh_token_cookie)
     clear_auth_cookies(response)
     return MessageResponse(message=AuthMessages.LOGOUT_SUCCESS)
 

@@ -27,6 +27,7 @@ class ConversationService:
         search: str | None = None,
         status: ConversationStatus | None = None,
         provider: str | None = None,
+        conversation_type: str | None = None,
         provider_account_id: UUID | None = None,
         assigned_user_id: UUID | None = None,
         category_id: UUID | None = None,
@@ -40,6 +41,7 @@ class ConversationService:
             search=search,
             status=status,
             provider=provider,
+            conversation_type=conversation_type,
             provider_account_id=provider_account_id,
             assigned_user_id=assigned_user_id,
             category_id=category_id,
@@ -53,6 +55,7 @@ class ConversationService:
         search: str | None = None,
         status: ConversationStatus | None = None,
         provider: str | None = None,
+        conversation_type: str | None = None,
         provider_account_id: UUID | None = None,
         assigned_user_id: UUID | None = None,
         category_id: UUID | None = None,
@@ -64,6 +67,7 @@ class ConversationService:
             search=search,
             status=status,
             provider=provider,
+            conversation_type=conversation_type,
             provider_account_id=provider_account_id,
             assigned_user_id=assigned_user_id,
             category_id=category_id,
@@ -86,6 +90,16 @@ class ConversationService:
         if not conversation:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Conversation not found')
         return conversation
+
+    def mark_read(self, conversation: Conversation) -> Conversation:
+        """Clear local unread indicators after an agent opens a conversation."""
+        conversation.unread_count = 0
+        for message in conversation.messages:
+            if message.is_inbound and message.read_status is not True:
+                message.read_status = True
+        self.db.commit()
+        self.db.refresh(conversation)
+        return self.get_conversation(conversation.id)
 
     def get_current_assignee_id(self, conversation_id: UUID) -> UUID | None:
         assignment = self.assignment_repository.get_current_assignment(conversation_id)

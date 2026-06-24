@@ -1,4 +1,4 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api/v1'
+import { apiRequest } from './http'
 
 function getErrorMessage(status, data) {
   if (data.detail || data.message) {
@@ -17,22 +17,7 @@ function getErrorMessage(status, data) {
 }
 
 async function request(path, options = {}) {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    credentials: 'include',
-    headers: {
-      'Content-Type': 'application/json',
-      ...options.headers,
-    },
-    ...options,
-  })
-
-  const data = await response.json().catch(() => ({}))
-
-  if (!response.ok) {
-    throw new Error(getErrorMessage(response.status, data))
-  }
-
-  return data
+  return apiRequest(path, options, getErrorMessage)
 }
 
 export function fetchUsers() {

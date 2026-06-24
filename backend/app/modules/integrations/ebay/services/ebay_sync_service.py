@@ -21,6 +21,7 @@ from app.services.sync_log_service import SyncLogService
 logger = logging.getLogger(__name__)
 
 EBAY_MESSAGE_SYNC_TYPE = 'EBAY_MESSAGE_SYNC'
+EBAY_CONVERSATION_TYPES = ('FROM_MEMBERS', 'FROM_EBAY')
 
 
 @dataclass(frozen=True)
@@ -68,7 +69,7 @@ class EbaySyncService:
             provider_account_id=account.id,
             sync_type=EBAY_MESSAGE_SYNC_TYPE,
             sync_metadata={
-                'conversation_type': 'FROM_MEMBERS',
+                'conversation_types': list(EBAY_CONVERSATION_TYPES),
                 'max_conversations': max_conversations,
                 'updated_since': updated_since.isoformat() if updated_since else None,
                 'incremental': updated_since is not None,
@@ -111,23 +112,24 @@ class EbaySyncService:
                     offset=0,
                 )
                 logger.info(
-                    'eBay conversation detail diagnostic account_id=%s conversation_id=%s conversation_type=%s request_url=%s conversation_summary=%s',
+                    'eBay conversation detail diagnostic account_id=%s conversation_id=%s conversation_type=%s request_url=%s request_headers=%s conversation_summary=%s',
                     account.id,
                     conversation_id,
                     conversation_type,
                     detail_response.request_url,
+                    detail_response.request_headers,
                     conversation_summary,
                 )
                 if conversation_id == '112795218410' or not detail_response.ok:
                     logger.warning(
-                        'eBay conversation detail response diagnostic account_id=%s conversation_id=%s conversation_type=%s status_code=%s request_url=%s response_body=%s conversation_summary=%s',
+                        'eBay conversation detail response diagnostic account_id=%s status_code=%s response_body=%s diagnostic=%s',
                         account.id,
-                        conversation_id,
-                        conversation_type,
                         detail_response.status_code,
-                        detail_response.request_url,
                         detail_response.payload,
-                        conversation_summary,
+                        self._conversation_detail_diagnostic(
+                            conversation_summary=conversation_summary,
+                            detail_response=detail_response,
+                        ),
                     )
                 if not detail_response.ok or not isinstance(detail_response.payload, dict):
                     failed_conversation = self._failed_conversation(
@@ -137,6 +139,10 @@ class EbaySyncService:
                         error_message='eBay conversation detail request failed',
                     )
                     failed_conversation['response_body'] = detail_response.payload
+                    failed_conversation['diagnostic'] = self._conversation_detail_diagnostic(
+                        conversation_summary=conversation_summary,
+                        detail_response=detail_response,
+                    )
                     failed_conversations.append(failed_conversation)
                     counters['conversations_failed'] += 1
                     logger.warning(
@@ -309,67 +315,72 @@ class EbaySyncService:
         updated_since: datetime | None = None,
     ):
         limit = 50
-        offset = 0
         yielded_count = 0
-        while True:
-            response = self._get_conversations_with_retry(
-                account,
-                conversation_type='FROM_MEMBERS',
-                limit=limit,
-                offset=offset,
-            )
-            if not response.ok or not isinstance(response.payload, dict):
-                logger.warning(
-                    'eBay conversation list request failed account_id=%s offset=%s status_code=%s response_body=%s',
-                    account.id,
-                    offset,
-                    response.status_code,
-                    response.payload,
+        for conversation_type in EBAY_CONVERSATION_TYPES:
+            offset = 0
+            while True:
+                response = self._get_conversations_with_retry(
+                    account,
+                    conversation_type=conversation_type,
+                    limit=limit,
+                    offset=offset,
                 )
-                raise HTTPException(
-                    status_code=status.HTTP_502_BAD_GATEWAY,
-                    detail='eBay conversation list request failed',
-                )
+                if not response.ok or not isinstance(response.payload, dict):
+                    logger.warning(
+                        'eBay conversation list request failed account_id=%s conversation_type=%s offset=%s status_code=%s response_body=%s',
+                        account.id,
+                        conversation_type,
+                        offset,
+                        response.status_code,
+                        response.payload,
+                    )
+                    raise HTTPException(
+                        status_code=status.HTTP_502_BAD_GATEWAY,
+                        detail='eBay conversation list request failed',
+                    )
 
-            payload = response.payload
-            total = payload.get('total')
-            page_total = total if isinstance(total, int) else None
-            conversations = payload.get('conversations') if isinstance(payload.get('conversations'), list) else []
-            logger.info(
-                'eBay conversation list page fetched offset=%s limit=%s page_count=%s total_available=%s max_conversations=%s',
-                offset,
-                limit,
-                len(conversations),
-                page_total,
-                max_conversations,
-            )
-            yielded_from_page = 0
-            older_or_equal_count = 0
-            for conversation in conversations:
-                if isinstance(conversation, dict):
-                    last_activity_at = self._conversation_activity_at(conversation)
-                    if updated_since and last_activity_at and last_activity_at <= updated_since:
-                        older_or_equal_count += 1
-                        continue
-                    yield conversation, page_total
-                    yielded_from_page += 1
-                    yielded_count += 1
-                    if max_conversations and yielded_count >= max_conversations:
-                        return
-
-            if not conversations:
-                break
-            if updated_since and yielded_from_page == 0 and older_or_equal_count == len(conversations):
+                payload = response.payload
+                total = payload.get('total')
+                page_total = total if isinstance(total, int) else None
+                conversations = payload.get('conversations') if isinstance(payload.get('conversations'), list) else []
                 logger.info(
-                    'Stopping incremental eBay sync account_id=%s offset=%s because page is older than last_sync_at=%s',
-                    account.id,
+                    'eBay conversation list page fetched type=%s offset=%s limit=%s page_count=%s total_available=%s max_conversations=%s',
+                    conversation_type,
                     offset,
-                    updated_since.isoformat(),
+                    limit,
+                    len(conversations),
+                    page_total,
+                    max_conversations,
                 )
-                break
-            offset += limit
-            if page_total is not None and offset >= page_total:
-                break
+                yielded_from_page = 0
+                older_or_equal_count = 0
+                for conversation in conversations:
+                    if isinstance(conversation, dict):
+                        conversation.setdefault('conversationType', conversation_type)
+                        last_activity_at = self._conversation_activity_at(conversation)
+                        if updated_since and last_activity_at and last_activity_at <= updated_since:
+                            older_or_equal_count += 1
+                            continue
+                        yield conversation, page_total
+                        yielded_from_page += 1
+                        yielded_count += 1
+                        if max_conversations and yielded_count >= max_conversations:
+                            return
+
+                if not conversations:
+                    break
+                if updated_since and yielded_from_page == 0 and older_or_equal_count == len(conversations):
+                    logger.info(
+                        'Stopping incremental eBay sync account_id=%s conversation_type=%s offset=%s because page is older than last_sync_at=%s',
+                        account.id,
+                        conversation_type,
+                        offset,
+                        updated_since.isoformat(),
+                    )
+                    break
+                offset += limit
+                if page_total is not None and offset >= page_total:
+                    break
 
     def _get_syncable_account(self, account_id: UUID) -> EbayAccount:
         account = self.db.get(EbayAccount, account_id)
@@ -555,7 +566,7 @@ class EbaySyncService:
             counters['conversations_processed'],
         )
         return {
-            'conversation_type': 'FROM_MEMBERS',
+            'conversation_types': list(EBAY_CONVERSATION_TYPES),
             'max_conversations': max_conversations,
             'updated_since': updated_since.isoformat() if updated_since else None,
             'incremental': updated_since is not None,
@@ -595,6 +606,23 @@ class EbaySyncService:
             'conversation_type': conversation_type,
             'status_code': status_code,
             'error_message': error_message,
+        }
+
+    def _conversation_detail_diagnostic(self, *, conversation_summary: dict, detail_response) -> dict:
+        latest_message = conversation_summary.get('latestMessage')
+        latest_message = latest_message if isinstance(latest_message, dict) else {}
+        return {
+            'conversation_id': conversation_summary.get('conversationId'),
+            'conversation_type': conversation_summary.get('conversationType'),
+            'conversation_status': conversation_summary.get('conversationStatus'),
+            'conversation_title': conversation_summary.get('conversationTitle'),
+            'reference_type': conversation_summary.get('referenceType'),
+            'reference_id': conversation_summary.get('referenceId'),
+            'sender_username': latest_message.get('senderUsername') or conversation_summary.get('senderUsername'),
+            'recipient_username': latest_message.get('recipientUsername') or conversation_summary.get('recipientUsername'),
+            'created_date': latest_message.get('createdDate') or conversation_summary.get('createdDate'),
+            'request_url': detail_response.request_url,
+            'request_headers': detail_response.request_headers,
         }
 
     def _sync_direct_order_context(self, account: EbayAccount, conversation_summary: dict, conversation_detail: dict) -> None:

@@ -1,4 +1,4 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api/v1'
+import { apiFetch } from './http'
 
 function buildQuery(params = {}) {
   const query = new URLSearchParams()
@@ -12,9 +12,7 @@ function buildQuery(params = {}) {
 }
 
 export async function fetchAuditLogs(params) {
-  const response = await fetch(`${API_BASE_URL}/audit-logs${buildQuery(params)}`, {
-    credentials: 'include',
-  })
+  const response = await apiFetch(`/audit-logs${buildQuery(params)}`)
   const data = await response.json().catch(() => ({}))
   if (!response.ok) {
     throw new Error(data.detail || data.message || 'Unable to load audit logs')
@@ -23,9 +21,7 @@ export async function fetchAuditLogs(params) {
 }
 
 export async function exportAuditLogs() {
-  const response = await fetch(`${API_BASE_URL}/audit-logs/export`, {
-    credentials: 'include',
-  })
+  const response = await apiFetch('/audit-logs/export')
   if (!response.ok) {
     throw new Error('Unable to export audit logs')
   }
