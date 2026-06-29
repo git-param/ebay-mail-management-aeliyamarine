@@ -91,16 +91,17 @@ export function validateConversationReply(conversationId, body) {
   })
 }
 
-export function sendConversationReply(conversationId, body) {
+export function sendConversationReply(conversationId, body, messageTypeId) {
   return request(`/conversations/${conversationId}/reply`, {
     method: 'POST',
-    body: JSON.stringify({ body }),
+    body: JSON.stringify({ body, message_type_id: messageTypeId }),
   })
 }
 
-export function sendConversationReplyWithAttachments(conversationId, body, files = []) {
+export function sendConversationReplyWithAttachments(conversationId, body, files = [], messageTypeId) {
   const formData = new FormData()
   formData.set('body', body)
+  formData.set('message_type_id', messageTypeId)
   files.forEach((file) => formData.append('attachments', file))
   return apiFormRequest(`/conversations/${conversationId}/reply`, formData, getErrorMessage)
 }

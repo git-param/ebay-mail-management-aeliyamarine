@@ -11,6 +11,8 @@ import LoginSuccess from './pages/login_success'
 import ResetPassword from './pages/reset_password'
 import Templates from './pages/templates'
 import Users from './pages/users'
+import MessageTypes from './pages/message_types'
+import MessageReports from './pages/message_reports'
 import { logoutUser } from './services/authApi'
 import { clearStoredSession } from './services/http'
 import { normalizeRole } from './utils/roles'
@@ -74,6 +76,12 @@ const PROTECTED_ROUTES = [
     path: '/analytics',
     component: Analytics,
     allowedRoles: ['ADMIN', 'OPS_MANAGER', 'AGENT'],
+  },
+  {
+    path: '/message-types', component: MessageTypes, allowedRoles: ['ADMIN'],
+  },
+  {
+    path: '/message-reports', component: MessageReports, allowedRoles: ['ADMIN', 'OPS_MANAGER'],
   },
   {
     path: '/audit-logs',

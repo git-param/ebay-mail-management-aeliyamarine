@@ -1,7 +1,7 @@
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
-from sqlalchemy import and_, or_, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.models.order_context import ConversationOrderContext, EbayCancellation, EbayOrder, EbayOrderLineItem, EbayReturn
@@ -41,7 +41,7 @@ class OrderContextRepository:
         statement = self._order_statement().where(EbayOrder.account_id == account_id)
         filters = []
         if buyer_username:
-            filters.append(EbayOrder.buyer_username == buyer_username)
+            filters.append(func.lower(EbayOrder.buyer_username) == buyer_username.casefold())
         if item_id:
             filters.append(
                 EbayOrder.id.in_(
@@ -56,7 +56,7 @@ class OrderContextRepository:
         else:
             statement = statement.where(or_(*filters))
 
-        return list(self.db.scalars(statement.order_by(EbayOrder.created_at.desc()).limit(limit)))
+        return list(self.db.scalars(statement.order_by(EbayOrder.external_created_at.desc().nullslast(), EbayOrder.order_id.asc()).limit(limit)))
 
     def find_nearby_buyer_orders(
         self,
@@ -69,12 +69,14 @@ class OrderContextRepository:
         if not buyer_username:
             return []
 
-        statement = self._order_statement().where(EbayOrder.account_id == account_id).where(EbayOrder.buyer_username == buyer_username)
+        statement = self._order_statement().where(EbayOrder.account_id == account_id).where(
+            func.lower(EbayOrder.buyer_username) == buyer_username.casefold()
+        )
         if activity_at:
             window_start = activity_at - timedelta(days=45)
             window_end = activity_at + timedelta(days=7)
-            statement = statement.where(EbayOrder.created_at >= window_start).where(EbayOrder.created_at <= window_end)
-        return list(self.db.scalars(statement.order_by(EbayOrder.created_at.desc()).limit(limit)))
+            statement = statement.where(EbayOrder.external_created_at >= window_start).where(EbayOrder.external_created_at <= window_end)
+        return list(self.db.scalars(statement.order_by(EbayOrder.external_created_at.desc().nullslast(), EbayOrder.order_id.asc()).limit(limit)))
 
     def upsert_mapping(
         self,
@@ -130,6 +132,14 @@ class OrderContextRepository:
         order.refunds = refunds if isinstance(refunds, list) else None
         order.refund_status = 'REFUNDED' if order.refunds else None
         order.raw_payload = payload
+        order.external_created_at = (
+            self._datetime(payload.get('creationDate') or payload.get('createdDate'))
+            or order.external_created_at
+        )
+        order.external_last_modified_at = (
+            self._datetime(payload.get('lastModifiedDate'))
+            or order.external_last_modified_at
+        )
 
         order.line_items.clear()
         self.db.flush()
@@ -231,3 +241,11 @@ class OrderContextRepository:
             or self._string(image.get('imageUrl'))
             or self._string(image.get('url'))
         )
+
+    def _datetime(self, value: object) -> datetime | None:
+        if not isinstance(value, str) or not value.strip():
+            return None
+        try:
+            return datetime.fromisoformat(value.strip().replace('Z', '+00:00'))
+        except ValueError:
+            return None

@@ -29,6 +29,8 @@ from app.models import (
     RolePermission,
     SyncLog,
     User,
+    MessageClassification,
+    MessageType,
 )
 
 __all__ = [
@@ -62,4 +64,6 @@ __all__ = [
     'RolePermission',
     'SyncLog',
     'User',
+    'MessageClassification',
+    'MessageType',
 ]

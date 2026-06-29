@@ -41,6 +41,12 @@ const NAV_ITEMS = [
     roles: ['ADMIN', 'OPS_MANAGER', 'AGENT'],
   },
   {
+    label: 'Message Types', path: '/message-types', icon: 'tag', roles: ['ADMIN'],
+  },
+  {
+    label: 'Message Reports', path: '/message-reports', icon: 'chart', roles: ['ADMIN', 'OPS_MANAGER'],
+  },
+  {
     label: 'Audit Logs',
     path: '/audit-logs',
     icon: 'audit',
@@ -96,6 +102,7 @@ export function Icon({ name }) {
     close: <path d="M5 5l10 10M15 5 5 15" />,
     bell: <path d="M6 15h8l-1-2V9a4 4 0 0 0-8 0v4l-1 2h2Zm3 2h2" />,
     message: <path d="M4 5h12v8H7l-3 3V5Zm3 3h6M7 10h4" />,
+    paperclip: <path d="M7.5 10.5 12 6a2.1 2.1 0 0 1 3 3l-6.2 6.2a3.4 3.4 0 0 1-4.8-4.8l6.1-6.1M6.5 12.5l6.1-6.1" />,
     reply: <path d="M8 6 4 10l4 4v-3h3.5A4.5 4.5 0 0 1 16 15.5V15a7 7 0 0 0-7-7H8V6Z" />,
     moon: <path d="M14.5 13.5A6 6 0 0 1 7 6a6 6 0 1 0 7.5 7.5Z" />,
     chart: <path d="M4 16V5m0 11h12M7 13V9m4 4V6m4 7v-3" />,

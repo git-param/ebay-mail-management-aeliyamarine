@@ -13,6 +13,7 @@ from app.models.ebay_account import EbayAccount, EbayConnectionStatus
 from app.modules.integrations.ebay.oauth.token_service import EbayTokenService
 from app.modules.integrations.ebay.providers import EBAY_PROVIDER_NAME
 from app.modules.integrations.ebay.services.ebay_message_service import EbayMessageService
+from app.modules.integrations.ebay.services.ebay_order_sync_service import EbayOrderSyncService
 from app.services.ebay_api_usage_service import EbayApiUsageService
 from app.services.conversation_product_context_service import ConversationProductContextService
 from app.services.order_context_service import OrderContextService
@@ -52,6 +53,7 @@ class EbaySyncService:
         self.sync_log_service = SyncLogService(db)
         self.api_usage_service = EbayApiUsageService(db)
         self.order_context_service = OrderContextService(db)
+        self.order_sync_service = EbayOrderSyncService(db)
         self.product_context_service = ConversationProductContextService(db)
 
     def sync_account(
@@ -89,6 +91,8 @@ class EbaySyncService:
         total_conversations_available = None
         detail_seconds_total = 0.0
         sync_started_at = perf_counter()
+        order_sync_result = None
+        order_sync_error = None
 
         try:
             account = self._ensure_access_token(account)
@@ -169,6 +173,7 @@ class EbaySyncService:
                             conversation_type=conversation_type,
                         )
                         self.db.flush()
+
                         self.product_context_service.enrich_conversation(conversation)
                         messages_created, messages_updated = self.message_service.upsert_messages(
                             account=account,
@@ -231,15 +236,39 @@ class EbaySyncService:
                         ),
                     )
 
+            try:
+                order_sync_result = self.order_sync_service.sync_account(
+                    account.id,
+                    commit=False,
+                    track_api_usage=True,
+                )
+            except Exception as exc:
+                order_sync_error = str(exc)
+                logger.exception(
+                    'Non-fatal eBay order sync failure account_id=%s; message sync will still complete',
+                    account.id,
+                )
+
             account.last_sync_at = datetime.now(UTC)
-            account.sync_status = 'SUCCESS_WITH_ERRORS' if counters['conversations_failed'] else 'SUCCESS'
+            account.sync_status = (
+                'SUCCESS_WITH_ERRORS'
+                if counters['conversations_failed'] or order_sync_error or (order_sync_result and order_sync_result.orders_failed)
+                else 'SUCCESS'
+            )
             elapsed_seconds = perf_counter() - sync_started_at
             sync_log = self.sync_log_service.complete_sync(
                 sync_log.id,
                 records_processed=self._records_processed(counters),
             )
-            if counters['conversations_failed']:
-                sync_log.error_message = f"{counters['conversations_failed']} conversation(s) failed during sync"
+            if counters['conversations_failed'] or order_sync_error or (order_sync_result and order_sync_result.orders_failed):
+                errors = []
+                if counters['conversations_failed']:
+                    errors.append(f"{counters['conversations_failed']} conversation(s) failed during sync")
+                if order_sync_error:
+                    errors.append(f'Order sync failed: {order_sync_error}')
+                if order_sync_result and order_sync_result.orders_failed:
+                    errors.append(f'{order_sync_result.orders_failed} order payload(s) failed during sync')
+                sync_log.error_message = '; '.join(errors)
             sync_log.sync_metadata = {
                 **(sync_log.sync_metadata or {}),
                 **self._progress_metadata(
@@ -251,6 +280,14 @@ class EbaySyncService:
                     detail_seconds_total=detail_seconds_total,
                     failed_conversations=failed_conversations,
                 ),
+                'order_sync': {
+                    'orders_processed': order_sync_result.orders_processed if order_sync_result else 0,
+                    'orders_failed': order_sync_result.orders_failed if order_sync_result else 0,
+                    'pages_processed': order_sync_result.pages_processed if order_sync_result else 0,
+                    'conversations_matched': order_sync_result.conversations_matched if order_sync_result else 0,
+                    'incremental': order_sync_result.incremental if order_sync_result else None,
+                    'error': order_sync_error,
+                },
             }
             self.db.commit()
             logger.info(
@@ -626,56 +663,6 @@ class EbaySyncService:
             'request_url': detail_response.request_url,
             'request_headers': detail_response.request_headers,
         }
-
-    def _sync_direct_order_context(
-        self,
-        account: EbayAccount,
-        conversation,
-        conversation_summary: dict,
-        conversation_detail: dict,
-    ):
-        identifiers = self.order_context_service.extract_order_identifiers(
-            conversation=conversation,
-            extra_payloads=[conversation_summary, conversation_detail],
-        )
-        order_id = identifiers.get('order_id') or identifiers.get('legacy_order_id')
-        item_id = identifiers.get('item_id') or identifiers.get('listing_id')
-        logger.info(
-            'eBay conversation order identifiers conversation_id=%s order_id=%s item_id=%s external_message_id=%s transaction_id=%s',
-            conversation.id,
-            order_id or 'not found',
-            item_id or 'not found',
-            identifiers.get('external_message_id') or 'not found',
-            identifiers.get('transaction_id') or 'not found',
-        )
-        if not order_id:
-            return None
-
-        response = self._get_order_with_retry(account, order_id=order_id)
-        if not response.ok or not isinstance(response.payload, dict):
-            logger.warning(
-                'Skipping eBay order context sync account_id=%s order_id=%s status_code=%s',
-                account.id,
-                order_id,
-                response.status_code,
-            )
-            return None
-        order = self.order_context_service.upsert_order_payload(account_id=account.id, payload=response.payload)
-        logger.info(
-            'eBay order context linked successfully conversation_id=%s order_id=%s item_id=%s',
-            conversation.id,
-            order.order_id,
-            item_id or 'not found',
-        )
-        return order
-
-    def _get_order_with_retry(self, account: EbayAccount, *, order_id: str):
-        response = self.token_service.client.get_order_raw(account.access_token, order_id=order_id)
-        if response.status_code != status.HTTP_401_UNAUTHORIZED:
-            return response
-
-        account = self._refresh_account_after_unauthorized(account)
-        return self.token_service.client.get_order_raw(account.access_token, order_id=order_id)
 
     def _find_nested_string(self, payloads: list[dict], keys: set[str]) -> str | None:
         for payload in payloads:

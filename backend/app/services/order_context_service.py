@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.models.conversation import Conversation
 from app.models.order_context import ConversationOrderContext, EbayOrder, EbayOrderLineItem
 from app.repositories.order_context_repository import OrderContextRepository
+from app.schemas.conversation import OrderContextResponse, OrderLinkingResponse, OrderContextOrderResponse, OrderLineItemResponse
 
 
 logger = logging.getLogger(__name__)
@@ -62,7 +63,9 @@ class OrderContextService:
         conversation_summary: dict | None = None,
         conversation_detail: dict | None = None,
         fetched_order: EbayOrder | None = None,
-    ) -> ConversationOrderContext:
+        persist_unmatched: bool = True,
+        allow_direct_order_id: bool = True,
+    ) -> ConversationOrderContext | None:
         if conversation.id is None:
             self.db.flush()
         identifiers = self.extract_order_identifiers(
@@ -76,22 +79,31 @@ class OrderContextService:
         strategy = 'NO_MATCH'
         confidence = 0.0
 
-        if not order and conversation.provider_account_id and order_id:
+        if not order and allow_direct_order_id and conversation.provider_account_id and order_id:
             order = self.repository.get_by_order_id(account_id=conversation.provider_account_id, order_id=order_id)
         if order:
             strategy = 'DIRECT_ORDER_ID'
             confidence = 1.0
         elif conversation.provider_account_id and (item_id or listing_id or conversation.buyer_identifier):
+            candidate_item_id = item_id or listing_id or conversation.reference_id
+
             candidates = self.repository.find_candidates(
                 account_id=conversation.provider_account_id,
                 buyer_username=conversation.buyer_identifier,
-                item_id=item_id or listing_id,
-                limit=2,
+                item_id=candidate_item_id,
+                limit=10,
             )
+
             if len(candidates) == 1:
                 order = candidates[0]
                 strategy = 'BUYER_ITEM_MATCH'
-                confidence = 0.82
+                confidence = 0.95
+
+            elif len(candidates) > 1:
+                order = self._deterministic_best_order(conversation, candidates)
+                strategy = 'BUYER_ITEM_DATE_MATCH'
+                confidence = 0.85
+
             else:
                 nearby = self.repository.find_nearby_buyer_orders(
                     account_id=conversation.provider_account_id,
@@ -99,17 +111,23 @@ class OrderContextService:
                     activity_at=conversation.last_message_at or conversation.external_created_at,
                     limit=2,
                 )
+
                 if len(nearby) == 1:
                     order = nearby[0]
                     strategy = 'BUYER_NEARBY_ORDER'
-                    confidence = 0.55
+                    confidence = 0.60
+
                 elif len(nearby) > 1:
-                    strategy = 'BUYER_NEARBY_MULTIPLE'
-                    confidence = 0.35
+                    order = self._deterministic_best_order(conversation, nearby)
+                    strategy = 'BUYER_NEARBY_DATE_MATCH'
+                    confidence = 0.50
 
         line_item = self._best_line_item(order, item_id=item_id, listing_id=listing_id, sku=identifiers.get('sku')) if order else None
         if order:
             conversation.linked_order_record_id = order.id
+
+        if not order and not persist_unmatched:
+            return None
 
         mapping = self.repository.upsert_mapping(
             conversation_id=conversation.id,
@@ -130,11 +148,29 @@ class OrderContextService:
         )
         return mapping
 
+    def _deterministic_best_order(
+        self,
+        conversation: Conversation,
+        candidates: list[EbayOrder],
+    ) -> EbayOrder:
+        activity_at = conversation.last_message_at or conversation.external_created_at
+        if activity_at:
+            return min(
+                candidates,
+                key=lambda candidate: (
+                    abs(((candidate.external_created_at or candidate.created_at) - activity_at).total_seconds()),
+                    candidate.order_id,
+                ),
+            )
+        return min(candidates, key=lambda candidate: candidate.order_id)
+
     def order_context_card(self, conversation: Conversation) -> dict | None:
         mapping = self.repository.get_mapping(conversation.id)
+
         if not mapping:
             mapping = self.link_conversation_context(conversation=conversation)
-        if not mapping or not mapping.ebay_order_id:
+
+        if not mapping or not mapping.order_record_id:
             return None
         return {
             'order_id': mapping.ebay_order_id or '',
@@ -255,3 +291,94 @@ class OrderContextService:
             if sku and line_item.sku == sku:
                 return line_item
         return order.line_items[0] if order.line_items else None
+
+    def serialize_context(self, context):
+        if not context:
+            return None
+
+        order = context["order"]
+        mapping = context["mapping"]
+
+        linking = OrderLinkingResponse(
+            strategy=mapping.match_strategy or "unknown",
+            requires_manual_selection=False,
+        )
+
+        if not order:
+            return OrderContextResponse(
+                selected_order=None,
+                candidate_orders=[],
+                linking=linking,
+                deep_links={},
+            )
+
+        return OrderContextResponse(
+            selected_order=OrderContextOrderResponse(
+                id=order.id,
+                order_id=order.order_id,
+                buyer_username=order.buyer_username,
+                payment_status=order.payment_status,
+                fulfillment_status=order.fulfillment_status,
+                cancel_status=order.cancel_status,
+                refund_status=order.refund_status,
+                pricing_summary=order.pricing_summary,
+                refunds=order.refunds,
+                line_items=[
+                    OrderLineItemResponse(
+                        id=li.id,
+                        item_id=li.item_id,
+                        listing_id=li.listing_id,
+                        sku=li.sku,
+                        title=li.title,
+                        image_url=li.image_url,
+                        quantity=li.quantity,
+                        price_value=li.price_value,
+                        price_currency=li.price_currency,
+                    )
+                    for li in order.line_items
+                ],
+                returns=[
+                    ReturnContextResponse(
+                        id=r.id,
+                        return_id=r.return_id,
+                        return_status=r.return_status,
+                        return_reason=r.return_reason,
+                        return_state=r.return_state,
+                        created_date=r.created_date,
+                        ebay_url=f"https://www.ebay.com/itm/{order.order_id}",
+                    )
+                    for r in (order.returns or [])
+                ],
+                cancellations=[
+                    CancellationContextResponse(
+                        id=c.id,
+                        cancel_id=c.cancel_id,
+                        cancel_state=c.cancel_state,
+                        cancel_reason=c.cancel_reason,
+                        requester=c.requester,
+                        created_date=None,
+                        ebay_url=f"https://www.ebay.com/itm/{order.order_id}",
+                    )
+                    for c in (order.cancellations or [])
+                ],
+                ebay_url=f"https://www.ebay.com/itm/{order.order_id}",
+            ),
+
+            candidate_orders=[],
+            linking=linking,
+            deep_links={},
+        )
+    
+    def build_context(self, conversation):
+        mapping = self.repository.get_mapping(conversation.id)
+        if not mapping:
+            return None
+
+        order = None
+        if mapping.order_record_id:
+            order = self.repository.get_order(mapping.order_record_id)
+
+        return {
+            "mapping": mapping,
+            "order": order,
+        }

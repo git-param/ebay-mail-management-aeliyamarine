@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 
 import AppLayout, { Icon } from '../layouts/app_layout'
 import { fetchCategories } from '../services/categoryApi'
@@ -19,6 +19,7 @@ import { fetchEbayAccounts } from '../services/ebayAccountApi'
 import { fetchTemplates } from '../services/templateApi'
 import { fetchUsers } from '../services/userApi'
 import { normalizeRole } from '../utils/roles'
+import { fetchMessageTypeTree } from '../services/messageTypeApi'
 
 const DEFAULT_PAGE_SIZE = 20
 const PAGE_SIZE_OPTIONS = [10, 20, 50, 100]
@@ -577,12 +578,21 @@ function FiltersDrawer({
 }
 
 function MessageThread({ messages, isSystemConversation }) {
+  const threadRef = useRef(null)
+
+  useLayoutEffect(() => {
+    const thread = threadRef.current
+    if (thread) {
+      thread.scrollTop = thread.scrollHeight
+    }
+  }, [messages])
+
   if (!messages.length) {
     return <EmptyPanel title="No messages yet" message="This conversation has no stored message bodies." />
   }
 
   return (
-    <div className="message-thread">
+    <div className="message-thread" ref={threadRef}>
       {messages.map((message) => (
         <article className={`message-bubble ${message.is_inbound ? 'inbound' : 'outbound'}`} key={message.id}>
           <div className="message-meta">
@@ -637,14 +647,17 @@ function MessageThread({ messages, isSystemConversation }) {
   )
 }
 
-function ReplyComposer({ conversationId, isSubmitting, onSendReply, templates }) {
+function ReplyComposer({ conversationId, isSubmitting, onSendReply, templates, messageTypes = [] }) {
   const [body, setBody] = useState('')
   const [files, setFiles] = useState([])
   const [fileInputKey, setFileInputKey] = useState(0)
   const [violations, setViolations] = useState([])
   const [draftMessage, setDraftMessage] = useState('')
   const [isValidating, setIsValidating] = useState(false)
-  const [isDraggingFiles, setIsDraggingFiles] = useState(false)
+  const [categoryId, setCategoryId] = useState('')
+  const [subtypeId, setSubtypeId] = useState('')
+  const category = messageTypes.find((item) => item.id === categoryId)
+  const selectedTypeId = category?.children?.length ? subtypeId : categoryId
 
   function addFiles(selectedFiles) {
     const nextFiles = [...files, ...selectedFiles]
@@ -668,25 +681,6 @@ function ReplyComposer({ conversationId, isSubmitting, onSendReply, templates })
     setDraftMessage('')
   }
 
-  function handleAttachmentDrag(event) {
-    event.preventDefault()
-    event.stopPropagation()
-    setIsDraggingFiles(true)
-  }
-
-  function handleAttachmentDragLeave(event) {
-    event.preventDefault()
-    event.stopPropagation()
-    setIsDraggingFiles(false)
-  }
-
-  function handleAttachmentDrop(event) {
-    event.preventDefault()
-    event.stopPropagation()
-    setIsDraggingFiles(false)
-    addFiles(Array.from(event.dataTransfer.files || []))
-  }
-
   function saveDraft() {
     setViolations([])
     setDraftMessage('Draft saved locally for this conversation.')
@@ -695,7 +689,8 @@ function ReplyComposer({ conversationId, isSubmitting, onSendReply, templates })
   async function submitReply(event) {
     event.preventDefault()
     const trimmedBody = body.trim()
-    if (!trimmedBody || !conversationId) {
+    if (!trimmedBody || !conversationId || !selectedTypeId) {
+      if (!selectedTypeId) setViolations(['Message type is required.'])
       return
     }
     setIsValidating(true)
@@ -707,11 +702,13 @@ function ReplyComposer({ conversationId, isSubmitting, onSendReply, templates })
         setViolations(validation.violations || ['Reply violates eBay messaging policy.'])
         return
       }
-      await onSendReply(trimmedBody, files)
+      await onSendReply(trimmedBody, files, selectedTypeId)
       setBody('')
       setFiles([])
       setDraftMessage('')
       setFileInputKey((current) => current + 1)
+      setCategoryId('')
+      setSubtypeId('')
     } catch (caughtError) {
       setViolations([caughtError.message])
     } finally {
@@ -721,10 +718,9 @@ function ReplyComposer({ conversationId, isSubmitting, onSendReply, templates })
 
   return (
     <form className="reply-composer" onSubmit={submitReply}>
-      <div className="composer-toolbar">
+      <div className="composer-toolbar composer-controls">
         {templates.length ? (
-          <label className="template-toolbar-control">
-            <Icon name="message" />
+          <label className="composer-select-control">
             <span>Template</span>
             <select
               className="template-picker"
@@ -740,12 +736,28 @@ function ReplyComposer({ conversationId, isSubmitting, onSendReply, templates })
                 }
               }}
             >
-              <option value="">Choose</option>
+              <option value="">Choose template</option>
               {templates.map((template) => (
                 <option value={template.id} key={template.id}>
                   {template.title}
                 </option>
               ))}
+            </select>
+          </label>
+        ) : null}
+        <label className="composer-select-control">
+          <span>Message Type *</span>
+          <select value={categoryId} onChange={(event) => { setCategoryId(event.target.value); setSubtypeId('') }}>
+            <option value="">Select type</option>
+            {messageTypes.map((item) => <option value={item.id} key={item.id}>{item.name}</option>)}
+          </select>
+        </label>
+        {category?.children?.length ? (
+          <label className="composer-select-control">
+            <span>Sub Type *</span>
+            <select value={subtypeId} onChange={(event) => setSubtypeId(event.target.value)}>
+              <option value="">Select subtype</option>
+              {category.children.map((item) => <option value={item.id} key={item.id}>{item.name}</option>)}
             </select>
           </label>
         ) : null}
@@ -759,34 +771,11 @@ function ReplyComposer({ conversationId, isSubmitting, onSendReply, templates })
             setBody(event.target.value)
             setDraftMessage('')
           }}
-          rows="4"
+          rows="3"
           maxLength={2000}
           placeholder="Write a reply without email, phone, external links, or abusive language"
         />
       </label>
-
-      <div
-        className={`attachment-dropzone ${isDraggingFiles ? 'dragging' : ''}`}
-        onDragOver={handleAttachmentDrag}
-        onDragEnter={handleAttachmentDrag}
-        onDragLeave={handleAttachmentDragLeave}
-        onDrop={handleAttachmentDrop}
-      >
-        <input
-          id={`reply-attachments-${conversationId}`}
-          key={fileInputKey}
-          type="file"
-          multiple
-          onChange={updateFiles}
-          accept=".pdf,.txt,.jpg,.jpeg,.png,application/pdf,text/plain,image/jpeg,image/png"
-        />
-        <label htmlFor={`reply-attachments-${conversationId}`}>
-          <Icon name="message" />
-          <strong>Add attachments</strong>
-          <span>Click to upload or drag and drop files here</span>
-        </label>
-      </div>
-
       {files.length ? (
         <div className="reply-attachment-list" aria-label="Selected attachments">
           {files.map((file, index) => (
@@ -815,13 +804,15 @@ function ReplyComposer({ conversationId, isSubmitting, onSendReply, templates })
         </div>
       ) : null}
       <div className="reply-composer-actions">
-        <small>
-          {files.length} file{files.length === 1 ? '' : 's'} selected | {body.length}/2000 characters
-        </small>
+        <div className="composer-attachment-action">
+          <input id={`reply-attachments-${conversationId}`} key={fileInputKey} type="file" multiple onChange={updateFiles} accept=".pdf,.txt,.jpg,.jpeg,.png,application/pdf,text/plain,image/jpeg,image/png" />
+          <label htmlFor={`reply-attachments-${conversationId}`} title="Attach files" aria-label="Attach files"><Icon name="paperclip" /></label>
+          <small>{files.length ? `${files.length} attached` : 'Attach'} · {body.length}/2000</small>
+        </div>
         <button className="secondary-button compact" type="button" onClick={saveDraft} disabled={!body.trim() && !files.length}>
           Save Draft
         </button>
-        <button className="primary-button compact" type="submit" disabled={!body.trim() || isSubmitting || isValidating}>
+        <button className="primary-button compact" type="submit" disabled={!body.trim() || !selectedTypeId || isSubmitting || isValidating}>
           {isValidating ? 'Checking...' : isSubmitting ? 'Sending...' : 'Send Reply'}
         </button>
       </div>
@@ -1041,11 +1032,14 @@ function ProductContextBanner({ detail }) {
           <strong>{context?.title || 'Product information is still being enriched.'}</strong>
           <span>Item ID: {context?.reference_id || detail.reference_id || '--'}</span>
           <span>Seller: {context?.seller_username || detail.seller_account?.ebay_username || '--'}</span>
-          <span>SKU: {context?.sku || '--'}</span>
-          <span>Order: {context?.order_id || '--'}</span>
+          <span>SKU: {detail?.order_context?.selected_order?.line_items?.[0]?.sku || '--'}</span>
+          <span>Order: {detail?.order_context?.selected_order?.order_id || '--'}</span>
         </div>
       </a>
       <div className="product-context-actions">
+        <a className="primary-button compact-action" href="https://mesg.ebay.com/mesgweb/ViewMessages/0" target="_blank" rel="noreferrer">
+          Open in eBay Messaging
+        </a>
         <a className="secondary-button compact-action" href={context?.item_url || `https://www.ebay.com/itm/${detail.reference_id || ''}`} target="_blank" rel="noreferrer">
           Open Listing
         </a>
@@ -1100,6 +1094,7 @@ function ConversationDetail({
   categories,
   accounts,
   templates = [],
+  messageTypes = [],
   isLoading,
   notesLoading,
   actionError,
@@ -1134,24 +1129,8 @@ function ConversationDetail({
       <div className="detail-header">
         <div>
           <button className="thread-back-button" type="button" onClick={onBack}>
-            Back to inbox
+          ← Back to inbox
           </button>
-          <p>{detail.buyer_identifier || 'Unknown buyer'}</p>
-          <h2>{detail.subject || detail.reference_id || 'Customer message'}</h2>
-          <dl className="detail-account-summary">
-            <div>
-              <dt>Seller Account</dt>
-              <dd>{sellerAccountLabel(detail)}</dd>
-            </div>
-            <div>
-              <dt>eBay Username</dt>
-              <dd>{sellerAccount?.ebay_username || 'Not available'}</dd>
-            </div>
-            <div>
-              <dt>Account Name</dt>
-              <dd>{sellerAccount?.account_name || 'Not available'}</dd>
-            </div>
-          </dl>
         </div>
         <div className="detail-header-actions">
           <ConversationBadge tone={detail.provider_conversation_status === 'ACTIVE' ? 'open' : 'neutral'}>
@@ -1196,6 +1175,7 @@ function ConversationDetail({
               isSubmitting={isSubmitting}
               onSendReply={onSendReply}
               templates={templates}
+              messageTypes={messageTypes}
             />
           )}
         </div>
@@ -1227,6 +1207,7 @@ function Dashboard({ currentUser, onLogout }) {
   const [categories, setCategories] = useState([])
   const [accounts, setAccounts] = useState([])
   const [templates, setTemplates] = useState([])
+  const [messageTypes, setMessageTypes] = useState([])
   const [listWidth, setListWidth] = useState(() => getStoredNumber(LIST_WIDTH_KEY, 420))
   const [detailsWidth, setDetailsWidth] = useState(() => getStoredNumber(DETAILS_WIDTH_KEY, 360))
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
@@ -1317,11 +1298,12 @@ function Dashboard({ currentUser, onLogout }) {
   }, [])
 
   async function loadSupportData() {
-    const [categoryResult, accountResult, userResult, templateResult] = await Promise.allSettled([
+    const [categoryResult, accountResult, userResult, templateResult, messageTypeResult] = await Promise.allSettled([
       fetchCategories(),
       fetchEbayAccounts(),
       fetchUsers(),
       fetchTemplates(),
+      fetchMessageTypeTree(),
     ])
 
     if (categoryResult.status === 'fulfilled') {
@@ -1344,6 +1326,7 @@ function Dashboard({ currentUser, onLogout }) {
     } else {
       setTemplates([])
     }
+    if (messageTypeResult.status === 'fulfilled') setMessageTypes(messageTypeResult.value || [])
   }
 
   useEffect(() => {
@@ -1576,7 +1559,7 @@ function Dashboard({ currentUser, onLogout }) {
     }
   }
 
-  async function handleSendReply(body, files = []) {
+  async function handleSendReply(body, files = [], messageTypeId) {
     if (!selectedConversationId) {
       return
     }
@@ -1584,8 +1567,8 @@ function Dashboard({ currentUser, onLogout }) {
     setActionError('')
     try {
       const response = files.length
-        ? await sendConversationReplyWithAttachments(selectedConversationId, body, files)
-        : await sendConversationReply(selectedConversationId, body)
+        ? await sendConversationReplyWithAttachments(selectedConversationId, body, files, messageTypeId)
+        : await sendConversationReply(selectedConversationId, body, messageTypeId)
       await refreshSelectedConversation()
       if (response.attachment_delivery_warning) {
         setActionError(response.attachment_delivery_warning)
@@ -1711,6 +1694,7 @@ function Dashboard({ currentUser, onLogout }) {
                   categories={categories}
                   accounts={accounts}
                   templates={templates}
+                  messageTypes={messageTypes}
                   isLoading={isDetailLoading}
                   notesLoading={isNotesLoading}
                   actionError={actionError}

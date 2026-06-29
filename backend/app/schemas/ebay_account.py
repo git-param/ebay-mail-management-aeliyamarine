@@ -35,6 +35,7 @@ class EbayAccountResponse(BaseModel):
     ebay_user_id: str | None
     store_name: str | None = None
     last_sync_at: datetime | None
+    last_order_sync_at: datetime | None = None
     sync_status: str | None
     notes: str | None
     created_by: UUID

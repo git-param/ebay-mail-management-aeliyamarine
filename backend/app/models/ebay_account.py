@@ -48,6 +48,7 @@ class EbayAccount(Base):
     ebay_user_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     store_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     last_sync_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_order_sync_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     sync_status: Mapped[str | None] = mapped_column(String(50), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_by: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey('users.id'), nullable=False)

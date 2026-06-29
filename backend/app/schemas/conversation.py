@@ -119,8 +119,6 @@ class ConversationProductContextResponse(BaseModel):
     image_url: str = ''
     seller_username: str = ''
     item_url: str = ''
-    sku: str | None = None
-    order_id: str | None = None
     enrichment_status: str = ''
 
 
