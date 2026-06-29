@@ -42,6 +42,14 @@ class Settings(BaseSettings):
     ebay_redirect_uri: str = Field(default='', validation_alias='EBAY_REDIRECT_URI')
     ebay_runame: str = Field(default='', validation_alias='EBAY_RUNAME')
     ebay_environment: str = Field(default='SANDBOX', validation_alias='EBAY_ENVIRONMENT')
+    ebay_marketplace_id: str = Field(default='EBAY_US', validation_alias='EBAY_MARKETPLACE_ID')
+    ebay_browse_max_retries: int = Field(default=3, ge=1, le=10, validation_alias='EBAY_BROWSE_MAX_RETRIES')
+    ebay_browse_retry_base_seconds: float = Field(
+        default=0.5,
+        ge=0,
+        le=60,
+        validation_alias='EBAY_BROWSE_RETRY_BASE_SECONDS',
+    )
 
     ebay_daily_api_limit: int = Field(
         default=100,

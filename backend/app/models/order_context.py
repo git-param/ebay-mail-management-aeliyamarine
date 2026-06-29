@@ -23,6 +23,8 @@ class EbayOrder(Base):
     pricing_summary: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     refunds: Mapped[list | None] = mapped_column(JSONB, nullable=True)
     raw_payload: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    external_created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    external_last_modified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

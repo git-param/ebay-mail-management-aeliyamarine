@@ -1041,8 +1041,8 @@ function ProductContextBanner({ detail }) {
           <strong>{context?.title || 'Product information is still being enriched.'}</strong>
           <span>Item ID: {context?.reference_id || detail.reference_id || '--'}</span>
           <span>Seller: {context?.seller_username || detail.seller_account?.ebay_username || '--'}</span>
-          <span>SKU: {context?.sku || '--'}</span>
-          <span>Order: {context?.order_id || '--'}</span>
+          <span>SKU: {detail?.order_context?.selected_order?.line_items?.[0]?.sku || '--'}</span>
+          <span>Order: {detail?.order_context?.selected_order?.order_id || '--'}</span>
         </div>
       </a>
       <div className="product-context-actions">

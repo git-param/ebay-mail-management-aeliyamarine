@@ -19,9 +19,16 @@ EBAY_OAUTH_SCOPES = [
     'https://api.ebay.com/oauth/api_scope/commerce.message',
     'https://api.ebay.com/oauth/api_scope/commerce.identity.readonly',
     'https://api.ebay.com/oauth/api_scope/sell.inventory',
+    'https://api.ebay.com/oauth/api_scope/sell.fulfillment',
 ]
-EBAY_REFRESH_SCOPES = ['https://api.ebay.com/oauth/api_scope/commerce.message',
-                       'https://api.ebay.com/oauth/api_scope/sell.inventory',]
+EBAY_LEGACY_REFRESH_SCOPES = [
+    'https://api.ebay.com/oauth/api_scope/commerce.message',
+    'https://api.ebay.com/oauth/api_scope/sell.inventory',
+]
+EBAY_REFRESH_SCOPES = [
+    *EBAY_LEGACY_REFRESH_SCOPES,
+    'https://api.ebay.com/oauth/api_scope/sell.fulfillment',
+]
 
 
 @dataclass(frozen=True)
@@ -132,11 +139,20 @@ class EbayAuthClient:
         )
 
     def refresh_access_token(self, refresh_token: str) -> EbayTokenPayload:
+        try:
+            return self._refresh_access_token_with_scopes(refresh_token, EBAY_REFRESH_SCOPES)
+        except HTTPException:
+            # Tokens granted before order sync existed do not include sell.fulfillment.
+            # Preserve message synchronization until the seller reconnects and consents.
+            logger.warning('Expanded eBay token refresh failed; retrying legacy scopes')
+            return self._refresh_access_token_with_scopes(refresh_token, EBAY_LEGACY_REFRESH_SCOPES)
+
+    def _refresh_access_token_with_scopes(self, refresh_token: str, scopes: list[str]) -> EbayTokenPayload:
         return self._request_tokens(
             {
                 'grant_type': 'refresh_token',
                 'refresh_token': refresh_token,
-                'scope': ' '.join(EBAY_REFRESH_SCOPES),
+                'scope': ' '.join(scopes),
             }
         )
 
@@ -272,6 +288,20 @@ class EbayAuthClient:
 
     def get_order_raw(self, access_token: str, *, order_id: str) -> EbayRawApiResponse:
         request_url = f'{self.fulfillment_order_url}/{order_id}'
+        return self._request_json_api_raw(access_token, request_url=request_url, method='GET')
+
+    def get_orders_raw(
+        self,
+        access_token: str,
+        *,
+        limit: int = 200,
+        offset: int = 0,
+        filter_value: str | None = None,
+    ) -> EbayRawApiResponse:
+        query = {'limit': limit, 'offset': offset}
+        if filter_value:
+            query['filter'] = filter_value
+        request_url = f'{self.fulfillment_order_url}?{urlencode(query)}'
         return self._request_json_api_raw(access_token, request_url=request_url, method='GET')
 
     def _request_tokens(self, payload: dict[str, str]) -> EbayTokenPayload:

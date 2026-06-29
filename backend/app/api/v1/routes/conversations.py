@@ -1,5 +1,6 @@
 from datetime import timedelta
 from html.parser import HTMLParser
+from multiprocessing import context
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile, status
@@ -46,6 +47,7 @@ from app.services.ebay_reply_service import EbayReplyService
 from app.services.notification_service import NotificationService
 from app.services.order_context_service import OrderContextService
 from app.services.reply_attachment_service import ReplyAttachmentService
+from app import db
 
 
 router = APIRouter()
@@ -287,29 +289,21 @@ def serialize_attachment(attachment) -> MessageAttachmentResponse:
     )
 
 
-def serialize_order_context(context: dict):
-    """
-    Serialize resolved order context for the conversation detail panel.
+def serialize_order_context(context: OrderContextResponse | None):
+    if not context:
+        return None
 
-    Purpose:
-    Converts order-context service output into API-safe nested dictionaries.
-
-    Parameters:
-    context: Service dictionary containing selected order, candidates, linking,
-    and deep links.
-
-    Returns:
-    Dictionary matching OrderContextResponse.
-
-    Business Logic:
-    Missing linking metadata falls back to a NO_MATCH result so the UI can
-    render a stable state.
-    """
     return {
-        'selected_order': serialize_order_context_order(context.get('selected_order')),
-        'candidate_orders': [serialize_order_context_order(order) for order in context.get('candidate_orders', [])],
-        'linking': context.get('linking') or {'strategy': 'NO_MATCH', 'requires_manual_selection': False},
-        'deep_links': context.get('deep_links') or {},
+        "selected_order": serialize_order_context_order(context.selected_order),
+        "candidate_orders": [
+            serialize_order_context_order(order)
+            for order in context.candidate_orders
+        ],
+        "linking": {
+            "strategy": context.linking.strategy,
+            "requires_manual_selection": context.linking.requires_manual_selection,
+        },
+        "deep_links": context.deep_links or {},
     }
 
 
@@ -719,7 +713,6 @@ def calculated_conversation_status(conversation: Conversation) -> str:
         return 'Replied'
     return conversation.status.value
 
-
 @router.get('', response_model=ConversationPageResponse)
 def list_conversations(
     limit: int = Query(default=25, ge=1, le=100),
@@ -827,12 +820,15 @@ def get_conversation(
     seller_account = db.get(EbayAccount, conversation.provider_account_id) if conversation.provider_account_id else None
     product_service = ConversationProductContextService(db)
     product_context = product_service.serialize(product_service.context_for_conversation(conversation))
+    context = OrderContextService(db).build_context(conversation)
+    order_context = OrderContextService(db).serialize_context(context)
     db.commit()
     return serialize_conversation(
         conversation,
         service.get_current_assignee_id(conversation.id),
         seller_account,
         product_context,
+        order_context,
     )
 
 
@@ -853,8 +849,10 @@ def select_conversation_order(
     seller_account = db.get(EbayAccount, conversation.provider_account_id) if conversation.provider_account_id else None
     product_service = ConversationProductContextService(db)
     product_context = product_service.serialize(product_service.context_for_conversation(conversation))
+    context = OrderContextService(db).build_context(conversation)
+    order_context = OrderContextService(db).serialize_context(context)
     db.commit()
-    return serialize_conversation(conversation, service.get_current_assignee_id(conversation.id), seller_account, product_context)
+    return serialize_conversation(conversation, service.get_current_assignee_id(conversation.id), seller_account, product_context, order_context)
 
 
 @router.get('/{conversation_id}/context', response_model=ConversationProductContextResponse | None)
