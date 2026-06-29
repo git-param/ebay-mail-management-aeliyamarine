@@ -909,6 +909,7 @@ async def reply_to_conversation(
     conversation_id: UUID,
     request: Request,
     body: str | None = Form(default=None),
+    message_type_id: UUID | None = Form(default=None),
     attachments: list[UploadFile] | None = File(default=None),
     db: Session = Depends(get_db),
     current_user=Depends(require_conversation_access),
@@ -918,9 +919,15 @@ async def reply_to_conversation(
     if not reply_body and request.headers.get('content-type', '').startswith('application/json'):
         payload = await request.json()
         reply_body = str(payload.get('body') or '')
+        try:
+            message_type_id = UUID(str(payload.get('message_type_id') or ''))
+        except ValueError:
+            message_type_id = None
     reply_body = (reply_body or '').strip()
     if not reply_body or len(reply_body) > 2000:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='Reply body must be between 1 and 2000 characters')
+    if not message_type_id:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='Message type is required')
     ConversationService(db).get_conversation(
         conversation_id,
         visible_category_ids=visible_category_ids_for_user(db, current_user),
@@ -930,6 +937,7 @@ async def reply_to_conversation(
         conversation_id=conversation_id,
         body=reply_body,
         actor_id=current_user.id,
+        message_type_id=message_type_id,
         attachments=attachments or [],
     )
     return serialize_message(message)

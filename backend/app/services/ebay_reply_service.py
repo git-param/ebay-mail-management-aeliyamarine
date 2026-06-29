@@ -27,6 +27,8 @@ from app.models.ebay_account import EbayAccount
 from app.modules.integrations.ebay.oauth.token_service import EbayTokenService
 from app.modules.integrations.ebay.providers import EBAY_PROVIDER_NAME
 from app.services.audit_service import AuditService
+from app.models.message_type import MessageType
+from app.repositories.message_type_repository import MessageClassificationRepository
 from app.services.conversation_service import ConversationService
 from app.services.reply_policy_service import ReplyPolicyService
 from app.services.reply_attachment_service import ReplyAttachmentService
@@ -79,6 +81,7 @@ class EbayReplyService:
         conversation_id: UUID,
         body: str,
         actor_id: UUID,
+        message_type_id: UUID,
         attachments: list[UploadFile] | None = None,
     ) -> Message:
         """
@@ -108,6 +111,11 @@ class EbayReplyService:
             HTTPException 502: eBay upload or message-send failure.
         """
         # --- 1. Validate reply body policy ---
+        selected_type = self.db.get(MessageType, message_type_id)
+        if not selected_type or selected_type.is_deleted or not selected_type.is_active:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='Select an active message type')
+        if any(child.is_active and not child.is_deleted for child in selected_type.children):
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='Select a message subtype')
         violations = self.validate_reply(body)
         if violations:
             raise HTTPException(
@@ -249,6 +257,14 @@ class EbayReplyService:
 
         conversation.last_message_at = message.sent_at
 
+        MessageClassificationRepository(self.db).create(
+            conversation_id=conversation.id,
+            conversation_message_id=message.id,
+            seller_account_id=conversation.provider_account_id,
+            user_id=actor_id,
+            message_type_id=selected_type.id,
+        )
+
         # --- 10. Audit log and commit ---
         AuditService(self.db).log(
             action='MESSAGE_REPLY_SENT',
@@ -256,6 +272,10 @@ class EbayReplyService:
             entity_type='CONVERSATION',
             entity_id=conversation.id,
             category='MESSAGE_MANAGEMENT',
+        )
+        AuditService(self.db).log(
+            action='REPLY_CATEGORIZED', user_id=actor_id, entity_type='MESSAGE', entity_id=message.id,
+            category='MESSAGE_MANAGEMENT', metadata={'message_type_id': str(selected_type.id)},
         )
         self.db.commit()
         self.db.refresh(message)

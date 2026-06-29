@@ -3450,31 +3450,6 @@
   white-space: nowrap;
 }
 
-.detail-account-summary {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px 18px;
-  margin: 12px 0 0;
-}
-
-.detail-account-summary div {
-  min-width: 140px;
-}
-
-.detail-account-summary dt {
-  color: #64748b;
-  font-size: 11px;
-  font-weight: 850;
-  text-transform: uppercase;
-}
-
-.detail-account-summary dd {
-  margin: 4px 0 0;
-  color: #061426;
-  font-size: 13px;
-  font-weight: 850;
-}
-
 .conversation-open .conversation-row {
   grid-template-columns: minmax(0, 1fr);
   gap: 8px;
@@ -3497,9 +3472,6 @@ html[data-theme='dark'] .bulk-assignment-bar {
 html[data-theme='dark'] .bulk-assignment-bar strong,
 html[data-theme='dark'] .ticket-username strong,
 html[data-theme='dark'] .ticket-seller-account strong,
-html[data-theme='dark'] .detail-account-summary dd {
-  color: #f8fafc;
-}
 
 html[data-theme='dark'] .bulk-assignment-bar select {
   border-color: #334155;
@@ -3509,9 +3481,6 @@ html[data-theme='dark'] .bulk-assignment-bar select {
 
 html[data-theme='dark'] .ticket-username small,
 html[data-theme='dark'] .ticket-seller-account small,
-html[data-theme='dark'] .detail-account-summary dt {
-  color: #94a3b8;
-}
 
 .sync-controls,
 .sync-summary {
@@ -6086,5 +6055,209 @@ html[data-theme='dark'] .reply-draft-message {
   .reply-composer-actions .secondary-button,
   .reply-composer-actions .primary-button {
     width: 100%;
+  }
+}
+.message-type-controls { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.report-table-wrap { overflow: auto; width: 100%; }
+.report-table-wrap table { border-collapse: collapse; min-width: 900px; width: 100%; }
+.report-table-wrap th, .report-table-wrap td { border-bottom: 1px solid var(--border-color, #dfe4ea); padding: 10px; text-align: left; vertical-align: top; }
+
+/* Keep conversation controls visible while only the message history scrolls. */
+.conversation-detail .thread-panel {
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  overflow: hidden;
+  padding: 0;
+}
+
+.conversation-detail .thread-panel > .product-context-banner {
+  z-index: 2;
+  margin: 16px 16px 0;
+}
+
+.conversation-detail .message-thread {
+  width: auto;
+  min-height: 0;
+  margin: 0;
+  padding: 20px min(7vw, 76px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.conversation-detail .thread-panel > .reply-composer,
+.conversation-detail .thread-panel > .reply-unavailable {
+  z-index: 2;
+  margin: 0 16px 16px;
+}
+
+@media (max-width: 820px) {
+  .conversation-detail .thread-panel {
+    padding: 0;
+  }
+
+  .conversation-detail .thread-panel > .product-context-banner {
+    margin: 10px 10px 0;
+  }
+
+  .conversation-detail .message-thread {
+    padding: 14px 10px;
+  }
+
+  .conversation-detail .thread-panel > .reply-composer,
+  .conversation-detail .thread-panel > .reply-unavailable {
+    margin: 0 10px 10px;
+  }
+}
+
+/* Compact, mailbox-style reply composer. */
+.conversation-detail .reply-composer {
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 16px;
+}
+
+.conversation-detail .composer-controls {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 20px;
+  padding: 0;
+}
+
+.composer-select-control {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 7px;
+  padding: 0 9px;
+  border: 1px solid #dbe4f0;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.composer-select-control > span {
+  color: #475569;
+  font-size: 11px;
+  font-weight: 850;
+  white-space: nowrap;
+}
+
+.composer-select-control select,
+.composer-select-control .template-picker {
+  width: 100%;
+  min-height: 36px;
+  margin: 0;
+  padding: 4px 24px 4px 6px;
+  border: 0;
+  background-color: transparent;
+  font-size: 12px;
+}
+
+.conversation-detail .composer-editor {
+  gap: 4px;
+}
+
+.conversation-detail .composer-editor > span {
+  font-size: 11px;
+}
+
+.conversation-detail .reply-composer textarea {
+  min-height: 76px;
+  max-height: 130px;
+  padding: 10px 12px;
+  border-radius: 11px;
+  resize: vertical;
+}
+
+.composer-attachment-action {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-right: auto;
+}
+
+.composer-attachment-action input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+}
+
+.composer-attachment-action label {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid #d7e0ed;
+  border-radius: 9px;
+  background: #f8fafc;
+  color: #475569;
+  cursor: pointer;
+}
+
+.composer-attachment-action label:hover {
+  border-color: #8b7cf6;
+  background: #f1efff;
+  color: #6655df;
+}
+
+.composer-attachment-action .ui-icon {
+  width: 18px;
+  height: 18px;
+}
+
+.conversation-detail .reply-attachment-list {
+  max-height: 58px;
+  overflow-y: auto;
+}
+
+.conversation-detail .reply-composer-actions {
+  gap: 7px;
+  margin-top: 0;
+  padding-top: 4px;
+}
+
+.conversation-detail .reply-composer-actions .secondary-button,
+.conversation-detail .reply-composer-actions .primary-button {
+  min-height: 36px;
+  padding-block: 7px;
+}
+
+/* A cool teal banner separates marketplace context from the message thread. */
+.conversation-detail .thread-panel > .product-context-banner {
+  border-color: rgba(13, 148, 136, 0.35);
+  background: linear-gradient(120deg, #e6fffb 0%, #effcf9 52%, #e7f5ff 100%);
+  box-shadow: 0 8px 22px rgba(15, 118, 110, 0.12);
+}
+
+.conversation-detail .product-context-thumb {
+  border-color: rgba(13, 148, 136, 0.26);
+  background: rgba(255, 255, 255, 0.86);
+}
+
+html[data-theme='dark'] .composer-select-control,
+html[data-theme='dark'] .composer-attachment-action label {
+  border-color: #334155;
+  background: #172033;
+  color: #cbd5e1;
+}
+
+html[data-theme='dark'] .conversation-detail .thread-panel > .product-context-banner {
+  border-color: rgba(45, 212, 191, 0.28);
+  background: linear-gradient(120deg, #123b3b 0%, #15343b 52%, #172d46 100%);
+}
+
+@media (max-width: 820px) {
+  .conversation-detail .composer-controls {
+    grid-template-columns: 1fr;
+  }
+
+  .conversation-detail .reply-composer textarea {
+    min-height: 68px;
   }
 }

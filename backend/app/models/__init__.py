@@ -21,6 +21,7 @@ from app.models.refresh_token import RefreshToken
 from app.models.reply_template import ReplyTemplate
 from app.models.role import Role
 from app.models.user import User
+from app.models.message_type import MessageClassification, MessageType
 
 __all__ = [
     'AuditLog',
@@ -52,4 +53,6 @@ __all__ = [
     'RolePermission',
     'SyncLog',
     'User',
+    'MessageClassification',
+    'MessageType',
 ]
