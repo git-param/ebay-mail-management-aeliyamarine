@@ -31,6 +31,7 @@ from app.models import (
     User,
     MessageClassification,
     MessageType,
+    MessageTypeKeyword,
 )
 
 __all__ = [
@@ -66,4 +67,5 @@ __all__ = [
     'User',
     'MessageClassification',
     'MessageType',
+    'MessageTypeKeyword',
 ]

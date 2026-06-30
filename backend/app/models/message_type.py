@@ -25,6 +25,27 @@ class MessageType(Base):
 
     parent = relationship('MessageType', remote_side=[id], back_populates='children')
     children = relationship('MessageType', back_populates='parent', order_by='MessageType.display_order')
+    keywords = relationship(
+        'MessageTypeKeyword',
+        back_populates='message_type',
+        cascade='all, delete-orphan',
+        passive_deletes=True,
+        order_by='MessageTypeKeyword.created_at',
+    )
+
+
+class MessageTypeKeyword(Base):
+    __tablename__ = 'message_type_keywords'
+    __table_args__ = (UniqueConstraint('message_type_id', 'keyword', name='uq_message_type_keywords_type_keyword'),)
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    message_type_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey('message_types.id', ondelete='CASCADE'), nullable=False, index=True
+    )
+    keyword: Mapped[str] = mapped_column(String(120), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+
+    message_type = relationship('MessageType', back_populates='keywords')
 
 
 class MessageClassification(Base):

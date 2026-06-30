@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import UUID
 from sqlalchemy import func, or_, select
-from sqlalchemy.orm import Session, aliased
+from sqlalchemy.orm import Session, aliased, selectinload
 
 from app.models.conversation import Conversation, Message
 from app.models.ebay_account import EbayAccount
@@ -13,7 +13,7 @@ class MessageTypeRepository:
     def __init__(self, db: Session): self.db = db
 
     def list(self, include_deleted=False):
-        query = select(MessageType).order_by(MessageType.display_order, MessageType.name)
+        query = select(MessageType).options(selectinload(MessageType.keywords)).order_by(MessageType.display_order, MessageType.name)
         if not include_deleted: query = query.where(MessageType.is_deleted.is_(False))
         return list(self.db.scalars(query))
 

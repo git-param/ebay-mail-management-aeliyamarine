@@ -2,7 +2,7 @@ from uuid import UUID
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.models.message_type import MessageType
+from app.models.message_type import MessageType, MessageTypeKeyword
 from app.repositories.message_type_repository import MessageTypeRepository
 from app.services.audit_service import AuditService
 
@@ -19,12 +19,15 @@ class MessageTypeService:
             return {'id': item.id, 'name': item.name, 'parent_id': item.parent_id, 'description': item.description,
                     'display_order': item.display_order, 'is_active': item.is_active, 'is_deleted': item.is_deleted,
                     'created_at': item.created_at, 'updated_at': item.updated_at,
+                    'keywords': [keyword.keyword for keyword in item.keywords],
                     'children': [node(child) for child in by_parent.get(item.id, [])]}
         return [node(root) for root in by_parent.get(None, [])]
 
     def create(self, payload, actor_id):
         if payload.parent_id and not self.repo.get(payload.parent_id): raise HTTPException(422, 'Parent message type not found')
-        item = MessageType(**payload.model_dump(), created_by=actor_id); self.db.add(item); self.db.flush()
+        values = payload.model_dump()
+        keywords = values.pop('keywords', [])
+        item = MessageType(**values, created_by=actor_id); self._replace_keywords(item, keywords); self.db.add(item); self.db.flush()
         AuditService(self.db).log(action='MESSAGE_TYPE_CREATED', user_id=actor_id, entity_type='MESSAGE_TYPE', entity_id=item.id, metadata={'new': payload.model_dump(mode='json')})
         self.db.commit(); self.db.refresh(item); return item
 
@@ -32,11 +35,13 @@ class MessageTypeService:
         item = self.repo.get(item_id)
         if not item: raise HTTPException(404, 'Message type not found')
         changes = payload.model_dump(exclude_unset=True)
+        keywords = changes.pop('keywords', None)
         parent_id = changes.get('parent_id')
         if parent_id and not self.repo.get(parent_id): raise HTTPException(422, 'Parent message type not found')
         if parent_id == item.id or (parent_id and parent_id in self.repo.descendants(item.id)): raise HTTPException(422, 'Circular message type hierarchy is not allowed')
         old = {key: str(getattr(item, key)) if getattr(item, key) is not None else None for key in changes}
         for key, value in changes.items(): setattr(item, key, value)
+        if keywords is not None: self._replace_keywords(item, keywords)
         AuditService(self.db).log(action='MESSAGE_TYPE_UPDATED', user_id=actor_id, entity_type='MESSAGE_TYPE', entity_id=item.id, metadata={'old': old, 'new': payload.model_dump(mode='json', exclude_unset=True)})
         self.db.commit(); self.db.refresh(item); return item
 
@@ -48,3 +53,18 @@ class MessageTypeService:
         else: item.is_deleted = True; item.is_active = False; action = 'MESSAGE_TYPE_DELETED'
         AuditService(self.db).log(action=action, user_id=actor_id, entity_type='MESSAGE_TYPE', entity_id=item.id)
         self.db.commit(); return item
+    @staticmethod
+    def _clean_keywords(values):
+        cleaned = []
+        seen = set()
+        for value in values or []:
+            keyword = ' '.join(value.strip().split())
+            normalized = keyword.lower()
+            if keyword and normalized not in seen:
+                cleaned.append(keyword)
+                seen.add(normalized)
+        return cleaned
+
+    def _replace_keywords(self, item, values):
+        item.keywords.clear()
+        item.keywords.extend(MessageTypeKeyword(keyword=value) for value in self._clean_keywords(values))

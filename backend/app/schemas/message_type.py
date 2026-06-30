@@ -1,6 +1,15 @@
 from datetime import date, datetime
 from uuid import UUID
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator
+
+
+def clean_keywords(values: list[str] | None) -> list[str] | None:
+    if values is None:
+        return None
+    cleaned = [' '.join(value.strip().split()) for value in values if value and value.strip()]
+    if any(len(value) > 120 for value in cleaned):
+        raise ValueError('Message type keywords cannot exceed 120 characters')
+    return cleaned
 
 
 class MessageTypeCreate(BaseModel):
@@ -9,6 +18,12 @@ class MessageTypeCreate(BaseModel):
     description: str | None = None
     display_order: int = Field(default=0, ge=0)
     is_active: bool = True
+    keywords: list[str] = Field(default_factory=list)
+
+    @field_validator('keywords')
+    @classmethod
+    def validate_keywords(cls, values):
+        return clean_keywords(values)
 
 
 class MessageTypeUpdate(BaseModel):
@@ -16,6 +31,12 @@ class MessageTypeUpdate(BaseModel):
     parent_id: UUID | None = None
     description: str | None = None
     display_order: int | None = Field(default=None, ge=0)
+    keywords: list[str] | None = None
+
+    @field_validator('keywords')
+    @classmethod
+    def validate_keywords(cls, values):
+        return clean_keywords(values)
 
 
 class MessageTypeStatus(BaseModel):
@@ -33,6 +54,7 @@ class MessageTypeResponse(BaseModel):
     is_deleted: bool
     created_at: datetime
     updated_at: datetime
+    keywords: list[str] = Field(default_factory=list)
     children: list['MessageTypeResponse'] = Field(default_factory=list)
 
 
