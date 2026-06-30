@@ -15,6 +15,15 @@ router = APIRouter()
 reports_router = APIRouter()
 
 
+def serialize_type(item):
+    return {
+        'id': item.id, 'name': item.name, 'parent_id': item.parent_id, 'description': item.description,
+        'display_order': item.display_order, 'is_active': item.is_active, 'is_deleted': item.is_deleted,
+        'created_at': item.created_at, 'updated_at': item.updated_at,
+        'keywords': [keyword.keyword for keyword in item.keywords], 'children': [],
+    }
+
+
 @router.get('', response_model=list[MessageTypeResponse])
 def list_types(include_deleted: bool = False, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     return MessageTypeService(db).tree(include_deleted=include_deleted)
@@ -28,12 +37,12 @@ def dropdown_tree(db: Session = Depends(get_db), current_user=Depends(get_curren
 @router.post('', response_model=MessageTypeResponse)
 def create_type(payload: MessageTypeCreate, db: Session = Depends(get_db), current_user=Depends(require_admin)):
     item = MessageTypeService(db).create(payload, current_user.id)
-    return MessageTypeService(db).tree(include_deleted=True) and {**item.__dict__, 'children': []}
+    return serialize_type(item)
 
 
 @router.put('/{item_id}', response_model=MessageTypeResponse)
 def update_type(item_id: UUID, payload: MessageTypeUpdate, db: Session = Depends(get_db), current_user=Depends(require_admin)):
-    item = MessageTypeService(db).update(item_id, payload, current_user.id); return {**item.__dict__, 'children': []}
+    item = MessageTypeService(db).update(item_id, payload, current_user.id); return serialize_type(item)
 
 
 @router.delete('/{item_id}')

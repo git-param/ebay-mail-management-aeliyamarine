@@ -105,6 +105,7 @@ class ReplyConversationRequest(BaseModel):
 
 
 class ConversationDetailResponse(ConversationSummaryResponse):
+    suggested_message_type_id: UUID | None = None
     current_assignee_id: UUID | None = None
     messages: list[MessageResponse] = Field(default_factory=list)
     assignments: list['ConversationAssignmentResponse'] = Field(default_factory=list)

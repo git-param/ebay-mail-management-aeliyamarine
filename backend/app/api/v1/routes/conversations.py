@@ -43,6 +43,7 @@ from app.services.conversation_note_service import ConversationNoteService
 from app.services.conversation_product_context_service import ConversationProductContextService
 from app.services.conversation_service import ConversationService
 from app.services.message_service import MessageService
+from app.services.message_type_detection_service import MessageTypeDetectionService
 from app.services.ebay_reply_service import EbayReplyService
 from app.services.notification_service import NotificationService
 from app.services.order_context_service import OrderContextService
@@ -138,6 +139,7 @@ def serialize_conversation(
     seller_account: EbayAccount | None = None,
     product_context: dict | None = None,
     order_context: dict | None = None,
+    suggested_message_type_id: UUID | None = None,
 ) -> ConversationDetailResponse:
     """
     Serialize a full conversation with messages, notes, assignment, and audit-derived indicators.
@@ -193,6 +195,7 @@ def serialize_conversation(
         notes=[serialize_note(note) for note in conversation.notes],
         product_context=product_context,
         order_context=serialize_order_context(order_context) if order_context else None,
+        suggested_message_type_id=suggested_message_type_id,
     )
 
 
@@ -829,6 +832,7 @@ def get_conversation(
         seller_account,
         product_context,
         order_context,
+        MessageTypeDetectionService(db).suggest(conversation),
     )
 
 

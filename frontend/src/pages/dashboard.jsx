@@ -13,13 +13,13 @@ import {
   fetchConversations,
   updateConversationCategory,
   updateConversationStatus,
-  validateConversationReply,
 } from '../services/conversationApi'
 import { fetchEbayAccounts } from '../services/ebayAccountApi'
 import { fetchTemplates } from '../services/templateApi'
 import { fetchUsers } from '../services/userApi'
 import { normalizeRole } from '../utils/roles'
 import { fetchMessageTypeTree } from '../services/messageTypeApi'
+import ReplyComposer from '../components/conversations/ReplyComposer'
 
 const DEFAULT_PAGE_SIZE = 20
 const PAGE_SIZE_OPTIONS = [10, 20, 50, 100]
@@ -199,19 +199,6 @@ function isImageAttachment(attachment) {
   const type = `${attachment.media_type || attachment.mime_type || ''}`.toLowerCase()
   const url = `${attachment.media_url || attachment.download_url || ''}`.toLowerCase()
   return type.includes('image') || /\.(png|jpe?g|gif|webp)(\?|$)/.test(url)
-}
-
-function formatFileSize(bytes) {
-  if (!Number.isFinite(bytes) || bytes <= 0) {
-    return 'Unknown size'
-  }
-  if (bytes < 1024) {
-    return `${bytes} B`
-  }
-  if (bytes < 1024 * 1024) {
-    return `${Math.round(bytes / 1024)} KB`
-  }
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
 function getVisiblePageItems(currentPage, pageCount) {
@@ -647,179 +634,6 @@ function MessageThread({ messages, isSystemConversation }) {
   )
 }
 
-function ReplyComposer({ conversationId, isSubmitting, onSendReply, templates, messageTypes = [] }) {
-  const [body, setBody] = useState('')
-  const [files, setFiles] = useState([])
-  const [fileInputKey, setFileInputKey] = useState(0)
-  const [violations, setViolations] = useState([])
-  const [draftMessage, setDraftMessage] = useState('')
-  const [isValidating, setIsValidating] = useState(false)
-  const [categoryId, setCategoryId] = useState('')
-  const [subtypeId, setSubtypeId] = useState('')
-  const category = messageTypes.find((item) => item.id === categoryId)
-  const selectedTypeId = category?.children?.length ? subtypeId : categoryId
-
-  function addFiles(selectedFiles) {
-    const nextFiles = [...files, ...selectedFiles]
-    if (nextFiles.length > 5) {
-      setViolations(['eBay allows a maximum of 5 attachments per reply.'])
-      setFileInputKey((current) => current + 1)
-      return
-    }
-    setViolations([])
-    setDraftMessage('')
-    setFiles(nextFiles)
-    setFileInputKey((current) => current + 1)
-  }
-
-  function updateFiles(event) {
-    addFiles(Array.from(event.target.files || []))
-  }
-
-  function removeFile(fileIndex) {
-    setFiles((current) => current.filter((_, index) => index !== fileIndex))
-    setDraftMessage('')
-  }
-
-  function saveDraft() {
-    setViolations([])
-    setDraftMessage('Draft saved locally for this conversation.')
-  }
-
-  async function submitReply(event) {
-    event.preventDefault()
-    const trimmedBody = body.trim()
-    if (!trimmedBody || !conversationId || !selectedTypeId) {
-      if (!selectedTypeId) setViolations(['Message type is required.'])
-      return
-    }
-    setIsValidating(true)
-    setViolations([])
-    setDraftMessage('')
-    try {
-      const validation = await validateConversationReply(conversationId, trimmedBody)
-      if (!validation.valid) {
-        setViolations(validation.violations || ['Reply violates eBay messaging policy.'])
-        return
-      }
-      await onSendReply(trimmedBody, files, selectedTypeId)
-      setBody('')
-      setFiles([])
-      setDraftMessage('')
-      setFileInputKey((current) => current + 1)
-      setCategoryId('')
-      setSubtypeId('')
-    } catch (caughtError) {
-      setViolations([caughtError.message])
-    } finally {
-      setIsValidating(false)
-    }
-  }
-
-  return (
-    <form className="reply-composer" onSubmit={submitReply}>
-      <div className="composer-toolbar composer-controls">
-        {templates.length ? (
-          <label className="composer-select-control">
-            <span>Template</span>
-            <select
-              className="template-picker"
-              value=""
-              aria-label="Insert reply template"
-              onChange={(event) => {
-                const template = templates.find((item) => item.id === event.target.value)
-                if (template) {
-                  setBody((current) => {
-                    const separator = current.trim() ? '\n\n' : ''
-                    return `${current}${separator}${template.body}`
-                  })
-                }
-              }}
-            >
-              <option value="">Choose template</option>
-              {templates.map((template) => (
-                <option value={template.id} key={template.id}>
-                  {template.title}
-                </option>
-              ))}
-            </select>
-          </label>
-        ) : null}
-        <label className="composer-select-control">
-          <span>Message Type *</span>
-          <select value={categoryId} onChange={(event) => { setCategoryId(event.target.value); setSubtypeId('') }}>
-            <option value="">Select type</option>
-            {messageTypes.map((item) => <option value={item.id} key={item.id}>{item.name}</option>)}
-          </select>
-        </label>
-        {category?.children?.length ? (
-          <label className="composer-select-control">
-            <span>Sub Type *</span>
-            <select value={subtypeId} onChange={(event) => setSubtypeId(event.target.value)}>
-              <option value="">Select subtype</option>
-              {category.children.map((item) => <option value={item.id} key={item.id}>{item.name}</option>)}
-            </select>
-          </label>
-        ) : null}
-      </div>
-
-      <label className="field composer-editor">
-        <span>Reply to buyer</span>
-        <textarea
-          value={body}
-          onChange={(event) => {
-            setBody(event.target.value)
-            setDraftMessage('')
-          }}
-          rows="3"
-          maxLength={2000}
-          placeholder="Write a reply without email, phone, external links, or abusive language"
-        />
-      </label>
-      {files.length ? (
-        <div className="reply-attachment-list" aria-label="Selected attachments">
-          {files.map((file, index) => (
-            <span className="reply-attachment-chip" key={`${file.name}-${file.size}-${index}`}>
-              <span>
-                <strong>{file.name}</strong>
-                <small>{formatFileSize(file.size)}</small>
-              </span>
-              <button type="button" onClick={() => removeFile(index)} aria-label={`Remove ${file.name}`}>
-                x
-              </button>
-            </span>
-          ))}
-        </div>
-      ) : null}
-      {violations.length ? (
-        <div className="reply-policy-warning" role="alert">
-          {violations.map((violation) => (
-            <p key={violation}>{violation}</p>
-          ))}
-        </div>
-      ) : null}
-      {draftMessage ? (
-        <div className="reply-draft-message" role="status">
-          <p>{draftMessage}</p>
-        </div>
-      ) : null}
-      <div className="reply-composer-actions">
-        <div className="composer-attachment-action">
-          <input id={`reply-attachments-${conversationId}`} key={fileInputKey} type="file" multiple onChange={updateFiles} accept=".pdf,.txt,.jpg,.jpeg,.png,application/pdf,text/plain,image/jpeg,image/png" />
-          <label htmlFor={`reply-attachments-${conversationId}`} title="Attach files" aria-label="Attach files"><Icon name="paperclip" /></label>
-          <small>{files.length ? `${files.length} attached` : 'Attach'} · {body.length}/2000</small>
-        </div>
-        <button className="secondary-button compact" type="button" onClick={saveDraft} disabled={!body.trim() && !files.length}>
-          Save Draft
-        </button>
-        <button className="primary-button compact" type="submit" disabled={!body.trim() || !selectedTypeId || isSubmitting || isValidating}>
-          {isValidating ? 'Checking...' : isSubmitting ? 'Sending...' : 'Send Reply'}
-        </button>
-      </div>
-    </form>
-  )
-}
-
 function ReplyUnavailableNotice() {
   return (
     <div className="reply-unavailable" role="note">
@@ -1024,33 +838,63 @@ function ProductContextBanner({ detail }) {
 
   return (
     <section className="product-context-banner" aria-label="Product context">
-      <a className={`product-context-main ${context?.item_url ? '' : 'is-disabled'}`} href={context?.item_url || undefined} target="_blank" rel="noreferrer">
+      <div className="product-context-main">
         <div className="product-context-thumb" aria-hidden="true">
-          {context?.image_url ? <img src={context.image_url} alt="" /> : <Icon name="package" />}
+          {context?.image_url ? (
+            <img src={context.image_url} alt="" />
+          ) : (
+            <Icon name="package" />
+          )}
         </div>
+
         <div className="product-context-body">
-          <strong>{context?.title || 'Product information is still being enriched.'}</strong>
-          <span>Item ID: {context?.reference_id || detail.reference_id || '--'}</span>
-          <span>Seller: {context?.seller_username || detail.seller_account?.ebay_username || '--'}</span>
-          <span>SKU: {detail?.order_context?.selected_order?.line_items?.[0]?.sku || '--'}</span>
-          <span>Order: {detail?.order_context?.selected_order?.order_id || '--'}</span>
+          {context?.item_url ? (
+            <a href={context.item_url} target="_blank" rel="noreferrer">
+              <strong>{context?.title || "Product information is still being enriched."}</strong>
+            </a>
+          ) : (
+            <strong>{context?.title || "Product information is still being enriched."}</strong>
+          )}
+
+          <div className="product-context-meta">
+            <div>
+              <span>Seller: {context?.seller_username || detail.seller_account?.ebay_username || "--"}</span>
+              <span>Order: {detail?.order_context?.selected_order?.order_id || "--"}</span>
+            </div>
+
+            <div>
+              <span>Item ID: {context?.reference_id || detail.reference_id || "--"}</span>
+              <span>SKU: {detail?.order_context?.selected_order?.line_items?.[0]?.sku || "--"}</span>
+            </div>
+          </div>
         </div>
-      </a>
+      </div>
       <div className="product-context-actions">
-        <a className="primary-button compact-action" href="https://mesg.ebay.com/mesgweb/ViewMessages/0" target="_blank" rel="noreferrer">
+        <a
+          className="secondary-button compact-action"
+          href="https://mesg.ebay.com/mesgweb/ViewMessages/0"
+          target="_blank"
+          rel="noreferrer"
+        >
           Open in eBay Messaging
         </a>
-        <a className="secondary-button compact-action" href={context?.item_url || `https://www.ebay.com/itm/${detail.reference_id || ''}`} target="_blank" rel="noreferrer">
+
+        <a
+          className="secondary-button compact-action"
+          href={context?.item_url || `https://www.ebay.com/itm/${detail.reference_id || ''}`}
+          target="_blank"
+          rel="noreferrer"
+        >
           Open Listing
         </a>
-        <button className="secondary-button compact-action" type="button" onClick={() => copyText(context?.reference_id || detail.reference_id)}>
+
+        <button
+          className="secondary-button compact-action"
+          type="button"
+          onClick={() => copyText(context?.reference_id || detail.reference_id)}
+        >
           Copy Item ID
         </button>
-        {context?.sku ? (
-          <button className="secondary-button compact-action" type="button" onClick={() => copyText(context.sku)}>
-            Copy SKU
-          </button>
-        ) : null}
       </div>
     </section>
   )
@@ -1172,6 +1016,7 @@ function ConversationDetail({
           ) : (
             <ReplyComposer
               conversationId={detail.id}
+              suggestedMessageTypeId={detail.suggested_message_type_id}
               isSubmitting={isSubmitting}
               onSendReply={onSendReply}
               templates={templates}

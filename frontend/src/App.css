@@ -2258,6 +2258,26 @@
   font-size: 12px;
 }
 
+.product-context-body > a {
+  grid-column: 1 / -1;
+  display: block;
+  text-decoration: none;
+  color: inherit;
+}
+
+.product-context-meta {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px 16px;
+}
+
+.product-context-meta > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
 .product-context-body strong {
   grid-column: 1 / -1;
   overflow: hidden;
@@ -2270,9 +2290,18 @@
 
 .product-context-actions {
   display: flex;
-  flex-wrap: wrap;
+  align-items: center;
   justify-content: flex-end;
-  gap: 8px;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.product-context-actions .secondary-button,
+.product-context-actions .primary-button {
+  max-width: 100px;
+  justify-content: center;
+  text-align: center;
+  text-decoration: none;
 }
 
 .order-subpanel {
