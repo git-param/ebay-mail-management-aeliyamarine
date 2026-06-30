@@ -100,6 +100,7 @@ export function Icon({ name }) {
     disable: <path d="M4.5 4.5 15.5 15.5M17 10a7 7 0 0 1-10.8 5.9M3 10A7 7 0 0 1 13.8 4.1" />,
     activate: <path d="m4 10 4 4 8-8" />,
     close: <path d="M5 5l10 10M15 5 5 15" />,
+    menu: <path d="M3 5h14M3 10h14M3 15h14" />,
     bell: <path d="M6 15h8l-1-2V9a4 4 0 0 0-8 0v4l-1 2h2Zm3 2h2" />,
     message: <path d="M4 5h12v8H7l-3 3V5Zm3 3h6M7 10h4" />,
     paperclip: <path d="M7.5 10.5 12 6a2.1 2.1 0 0 1 3 3l-6.2 6.2a3.4 3.4 0 0 1-4.8-4.8l6.1-6.1M6.5 12.5l6.1-6.1" />,
@@ -122,6 +123,7 @@ function AppLayout({ activePage, children, currentUser, onLogout }) {
   const [notifications, setNotifications] = useState([])
   const [unreadCount, setUnreadCount] = useState(0)
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'light')
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const userRole = normalizeRole(currentUser?.role)
   const visibleItems = NAV_ITEMS.filter((item) => item.roles.includes(userRole))
   const displayName = currentUser?.full_name || currentUser?.fullName || currentUser?.email || 'User'
@@ -131,6 +133,14 @@ function AppLayout({ activePage, children, currentUser, onLogout }) {
     document.documentElement.dataset.theme = theme
     localStorage.setItem('theme', theme)
   }, [theme])
+
+  useEffect(() => {
+    function closeOnEscape(event) {
+      if (event.key === 'Escape') setIsSidebarOpen(false)
+    }
+    window.addEventListener('keydown', closeOnEscape)
+    return () => window.removeEventListener('keydown', closeOnEscape)
+  }, [])
 
   useEffect(() => {
     let isActive = true
@@ -171,8 +181,14 @@ function AppLayout({ activePage, children, currentUser, onLogout }) {
   }
 
   return (
-    <div className="app-shell">
-      <aside className="sidebar">
+    <div className={`app-shell ${isSidebarOpen ? 'sidebar-is-open' : ''}`}>
+      <button
+        className="sidebar-backdrop"
+        type="button"
+        aria-label="Close navigation"
+        onClick={() => setIsSidebarOpen(false)}
+      />
+      <aside className="sidebar" aria-label="Application navigation">
         <div className="sidebar-brand">
           <span>AM</span>
           <div>
@@ -183,7 +199,7 @@ function AppLayout({ activePage, children, currentUser, onLogout }) {
 
         <nav className="sidebar-nav" aria-label="Main navigation">
           {visibleItems.map((item) => (
-            <a className={item.label === activePage ? 'active' : ''} href={item.path} key={item.label}>
+            <a className={item.label === activePage ? 'active' : ''} href={item.path} key={item.label} onClick={() => setIsSidebarOpen(false)}>
               <span>
                 <Icon name={item.icon} />
               </span>
@@ -203,6 +219,15 @@ function AppLayout({ activePage, children, currentUser, onLogout }) {
 
       <div className="workspace">
         <header className="top-nav">
+          <button
+            className="icon-button mobile-menu-button"
+            type="button"
+            aria-label="Open navigation"
+            aria-expanded={isSidebarOpen}
+            onClick={() => setIsSidebarOpen((current) => !current)}
+          >
+            <Icon name={isSidebarOpen ? 'close' : 'menu'} />
+          </button>
           <div className="top-actions">
             <div className="notification-menu-wrap">
               <button
