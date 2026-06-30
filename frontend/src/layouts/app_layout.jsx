@@ -174,10 +174,10 @@ function AppLayout({ activePage, children, currentUser, onLogout }) {
     <div className="app-shell">
       <aside className="sidebar">
         <div className="sidebar-brand">
-          <span>OD</span>
+          <span>AM</span>
           <div>
-            <strong>Omni-Desk</strong>
-            <p>eBay Helpdesk</p>
+            <strong>ACES</strong>
+            <p>Aeliya Communications & Engagement System</p>
           </div>
         </div>
 

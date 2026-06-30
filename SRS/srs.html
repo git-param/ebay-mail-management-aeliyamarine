@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, print-scale: 1.0">
-    <title>eBay Omni-Desk Platform | Merged SRS v2.0 – Complete Specification</title>
+    <title>eBay ACES Platform | Merged SRS v2.0 – Complete Specification</title>
     <style>
         * {
             margin: 0;
@@ -225,7 +225,7 @@
 <body>
 <div class="toc-sidebar">
     <div class="logo">
-        <h2>📘 eBay Omni-Desk</h2>
+        <h2>📘 eBay ACES</h2>
         <p>SRS v2.0 (Merged)</p>
     </div>
     <nav>
@@ -256,7 +256,7 @@
 <div class="main-content">
     <!-- COVER -->
     <div id="cover" class="section-card" style="text-align: center;">
-        <h1>📬 eBay Omni-Desk Platform</h1>
+        <h1>📬 eBay ACES Platform</h1>
         <p style="font-size: 1.2rem;">Software Requirements Specification (SRS) – Merged Edition</p>
         <p><strong>Version 2.1 (Cross‑Assignment + Manual Sync)</strong> | IEEE 830-1998 | Approved for Engineering</p>
         <hr style="margin: 20px auto; width: 80px; border: 1px solid #ffaa33;">
@@ -282,7 +282,7 @@
     <!-- EXECUTIVE SUMMARY & BUSINESS OBJECTIVES -->
     <div id="exec-summary" class="section-card">
         <h2>Executive Summary & Business Objectives</h2>
-        <p>The eBay Omni-Desk Platform centralizes customer support across multiple eBay seller accounts (Main, Marine, Tech, Ship, Tools, Trade). Agents manage all buyer messages, replies, and assignments from a single WhatsApp‑style interface, eliminating manual account switching. Built on <strong>FastAPI, React, PostgreSQL, Redis & Celery</strong>, the system reduces first response time by ≥40%, enforces accountability via assignment, and provides real‑time analytics.</p>
+        <p>The eBay ACES Platform centralizes customer support across multiple eBay seller accounts (Main, Marine, Tech, Ship, Tools, Trade). Agents manage all buyer messages, replies, and assignments from a single WhatsApp‑style interface, eliminating manual account switching. Built on <strong>FastAPI, React, PostgreSQL, Redis & Celery</strong>, the system reduces first response time by ≥40%, enforces accountability via assignment, and provides real‑time analytics.</p>
         <div class="grid-2" style="margin-top: 16px;">
             <div><strong>🎯 Primary Goals</strong><br>✔ Unified conversation inbox<br>✔ Role‑based access control<br>✔ 24h SLA visual tracking<br>✔ Complete audit trail<br>✔ <strong>Universal assignment: any user can assign to any other user (including Admin/Manager)</strong><br>✔ <strong>Manual sync (Admin/Manager trigger) instead of automatic polling</strong></div>
             <div><strong>📈 Measurable KPIs</strong><br>✔ Avg first response ↓40%<br>✔ Zero direct eBay logins for agents<br>✔ 95% conversations within SLA<br>✔ 99.5% platform availability</div>
@@ -412,7 +412,7 @@
             subgraph External
                 eBayAPI[eBay REST API]
             end
-            subgraph Omni-Desk Backend
+            subgraph ACES Backend
                 Nginx[Nginx Proxy] --> API[FastAPI]
                 CelerySync[Celery Sync Worker]
                 DB[(PostgreSQL)]
@@ -492,7 +492,7 @@
         <div class="wireframe">
             <strong>📱 Login Screen</strong><br>
             ╔══════════════════════╗<br>
-            ║   Omni-Desk Platform ║<br>
+            ║   ACES Platform ║<br>
             ║ Email: [_________]   ║<br>
             ║ Password: [______]   ║<br>
             ║   [ Login ] [Forgot] ║<br>
@@ -584,7 +584,7 @@
     </div>
 
     <footer>
-        eBay Omni-Desk Platform SRS v2.1 – Confidential – Approved for Engineering – All requirements subject to change control.
+        eBay ACES Platform SRS v2.1 – Confidential – Approved for Engineering – All requirements subject to change control.
     </footer>
 </div>
 

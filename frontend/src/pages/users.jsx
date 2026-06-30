@@ -813,7 +813,7 @@ function Users({ currentUser, onLogout }) {
       {modal === 'disable' && selectedUser ? (
         <ConfirmModal
           title="Disable User"
-          message={`Disable ${selectedUser.fullName}'s account? They will no longer be able to access Omni-Desk.`}
+          message={`Disable ${selectedUser.fullName}'s account? They will no longer be able to access ACES.`}
           actionLabel="Disable User"
           danger
           isSubmitting={isSubmitting}

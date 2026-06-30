@@ -10,7 +10,7 @@ ENV_FILE = BACKEND_DIR / '.env'
 
 
 class Settings(BaseSettings):
-    project_name: str = 'Mail Management API'
+    project_name: str = 'ACES API'
     api_version: str = '1.0.0'
 
     database_url: str = Field(validation_alias='DATABASE_URL')
