@@ -1,6 +1,6 @@
 export const LOGIN_TEXT = {
-  brand: 'Mail Management',
-  eyebrow: 'Secure Mail Desk',
+  brand: 'ACES',
+  eyebrow: 'Aeliya Communications & Engagement System',
   title: 'Welcome back',
   subtitle: 'Sign in with your registered email address to manage your mail workflow.',
   emailLabel: 'Email ID',
@@ -39,7 +39,7 @@ export const RESET_PASSWORD_TEXT = {
   brand: LOGIN_TEXT.brand,
   eyebrow: 'Password Reset',
   title: 'Create a new password',
-  subtitle: 'Choose a new password for your Mail Management account.',
+  subtitle: 'Choose a new password for your ACES account.',
   passwordLabel: 'New password',
   passwordPlaceholder: 'Enter new password',
   confirmPasswordLabel: 'Confirm password',

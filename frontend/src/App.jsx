@@ -127,7 +127,7 @@ function NotFound() {
     <main className="auth-page">
       <section className="auth-panel auth-panel-small" aria-labelledby="not-found-title">
         <div className="auth-form-wrap">
-          <p className="auth-brand">Mail Management</p>
+          <p className="auth-brand">ACES</p>
           <p className="auth-eyebrow">Page Not Found</p>
           <h1 id="not-found-title">We could not find that page</h1>
           <p className="auth-subtitle">

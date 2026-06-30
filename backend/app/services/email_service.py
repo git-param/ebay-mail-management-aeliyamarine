@@ -17,13 +17,13 @@ class EmailService:
 
         from_email = settings.smtp_from_email or settings.smtp_username
         message = EmailMessage()
-        message['Subject'] = 'Reset your Mail Management password'
+        message['Subject'] = 'Reset your ACES password'
         message['From'] = from_email
         message['To'] = email
         message.set_content(
             '\n'.join(
                 [
-                    'We received a request to reset your Mail Management password.',
+                    'We received a request to reset your ACES password.',
                     '',
                     f'Open this link to set a new password: {reset_link}',
                     '',

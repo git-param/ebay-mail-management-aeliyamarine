@@ -1074,7 +1074,7 @@ function EbayAccounts({ currentUser, onLogout }) {
       {modal === 'delete' && selectedAccount ? (
         <ConfirmModal
           title="Delete Account"
-          message={`Delete ${selectedAccount.accountName}? This removes the account record from Omni-Desk.`}
+          message={`Delete ${selectedAccount.accountName}? This removes the account record from ACES.`}
           actionLabel="Delete"
           danger
           isSubmitting={isSubmitting}
