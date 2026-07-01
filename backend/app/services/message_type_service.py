@@ -1,5 +1,6 @@
 from uuid import UUID
 from fastapi import HTTPException, status
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models.message_type import MessageType, MessageTypeKeyword
@@ -8,6 +9,7 @@ from app.services.audit_service import AuditService
 
 
 class MessageTypeService:
+    """Manage hierarchical reply classifications and automatic sibling ordering."""
     def __init__(self, db: Session): self.db, self.repo = db, MessageTypeRepository(db)
 
     def tree(self, include_deleted=False, active_only=False):
@@ -24,14 +26,32 @@ class MessageTypeService:
         return [node(root) for root in by_parent.get(None, [])]
 
     def create(self, payload, actor_id):
+        """
+        Create a message type at the end of its sibling list.
+
+        Args:
+            payload: Validated message-type fields supplied by an administrator.
+            actor_id: User creating the classification.
+
+        Returns:
+            Persisted MessageType instance.
+
+        Side Effects:
+            Creates keywords and a business-readable audit event, then commits.
+
+        Business Rules:
+            Ordering is system-owned; each new item receives max sibling order + 1.
+        """
         if payload.parent_id and not self.repo.get(payload.parent_id): raise HTTPException(422, 'Parent message type not found')
         values = payload.model_dump()
         keywords = values.pop('keywords', [])
-        item = MessageType(**values, created_by=actor_id); self._replace_keywords(item, keywords); self.db.add(item); self.db.flush()
+        highest_order = self.db.scalar(select(func.max(MessageType.display_order)).where(MessageType.parent_id == payload.parent_id)) or 0
+        item = MessageType(**values, display_order=highest_order + 1, created_by=actor_id); self._replace_keywords(item, keywords); self.db.add(item); self.db.flush()
         AuditService(self.db).log(action='MESSAGE_TYPE_CREATED', user_id=actor_id, entity_type='MESSAGE_TYPE', entity_id=item.id, metadata={'new': payload.model_dump(mode='json')})
         self.db.commit(); self.db.refresh(item); return item
 
     def update(self, item_id, payload, actor_id):
+        """Update editable classification content without accepting manual ordering."""
         item = self.repo.get(item_id)
         if not item: raise HTTPException(404, 'Message type not found')
         changes = payload.model_dump(exclude_unset=True)

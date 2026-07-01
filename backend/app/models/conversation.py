@@ -2,7 +2,7 @@ import enum
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Integer, String, Text, UniqueConstraint, false
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -31,6 +31,7 @@ class SyncLogStatus(str, enum.Enum):
 
 
 class Conversation(Base):
+    """Represent one buyer support thread and its current operational state."""
     __tablename__ = 'conversations'
     __table_args__ = (
         UniqueConstraint('provider', 'provider_conversation_id', name='uq_conversations_provider_external_id'),
@@ -54,6 +55,12 @@ class Conversation(Base):
         default=ConversationStatus.OPEN,
     )
     category_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey('categories.id'), nullable=True)
+    category_manually_selected: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+        server_default=false(),
+    )
     last_message_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     external_created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     raw_payload: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
@@ -114,6 +121,40 @@ class Conversation(Base):
         cascade='all, delete-orphan',
         order_by='ConversationNote.created_at',
     )
+    sla_history = relationship(
+        'ConversationSLAHistory',
+        back_populates='conversation',
+        cascade='all, delete-orphan',
+        order_by='ConversationSLAHistory.cycle_number',
+    )
+
+
+class ConversationSLAHistory(Base):
+    """
+    Preserve one immutable first-response measurement per inbound SLA cycle.
+
+    A cycle begins with a buyer message and is completed by the first reply
+    that eBay accepts. Later messages create new rows rather than changing a
+    previously reported response time.
+    """
+
+    __tablename__ = 'conversation_sla_history'
+    __table_args__ = (
+        UniqueConstraint('conversation_id', 'cycle_number', name='uq_conversation_sla_cycle'),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    conversation_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey('conversations.id'), nullable=False, index=True)
+    cycle_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    buyer_message_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
+    replied_time: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
+    replied_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey('users.id'), nullable=True, index=True)
+    response_duration_seconds: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    sla_met: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+
+    conversation = relationship('Conversation', back_populates='sla_history')
+    replying_user = relationship('User')
 
 
 class Message(Base):

@@ -32,6 +32,7 @@ from app.repositories.message_type_repository import MessageClassificationReposi
 from app.services.conversation_service import ConversationService
 from app.services.reply_policy_service import ReplyPolicyService
 from app.services.reply_attachment_service import ReplyAttachmentService
+from app.services.sla_service import SLAService
 
 
 logger = logging.getLogger(__name__)
@@ -131,6 +132,9 @@ class EbayReplyService:
 
         # --- 3. Load and validate the conversation ---
         conversation = ConversationService(self.db).get_conversation(conversation_id)
+
+        if conversation.status.value == 'CLOSED':
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail='Closed conversations are read-only')
 
         if conversation.provider != EBAY_PROVIDER_NAME:
             raise HTTPException(
@@ -256,6 +260,7 @@ class EbayReplyService:
         }
 
         conversation.last_message_at = message.sent_at
+        SLAService(self.db).complete_after_reply(conversation, actor_id, message.sent_at)
 
         MessageClassificationRepository(self.db).create(
             conversation_id=conversation.id,

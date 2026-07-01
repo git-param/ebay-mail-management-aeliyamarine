@@ -13,10 +13,10 @@ def clean_keywords(values: list[str] | None) -> list[str] | None:
 
 
 class MessageTypeCreate(BaseModel):
+    """Validate user-managed fields for an automatically ordered message type."""
     name: str = Field(min_length=1, max_length=160)
     parent_id: UUID | None = None
     description: str | None = None
-    display_order: int = Field(default=0, ge=0)
     is_active: bool = True
     keywords: list[str] = Field(default_factory=list)
 
@@ -27,10 +27,10 @@ class MessageTypeCreate(BaseModel):
 
 
 class MessageTypeUpdate(BaseModel):
+    """Validate editable message-type fields while preserving system ordering."""
     name: str | None = Field(default=None, min_length=1, max_length=160)
     parent_id: UUID | None = None
     description: str | None = None
-    display_order: int | None = Field(default=None, ge=0)
     keywords: list[str] | None = None
 
     @field_validator('keywords')

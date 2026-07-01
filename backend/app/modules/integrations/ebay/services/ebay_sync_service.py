@@ -95,7 +95,9 @@ class EbaySyncService:
         order_sync_error = None
 
         try:
-            account = self._ensure_access_token(account)
+            # fetch the access token if it is present and not expired
+            account = self._ensure_access_token(account) 
+
             for conversation_summary, page_total in self._iter_conversation_summaries(
                 account,
                 max_conversations=max_conversations,
@@ -126,7 +128,7 @@ class EbaySyncService:
                     detail_response.request_headers,
                     conversation_summary,
                 )
-                if conversation_id == '112795218410' or not detail_response.ok:
+                if not detail_response.ok:
                     logger.warning(
                         'eBay conversation detail response diagnostic account_id=%s status_code=%s response_body=%s diagnostic=%s',
                         account.id,

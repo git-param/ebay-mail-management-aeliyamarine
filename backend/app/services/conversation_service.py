@@ -143,6 +143,7 @@ class ConversationService:
 
         old_category_id = conversation.category_id
         conversation.category_id = category_id
+        conversation.category_manually_selected = True
         self.category_history_repository.add(
             ConversationCategoryHistory(
                 conversation_id=conversation.id,

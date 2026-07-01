@@ -66,12 +66,18 @@ class CategorizationService:
                 .limit(batch_size)
             )
             if only_uncategorized:
-                statement = statement.where(Conversation.category_id.is_(None))
+                statement = statement.where(
+                    Conversation.category_id.is_(None),
+                    Conversation.category_manually_selected.is_(False),
+                )
             conversations = list(self.db.scalars(statement))
             if not conversations:
                 break
             for conversation in conversations:
                 processed += 1
+                if conversation.category_manually_selected:
+                    unchanged += 1
+                    continue
                 category_id = self.classify_conversation(conversation)
                 if category_id is None:
                     uncategorized += 1

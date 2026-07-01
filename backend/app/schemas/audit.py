@@ -12,6 +12,7 @@ class AuditUserResponse(BaseModel):
 
 
 class AuditLogResponse(BaseModel):
+    """Expose both stored audit data and operations-friendly presentation fields."""
     id: UUID
     user_id: UUID | None
     user: AuditUserResponse | None = None
@@ -24,6 +25,10 @@ class AuditLogResponse(BaseModel):
     ip_address: str | None
     user_agent: str | None
     created_at: datetime
+    action_label: str
+    module_label: str
+    resource_label: str
+    details: str
 
 
 class AuditLogPageResponse(BaseModel):
