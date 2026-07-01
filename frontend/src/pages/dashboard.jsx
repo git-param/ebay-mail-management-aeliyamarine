@@ -13,6 +13,7 @@ import {
   fetchConversations,
   updateConversationCategory,
   updateConversationStatus,
+  translateMessage,
 } from '../services/conversationApi'
 import { fetchEbayAccounts } from '../services/ebayAccountApi'
 import { fetchTemplates } from '../services/templateApi'
@@ -601,6 +602,20 @@ function MessageThread({ messages, isSystemConversation }) {
    * the thread-panel level so nested scrollbars cannot trap mouse or touch input.
    */
   const threadRef = useRef(null)
+  const [translations, setTranslations] = useState({})
+  const [translatingId, setTranslatingId] = useState(null)
+
+  async function translateBuyerMessage(message) {
+    setTranslatingId(message.id)
+    try {
+      const result = await translateMessage(message.body, 'en')
+      setTranslations((current) => ({ ...current, [message.id]: { text: result.translated_text } }))
+    } catch (error) {
+      setTranslations((current) => ({ ...current, [message.id]: { error: error.message } }))
+    } finally {
+      setTranslatingId(null)
+    }
+  }
 
   useLayoutEffect(() => {
     const thread = threadRef.current
@@ -636,6 +651,15 @@ function MessageThread({ messages, isSystemConversation }) {
           ) : (
             <p>{message.body}</p>
           )}
+          {direction === 'inbound' && message.body ? (
+            <div className="message-translation">
+              <button className="translation-button" type="button" disabled={translatingId === message.id} onClick={() => translateBuyerMessage(message)}>
+                {translatingId === message.id ? 'Translating…' : 'Translate to English'}
+              </button>
+              {translations[message.id]?.text ? <p className="translated-copy"><strong>English:</strong> {translations[message.id].text}</p> : null}
+              {translations[message.id]?.error ? <small role="alert">{translations[message.id].error}</small> : null}
+            </div>
+          ) : null}
           {SHOW_MESSAGE_ATTACHMENTS && message.attachments?.length ? (
             <div className="message-attachments">
               {message.attachments.map((attachment) => {
@@ -868,77 +892,98 @@ function MetadataPanel({ detail, accounts }) {
   )
 }
 
-function ProductContextBanner({ detail }) {
-  const context = detail.product_context
+function ContextThumbnail({ imageUrl, title }) {
+  const [failed, setFailed] = useState(false)
+  const normalizedUrl = typeof imageUrl === 'string'
+    ? imageUrl.trim().replace(/^http:\/\//i, 'https://').replace(/&amp;/g, '&')
+    : ''
 
-  function copyText(value) {
-    if (value && navigator.clipboard) {
-      navigator.clipboard.writeText(value)
-    }
-  }
+  useEffect(() => setFailed(false), [normalizedUrl])
+
+  if (!normalizedUrl || failed) return <Icon name="package" />
 
   return (
-    <section className="product-context-banner" aria-label="Product context">
+    <img
+      src={normalizedUrl}
+      alt={title ? `${title} preview` : 'Item preview'}
+      loading="eager"
+      referrerPolicy="no-referrer"
+      onError={() => setFailed(true)}
+    />
+  )
+}
+
+function ContextItemBanner({ context, actionLabel, ariaLabel }) {
+  const formattedPrice = context.price == null
+    ? null
+    : new Intl.NumberFormat(undefined, {
+        style: context.currency ? 'currency' : 'decimal',
+        currency: context.currency || undefined,
+      }).format(context.price)
+  return (
+    <section className="product-context-banner" aria-label={ariaLabel}>
       <div className="product-context-main">
-        <div className="product-context-thumb" aria-hidden="true">
-          {context?.image_url ? (
-            <img src={context.image_url} alt="" />
-          ) : (
-            <Icon name="package" />
-          )}
+        <div className="product-context-thumb">
+          <ContextThumbnail imageUrl={context?.image_url} title={context?.title} />
         </div>
 
         <div className="product-context-body">
           {context?.item_url ? (
             <a href={context.item_url} target="_blank" rel="noreferrer">
-              <strong>{context?.title || "Product information is still being enriched."}</strong>
+              <strong>{context.title || 'Unknown Item'}</strong>
             </a>
           ) : (
-            <strong>{context?.title || "Product information is still being enriched."}</strong>
+            <strong>{context.title || 'Unknown Item'}</strong>
           )}
-
-          <div className="product-context-meta">
-            <div>
-              <span>Seller: {context?.seller_username || detail.seller_account?.ebay_username || "--"}</span>
-              <span>Order: {detail?.order_context?.selected_order?.order_id || "--"}</span>
+          {formattedPrice ? <span className="product-context-price">{formattedPrice}</span> : null}
+          {(context.order_id || context.item_id || context.sku) ? (
+            <div className="product-context-identifiers">
+              {context.order_id ? <span>Order Number: {context.order_id}</span> : null}
+              {context.item_id ? <span>Item ID: {context.item_id}</span> : null}
+              {context.sku ? <span>SKU: {context.sku}</span> : null}
             </div>
-
-            <div>
-              <span>Item ID: {context?.reference_id || detail.reference_id || "--"}</span>
-              <span>SKU: {detail?.order_context?.selected_order?.line_items?.[0]?.sku || "--"}</span>
-            </div>
-          </div>
+          ) : null}
         </div>
       </div>
       <div className="product-context-actions">
-        <a
-          className="secondary-button compact-action"
-          href="https://mesg.ebay.com/mesgweb/ViewMessages/0"
-          target="_blank"
-          rel="noreferrer"
-        >
-          Open in eBay Messaging
-        </a>
-
-        <a
-          className="secondary-button compact-action"
-          href={context?.item_url || `https://www.ebay.com/itm/${detail.reference_id || ''}`}
-          target="_blank"
-          rel="noreferrer"
-        >
-          Open Listing
-        </a>
-
-        <button
-          className="secondary-button compact-action"
-          type="button"
-          onClick={() => copyText(context?.reference_id || detail.reference_id)}
-        >
-          Copy Item ID
-        </button>
+        {context.item_url ? <a className="secondary-button compact-action" href={context.item_url} target="_blank" rel="noreferrer">Open Item</a> : null}
+        {actionLabel && context.item_url ? <a className="primary-button compact-action" href={context.item_url} target="_blank" rel="noreferrer">{actionLabel}</a> : null}
       </div>
     </section>
   )
+}
+
+function OrderBanner({ order }) {
+  const item = order.line_items?.[0] || {}
+  const context = {
+    title: item.title || `Order ${order.order_id}`,
+    image_url: item.image_url,
+    item_url: order.ebay_url,
+    price: item.price_value,
+    currency: item.price_currency,
+    order_id: order.order_id,
+    item_id: item.item_id || item.listing_id,
+    sku: item.sku,
+  }
+  return <ContextItemBanner context={context} actionLabel="Open Order" ariaLabel="Order context" />
+}
+
+function ProductBanner({ context }) {
+  return <ContextItemBanner context={{ ...context, item_id: context.reference_id }} actionLabel={context.buy_now_available ? 'Buy It Now' : null} ariaLabel="Product context" />
+}
+
+function OfferBanner({ context }) {
+  return <ContextItemBanner context={{ ...context, item_id: context.reference_id }} actionLabel="Send Offer" ariaLabel="Offer context" />
+}
+
+function ConversationContextBanner({ detail }) {
+  const order = detail.order_context?.selected_order
+  if (order) return <OrderBanner order={order} />
+
+  const context = detail.product_context
+  if (!context) return null
+  if (context.offer_available || context.cta_type === 'SEND_OFFER') return <OfferBanner context={context} />
+  return <ProductBanner context={context} />
 }
 
 function DetailsPanel({
@@ -1050,7 +1095,7 @@ function ConversationDetail({
         />
       ) : (
         <div className="thread-panel">
-          <ProductContextBanner detail={detail} />
+          <ConversationContextBanner detail={detail} />
           <MessageThread messages={detail.messages || []} isSystemConversation={isEbaySystemConversation(detail)} />
           {isEbaySystemConversation(detail) ? (
             <ReplyUnavailableNotice />

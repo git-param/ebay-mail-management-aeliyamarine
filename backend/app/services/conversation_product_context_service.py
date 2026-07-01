@@ -88,6 +88,18 @@ class ConversationProductContextService:
             context.reference_type = reference_type
             context.item_url = self._item_url(reference_id)
 
+        # Backfill normalized commerce fields from the already-cached payload without another API call.
+        if isinstance(context.raw_payload, dict) and context.enrichment_status == 'ENRICHED':
+            price = context.raw_payload.get('price') if isinstance(context.raw_payload.get('price'), dict) else {}
+            context.price_value = context.price_value or self._decimal_or_none(price.get('value'))
+            context.price_currency = context.price_currency or self._string(price.get('currency'))
+            options = {str(option).upper() for option in (context.raw_payload.get('buyingOptions') or []) if option}
+            context.offer_available = context.offer_available or 'BEST_OFFER' in options
+            context.buy_now_available = context.buy_now_available or bool({'FIXED_PRICE', 'BUY_IT_NOW'} & options)
+            context.cta_type = context.cta_type or (
+                'SEND_OFFER' if context.offer_available else ('BUY_IT_NOW' if context.buy_now_available else None)
+            )
+
         cache_key = self._cache_key(conversation, reference_id)
         orders_changed = self._orders_changed_since(context, conversation)
         needs_local_upgrade = (
@@ -146,6 +158,17 @@ class ConversationProductContextService:
             seller = browse_payload.get('seller') if isinstance(browse_payload.get('seller'), dict) else {}
             context.image_url = self._string(image.get('imageUrl'))
             context.seller_username = self._string(seller.get('username'))
+            price = browse_payload.get('price') if isinstance(browse_payload.get('price'), dict) else {}
+            context.price_value = self._decimal_or_none(price.get('value'))
+            context.price_currency = self._string(price.get('currency'))
+            buying_options = {
+                str(option).upper() for option in (browse_payload.get('buyingOptions') or []) if option
+            }
+            context.offer_available = 'BEST_OFFER' in buying_options
+            context.buy_now_available = 'FIXED_PRICE' in buying_options or 'BUY_IT_NOW' in buying_options
+            context.cta_type = 'SEND_OFFER' if context.offer_available else (
+                'BUY_IT_NOW' if context.buy_now_available else None
+            )
             context.raw_payload = browse_payload
             context.enrichment_status = 'ENRICHED'
             context.last_enriched_at = datetime.now(UTC)
@@ -202,16 +225,34 @@ class ConversationProductContextService:
     def serialize(self, context: ConversationProductContext | None) -> dict | None:
         if not context:
             return None
+        raw = context.raw_payload if isinstance(context.raw_payload, dict) else {}
+        raw_price = raw.get('price') if isinstance(raw.get('price'), dict) else {}
+        options = {str(option).upper() for option in (raw.get('buyingOptions') or []) if option}
+        offer_available = bool(context.offer_available or 'BEST_OFFER' in options)
+        buy_now_available = bool(context.buy_now_available or {'FIXED_PRICE', 'BUY_IT_NOW'} & options)
         return {
             'reference_id': context.reference_id,
             'title': context.item_title or '',
             'image_url': context.image_url or '',
             'seller_username': context.seller_username or '',
             'item_url': context.item_url or self._item_url(context.reference_id),
+            'price': float(context.price_value) if context.price_value is not None else self._decimal_or_none(raw_price.get('value')),
+            'currency': context.price_currency or self._string(raw_price.get('currency')) or '',
+            'offer_available': offer_available,
+            'buy_now_available': buy_now_available,
+            'cta_type': context.cta_type or ('SEND_OFFER' if offer_available else ('BUY_IT_NOW' if buy_now_available else '')),
             'sku': context.sku,
             'order_id': context.order_id,
             'enrichment_status': context.enrichment_status,
         }
+
+    @staticmethod
+    def _decimal_or_none(value: object) -> float | None:
+        """Convert an eBay monetary value to a storable number without failing enrichment."""
+        try:
+            return float(value) if value not in (None, '') else None
+        except (TypeError, ValueError):
+            return None
 
     def _enrich_from_local_order(self, conversation: Conversation, context: ConversationProductContext) -> bool:
         if not conversation.provider_account_id:
@@ -255,6 +296,8 @@ class ConversationProductContextService:
             context.order_id = line_item.order_id
             context.item_title = line_item.title or context.item_title
             context.image_url = line_item.image_url or context.image_url
+            context.price_value = line_item.price_value or context.price_value
+            context.price_currency = line_item.price_currency or context.price_currency
             context.raw_payload = {'source': 'LOCAL_ORDER_LINE_ITEM', 'line_item': line_item.raw_payload}
         logger.info(
             'Product context local match conversation_id=%s reference_id=%s matched=%s',
@@ -394,6 +437,12 @@ class ConversationProductContextService:
         target.item_title = source.item_title
         target.image_url = source.image_url
         target.seller_username = source.seller_username
+        target.item_url = source.item_url
+        target.price_value = source.price_value
+        target.price_currency = source.price_currency
+        target.offer_available = source.offer_available
+        target.buy_now_available = source.buy_now_available
+        target.cta_type = source.cta_type
         target.sku = source.sku
         target.order_id = source.order_id
         target.enrichment_status = source.enrichment_status

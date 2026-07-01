@@ -3,6 +3,7 @@ from html.parser import HTMLParser
 from multiprocessing import context
 from uuid import UUID
 
+import requests
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile, status
 from fastapi.responses import FileResponse
 from sqlalchemy import select
@@ -31,6 +32,8 @@ from app.schemas.conversation import (
     MessageAttachmentResponse,
     ReplyConversationRequest,
     ReplyValidationResponse,
+    TranslationRequest,
+    TranslationResponse,
     SelectConversationOrderRequest,
     UpdateConversationCategoryRequest,
     UpdateConversationStatusRequest,
@@ -48,10 +51,22 @@ from app.services.ebay_reply_service import EbayReplyService
 from app.services.notification_service import NotificationService
 from app.services.order_context_service import OrderContextService
 from app.services.reply_attachment_service import ReplyAttachmentService
+from app.services.translation_service import TranslationService
 from app import db
 
 
 router = APIRouter()
+
+
+@router.post('/translate', response_model=TranslationResponse)
+def translate_message(payload: TranslationRequest, current_user: User = Depends(get_current_user)) -> TranslationResponse:
+    """Translate message text without persisting or logging its contents."""
+    try:
+        return TranslationResponse(**TranslationService().translate(payload.text, payload.target_language))
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except requests.RequestException as exc:
+        raise HTTPException(status_code=502, detail='Translation provider is unavailable.') from exc
 
 
 class BodyTextExtractor(HTMLParser):
