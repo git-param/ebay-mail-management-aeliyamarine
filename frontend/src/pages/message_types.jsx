@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from 'react'
 import AppLayout from '../layouts/app_layout'
 import { createMessageType, deleteMessageType, fetchMessageTypes, setMessageTypeStatus, updateMessageType } from '../services/messageTypeApi'
 
-const EMPTY_FORM = { name: '', parent_id: '', description: '', display_order: 0, keywords: '' }
+const EMPTY_FORM = { name: '', parent_id: '', description: '', keywords: '' }
 
 function flatten(nodes, depth = 0) {
   return nodes.flatMap((node) => [{ ...node, depth }, ...flatten(node.children || [], depth + 1)])
@@ -37,7 +37,6 @@ export default function MessageTypes({ currentUser, onLogout }) {
       name: item.name,
       parent_id: item.parent_id || '',
       description: item.description || '',
-      display_order: item.display_order,
       keywords: (item.keywords || []).join(', '),
     })
   }
@@ -48,7 +47,6 @@ export default function MessageTypes({ currentUser, onLogout }) {
       const payload = {
         ...form,
         parent_id: form.parent_id || null,
-        display_order: Number(form.display_order),
         keywords: keywordList(form.keywords),
       }
       if (editing) await updateMessageType(editing, payload)
@@ -74,7 +72,6 @@ export default function MessageTypes({ currentUser, onLogout }) {
         <form className="analytics-filter-bar" onSubmit={submit}>
           <label className="field"><span>Name</span><input required value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></label>
           <label className="field"><span>Parent</span><select value={form.parent_id} onChange={(event) => setForm({ ...form, parent_id: event.target.value })}><option value="">Root type</option>{items.filter((item) => item.id !== editing && !item.is_deleted).map((item) => <option value={item.id} key={item.id}>{'— '.repeat(item.depth)}{item.name}</option>)}</select></label>
-          <label className="field"><span>Order</span><input type="number" min="0" value={form.display_order} onChange={(event) => setForm({ ...form, display_order: event.target.value })} /></label>
           <label className="field"><span>Description</span><input value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} /></label>
           <label className="field form-field-wide"><span>Detection keywords</span><input value={form.keywords} onChange={(event) => setForm({ ...form, keywords: event.target.value })} placeholder="tracking, shipment, delivered, fedex" /><small>Comma-separated; matched against the latest four messages.</small></label>
           <div className="analytics-filter-actions">

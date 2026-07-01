@@ -15,6 +15,19 @@ from app.schemas.audit import AuditLogPageResponse, AuditLogResponse, AuditUserR
 
 router = APIRouter()
 
+ACTION_LABELS = {
+    'LOGIN_SUCCESS': 'User Logged In',
+    'MESSAGE_TYPE_CREATED': 'Created New Message Type',
+    'MESSAGE_STATUS_CHANGED': 'Conversation Status Updated',
+    'CONVERSATION_ASSIGNED': 'Assigned Conversation',
+    'MESSAGE_REPLY_SENT': 'Replied to Buyer',
+}
+MODULE_LABELS = {
+    'AUTHENTICATION': 'Authentication', 'ASSIGNMENT': 'Inbox',
+    'MESSAGE_MANAGEMENT': 'Messaging', 'CATEGORY_MANAGEMENT': 'Categories',
+    'USER_MANAGEMENT': 'Users', 'EBAY': 'eBay', 'SYNC': 'Synchronization',
+}
+
 
 def serialize_user(user: User | None) -> AuditUserResponse | None:
     if not user:
@@ -28,6 +41,10 @@ def serialize_user(user: User | None) -> AuditUserResponse | None:
 
 
 def serialize_audit_log(log: AuditLog) -> AuditLogResponse:
+    """Translate a technical audit row into a manager-readable activity event."""
+    metadata = log.audit_metadata or {}
+    details = ', '.join(f'{key.replace("_", " ").title()}: {value}' for key, value in metadata.items()) or 'No additional details'
+    resource_name = (log.entity_type or 'Activity').replace('_', ' ').title()
     return AuditLogResponse(
         id=log.id,
         user_id=log.user_id,
@@ -41,6 +58,10 @@ def serialize_audit_log(log: AuditLog) -> AuditLogResponse:
         ip_address=log.ip_address,
         user_agent=log.user_agent,
         created_at=log.created_at,
+        action_label=ACTION_LABELS.get(log.action, log.action.replace('_', ' ').title()),
+        module_label=MODULE_LABELS.get(log.category or '', (log.category or 'System').replace('_', ' ').title()),
+        resource_label=f'{resource_name} #{str(log.entity_id)[:8]}' if log.entity_id else resource_name,
+        details=details,
     )
 
 

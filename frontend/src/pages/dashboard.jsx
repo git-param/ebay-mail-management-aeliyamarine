@@ -433,6 +433,7 @@ function FiltersDrawer({
   users,
   categories,
   accounts,
+  currentUser,
   onFilterChange,
   onSearchSubmit,
   onReset,
@@ -447,6 +448,11 @@ function FiltersDrawer({
   if (!isOpen) {
     return null
   }
+
+  const isAgent = normalizeRole(currentUser?.role) === 'AGENT'
+  const assignmentUsers = isAgent
+    ? users.filter((user) => user.id === currentUser?.id)
+    : users
 
   function submitSearch(event) {
     event.preventDefault()
@@ -530,7 +536,7 @@ function FiltersDrawer({
             onChange={(value) => onFilterChange('assigned_user_id', value)}
           >
             <option value="">Anyone</option>
-            {users.map((user) => (
+            {assignmentUsers.map((user) => (
               <option value={user.id} key={user.id}>
                 {user.fullName}
               </option>
@@ -564,13 +570,43 @@ function FiltersDrawer({
   )
 }
 
+function isEbayNotificationMessage(message) {
+  /**
+   * Identify provider-generated notices that should not appear as either
+   * buyer or seller speech. Provider payloads have used several equivalent
+   * sender labels over time, so the check intentionally normalizes them.
+   */
+  const senderType = String(message.sender_type || '').trim().toUpperCase()
+  return ['EBAY', 'SYSTEM', 'PROVIDER'].includes(senderType)
+}
+
+function resizeEbayMessageFrame(event) {
+  /**
+   * Expand an eBay srcDoc frame to its complete document height.
+   * The frame does not own scrolling; the surrounding message history remains
+   * the single scroll surface for provider notices and ordinary messages.
+   */
+  const frame = event.currentTarget
+  const documentElement = frame.contentDocument?.documentElement
+  const body = frame.contentDocument?.body
+  if (!documentElement || !body) {
+    return
+  }
+  frame.style.height = `${Math.max(documentElement.scrollHeight, body.scrollHeight, 160)}px`
+}
+
 function MessageThread({ messages, isSystemConversation }) {
+  /**
+   * Render the chronological conversation and keep its single scroll owner at
+   * the thread-panel level so nested scrollbars cannot trap mouse or touch input.
+   */
   const threadRef = useRef(null)
 
   useLayoutEffect(() => {
     const thread = threadRef.current
-    if (thread) {
-      thread.scrollTop = thread.scrollHeight
+    const scrollContainer = thread?.closest('.thread-panel')
+    if (scrollContainer) {
+      scrollContainer.scrollTop = scrollContainer.scrollHeight
     }
   }, [messages])
 
@@ -580,10 +616,12 @@ function MessageThread({ messages, isSystemConversation }) {
 
   return (
     <div className="message-thread" ref={threadRef}>
-      {messages.map((message) => (
-        <article className={`message-bubble ${message.is_inbound ? 'inbound' : 'outbound'}`} key={message.id}>
+      {messages.map((message) => {
+        const direction = isEbayNotificationMessage(message) ? 'system' : message.is_inbound ? 'inbound' : 'outbound'
+        return (
+        <article className={`message-bubble ${direction}`} key={message.id}>
           <div className="message-meta">
-            <strong>{message.sender_identifier || message.sender_type}</strong>
+            <strong>{direction === 'system' ? 'eBay notification' : message.sender_identifier || message.sender_type}</strong>
             <time>{formatDate(message.sent_at)}</time>
           </div>
           {isSystemConversation && isHtmlBody(message.body) ? (
@@ -591,7 +629,9 @@ function MessageThread({ messages, isSystemConversation }) {
               className="ebay-html-message"
               title={`eBay message ${message.id}`}
               srcDoc={message.body}
-              sandbox="allow-popups allow-popups-to-escape-sandbox"
+              sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
+              scrolling="no"
+              onLoad={resizeEbayMessageFrame}
             />
           ) : (
             <p>{message.body}</p>
@@ -629,7 +669,8 @@ function MessageThread({ messages, isSystemConversation }) {
           ) : null}
           <span>{message.read_status ? 'Read' : 'Unread'}</span>
         </article>
-      ))}
+        )
+      })}
     </div>
   )
 }
@@ -1593,6 +1634,7 @@ function Dashboard({ currentUser, onLogout }) {
           users={users}
           categories={categories}
           accounts={accounts}
+          currentUser={currentUser}
           onFilterChange={changeFilter}
           onSearchSubmit={(search) => changeFilter('search', search.trim())}
           onReset={resetFilters}

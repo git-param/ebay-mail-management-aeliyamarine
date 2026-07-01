@@ -49,6 +49,7 @@ class ConversationSummaryResponse(BaseModel):
     response_due_at: datetime | None = None
     status: ConversationStatus
     category_id: UUID | None
+    category_manually_selected: bool = False
     category: CategoryBriefResponse | None = None
     last_message_at: datetime | None
     external_created_at: datetime | None

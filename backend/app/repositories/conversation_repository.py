@@ -116,10 +116,11 @@ class ConversationRepository:
         conversation = self.get_by_provider_id(provider, provider_conversation_id)
         created = conversation is None
         if created:
+            creation_values = {'category_manually_selected': False, **values}
             conversation = Conversation(
                 provider=provider,
                 provider_conversation_id=provider_conversation_id,
-                **values,
+                **creation_values,
             )
             self.db.add(conversation)
         else:
@@ -187,7 +188,7 @@ class ConversationRepository:
         return statement
 
     def _agent_visibility_filter(self, visible_category_ids: set[UUID], user_id: UUID):
-        """Allow assigned conversations plus unassigned conversations in permitted categories."""
+        """Allow category-scoped inbox visibility plus explicit assignments."""
         assigned_to_user = exists(
             select(ConversationAssignment.id).where(
                 and_(
@@ -197,21 +198,6 @@ class ConversationRepository:
                 )
             )
         )
-        assigned_to_anyone = exists(
-            select(ConversationAssignment.id).where(
-                and_(
-                    ConversationAssignment.conversation_id == Conversation.id,
-                    ConversationAssignment.unassigned_at.is_(None),
-                )
-            )
-        )
-        other_category = exists(
-            select(Category.id).where(
-                and_(
-                    Category.id == Conversation.category_id,
-                    func.upper(Category.name) == 'OTHER',
-                )
-            )
-        )
-        category_allowed = or_(Conversation.category_id.in_(visible_category_ids), other_category)
-        return or_(assigned_to_user, and_(category_allowed, ~assigned_to_anyone))
+        # A direct assignment remains visible even when its category is outside
+        # the agent's normal queue; explicit ownership takes precedence.
+        return or_(Conversation.category_id.in_(visible_category_ids), assigned_to_user)

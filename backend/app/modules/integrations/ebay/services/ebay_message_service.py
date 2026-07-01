@@ -10,6 +10,7 @@ from app.repositories.message_repository import MessageRepository
 from app.services.categorization_service import CategorizationService
 from app.services.category_assignment_service import CategoryAssignmentService
 from app.services.notification_service import NotificationService
+from app.services.sla_service import SLAService
 
 
 class EbayMessageService:
@@ -78,7 +79,7 @@ class EbayMessageService:
                 ]
             )
         )
-        if category_id:
+        if category_id and not conversation.category_manually_selected:
             conversation.category_id = category_id
         return conversation, created
 
@@ -118,6 +119,8 @@ class EbayMessageService:
             )
             if created:
                 created_count += 1
+                if is_inbound:
+                    SLAService(self.db).start_cycle(conversation, sent_at)
                 if is_inbound and conversation.category_id:
                     self._notify_category_owners(conversation, message.id)
             else:

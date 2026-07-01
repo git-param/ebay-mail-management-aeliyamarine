@@ -12,7 +12,12 @@ function formatDate(value) {
     return ''
   }
   const date = new Date(value)
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleString()
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString()
+}
+
+function formatTime(value) {
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? '' : date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }
 
 function AuditLogs({ currentUser, onLogout }) {
@@ -114,23 +119,18 @@ function AuditLogs({ currentUser, onLogout }) {
               <table className="users-table">
                 <thead>
                   <tr>
-                    <th>Time</th>
+                    <th>Date</th><th>Time</th>
                     <th>User</th>
-                    <th>Action</th>
-                    <th>Category</th>
-                    <th>Status</th>
-                    <th>Resource</th>
+                    <th>Role</th><th>Action</th><th>Module</th><th>Resource</th><th>Status</th>
                   </tr>
                 </thead>
                 <tbody>
                   {logs.map((log) => (
                     <tr key={log.id}>
-                      <td>{formatDate(log.created_at)}</td>
-                      <td>{log.user?.email || 'System'}</td>
-                      <td>{log.action}</td>
-                      <td>{log.category || '-'}</td>
+                      <td>{formatDate(log.created_at)}</td><td>{formatTime(log.created_at)}</td>
+                      <td>{log.user?.name || log.user?.email || 'System'}</td><td>{log.user?.role || 'System'}</td>
+                      <td>{log.action_label}</td><td>{log.module_label}</td><td>{log.resource_label}</td>
                       <td>{log.status || '-'}</td>
-                      <td>{log.entity_type || '-'} {log.entity_id || ''}</td>
                     </tr>
                   ))}
                 </tbody>

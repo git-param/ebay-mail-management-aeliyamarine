@@ -115,6 +115,33 @@ def visibility_user_id_for_user(current_user) -> UUID | None:
     return current_user.id if is_support_agent(current_user) else None
 
 
+def ensure_reply_assignment(db: Session, conversation_id: UUID, current_user) -> None:
+    """
+    Prevent a user from replying to a conversation owned by someone else.
+
+    Args:
+        db: Request-scoped database session.
+        conversation_id: Conversation being replied to.
+        current_user: Authenticated user attempting the reply.
+
+    Returns:
+        None when unassigned or assigned to the caller.
+
+    Side Effects:
+        None.
+
+    Business Rules:
+        Assignment ownership applies to agents, administrators, and operations
+        managers alike so privileged roles cannot reply from another queue.
+    """
+    assignment = AssignmentService(db).repository.get_current_assignment(conversation_id)
+    if assignment and assignment.assigned_to != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail='This conversation is assigned to another user and cannot be replied to',
+        )
+
+
 def can_assign_conversations(current_user) -> bool:
     return is_admin(current_user) or is_operations_manager(current_user) or is_support_agent(current_user)
 
@@ -182,6 +209,7 @@ def serialize_conversation(
         response_due_at=response_due_at(conversation),
         status=conversation.status,
         category_id=conversation.category_id,
+        category_manually_selected=conversation.category_manually_selected,
         category=serialize_category_brief(conversation.category) if conversation.category else None,
         last_message_at=conversation.last_message_at,
         external_created_at=conversation.external_created_at,
@@ -242,6 +270,7 @@ def serialize_conversation_summary(
         response_due_at=response_due_at(conversation),
         status=conversation.status,
         category_id=conversation.category_id,
+        category_manually_selected=conversation.category_manually_selected,
         category=serialize_category_brief(conversation.category) if conversation.category else None,
         last_message_at=conversation.last_message_at,
         external_created_at=conversation.external_created_at,
@@ -730,6 +759,9 @@ def list_conversations(
     db: Session = Depends(get_db),
     current_user=Depends(require_conversation_access),
 ) -> ConversationPageResponse:
+    """Return the caller's role-scoped inbox with optional operational filters."""
+    if is_support_agent(current_user) and assigned_user_id and assigned_user_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='Agents can only filter assignments by themselves')
     service = ConversationService(db)
     visible_category_ids = visible_category_ids_for_user(db, current_user)
     visibility_user_id = visibility_user_id_for_user(current_user)
@@ -897,6 +929,7 @@ def validate_reply(
     db: Session = Depends(get_db),
     current_user=Depends(require_conversation_access),
 ) -> ReplyValidationResponse:
+    """Validate reply content only after confirming the caller owns the queue item."""
     conversation = ConversationService(db).get_conversation(
         conversation_id,
         visible_category_ids=visible_category_ids_for_user(db, current_user),
@@ -904,6 +937,7 @@ def validate_reply(
     )
     if is_ebay_system_conversation(conversation):
         return ReplyValidationResponse(valid=False, violations=['eBay system conversations cannot be replied to.'])
+    ensure_reply_assignment(db, conversation_id, current_user)
     violations = EbayReplyService(db).validate_reply(payload.body)
     return ReplyValidationResponse(valid=not violations, violations=violations)
 
@@ -918,7 +952,13 @@ async def reply_to_conversation(
     db: Session = Depends(get_db),
     current_user=Depends(require_conversation_access),
 ) -> MessageResponse:
-    """Send a reply, accepting JSON for text-only replies or multipart with attachments."""
+    """
+    Deliver a reply after enforcing visibility and active-assignment ownership.
+
+    The assignment check occurs before contacting eBay. Unassigned threads can
+    be handled by eligible category agents, while assigned threads can only be
+    answered by their current owner regardless of the caller's role.
+    """
     reply_body = body
     if not reply_body and request.headers.get('content-type', '').startswith('application/json'):
         payload = await request.json()
@@ -960,6 +1000,9 @@ def assign_conversation(
         visible_category_ids=visible_category_ids_for_user(db, current_user),
         visibility_user_id=visibility_user_id_for_user(current_user),
     )
+    ensure_reply_assignment(db, conversation_id, current_user)
+    if conversation.status == ConversationStatus.CLOSED:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail='Closed conversations cannot be reassigned')
     assignment = AssignmentService(db).assign_conversation(
         conversation_id=conversation_id,
         assigned_to=payload.assigned_to,
@@ -994,11 +1037,13 @@ def create_conversation_note(
     db: Session = Depends(get_db),
     current_user=Depends(require_conversation_access),
 ) -> ConversationNoteResponse:
-    ConversationService(db).get_conversation(
+    conversation = ConversationService(db).get_conversation(
         conversation_id,
         visible_category_ids=visible_category_ids_for_user(db, current_user),
         visibility_user_id=visibility_user_id_for_user(current_user),
     )
+    if conversation.status == ConversationStatus.CLOSED:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail='Closed conversations cannot receive notes')
     note = ConversationNoteService(db).add_note(
         conversation_id=conversation_id,
         author_id=current_user.id,
@@ -1029,11 +1074,17 @@ def update_conversation_status(
     current_user=Depends(require_conversation_access),
 ) -> ConversationDetailResponse:
     service = ConversationService(db)
-    service.get_conversation(
+    conversation = service.get_conversation(
         conversation_id,
         visible_category_ids=visible_category_ids_for_user(db, current_user),
         visibility_user_id=visibility_user_id_for_user(current_user),
     )
+    if conversation.status == ConversationStatus.CLOSED:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail='Closed conversations are final and read-only')
+    if payload.status == ConversationStatus.RESOLVED:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='Resolved is set automatically after a successful reply')
+    if payload.status == ConversationStatus.CLOSED and not (is_admin(current_user) or is_operations_manager(current_user)):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='Only admins and operations managers can close conversations')
     conversation = service.update_status(
         conversation_id=conversation_id,
         new_status=payload.status,
