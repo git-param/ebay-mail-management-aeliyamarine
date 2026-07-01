@@ -45,6 +45,13 @@ export function fetchConversationContext(conversationId) {
   return request(`/conversations/${conversationId}/context`)
 }
 
+export function translateMessage(text, targetLanguage = 'en') {
+  return request('/conversations/translate', {
+    method: 'POST',
+    body: JSON.stringify({ text, target_language: targetLanguage }),
+  })
+}
+
 export function assignConversation(conversationId, assignedTo) {
   return request(`/conversations/${conversationId}/assign`, {
     method: 'POST',

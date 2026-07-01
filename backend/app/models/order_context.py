@@ -1,7 +1,7 @@
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import DateTime, Float, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -125,6 +125,11 @@ class ConversationProductContext(Base):
     image_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     seller_username: Mapped[str | None] = mapped_column(String(255), nullable=True)
     item_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    price_value: Mapped[float | None] = mapped_column(Numeric(12, 2), nullable=True)
+    price_currency: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    offer_available: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    buy_now_available: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    cta_type: Mapped[str | None] = mapped_column(String(30), nullable=True)
     sku: Mapped[str | None] = mapped_column(String(255), nullable=True)
     order_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     enrichment_status: Mapped[str] = mapped_column(String(50), nullable=False, default='PENDING')

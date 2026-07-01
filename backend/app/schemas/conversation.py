@@ -121,7 +121,24 @@ class ConversationProductContextResponse(BaseModel):
     image_url: str = ''
     seller_username: str = ''
     item_url: str = ''
+    sku: str | None = None
+    order_id: str | None = None
+    price: float | None = None
+    currency: str = ''
+    offer_available: bool = False
+    buy_now_available: bool = False
+    cta_type: str = ''
     enrichment_status: str = ''
+
+
+class TranslationRequest(BaseModel):
+    text: str = Field(min_length=1, max_length=10000)
+    target_language: str = Field(default='en', min_length=2, max_length=10)
+
+
+class TranslationResponse(BaseModel):
+    translated_text: str
+    detected_language: str | None = None
 
 
 class OrderLineItemResponse(BaseModel):
