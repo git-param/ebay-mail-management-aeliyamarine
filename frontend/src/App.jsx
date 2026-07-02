@@ -81,7 +81,7 @@ const PROTECTED_ROUTES = [
     path: '/message-types', component: MessageTypes, allowedRoles: ['ADMIN'],
   },
   {
-    path: '/message-reports', component: MessageReports, allowedRoles: ['ADMIN', 'OPS_MANAGER'],
+    path: '/message-reports', component: MessageReports, allowedRoles: ['ADMIN', 'OPS_MANAGER', 'AGENT'],
   },
   {
     path: '/audit-logs',

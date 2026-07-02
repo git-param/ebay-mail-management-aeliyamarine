@@ -65,25 +65,29 @@ def filters(date_from=None, date_to=None, seller_account_id=None, user_id=None, 
     return locals()
 
 
+def report_filters(current_user, **kwargs):
+    """Force agent report queries to the authenticated agent's records."""
+    from app.api.dependencies import is_support_agent
+    if is_support_agent(current_user):
+        kwargs['user_id'] = current_user.id
+    return kwargs
+
+
 @reports_router.get('/message-types')
 def report(date_from: date | None=None, date_to: date | None=None, seller_account_id: UUID | None=None,
            user_id: UUID | None=None, category_id: UUID | None=None, subcategory_id: UUID | None=None,
            conversation_id: UUID | None=None, search: str | None=None, limit: int=Query(50, ge=1, le=500),
            offset: int=Query(0, ge=0), sort_by: str='created_at', sort_dir: str=Query('desc', pattern='^(asc|desc)$'),
            db: Session=Depends(get_db), current_user=Depends(get_current_user)):
-    from app.api.dependencies import is_admin, is_operations_manager
-    from fastapi import HTTPException
-    if not (is_admin(current_user) or is_operations_manager(current_user)): raise HTTPException(403, 'Reports are available to admins and operations managers')
-    return MessageReportService(db).report(filters(date_from,date_to,seller_account_id,user_id,category_id,subcategory_id,conversation_id,search), limit, offset, sort_by, sort_dir)
+    scoped = report_filters(current_user, **filters(date_from,date_to,seller_account_id,user_id,category_id,subcategory_id,conversation_id,search))
+    return MessageReportService(db).report(scoped, limit, offset, sort_by, sort_dir)
 
 
 @reports_router.get('/message-types/export')
 def export_report(date_from: date | None=None, date_to: date | None=None, seller_account_id: UUID | None=None,
                   user_id: UUID | None=None, category_id: UUID | None=None, subcategory_id: UUID | None=None,
                   conversation_id: UUID | None=None, search: str | None=None, db: Session=Depends(get_db), current_user=Depends(get_current_user)):
-    from app.api.dependencies import is_admin, is_operations_manager
-    from fastapi import HTTPException
-    if not (is_admin(current_user) or is_operations_manager(current_user)): raise HTTPException(403, 'Export is available to admins and operations managers')
-    stream = MessageReportService(db).export(filters(date_from,date_to,seller_account_id,user_id,category_id,subcategory_id,conversation_id,search))
+    scoped = report_filters(current_user, **filters(date_from,date_to,seller_account_id,user_id,category_id,subcategory_id,conversation_id,search))
+    stream = MessageReportService(db).export(scoped)
     filename = f'message_report_{datetime.now().strftime("%Y_%m_%d")}.xlsx'
     return StreamingResponse(stream, media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', headers={'Content-Disposition': f'attachment; filename="{filename}"'})
