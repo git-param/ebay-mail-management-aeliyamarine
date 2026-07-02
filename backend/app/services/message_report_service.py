@@ -50,10 +50,22 @@ class MessageReportService:
         all_rows, _ = self.rows(filters)
         def counts(key): return [{'label': k or 'Unknown', 'value': v} for k,v in Counter(row[key] for row in all_rows).most_common()]
         category_counts = counts('category')
+        employee_categories = {}
+        for row in all_rows:
+            clipboard_category = row['subcategory'] or row['category']
+            employee_categories.setdefault(row['agent'], Counter())[clipboard_category] += 1
+        employee_reports = [
+            {
+                'employee': employee,
+                'categories': [{'label': category, 'value': count} for category, count in category_counts.items()],
+            }
+            for employee, category_counts in sorted(employee_categories.items())
+        ]
         summary = [{'label': 'Total Replies', 'value': total}] + category_counts
         return {'items': visible, 'total': total, 'limit': limit, 'offset': offset, 'summary': summary,
                 'messages_per_day': counts('created_at_day') if False else [{'label': k, 'value': v} for k,v in sorted(Counter(row['created_at'].date().isoformat() for row in all_rows).items())],
-                'messages_by_employee': counts('agent'), 'messages_by_category': category_counts, 'messages_by_seller_account': counts('seller')}
+                'messages_by_employee': counts('agent'), 'messages_by_category': category_counts,
+                'messages_by_seller_account': counts('seller'), 'employee_category_reports': employee_reports}
 
     def export(self, filters):
         rows, _ = self.rows(filters)

@@ -44,7 +44,7 @@ const NAV_ITEMS = [
     label: 'Message Types', path: '/message-types', icon: 'tag', roles: ['ADMIN'],
   },
   {
-    label: 'Message Reports', path: '/message-reports', icon: 'chart', roles: ['ADMIN', 'OPS_MANAGER'],
+    label: 'Message Reports', path: '/message-reports', icon: 'chart', roles: ['ADMIN', 'OPS_MANAGER', 'AGENT'],
   },
   {
     label: 'Audit Logs',
