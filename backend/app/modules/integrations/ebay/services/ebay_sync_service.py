@@ -13,6 +13,7 @@ from app.models.ebay_account import EbayAccount, EbayConnectionStatus
 from app.modules.integrations.ebay.oauth.token_service import EbayTokenService
 from app.modules.integrations.ebay.providers import EBAY_PROVIDER_NAME
 from app.modules.integrations.ebay.services.ebay_message_service import EbayMessageService
+from app.modules.integrations.ebay.services.ebay_best_offer_sync_service import EbayBestOfferSyncService
 from app.modules.integrations.ebay.services.ebay_order_sync_service import EbayOrderSyncService
 from app.services.ebay_api_usage_service import EbayApiUsageService
 from app.services.conversation_product_context_service import ConversationProductContextService
@@ -55,6 +56,7 @@ class EbaySyncService:
         self.order_context_service = OrderContextService(db)
         self.order_sync_service = EbayOrderSyncService(db)
         self.product_context_service = ConversationProductContextService(db)
+        self.best_offer_sync_service = EbayBestOfferSyncService(db)
 
     def sync_account(
         self,
@@ -250,6 +252,12 @@ class EbaySyncService:
                     'Non-fatal eBay order sync failure account_id=%s; message sync will still complete',
                     account.id,
                 )
+
+            try:
+                self.best_offer_sync_service.sync_account(account.id, commit=False)
+            except Exception:
+                # Buyer offers enrich the thread but must not make message sync fail.
+                logger.exception('Non-fatal eBay buyer-offer sync failure account_id=%s', account.id)
 
             account.last_sync_at = datetime.now(UTC)
             account.sync_status = (

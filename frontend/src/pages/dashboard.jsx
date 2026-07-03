@@ -596,7 +596,31 @@ function resizeEbayMessageFrame(event) {
   frame.style.height = `${Math.max(documentElement.scrollHeight, body.scrollHeight, 160)}px`
 }
 
-function MessageThread({ messages, isSystemConversation }) {
+function OfferEvent({ offer }) {
+  let amount = 'Offer'
+  if (offer.offer_amount != null) {
+    try { amount = new Intl.NumberFormat(undefined, { style: 'currency', currency: offer.currency || 'USD' }).format(offer.offer_amount) }
+    catch { amount = `${offer.offer_amount} ${offer.currency || ''}`.trim() }
+  }
+  return (
+    <div className="offer-event offer-event-incoming">
+      <article className="offer-card">
+        <span className="offer-tag-icon" aria-hidden="true">◇</span>
+        <div className="offer-card-copy">
+          <div className="offer-card-label">
+            <span>{offer.buyer_username || 'Buyer'} sent an offer</span>
+            {offer.status === 'PENDING' && offer.expires_at ? <small>{Math.max(0, Math.ceil((new Date(offer.expires_at) - Date.now()) / 3600000))}hr left</small> : null}
+            {offer.status !== 'PENDING' ? <small>{offer.status.toLowerCase()}</small> : null}
+          </div>
+          <strong>{amount}</strong>
+        </div>
+      </article>
+      <time className="offer-event-time">{formatDate(offer.created_at)}</time>
+    </div>
+  )
+}
+
+function MessageThread({ messages, offers = [], isSystemConversation }) {
   /**
    * Render the chronological conversation and keep its single scroll owner at
    * the thread-panel level so nested scrollbars cannot trap mouse or touch input.
@@ -623,15 +647,22 @@ function MessageThread({ messages, isSystemConversation }) {
     if (scrollContainer) {
       scrollContainer.scrollTop = scrollContainer.scrollHeight
     }
-  }, [messages])
+  }, [messages, offers])
 
-  if (!messages.length) {
+  const events = [
+    ...messages.map((message) => ({ type: 'message', timestamp: message.sent_at, value: message })),
+    ...offers.filter((offer) => offer.direction === 'INCOMING').map((offer) => ({ type: 'offer', timestamp: offer.created_at, value: offer })),
+  ].sort((left, right) => new Date(left.timestamp) - new Date(right.timestamp) || (left.type === 'message' ? -1 : 1))
+
+  if (!events.length) {
     return <EmptyPanel title="No messages yet" message="This conversation has no stored message bodies." />
   }
 
   return (
     <div className="message-thread" ref={threadRef}>
-      {messages.map((message) => {
+      {events.map((event) => {
+        if (event.type === 'offer') return <OfferEvent offer={event.value} key={`offer-${event.value.id}`} />
+        const message = event.value
         const direction = isEbayNotificationMessage(message) ? 'system' : message.is_inbound ? 'inbound' : 'outbound'
         return (
         <article className={`message-bubble ${direction}`} key={message.id}>
@@ -972,17 +1003,12 @@ function ProductBanner({ context }) {
   return <ContextItemBanner context={{ ...context, item_id: context.reference_id }} actionLabel={context.buy_now_available ? 'Buy It Now' : null} ariaLabel="Product context" />
 }
 
-function OfferBanner({ context }) {
-  return <ContextItemBanner context={{ ...context, item_id: context.reference_id }} actionLabel="Send Offer" ariaLabel="Offer context" />
-}
-
 function ConversationContextBanner({ detail }) {
   const order = detail.order_context?.selected_order
   if (order) return <OrderBanner order={order} />
 
   const context = detail.product_context
   if (!context) return null
-  if (context.offer_available || context.cta_type === 'SEND_OFFER') return <OfferBanner context={context} />
   return <ProductBanner context={context} />
 }
 
@@ -1096,7 +1122,7 @@ function ConversationDetail({
       ) : (
         <div className="thread-panel">
           <ConversationContextBanner detail={detail} />
-          <MessageThread messages={detail.messages || []} isSystemConversation={isEbaySystemConversation(detail)} />
+          <MessageThread messages={detail.messages || []} offers={detail.offers || []} isSystemConversation={isEbaySystemConversation(detail)} />
           {isEbaySystemConversation(detail) ? (
             <ReplyUnavailableNotice />
           ) : (

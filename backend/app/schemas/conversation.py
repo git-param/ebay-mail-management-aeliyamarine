@@ -4,6 +4,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 
 from app.models.conversation import ConversationStatus, MessageSenderType, SyncLogStatus
+from app.schemas.offer import OfferResponse
 
 
 class UserBriefResponse(BaseModel):
@@ -109,6 +110,7 @@ class ConversationDetailResponse(ConversationSummaryResponse):
     suggested_message_type_id: UUID | None = None
     current_assignee_id: UUID | None = None
     messages: list[MessageResponse] = Field(default_factory=list)
+    offers: list[OfferResponse] = Field(default_factory=list)
     assignments: list['ConversationAssignmentResponse'] = Field(default_factory=list)
     notes: list['ConversationNoteResponse'] = Field(default_factory=list)
     product_context: 'ConversationProductContextResponse | None' = None

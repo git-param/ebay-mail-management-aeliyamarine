@@ -85,6 +85,7 @@ class Conversation(Base):
         cascade='all, delete-orphan',
         uselist=False,
     )
+    offers = relationship('Offer', back_populates='conversation', cascade='all, delete-orphan', order_by='Offer.created_at')
     messages = relationship(
         'Message',
         back_populates='conversation',

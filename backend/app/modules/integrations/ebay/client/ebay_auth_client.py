@@ -1,6 +1,7 @@
 import base64
 import json
 import logging
+import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode, urljoin
@@ -21,6 +22,8 @@ EBAY_OAUTH_SCOPES = [
     'https://api.ebay.com/oauth/api_scope/sell.inventory',
     'https://api.ebay.com/oauth/api_scope/sell.fulfillment',
 ]
+# eBay does not publish a separate ``sell.negotiation`` OAuth scope. The
+# Negotiation API is authorized by sell.inventory (included above).
 EBAY_LEGACY_REFRESH_SCOPES = [
     'https://api.ebay.com/oauth/api_scope/commerce.message',
     'https://api.ebay.com/oauth/api_scope/sell.inventory',
@@ -116,6 +119,79 @@ class EbayAuthClient:
         if self.environment == 'PRODUCTION':
             return 'https://api.ebay.com/sell/fulfillment/v1/order'
         return 'https://api.sandbox.ebay.com/sell/fulfillment/v1/order'
+
+    @property
+    def negotiation_url(self) -> str:
+        host = 'https://api.ebay.com' if self.environment == 'PRODUCTION' else 'https://api.sandbox.ebay.com'
+        return f'{host}/sell/negotiation/v1'
+
+    @property
+    def trading_url(self) -> str:
+        return 'https://api.ebay.com/ws/api.dll' if self.environment == 'PRODUCTION' else 'https://api.sandbox.ebay.com/ws/api.dll'
+
+    def get_best_offers_raw(self, access_token: str, *, page: int = 1, entries_per_page: int = 200) -> EbayRawApiResponse:
+        """Retrieve active buyer Best Offers through eBay's Trading API."""
+        body = (
+            '<?xml version="1.0" encoding="utf-8"?>'
+            '<GetBestOffersRequest xmlns="urn:ebay:apis:eBLBaseComponents">'
+            '<DetailLevel>ReturnAll</DetailLevel><BestOfferStatus>Active</BestOfferStatus>'
+            f'<Pagination><EntriesPerPage>{entries_per_page}</EntriesPerPage><PageNumber>{page}</PageNumber></Pagination>'
+            '</GetBestOffersRequest>'
+        ).encode('utf-8')
+        headers = {
+            'X-EBAY-API-CALL-NAME': 'GetBestOffers', 'X-EBAY-API-SITEID': '0',
+            'X-EBAY-API-COMPATIBILITY-LEVEL': '1455', 'X-EBAY-API-IAF-TOKEN': access_token,
+            'Content-Type': 'text/xml',
+        }
+        request = Request(self.trading_url, data=body, headers=headers, method='POST')
+        safe_headers = self._sanitize_headers(headers)
+        try:
+            with urlopen(request, timeout=30) as response:
+                xml = response.read().decode('utf-8')
+                payload = self._best_offers_xml(xml)
+                return EbayRawApiResponse(
+                    response.status, payload, payload.get('ack') in {'Success', 'Warning'}, self.trading_url, safe_headers
+                )
+        except HTTPError as exc:
+            xml = exc.read().decode('utf-8', errors='replace')
+            return EbayRawApiResponse(exc.code, self._best_offers_xml(xml), False, self.trading_url, safe_headers)
+        except (URLError, TimeoutError, ET.ParseError) as exc:
+            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail='Unable to retrieve eBay buyer offers') from exc
+
+    def _best_offers_xml(self, xml: str) -> dict:
+        root = ET.fromstring(xml)
+        ns = {'e': 'urn:ebay:apis:eBLBaseComponents'}
+        error = root.find('.//e:Errors/e:LongMessage', ns)
+        ack = root.findtext('./e:Ack', default='', namespaces=ns)
+        offers = []
+        grouped = root.findall('.//e:ItemBestOffers', ns)
+        if grouped:
+            for group in grouped:
+                item_id = group.findtext('./e:Item/e:ItemID', namespaces=ns)
+                for node in group.findall('./e:BestOfferArray/e:BestOffer', ns):
+                    offers.append(self._best_offer_node(node, item_id, ns))
+        else:
+            item_id = root.findtext('./e:Item/e:ItemID', namespaces=ns)
+            for node in root.findall('./e:BestOfferArray/e:BestOffer', ns):
+                offers.append(self._best_offer_node(node, item_id, ns))
+        pages = root.findtext('.//e:PaginationResult/e:TotalNumberOfPages', default='1', namespaces=ns)
+        return {'offers': offers, 'totalPages': int(pages or 1), 'error': error.text if error is not None else None, 'ack': ack}
+
+    def _best_offer_node(self, node, item_id, ns) -> dict:
+        price = node.find('./e:Price', ns)
+        return {
+            'offerId': node.findtext('./e:BestOfferID', namespaces=ns),
+            'listingId': item_id,
+            'buyerUsername': node.findtext('./e:Buyer/e:UserID', namespaces=ns),
+            'buyerMessage': node.findtext('./e:BuyerMessage', namespaces=ns),
+            'sellerMessage': node.findtext('./e:SellerMessage', namespaces=ns),
+            'expirationTime': node.findtext('./e:ExpirationTime', namespaces=ns),
+            'amount': price.text if price is not None else None,
+            'currency': price.get('currencyID') if price is not None else None,
+            'quantity': node.findtext('./e:Quantity', default='1', namespaces=ns),
+            'status': node.findtext('./e:Status', default='Pending', namespaces=ns),
+            'offerType': node.findtext('./e:BestOfferCodeType', namespaces=ns),
+        }
 
     def build_authorization_url(self, *, state: str) -> str:
         query = urlencode(
@@ -320,12 +396,6 @@ class EbayAuthClient:
         try:
             with urlopen(request, timeout=20) as response:
                 data = json.loads(response.read().decode('utf-8'))
-        # except HTTPError as exc:
-        #     logger.warning('eBay OAuth token exchange failed with HTTP status %s', exc.code)
-        #     raise HTTPException(
-        #         status_code=status.HTTP_502_BAD_GATEWAY,
-        #         detail='eBay OAuth token exchange failed',
-        #     ) from exc
 
         except HTTPError as exc:
             error_body = ""
@@ -479,12 +549,15 @@ class EbayAuthClient:
         request_url: str,
         method: str,
         payload: dict | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> EbayRawApiResponse:
         data = json.dumps(payload).encode('utf-8') if payload is not None else None
         headers = {
             'Authorization': f'Bearer {access_token}',
             'Accept': 'application/json',
         }
+        if extra_headers:
+            headers.update(extra_headers)
         if payload is not None:
             headers['Content-Type'] = 'application/json'
         request = Request(request_url, data=data, headers=headers, method=method)
