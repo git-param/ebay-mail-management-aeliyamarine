@@ -23,6 +23,7 @@ from app.models.reply_template import ReplyTemplate
 from app.models.role import Role
 from app.models.user import User
 from app.models.message_type import MessageClassification, MessageType, MessageTypeKeyword
+from app.models.offer import Offer, OfferDirection, OfferStatus
 
 __all__ = [
     'AuditLog',
@@ -58,4 +59,7 @@ __all__ = [
     'MessageClassification',
     'MessageType',
     'MessageTypeKeyword',
+    'Offer',
+    'OfferDirection',
+    'OfferStatus',
 ]

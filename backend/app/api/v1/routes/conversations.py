@@ -234,6 +234,7 @@ def serialize_conversation(
         seller_account=serialize_ebay_account_brief(seller_account) if seller_account else None,
         current_assignee_id=current_assignee_id,
         messages=[serialize_message(message) for message in conversation.messages],
+        offers=list(conversation.offers),
         assignments=assignments,
         notes=[serialize_note(note) for note in conversation.notes],
         product_context=product_context,

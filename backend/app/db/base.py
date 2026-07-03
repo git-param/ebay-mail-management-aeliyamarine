@@ -33,6 +33,9 @@ from app.models import (
     MessageClassification,
     MessageType,
     MessageTypeKeyword,
+    Offer,
+    OfferDirection,
+    OfferStatus,
 )
 
 __all__ = [
@@ -70,4 +73,7 @@ __all__ = [
     'MessageClassification',
     'MessageType',
     'MessageTypeKeyword',
+    'Offer',
+    'OfferDirection',
+    'OfferStatus',
 ]

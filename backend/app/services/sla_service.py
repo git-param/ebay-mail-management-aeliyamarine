@@ -41,15 +41,34 @@ class SLAService:
             Duplicate sync deliveries must not create duplicate active cycles;
             CLOSED is archival and is never reopened automatically.
         """
+        # Sync sessions disable autoflush for performance. A cycle added earlier
+        # in this message batch therefore is not visible to the SELECT below yet.
+        # Check the session identity set first so every unanswered inbound message
+        # in the same batch reuses that pending cycle.
+        active = next((
+            row for row in self.db.new
+            if isinstance(row, ConversationSLAHistory)
+            and row.conversation_id == conversation.id
+            and row.replied_time is None
+        ), None)
+        if active:
+            return active
+
         active = self.db.scalar(select(ConversationSLAHistory).where(
             ConversationSLAHistory.conversation_id == conversation.id,
             ConversationSLAHistory.replied_time.is_(None),
         ))
         if active:
             return active
-        cycle_number = (self.db.scalar(select(func.max(ConversationSLAHistory.cycle_number)).where(
+        persisted_max = self.db.scalar(select(func.max(ConversationSLAHistory.cycle_number)).where(
             ConversationSLAHistory.conversation_id == conversation.id,
-        )) or 0) + 1
+        )) or 0
+        pending_max = max((
+            row.cycle_number for row in self.db.new
+            if isinstance(row, ConversationSLAHistory)
+            and row.conversation_id == conversation.id
+        ), default=0)
+        cycle_number = max(persisted_max, pending_max) + 1
         cycle = ConversationSLAHistory(
             conversation_id=conversation.id,
             cycle_number=cycle_number,

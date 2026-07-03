@@ -94,11 +94,11 @@ class ConversationProductContextService:
             context.price_value = context.price_value or self._decimal_or_none(price.get('value'))
             context.price_currency = context.price_currency or self._string(price.get('currency'))
             options = {str(option).upper() for option in (context.raw_payload.get('buyingOptions') or []) if option}
-            context.offer_available = context.offer_available or 'BEST_OFFER' in options
+            # BEST_OFFER means buyers may make offers on the listing. It does
+            # not mean the seller may send an offer; Negotiation API eligibility
+            # synchronization owns offer_available.
             context.buy_now_available = context.buy_now_available or bool({'FIXED_PRICE', 'BUY_IT_NOW'} & options)
-            context.cta_type = context.cta_type or (
-                'SEND_OFFER' if context.offer_available else ('BUY_IT_NOW' if context.buy_now_available else None)
-            )
+            context.cta_type = context.cta_type or ('BUY_IT_NOW' if context.buy_now_available else None)
 
         cache_key = self._cache_key(conversation, reference_id)
         orders_changed = self._orders_changed_since(context, conversation)
@@ -164,11 +164,9 @@ class ConversationProductContextService:
             buying_options = {
                 str(option).upper() for option in (browse_payload.get('buyingOptions') or []) if option
             }
-            context.offer_available = 'BEST_OFFER' in buying_options
+            context.offer_available = False
             context.buy_now_available = 'FIXED_PRICE' in buying_options or 'BUY_IT_NOW' in buying_options
-            context.cta_type = 'SEND_OFFER' if context.offer_available else (
-                'BUY_IT_NOW' if context.buy_now_available else None
-            )
+            context.cta_type = 'BUY_IT_NOW' if context.buy_now_available else None
             context.raw_payload = browse_payload
             context.enrichment_status = 'ENRICHED'
             context.last_enriched_at = datetime.now(UTC)
