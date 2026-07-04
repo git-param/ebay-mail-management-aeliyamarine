@@ -35,7 +35,7 @@ class Offer(Base):
     conversation_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey('conversations.id'), nullable=True)
     
     provider_offer_id: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
-    listing_id: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    listing_id: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
     buyer_username: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
     
     offer_amount: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
@@ -48,7 +48,7 @@ class Offer(Base):
     
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), onupdate=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), onupdate=datetime.utcnow, nullable=True)
     
     raw_payload: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     
