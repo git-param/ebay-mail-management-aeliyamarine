@@ -48,6 +48,11 @@ class EbayBestOfferSyncService:
                 created += int(was_created)
                 updated += int(not was_created)
                 linked += int(result.conversation_id is not None)
+                
+                # Also sync the seller's offer response if present
+                if result.conversation_id:
+                    self._sync_seller_offer_response(account, result)
+                    
             if page >= int(payload.get('totalPages') or 1):
                 break
             page += 1
@@ -89,6 +94,77 @@ class EbayBestOfferSyncService:
             if matching_message:
                 offer.created_at = matching_message.sent_at
         return offer, created
+    
+    def _sync_seller_offer_response(self, account: EbayAccount, offer: Offer):
+        """
+        Sync the seller's response to an offer if it exists.
+        This creates a message in the conversation with the seller's offer details.
+        """
+        try:
+            # Get the offer details from eBay to check for seller responses
+            self.api_usage.reserve_calls(1)
+            response = self.tokens.client.get_offer_details_raw(
+                account.access_token,
+                offer_id=offer.provider_offer_id
+            )
+            
+            if response.status_code == 401:
+                account = self.tokens.refresh_access_token(account.id)
+                self.api_usage.reserve_calls(1)
+                response = self.tokens.client.get_offer_details_raw(
+                    account.access_token,
+                    offer_id=offer.provider_offer_id
+                )
+            
+            if response.ok and isinstance(response.payload, dict):
+                offer_detail = response.payload
+                
+                # Check if seller responded with a counter-offer
+                if 'sellerResponse' in offer_detail:
+                    seller_response = offer_detail['sellerResponse']
+                    
+                    # Create or update the seller's offer message
+                    from app.models.message import Message
+                    from app.models.message_direction import MessageDirection
+                    
+                    # Check if we already have a message for this response
+                    existing_message = self.db.scalar(
+                        select(Message).where(
+                            Message.conversation_id == offer.conversation_id,
+                            Message.provider_message_id == seller_response.get('responseId'),
+                            Message.sender_type == 'SELLER'
+                        )
+                    )
+                    
+                    if not existing_message:
+                        seller_message = Message(
+                            conversation_id=offer.conversation_id,
+                            provider_message_id=seller_response.get('responseId'),
+                            sender_type='SELLER',
+                            sender_identifier=account.ebay_username,
+                            body=seller_response.get('message', f"Counter-offer: ${seller_response.get('amount')}"),
+                            is_inbound=False,  # Outgoing from seller
+                            direction=MessageDirection.OUTGOING,
+                            sent_at=self._datetime(seller_response.get('createdDate')) or datetime.now(UTC),
+                            raw_payload=seller_response,
+                        )
+                        self.db.add(seller_message)
+                        
+                        # Also store the offer details in the message metadata
+                        seller_message.offer_data = {
+                            'type': 'SELLER_OFFER',
+                            'amount': float(seller_response.get('amount', 0)),
+                            'status': seller_response.get('status', 'PENDING'),
+                            'currency': seller_response.get('currency', 'USD'),
+                            'message': seller_response.get('message', ''),
+                        }
+                        logger.info(
+                            'Created seller offer response message for conversation %s offer %s',
+                            offer.conversation_id,
+                            offer.provider_offer_id
+                        )
+        except Exception as e:
+            logger.warning('Failed to sync seller offer response: %s', e)
 
     def _match_conversation(self, account_id: UUID, listing_id: str, buyer) -> Conversation | None:
         buyer = str(buyer or '').strip()

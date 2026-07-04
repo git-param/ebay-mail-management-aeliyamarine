@@ -18,6 +18,8 @@ class EbayMessageService:
         self.db = db
         self.conversation_repository = ConversationRepository(db)
         self.message_repository = MessageRepository(db)
+        # Ensure we always use uppercase provider
+        self.provider = EBAY_PROVIDER_NAME.upper()  # 'EBAY'
 
     def upsert_conversation(
         self,
@@ -34,6 +36,7 @@ class EbayMessageService:
         messages = self._messages_from_detail(conversation_detail)
         latest_message_at = self._latest_message_at(conversation_summary, messages)
         values = {
+            'provider': self.provider,  # 'EBAY'
             'provider_account_id': account.id,
             'subject': self._conversation_subject(conversation_summary, conversation_detail, messages),
             'buyer_identifier': self._other_party_username(account, conversation_summary, messages),
@@ -63,7 +66,7 @@ class EbayMessageService:
         }
 
         conversation, created = self.conversation_repository.upsert_by_provider_id(
-            EBAY_PROVIDER_NAME,
+            self.provider,  # 'EBAY'
             conversation_id,
             values,
         )
@@ -101,8 +104,15 @@ class EbayMessageService:
             sender_username = self._string_or_none(message_payload.get('senderUsername'))
             recipient_username = self._string_or_none(message_payload.get('recipientUsername'))
             is_inbound = sender_username != account.ebay_username
+            
+            # Extract offer data if present
+            offer_data = None
+            if 'offer' in message_payload:
+                offer_data = message_payload.get('offer')
+            
             values = {
                 'conversation_id': conversation.id,
+                'provider': self.provider,  # 'EBAY'
                 'sender_type': MessageSenderType.CUSTOMER if is_inbound else MessageSenderType.AGENT,
                 'sender_identifier': sender_username,
                 'recipient_identifier': recipient_username,
@@ -111,8 +121,13 @@ class EbayMessageService:
                 'is_inbound': is_inbound,
                 'sent_at': sent_at,
                 'raw_payload': message_payload,
+                'offer_data': offer_data,  # Store offer data in JSON field
             }
-            message, created = self.message_repository.upsert_by_provider_id(EBAY_PROVIDER_NAME, message_id, values)
+            message, created = self.message_repository.upsert_by_provider_id(
+                self.provider,  # 'EBAY'
+                message_id, 
+                values
+            )
             self.message_repository.replace_attachments(
                 message,
                 self._attachments_from_message_payload(account, message_payload),
@@ -177,7 +192,7 @@ class EbayMessageService:
             attachments.append(
                 MessageAttachment(
                     account_id=account.id,
-                    provider=EBAY_PROVIDER_NAME,
+                    provider=self.provider,  # 'EBAY'
                     provider_attachment_id=provider_attachment_id,
                     file_name=file_name[:500],
                     media_name=file_name[:500],

@@ -102,16 +102,38 @@ class MessageRepository:
         target.raw_payload = source.raw_payload
 
     def upsert_by_provider_id(self, provider: str, provider_message_id: str, values: dict) -> tuple[Message, bool]:
-        message = self.get_by_provider_id(provider, provider_message_id)
-        created = message is None
-        if created:
+        """
+        Upsert a message by provider and provider_message_id.
+        Returns (message, created).
+        """
+        # Normalize provider to uppercase
+        provider = provider.upper()
+        
+        # Remove provider from values to avoid duplication
+        values = values.copy()  # Don't modify the original dict
+        if 'provider' in values:
+            values.pop('provider')
+        
+        existing = self.db.scalar(
+            select(Message).where(
+                Message.provider == provider,
+                Message.provider_message_id == provider_message_id
+            )
+        )
+        
+        if existing:
+            # Update existing message
+            for key, value in values.items():
+                if hasattr(existing, key) and key not in ('id', 'provider', 'provider_message_id', 'created_at'):
+                    setattr(existing, key, value)
+            return existing, False
+        else:
+            # Create new message
             message = Message(
                 provider=provider,
                 provider_message_id=provider_message_id,
-                **values,
+                **values
             )
             self.db.add(message)
-        else:
-            for key, value in values.items():
-                setattr(message, key, value)
-        return message, created
+            self.db.flush()
+            return message, True

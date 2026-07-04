@@ -19,9 +19,19 @@ from app.services.ebay_api_usage_service import EbayApiUsageService
 from app.services.conversation_product_context_service import ConversationProductContextService
 from app.services.order_context_service import OrderContextService
 from app.services.sync_log_service import SyncLogService
-
+from app.modules.integrations.ebay.services.ebay_seller_offer_sync_service import EbaySellerOfferSyncService
 
 logger = logging.getLogger(__name__)
+
+try:
+    from app.modules.integrations.ebay.services.ebay_seller_offer_sync_service import EbaySellerOfferSyncService
+    logger.info("✅ EbaySellerOfferSyncService imported successfully")
+except ImportError as e:
+    logger.error("❌ Failed to import EbaySellerOfferSyncService: %s", e)
+    raise
+
+
+
 
 EBAY_MESSAGE_SYNC_TYPE = 'EBAY_MESSAGE_SYNC'
 EBAY_CONVERSATION_TYPES = ('FROM_MEMBERS', 'FROM_EBAY')
@@ -57,6 +67,10 @@ class EbaySyncService:
         self.order_sync_service = EbayOrderSyncService(db)
         self.product_context_service = ConversationProductContextService(db)
         self.best_offer_sync_service = EbayBestOfferSyncService(db)
+        self.seller_offer_sync_service = EbaySellerOfferSyncService(db)
+        logger.info("✅ EbaySyncService initialized with seller_offer_sync_service")
+
+    # ebay_sync_service.py - Refactored version
 
     def sync_account(
         self,
@@ -67,10 +81,33 @@ class EbaySyncService:
     ) -> EbaySyncResult:
         account = self._get_syncable_account(account_id)
         updated_since = account.last_sync_at
+        
         if reserve_api_usage:
             self.api_usage_service.reserve_calls(1)
 
-        sync_log = self.sync_log_service.start_sync(
+        sync_log = self._start_sync_log(account, max_conversations, updated_since)
+        counters = self._initialize_counters()
+        sync_context = self._initialize_sync_context(account, updated_since, max_conversations)
+
+        try:
+            account = self._ensure_access_token(account)
+            
+            # Process conversations
+            self._process_conversations(account, updated_since, max_conversations, sync_log, counters, sync_context)
+            
+            # Sync related data
+            order_sync_result, order_sync_error = self._sync_related_data(account)
+            
+            # Complete sync
+            return self._finalize_sync(account, sync_log, counters, sync_context, order_sync_result, order_sync_error)
+            
+        except Exception as exc:
+            return self._handle_sync_failure(account_id, account, sync_log, counters, sync_context, exc)
+
+
+    def _start_sync_log(self, account: EbayAccount, max_conversations: int | None, updated_since: datetime | None) -> SyncLog:
+        """Start a new sync log entry."""
+        return self.sync_log_service.start_sync(
             provider=EBAY_PROVIDER_NAME,
             provider_account_id=account.id,
             sync_type=EBAY_MESSAGE_SYNC_TYPE,
@@ -81,7 +118,11 @@ class EbaySyncService:
                 'incremental': updated_since is not None,
             },
         )
-        counters = {
+
+
+    def _initialize_counters(self) -> dict:
+        """Initialize counters dictionary."""
+        return {
             'conversations_processed': 0,
             'conversations_failed': 0,
             'conversations_created': 0,
@@ -89,261 +130,458 @@ class EbaySyncService:
             'messages_created': 0,
             'messages_updated': 0,
         }
-        failed_conversations: list[dict] = []
-        total_conversations_available = None
-        detail_seconds_total = 0.0
-        sync_started_at = perf_counter()
+
+
+    def _initialize_sync_context(self, account: EbayAccount, updated_since: datetime | None, max_conversations: int | None) -> dict:
+        """Initialize sync context."""
+        return {
+            'account': account,
+            'updated_since': updated_since,
+            'max_conversations': max_conversations,
+            'total_conversations_available': None,
+            'detail_seconds_total': 0.0,
+            'sync_started_at': perf_counter(),
+            'failed_conversations': [],
+        }
+
+
+    def _process_conversations(
+        self,
+        account: EbayAccount,
+        updated_since: datetime | None,
+        max_conversations: int | None,
+        sync_log: SyncLog,
+        counters: dict,
+        sync_context: dict,
+    ) -> None:
+        """Process all conversations from eBay."""
+        for conversation_summary, page_total in self._iter_conversation_summaries(
+            account,
+            max_conversations=max_conversations,
+            updated_since=updated_since,
+        ):
+            if page_total is not None:
+                sync_context['total_conversations_available'] = page_total
+                
+            conversation_id = self._conversation_id(conversation_summary)
+            if not conversation_id:
+                logger.warning('Skipping eBay conversation without conversationId for account %s', account.id)
+                continue
+
+            self._process_single_conversation(
+                account,
+                conversation_summary,
+                conversation_id,
+                sync_log,
+                counters,
+                sync_context
+            )
+
+
+    def _process_single_conversation(
+        self,
+        account: EbayAccount,
+        conversation_summary: dict,
+        conversation_id: str,
+        sync_log: SyncLog,
+        counters: dict,
+        sync_context: dict,
+    ) -> None:
+        """Process a single conversation."""
+        conversation_type = self._conversation_type(conversation_summary)
+        detail_started_at = perf_counter()
+        
+        detail_response = self._get_conversation_detail_with_retry(
+            account,
+            conversation_id=conversation_id,
+            conversation_type=conversation_type,
+            limit=50,
+            offset=0,
+        )
+
+        self._log_conversation_detail_diagnostic(account, conversation_id, conversation_type, conversation_summary, detail_response)
+
+        if not detail_response.ok or not isinstance(detail_response.payload, dict):
+            self._handle_failed_conversation_detail(account, conversation_id, conversation_type, conversation_summary, detail_response, counters, sync_context)
+            return
+
+        try:
+            self._process_conversation_detail(
+                account,
+                conversation_summary,
+                conversation_id,
+                conversation_type,
+                detail_response,
+                detail_started_at,
+                counters,
+                sync_context
+            )
+            self._log_sync_progress(account, conversation_id, counters, sync_context)
+            self._update_sync_progress(sync_log, counters, sync_context)
+            
+        except Exception as conversation_exc:
+            self._handle_conversation_processing_error(account, conversation_id, conversation_type, conversation_exc, counters, sync_context)
+
+
+    def _process_conversation_detail(
+        self,
+        account: EbayAccount,
+        conversation_summary: dict,
+        conversation_id: str,
+        conversation_type: str,
+        detail_response,
+        detail_started_at: float,
+        counters: dict,
+        sync_context: dict,
+    ) -> None:
+        """Process the conversation detail data."""
+        with self.db.begin_nested():
+            conversation_detail = detail_response.payload
+            detail_elapsed_seconds = perf_counter() - detail_started_at
+            sync_context['detail_seconds_total'] += detail_elapsed_seconds
+            
+            conversation, created = self.message_service.upsert_conversation(
+                account=account,
+                conversation_summary=conversation_summary,
+                conversation_detail=conversation_detail,
+                conversation_type=conversation_type,
+            )
+            self.db.flush()
+
+            self.product_context_service.enrich_conversation(conversation)
+            messages_created, messages_updated = self.message_service.upsert_messages(
+                account=account,
+                conversation=conversation,
+                conversation_detail=conversation_detail,
+            )
+            
+            counters['conversations_processed'] += 1
+            if created:
+                counters['conversations_created'] += 1
+            else:
+                counters['conversations_updated'] += 1
+            counters['messages_created'] += messages_created
+            counters['messages_updated'] += messages_updated
+
+
+    def _handle_failed_conversation_detail(
+        self,
+        account: EbayAccount,
+        conversation_id: str,
+        conversation_type: str,
+        conversation_summary: dict,
+        detail_response,
+        counters: dict,
+        sync_context: dict,
+    ) -> None:
+        """Handle failed conversation detail request."""
+        failed_conversation = self._failed_conversation(
+            conversation_id=conversation_id,
+            conversation_type=conversation_type,
+            status_code=detail_response.status_code,
+            error_message='eBay conversation detail request failed',
+        )
+        failed_conversation['response_body'] = detail_response.payload
+        failed_conversation['diagnostic'] = self._conversation_detail_diagnostic(
+            conversation_summary=conversation_summary,
+            detail_response=detail_response,
+        )
+        sync_context['failed_conversations'].append(failed_conversation)
+        counters['conversations_failed'] += 1
+        
+        logger.warning(
+            'Skipping failed eBay conversation detail account_id=%s conversation_id=%s conversation_type=%s status_code=%s',
+            account.id,
+            conversation_id,
+            conversation_type,
+            detail_response.status_code,
+        )
+
+
+    def _handle_conversation_processing_error(
+        self,
+        account: EbayAccount,
+        conversation_id: str,
+        conversation_type: str,
+        error: Exception,
+        counters: dict,
+        sync_context: dict,
+    ) -> None:
+        """Handle conversation processing error."""
+        sync_context['failed_conversations'].append(
+            self._failed_conversation(
+                conversation_id=conversation_id,
+                conversation_type=conversation_type,
+                status_code=None,
+                error_message=str(error),
+            )
+        )
+        counters['conversations_failed'] += 1
+        logger.exception(
+            'Skipping eBay conversation after processing failure account_id=%s conversation_id=%s conversation_type=%s',
+            account.id,
+            conversation_id,
+            conversation_type,
+        )
+
+
+    def _log_conversation_detail_diagnostic(
+        self,
+        account: EbayAccount,
+        conversation_id: str,
+        conversation_type: str,
+        conversation_summary: dict,
+        detail_response,
+    ) -> None:
+        """Log conversation detail diagnostic information."""
+        logger.info(
+            'eBay conversation detail diagnostic account_id=%s conversation_id=%s conversation_type=%s request_url=%s request_headers=%s',
+            account.id,
+            conversation_id,
+            conversation_type,
+            detail_response.request_url,
+            detail_response.request_headers,
+        )
+        if not detail_response.ok:
+            logger.warning(
+                'eBay conversation detail response diagnostic account_id=%s status_code=%s response_body=%s diagnostic=%s',
+                account.id,
+                detail_response.status_code,
+                detail_response.payload,
+                self._conversation_detail_diagnostic(
+                    conversation_summary=conversation_summary,
+                    detail_response=detail_response,
+                ),
+            )
+
+
+    def _log_sync_progress(
+        self,
+        account: EbayAccount,
+        conversation_id: str,
+        counters: dict,
+        sync_context: dict,
+    ) -> None:
+        """Log sync progress."""
+        elapsed_seconds = perf_counter() - sync_context['sync_started_at']
+        remaining_count = self._remaining_count(
+            total_conversations_available=sync_context['total_conversations_available'],
+            max_conversations=sync_context['max_conversations'],
+            conversations_processed=counters['conversations_processed'] + counters['conversations_failed'],
+        )
+        logger.info(
+            'eBay sync progress account_id=%s processed=%s current_conversation_id=%s elapsed_seconds=%.2f remaining_count=%s',
+            account.id,
+            counters['conversations_processed'],
+            conversation_id,
+            elapsed_seconds,
+            remaining_count,
+        )
+
+
+    def _update_sync_progress(
+        self,
+        sync_log: SyncLog,
+        counters: dict,
+        sync_context: dict,
+    ) -> None:
+        """Update sync progress in the database."""
+        if counters['conversations_processed'] % 25 == 0:
+            self.sync_log_service.update_progress(
+                sync_log.id,
+                records_processed=self._records_processed(counters),
+                sync_metadata=self._progress_metadata(
+                    counters=counters,
+                    total_conversations_available=sync_context['total_conversations_available'],
+                    max_conversations=sync_context['max_conversations'],
+                    updated_since=sync_context['updated_since'],
+                    elapsed_seconds=perf_counter() - sync_context['sync_started_at'],
+                    detail_seconds_total=sync_context['detail_seconds_total'],
+                    failed_conversations=sync_context['failed_conversations'],
+                ),
+            )
+
+
+    def _sync_related_data(self, account: EbayAccount) -> tuple[any, str | None]:
+        """Sync related data (orders, offers)."""
         order_sync_result = None
         order_sync_error = None
 
+        # Sync orders
         try:
-            # fetch the access token if it is present and not expired
-            account = self._ensure_access_token(account) 
-
-            for conversation_summary, page_total in self._iter_conversation_summaries(
-                account,
-                max_conversations=max_conversations,
-                updated_since=updated_since,
-            ):
-                if page_total is not None:
-                    total_conversations_available = page_total
-                conversation_id = self._conversation_id(conversation_summary)
-                if not conversation_id:
-                    logger.warning('Skipping eBay conversation without conversationId for account %s', account.id)
-                    continue
-
-                conversation_type = self._conversation_type(conversation_summary)
-                detail_started_at = perf_counter()
-                detail_response = self._get_conversation_detail_with_retry(
-                    account,
-                    conversation_id=conversation_id,
-                    conversation_type=conversation_type,
-                    limit=50,
-                    offset=0,
-                )
-                logger.info(
-                    'eBay conversation detail diagnostic account_id=%s conversation_id=%s conversation_type=%s request_url=%s request_headers=%s conversation_summary=%s',
-                    account.id,
-                    conversation_id,
-                    conversation_type,
-                    detail_response.request_url,
-                    detail_response.request_headers,
-                    conversation_summary,
-                )
-                if not detail_response.ok:
-                    logger.warning(
-                        'eBay conversation detail response diagnostic account_id=%s status_code=%s response_body=%s diagnostic=%s',
-                        account.id,
-                        detail_response.status_code,
-                        detail_response.payload,
-                        self._conversation_detail_diagnostic(
-                            conversation_summary=conversation_summary,
-                            detail_response=detail_response,
-                        ),
-                    )
-                if not detail_response.ok or not isinstance(detail_response.payload, dict):
-                    failed_conversation = self._failed_conversation(
-                        conversation_id=conversation_id,
-                        conversation_type=conversation_type,
-                        status_code=detail_response.status_code,
-                        error_message='eBay conversation detail request failed',
-                    )
-                    failed_conversation['response_body'] = detail_response.payload
-                    failed_conversation['diagnostic'] = self._conversation_detail_diagnostic(
-                        conversation_summary=conversation_summary,
-                        detail_response=detail_response,
-                    )
-                    failed_conversations.append(failed_conversation)
-                    counters['conversations_failed'] += 1
-                    logger.warning(
-                        'Skipping failed eBay conversation detail account_id=%s conversation_id=%s conversation_type=%s status_code=%s response_body=%s',
-                        account.id,
-                        conversation_id,
-                        conversation_type,
-                        detail_response.status_code,
-                        detail_response.payload,
-                    )
-                    continue
-
-                try:
-                    with self.db.begin_nested():
-                        conversation_detail = detail_response.payload
-                        detail_elapsed_seconds = perf_counter() - detail_started_at
-                        detail_seconds_total += detail_elapsed_seconds
-                        conversation, created = self.message_service.upsert_conversation(
-                            account=account,
-                            conversation_summary=conversation_summary,
-                            conversation_detail=conversation_detail,
-                            conversation_type=conversation_type,
-                        )
-                        self.db.flush()
-
-                        self.product_context_service.enrich_conversation(conversation)
-                        messages_created, messages_updated = self.message_service.upsert_messages(
-                            account=account,
-                            conversation=conversation,
-                            conversation_detail=conversation_detail,
-                        )
-                        counters['conversations_processed'] += 1
-                        if created:
-                            counters['conversations_created'] += 1
-                        else:
-                            counters['conversations_updated'] += 1
-                        counters['messages_created'] += messages_created
-                        counters['messages_updated'] += messages_updated
-                except Exception as conversation_exc:
-                    failed_conversations.append(
-                        self._failed_conversation(
-                            conversation_id=conversation_id,
-                            conversation_type=conversation_type,
-                            status_code=None,
-                            error_message=str(conversation_exc),
-                        )
-                    )
-                    counters['conversations_failed'] += 1
-                    logger.exception(
-                        'Skipping eBay conversation after processing failure account_id=%s conversation_id=%s conversation_type=%s',
-                        account.id,
-                        conversation_id,
-                        conversation_type,
-                    )
-                    continue
-
-                elapsed_seconds = perf_counter() - sync_started_at
-                remaining_count = self._remaining_count(
-                    total_conversations_available=total_conversations_available,
-                    max_conversations=max_conversations,
-                    conversations_processed=counters['conversations_processed'] + counters['conversations_failed'],
-                )
-                logger.info(
-                    'eBay sync progress account_id=%s processed=%s current_conversation_id=%s elapsed_seconds=%.2f remaining_count=%s detail_seconds=%.2f',
-                    account.id,
-                    counters['conversations_processed'],
-                    conversation_id,
-                    elapsed_seconds,
-                    remaining_count,
-                    detail_elapsed_seconds,
-                )
-
-                if counters['conversations_processed'] % 25 == 0:
-                    self.sync_log_service.update_progress(
-                        sync_log.id,
-                        records_processed=self._records_processed(counters),
-                        sync_metadata=self._progress_metadata(
-                            counters=counters,
-                            total_conversations_available=total_conversations_available,
-                            max_conversations=max_conversations,
-                            updated_since=updated_since,
-                            elapsed_seconds=elapsed_seconds,
-                            detail_seconds_total=detail_seconds_total,
-                            failed_conversations=failed_conversations,
-                        ),
-                    )
-
-            try:
-                order_sync_result = self.order_sync_service.sync_account(
-                    account.id,
-                    commit=False,
-                    track_api_usage=True,
-                )
-            except Exception as exc:
-                order_sync_error = str(exc)
-                logger.exception(
-                    'Non-fatal eBay order sync failure account_id=%s; message sync will still complete',
-                    account.id,
-                )
-
-            try:
-                self.best_offer_sync_service.sync_account(account.id, commit=False)
-            except Exception:
-                # Buyer offers enrich the thread but must not make message sync fail.
-                logger.exception('Non-fatal eBay buyer-offer sync failure account_id=%s', account.id)
-
-            account.last_sync_at = datetime.now(UTC)
-            account.sync_status = (
-                'SUCCESS_WITH_ERRORS'
-                if counters['conversations_failed'] or order_sync_error or (order_sync_result and order_sync_result.orders_failed)
-                else 'SUCCESS'
-            )
-            elapsed_seconds = perf_counter() - sync_started_at
-            sync_log = self.sync_log_service.complete_sync(
-                sync_log.id,
-                records_processed=self._records_processed(counters),
-            )
-            if counters['conversations_failed'] or order_sync_error or (order_sync_result and order_sync_result.orders_failed):
-                errors = []
-                if counters['conversations_failed']:
-                    errors.append(f"{counters['conversations_failed']} conversation(s) failed during sync")
-                if order_sync_error:
-                    errors.append(f'Order sync failed: {order_sync_error}')
-                if order_sync_result and order_sync_result.orders_failed:
-                    errors.append(f'{order_sync_result.orders_failed} order payload(s) failed during sync')
-                sync_log.error_message = '; '.join(errors)
-            sync_log.sync_metadata = {
-                **(sync_log.sync_metadata or {}),
-                **self._progress_metadata(
-                    counters=counters,
-                    total_conversations_available=total_conversations_available,
-                    max_conversations=max_conversations,
-                    updated_since=updated_since,
-                    elapsed_seconds=elapsed_seconds,
-                    detail_seconds_total=detail_seconds_total,
-                    failed_conversations=failed_conversations,
-                ),
-                'order_sync': {
-                    'orders_processed': order_sync_result.orders_processed if order_sync_result else 0,
-                    'orders_failed': order_sync_result.orders_failed if order_sync_result else 0,
-                    'pages_processed': order_sync_result.pages_processed if order_sync_result else 0,
-                    'conversations_matched': order_sync_result.conversations_matched if order_sync_result else 0,
-                    'incremental': order_sync_result.incremental if order_sync_result else None,
-                    'error': order_sync_error,
-                },
-            }
-            self.db.commit()
-            logger.info(
-                'eBay message sync succeeded account_id=%s conversations=%s messages_created=%s messages_updated=%s elapsed_seconds=%.2f average_detail_seconds=%.2f',
+            order_sync_result = self.order_sync_service.sync_account(
                 account.id,
-                counters['conversations_processed'],
-                counters['messages_created'],
-                counters['messages_updated'],
-                elapsed_seconds,
-                self._average_detail_seconds(detail_seconds_total, counters['conversations_processed']) or 0,
-            )
-            return self._build_result(
-                account=account,
-                sync_log_id=sync_log.id,
-                status=account.sync_status,
-                counters=counters,
-                failed_conversations=failed_conversations,
-                total_conversations_available=total_conversations_available,
-                elapsed_seconds=elapsed_seconds,
-                average_detail_seconds=self._average_detail_seconds(
-                    detail_seconds_total,
-                    counters['conversations_processed'],
-                ),
+                commit=False,
+                track_api_usage=True,
             )
         except Exception as exc:
-            self.db.rollback()
-            failed_sync_log = self.sync_log_service.fail_sync(sync_log.id, str(exc))
-            account = self.db.get(EbayAccount, account.id)
-            if account:
-                account.sync_status = 'FAILED'
-                self.db.commit()
-            logger.exception('eBay message sync failed for account %s', account_id)
-            return self._build_result(
-                account=account or self._get_syncable_account(account_id),
-                sync_log_id=failed_sync_log.id,
-                status=failed_sync_log.status.value,
-                counters=counters,
-                failed_conversations=failed_conversations,
-                total_conversations_available=total_conversations_available,
-                elapsed_seconds=perf_counter() - sync_started_at,
-                average_detail_seconds=self._average_detail_seconds(
-                    detail_seconds_total,
-                    counters['conversations_processed'],
-                ),
-                error_message=str(exc),
+            order_sync_error = str(exc)
+            logger.exception(
+                'Non-fatal eBay order sync failure account_id=%s; message sync will still complete',
+                account.id,
             )
+
+        # Sync buyer-originated offers (Best Offers)
+        try:
+            self.best_offer_sync_service.sync_account(account.id, commit=False)
+        except Exception:
+            logger.exception('Non-fatal eBay buyer-offer sync failure account_id=%s', account.id)
+
+        # Sync seller-initiated offers (My Messages)
+        try:
+            result = self.seller_offer_sync_service.sync_account(account.id, commit=False)
+            if result.get('matched', 0) > 0:
+                logger.info(
+                    'Seller offer sync: created=%s updated=%s matched=%s',
+                    result.get('created', 0),
+                    result.get('updated', 0),
+                    result.get('matched', 0),
+                )
+        except Exception:
+            logger.exception('Non-fatal eBay seller-offer sync failure account_id=%s', account.id)
+
+        return order_sync_result, order_sync_error
+
+
+    def _finalize_sync(
+        self,
+        account: EbayAccount,
+        sync_log: SyncLog,
+        counters: dict,
+        sync_context: dict,
+        order_sync_result: any,
+        order_sync_error: str | None,
+    ) -> EbaySyncResult:
+        """Finalize the sync process."""
+        account.last_sync_at = datetime.now(UTC)
+        account.sync_status = (
+            'SUCCESS_WITH_ERRORS'
+            if counters['conversations_failed'] or order_sync_error or (order_sync_result and order_sync_result.orders_failed)
+            else 'SUCCESS'
+        )
+        
+        elapsed_seconds = perf_counter() - sync_context['sync_started_at']
+        
+        sync_log = self.sync_log_service.complete_sync(
+            sync_log.id,
+            records_processed=self._records_processed(counters),
+        )
+        
+        self._set_sync_error_messages(sync_log, counters, order_sync_result, order_sync_error)
+        self._set_sync_metadata(sync_log, counters, sync_context, elapsed_seconds, order_sync_result, order_sync_error)
+        
+        self.db.commit()
+        
+        logger.info(
+            'eBay message sync succeeded account_id=%s conversations=%s messages_created=%s messages_updated=%s elapsed_seconds=%.2f',
+            account.id,
+            counters['conversations_processed'],
+            counters['messages_created'],
+            counters['messages_updated'],
+            elapsed_seconds,
+        )
+        
+        return self._build_result(
+            account=account,
+            sync_log_id=sync_log.id,
+            status=account.sync_status,
+            counters=counters,
+            failed_conversations=sync_context['failed_conversations'],
+            total_conversations_available=sync_context['total_conversations_available'],
+            elapsed_seconds=elapsed_seconds,
+            average_detail_seconds=self._average_detail_seconds(
+                sync_context['detail_seconds_total'],
+                counters['conversations_processed'],
+            ),
+        )
+
+
+    def _set_sync_error_messages(
+        self,
+        sync_log: SyncLog,
+        counters: dict,
+        order_sync_result: any,
+        order_sync_error: str | None,
+    ) -> None:
+        """Set error messages on the sync log."""
+        if counters['conversations_failed'] or order_sync_error or (order_sync_result and order_sync_result.orders_failed):
+            errors = []
+            if counters['conversations_failed']:
+                errors.append(f"{counters['conversations_failed']} conversation(s) failed during sync")
+            if order_sync_error:
+                errors.append(f'Order sync failed: {order_sync_error}')
+            if order_sync_result and order_sync_result.orders_failed:
+                errors.append(f'{order_sync_result.orders_failed} order payload(s) failed during sync')
+            sync_log.error_message = '; '.join(errors)
+
+
+    def _set_sync_metadata(
+        self,
+        sync_log: SyncLog,
+        counters: dict,
+        sync_context: dict,
+        elapsed_seconds: float,
+        order_sync_result: any,
+        order_sync_error: str | None,
+    ) -> None:
+        """Set metadata on the sync log."""
+        sync_log.sync_metadata = {
+            **(sync_log.sync_metadata or {}),
+            **self._progress_metadata(
+                counters=counters,
+                total_conversations_available=sync_context['total_conversations_available'],
+                max_conversations=sync_context['max_conversations'],
+                updated_since=sync_context['updated_since'],
+                elapsed_seconds=elapsed_seconds,
+                detail_seconds_total=sync_context['detail_seconds_total'],
+                failed_conversations=sync_context['failed_conversations'],
+            ),
+            'order_sync': {
+                'orders_processed': order_sync_result.orders_processed if order_sync_result else 0,
+                'orders_failed': order_sync_result.orders_failed if order_sync_result else 0,
+                'pages_processed': order_sync_result.pages_processed if order_sync_result else 0,
+                'conversations_matched': order_sync_result.conversations_matched if order_sync_result else 0,
+                'incremental': order_sync_result.incremental if order_sync_result else None,
+                'error': order_sync_error,
+            },
+        }
+
+
+    def _handle_sync_failure(
+        self,
+        account_id: UUID,
+        account: EbayAccount | None,
+        sync_log: SyncLog,
+        counters: dict,
+        sync_context: dict,
+        exc: Exception,
+    ) -> EbaySyncResult:
+        """Handle sync failure."""
+        self.db.rollback()
+        failed_sync_log = self.sync_log_service.fail_sync(sync_log.id, str(exc))
+        
+        account = self.db.get(EbayAccount, account_id)
+        if account:
+            account.sync_status = 'FAILED'
+            self.db.commit()
+        
+        logger.exception('eBay message sync failed for account %s', account_id)
+        
+        return self._build_result(
+            account=account or self._get_syncable_account(account_id),
+            sync_log_id=failed_sync_log.id,
+            status=failed_sync_log.status.value,
+            counters=counters,
+            failed_conversations=sync_context.get('failed_conversations', []),
+            total_conversations_available=sync_context.get('total_conversations_available'),
+            elapsed_seconds=perf_counter() - sync_context.get('sync_started_at', 0),
+            average_detail_seconds=self._average_detail_seconds(
+                sync_context.get('detail_seconds_total', 0.0),
+                counters['conversations_processed'],
+            ),
+            error_message=str(exc),
+        )
+
 
     def sync_all_connected_accounts(self) -> list[EbaySyncResult]:
         statement = (
@@ -695,3 +933,98 @@ class EbaySyncService:
                 if nested:
                     return nested
         return None
+
+    # In ebay_sync_service.py, update the message processing logic
+
+    def _process_message_with_offer(self, message_data: dict, conversation: Conversation) -> dict:
+        """
+        Process a message that might contain offer data.
+        """
+        # Check if this message is about an offer
+        if 'offer' in message_data:
+            offer_data = message_data['offer']
+            
+            # If this is a seller offer, create a message with the offer data
+            if offer_data.get('type') == 'SELLER_OFFER':
+                return {
+                    'body': offer_data.get('message', f"Seller sent an offer: ${offer_data.get('amount')}"),
+                    'is_inbound': False,
+                    'sender_type': 'SELLER',
+                    'offer_data': {
+                        'type': 'SELLER_OFFER',
+                        'amount': float(offer_data.get('amount', 0)),
+                        'status': offer_data.get('status', 'PENDING'),
+                        'currency': offer_data.get('currency', 'USD'),
+                        'message': offer_data.get('message', ''),
+                    }
+                }
+            elif offer_data.get('type') == 'BUYER_OFFER':
+                return {
+                    'body': offer_data.get('message', f"Buyer sent an offer: ${offer_data.get('amount')}"),
+                    'is_inbound': True,
+                    'sender_type': 'BUYER',
+                    'offer_data': {
+                        'type': 'BUYER_OFFER',
+                        'amount': float(offer_data.get('amount', 0)),
+                        'status': offer_data.get('status', 'PENDING'),
+                        'currency': offer_data.get('currency', 'USD'),
+                        'message': offer_data.get('message', ''),
+                    }
+                }
+        
+        # Regular message
+        return {
+            'body': message_data.get('text', ''),
+            'is_inbound': message_data.get('fromRole') != 'SELLER',
+            'sender_type': message_data.get('fromRole', 'BUYER'),
+            'offer_data': None
+        }
+
+    def _normalize_provider(self) -> str:
+        """Return normalized provider name (uppercase)."""
+        return EBAY_PROVIDER_NAME.upper()  # 'EBAY'
+
+    # Then update the progress_metadata to include normalized provider
+    def _progress_metadata(
+        self,
+        *,
+        counters: dict,
+        total_conversations_available: int | None,
+        max_conversations: int | None,
+        updated_since: datetime | None,
+        elapsed_seconds: float,
+        detail_seconds_total: float,
+        failed_conversations: list[dict],
+    ) -> dict:
+        average_detail_seconds = self._average_detail_seconds(
+            detail_seconds_total,
+            counters['conversations_processed'],
+        )
+        return {
+            'provider': self._normalize_provider(),  # Add normalized provider
+            'conversation_types': list(EBAY_CONVERSATION_TYPES),
+            'max_conversations': max_conversations,
+            'updated_since': updated_since.isoformat() if updated_since else None,
+            'incremental': updated_since is not None,
+            'total_conversations_available': total_conversations_available,
+            'conversations_processed': counters['conversations_processed'],
+            'conversations_failed': counters['conversations_failed'],
+            'failed_conversation_ids': [
+                failed_conversation['conversation_id']
+                for failed_conversation in failed_conversations
+                if failed_conversation.get('conversation_id')
+            ],
+            'failed_conversations': failed_conversations,
+            'conversations_created': counters['conversations_created'],
+            'conversations_updated': counters['conversations_updated'],
+            'messages_created': counters['messages_created'],
+            'messages_updated': counters['messages_updated'],
+            'result_status': 'SUCCESS_WITH_ERRORS' if counters['conversations_failed'] else 'SUCCESS',
+            'elapsed_seconds': round(elapsed_seconds, 3),
+            'average_detail_seconds': round(average_detail_seconds, 3) if average_detail_seconds is not None else None,
+            'remaining_count': self._remaining_count(
+                total_conversations_available=total_conversations_available,
+                max_conversations=max_conversations,
+                conversations_processed=counters['conversations_processed'] + counters['conversations_failed'],
+            ),
+        }

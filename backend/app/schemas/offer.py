@@ -9,18 +9,18 @@ from app.models.offer import OfferDirection, OfferStatus
 
 class OfferResponse(BaseModel):
     id: UUID
-    provider_offer_id: str
-    conversation_id: UUID
-    listing_id: str
+    provider_offer_id: str | None
+    listing_id: str | None = None  
     buyer_username: str | None
     offer_amount: Decimal | None
     currency: str | None
-    status: OfferStatus
-    direction: OfferDirection
+    status: str
+    direction: str
     offer_type: str | None
-    quantity: int
     message: str | None
     expires_at: datetime | None
     created_at: datetime
-
-    model_config = {'from_attributes': True}
+    
+    class Config:
+        from_attributes = True
+    

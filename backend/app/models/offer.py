@@ -1,51 +1,66 @@
-import enum
+# app/models/offer.py
+
 import uuid
-from datetime import UTC, datetime
+from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import DateTime, Enum, ForeignKey, Numeric, String, Text, UniqueConstraint
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy import Column, String, Numeric, DateTime, ForeignKey, JSON, Integer
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base_class import Base
 
 
-class OfferStatus(str, enum.Enum):
+class OfferStatus:
+    """Offer status constants"""
     PENDING = 'PENDING'
     ACCEPTED = 'ACCEPTED'
     DECLINED = 'DECLINED'
     EXPIRED = 'EXPIRED'
+    COUNTERED = 'COUNTERED'
+    RETRACTED = 'RETRACTED'
 
 
-class OfferDirection(str, enum.Enum):
-    INCOMING = 'INCOMING'
-    OUTGOING = 'OUTGOING'
+class OfferDirection:
+    """Offer direction constants"""
+    INCOMING = 'INCOMING'  # Buyer sent offer to seller
+    OUTGOING = 'OUTGOING'  # Seller sent offer to buyer
 
 
 class Offer(Base):
     __tablename__ = 'offers'
-    __table_args__ = (UniqueConstraint('provider_offer_id', name='uq_offers_provider_offer_id'),)
-
+    
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    provider_offer_id: Mapped[str] = mapped_column(String(255), nullable=False)
-    conversation_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey('conversations.id', ondelete='SET NULL'), nullable=True, index=True
-    )
-    account_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey('ebay_accounts.id'), nullable=True, index=True)
+    account_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey('ebay_accounts.id'), nullable=False)
+    conversation_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey('conversations.id'), nullable=True)
+    
+    provider_offer_id: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
     listing_id: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
-    buyer_username: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    offer_amount: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
-    currency: Mapped[str | None] = mapped_column(String(10), nullable=True)
-    status: Mapped[OfferStatus] = mapped_column(Enum(OfferStatus, name='offer_status'), nullable=False)
-    direction: Mapped[OfferDirection] = mapped_column(Enum(OfferDirection, name='offer_direction'), nullable=False, default=OfferDirection.OUTGOING)
+    buyer_username: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
+    
+    offer_amount: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
+    currency: Mapped[str] = mapped_column(String(3), default='USD')
+    status: Mapped[str] = mapped_column(String(50), default=OfferStatus.PENDING)
+    direction: Mapped[str] = mapped_column(String(50), nullable=False)
     offer_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    quantity: Mapped[int] = mapped_column(default=1)
-    message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    quantity: Mapped[int] = mapped_column(Integer, default=1)
+    message: Mapped[str | None] = mapped_column(String(2000), nullable=True)
+    
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    raw_payload: Mapped[dict] = mapped_column(JSONB, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), onupdate=datetime.utcnow)
+    
+    raw_payload: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    
+    # Relationships
+    account: Mapped["EbayAccount"] = relationship(
+        "EbayAccount",
+        back_populates="offers"
     )
-
-    conversation = relationship('Conversation', back_populates='offers')
+    conversation: Mapped["Conversation | None"] = relationship(
+        "Conversation",
+        back_populates="offers"
+    )
+    
+    def __repr__(self):
+        return f"<Offer {self.provider_offer_id} {self.status} ${self.offer_amount}>"
