@@ -783,13 +783,11 @@ function MessageThread({ messages, offers = [], isSystemConversation }) {
                 >
                   {translatingId === message.id ? 'Translating…' : 'Translate to English'}
                 </button>
-                /*
                 {translations[message.id]?.text && (
                   <p className="translated-copy">
                     <strong>English:</strong> {translations[message.id].text}
                   </p>
                 )}
-                */
                 {translations[message.id]?.error && (
                   <small role="alert">{translations[message.id].error}</small>
                 )}
