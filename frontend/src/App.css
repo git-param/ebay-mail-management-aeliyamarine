@@ -7176,3 +7176,267 @@ html[data-theme='dark'] .conversation-badge-category {
 .offer-card-label { display: flex; justify-content: space-between; gap: 14px; font-size: 12px; }
 .offer-card-label small { color: #747b86; font-weight: 600; }
 .offer-event-time { margin: 5px 4px 0 0; color: #747b86; font-size: 11px; }
+
+
+
+/* Add to App.css */
+
+/* Message bubble alignment */
+.message-bubble.inbound {
+  align-self: flex-start;
+  margin-right: auto;
+  border-radius: 12px 12px 12px 4px;
+}
+
+.message-bubble.outbound {
+  align-self: flex-end;
+  margin-left: auto;
+  border-radius: 12px 12px 4px 12px;
+}
+
+.message-bubble.system {
+  align-self: center;
+  width: 100%;
+  max-width: 760px;
+  margin: 0 auto;
+  text-align: center;
+  background: #f1f5f9;
+  border-color: #e2e8f0;
+}
+
+/* Offer details within messages */
+.message-offer-details {
+  margin-top: 10px;
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.message-bubble.inbound .message-offer-details {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+}
+
+.message-bubble.outbound .message-offer-details {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.offer-badge {
+  font-weight: 600;
+  font-size: 0.9rem;
+  margin-bottom: 6px;
+}
+
+.offer-badge.seller-offer {
+  color: #16a34a;
+}
+
+.offer-badge.buyer-offer {
+  color: #2563eb;
+}
+
+.offer-amount-display {
+  font-size: 1.1rem;
+  margin-bottom: 4px;
+}
+
+.offer-amount-display strong {
+  color: #16a34a;
+}
+
+.offer-status,
+.offer-expiry {
+  font-size: 0.85rem;
+  opacity: 0.8;
+}
+
+/* Offer events in timeline */
+.offer-event-wrapper {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  margin: 8px 0;
+}
+
+.offer-event {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.offer-event-incoming {
+  align-items: flex-start;
+}
+
+.offer-event-outgoing {
+  align-items: flex-end;
+}
+
+.offer-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  max-width: 72%;
+  padding: 14px 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  background: #ffffff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.offer-event-outgoing .offer-card {
+  border-color: #86efac;
+  background: #f0fdf4;
+}
+
+.offer-event-incoming .offer-card {
+  border-color: #93c5fd;
+  background: #eff6ff;
+}
+
+.offer-tag-icon {
+  font-size: 24px;
+  line-height: 1;
+}
+
+.offer-card-copy {
+  flex: 1;
+  min-width: 0;
+}
+
+.offer-card-copy > strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 20px;
+  color: #0f172a;
+}
+
+.offer-card-label {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  font-size: 13px;
+  color: #475569;
+}
+
+.offer-card-label strong {
+  color: #0f172a;
+}
+
+.offer-card-label small {
+  color: #94a3b8;
+  font-weight: 600;
+}
+
+.offer-message-text {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #e2e8f0;
+  color: #334155;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.offer-event-time {
+  margin-top: 4px;
+  margin-right: 8px;
+  color: #94a3b8;
+  font-size: 11px;
+}
+
+.offer-event-outgoing .offer-event-time {
+  margin-right: 0;
+  margin-left: 8px;
+}
+
+/* Dark theme support */
+html[data-theme='dark'] .offer-event-outgoing .offer-card {
+  border-color: #166534;
+  background: #052e16;
+}
+
+html[data-theme='dark'] .offer-event-incoming .offer-card {
+  border-color: #1e3a5f;
+  background: #0a1628;
+}
+
+html[data-theme='dark'] .offer-card {
+  background: #1e293b;
+  border-color: #334155;
+}
+
+html[data-theme='dark'] .offer-card-copy > strong {
+  color: #f1f5f9;
+}
+
+html[data-theme='dark'] .offer-card-label strong {
+  color: #f1f5f9;
+}
+
+html[data-theme='dark'] .offer-message-text {
+  border-color: #334155;
+  color: #cbd5e1;
+}
+
+/* Message thread container */
+.message-thread {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px clamp(14px, 3vw, 36px);
+  width: 100%;
+}
+
+/* Fix for message bubble containers */
+.message-bubble {
+  max-width: 88%;
+  padding: 12px 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+.message-bubble.inbound {
+  max-width: 80%;
+  align-self: flex-start;
+}
+
+.message-bubble.outbound {
+  max-width: 80%;
+  align-self: flex-end;
+  background: #eff6ff;
+  border-color: #93c5fd;
+}
+
+html[data-theme='dark'] .message-bubble.outbound {
+  background: #1a2a4a;
+  border-color: #3b5a8a;
+}
+
+html[data-theme='dark'] .message-bubble.inbound {
+  background: #1e293b;
+  border-color: #334155;
+}
+
+/* Make sure messages don't overlap */
+.message-bubble + .message-bubble {
+  margin-top: 0;
+}
+
+/* Fix for the thread panel scrolling */
+.thread-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+.thread-panel .message-thread {
+  flex: 1;
+  overflow-y: auto;
+  padding: 18px clamp(14px, 3vw, 36px);
+}

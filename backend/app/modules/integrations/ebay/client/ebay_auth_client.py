@@ -730,3 +730,268 @@ class EbayAuthClient:
             scheme = sanitized_headers['Authorization'].split(' ', 1)[0]
             sanitized_headers['Authorization'] = f'{scheme} ***'
         return sanitized_headers
+
+
+    # deepseek code suggesstions
+    def get_my_messages_raw(
+        self,
+        access_token: str,
+        *,
+        page_number: int = 1,
+        entries_per_page: int = 100,
+        detail_level: str = "ReturnHeaders",
+        message_ids: list[str] | None = None,
+    ) -> EbayRawApiResponse:
+        """Fetch My Messages inbox via eBay Trading API."""
+        
+        xml_parts = [
+            '<?xml version="1.0" encoding="utf-8"?>',
+            '<GetMyMessagesRequest xmlns="urn:ebay:apis:eBLBaseComponents">',
+            f'<DetailLevel>{detail_level}</DetailLevel>',
+        ]
+        
+        # Add MessageIDs if provided
+        if message_ids:
+            xml_parts.append('<MessageIDs>')
+            for msg_id in message_ids:
+                xml_parts.append(f'<MessageID>{msg_id}</MessageID>')
+            xml_parts.append('</MessageIDs>')
+        else:
+            xml_parts.extend([
+                '<Pagination>',
+                f'    <EntriesPerPage>{entries_per_page}</EntriesPerPage>',
+                f'    <PageNumber>{page_number}</PageNumber>',
+                '</Pagination>',
+            ])
+        
+        xml_parts.append('</GetMyMessagesRequest>')
+        body = ''.join(xml_parts).encode('utf-8')
+        
+        headers = {
+            'X-EBAY-API-CALL-NAME': 'GetMyMessages',
+            'X-EBAY-API-SITEID': '0',
+            'X-EBAY-API-COMPATIBILITY-LEVEL': '1455',
+            'X-EBAY-API-IAF-TOKEN': access_token,
+            'Content-Type': 'text/xml',
+        }
+        
+        request = Request(self.trading_url, data=body, headers=headers, method='POST')
+        safe_headers = self._sanitize_headers(headers)
+        
+        try:
+            with urlopen(request, timeout=30) as response:
+                xml_response = response.read().decode('utf-8')
+                payload = self._my_messages_xml(xml_response)
+                return EbayRawApiResponse(
+                    response.status,
+                    payload,
+                    payload.get('ack') in {'Success', 'Warning'},
+                    self.trading_url,
+                    safe_headers
+                )
+        except HTTPError as exc:
+            xml_response = exc.read().decode('utf-8', errors='replace')
+            return EbayRawApiResponse(
+                exc.code,
+                self._my_messages_xml(xml_response),
+                False,
+                self.trading_url,
+                safe_headers
+            )
+        except (URLError, TimeoutError) as exc:
+            logger.error(f"GetMyMessages network error: {exc}")
+            return EbayRawApiResponse(
+                500,
+                {'error': str(exc)},
+                False,
+                self.trading_url,
+                safe_headers
+            )
+
+    def _my_messages_xml(self, xml: str) -> dict:
+        """Parse GetMyMessages XML response."""
+        try:
+            root = ET.fromstring(xml)
+        except ET.ParseError:
+            return {'messages': [], 'error': 'Invalid XML', 'ack': 'Failure'}
+        
+        ns = {'e': 'urn:ebay:apis:eBLBaseComponents'}
+        
+        ack = root.findtext('./e:Ack', default='', namespaces=ns)
+        error = root.find('.//e:Errors/e:LongMessage', ns)
+        
+        messages = []
+        
+        # Try different paths for messages
+        for path in ['.//e:Message', './/e:Messages/e:Message']:
+            for node in root.findall(path, ns):
+                msg = {
+                    'message_id': node.findtext('./e:MessageID', namespaces=ns),
+                    'subject': node.findtext('./e:Subject', namespaces=ns),
+                    'body': node.findtext('./e:Body', namespaces=ns),
+                    'sender': node.findtext('./e:Sender', namespaces=ns),
+                    'recipient': node.findtext('./e:RecipientUserID', namespaces=ns),
+                    'message_type': node.findtext('./e:MessageType', namespaces=ns),
+                    'sent_date': node.findtext('./e:SentDate', namespaces=ns),
+                    'receive_date': node.findtext('./e:ReceiveDate', namespaces=ns),
+                    'item_id': node.findtext('./e:ItemID', namespaces=ns),
+                    'message_status': node.findtext('./e:MessageStatus', namespaces=ns),
+                    'read': node.findtext('./e:Read', namespaces=ns) == 'true',
+                    'flagged': node.findtext('./e:Flagged', namespaces=ns) == 'true',
+                }
+                messages.append(msg)
+        
+        total_pages = root.findtext(
+            './/e:PaginationResult/e:TotalNumberOfPages',
+            default='1',
+            namespaces=ns
+        )
+        
+        return {
+            'messages': messages,
+            'total_pages': int(total_pages or 1),
+            'error': error.text if error is not None else None,
+            'ack': ack
+        }
+
+    def get_message_details_raw(
+        self,
+        access_token: str,
+        *,
+        message_ids: list[str],
+    ) -> EbayRawApiResponse:
+        """Fetch full details for specific messages."""
+        # Build XML request with MessageID list
+        xml_parts = [
+            '<?xml version="1.0" encoding="utf-8"?>',
+            '<GetMyMessagesRequest xmlns="urn:ebay:apis:eBLBaseComponents">',
+            '<DetailLevel>ReturnMessages</DetailLevel>',
+        ]
+        
+        for msg_id in message_ids:
+            xml_parts.append(f'<MessageID>{msg_id}</MessageID>')
+        
+        xml_parts.append('</GetMyMessagesRequest>')
+        body = ''.join(xml_parts).encode('utf-8')
+        
+        headers = {
+            'X-EBAY-API-CALL-NAME': 'GetMyMessages',
+            'X-EBAY-API-SITEID': '0',
+            'X-EBAY-API-COMPATIBILITY-LEVEL': '1455',
+            'X-EBAY-API-IAF-TOKEN': access_token,
+            'Content-Type': 'text/xml',
+        }
+        
+        request = Request(self.trading_url, data=body, headers=headers, method='POST')
+        safe_headers = self._sanitize_headers(headers)
+        
+        try:
+            with urlopen(request, timeout=30) as response:
+                xml = response.read().decode('utf-8')
+                payload = self._my_messages_xml(xml)
+                return EbayRawApiResponse(
+                    response.status,
+                    payload,
+                    payload.get('ack') in {'Success', 'Warning'},
+                    self.trading_url,
+                    safe_headers
+                )
+        except HTTPError as exc:
+            xml = exc.read().decode('utf-8', errors='replace')
+            return EbayRawApiResponse(
+                exc.code,
+                self._my_messages_xml(xml),
+                False,
+                self.trading_url,
+                safe_headers
+            )
+        except (URLError, TimeoutError, ET.ParseError) as exc:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail='Unable to retrieve eBay message details'
+            ) from exc
+
+    # In app/modules/integrations/ebay/client/ebay_auth_client.py
+
+    def get_offer_details_raw(self, access_token: str, offer_id: str) -> dict:
+        """
+        Fetch detailed information about a specific offer.
+        """
+        request_url = f"https://api.ebay.com/sell/negotiation/v1/offer/{offer_id}"
+        return self._request_raw(
+            access_token=access_token,
+            request_url=request_url,
+            method='GET',
+            api_type='sell'
+        )
+
+    def get_my_messages_debug(
+        self,
+        access_token: str,
+        detail_level: str = "ReturnHeaders",
+        message_type: str | None = None,
+    ) -> EbayRawApiResponse:
+        """Debug method to test GetMyMessages with different detail levels."""
+        
+        xml_parts = [
+            '<?xml version="1.0" encoding="utf-8"?>',
+            '<GetMyMessagesRequest xmlns="urn:ebay:apis:eBLBaseComponents">',
+            f'<DetailLevel>{detail_level}</DetailLevel>',
+        ]
+        
+        if message_type:
+            xml_parts.append(f'<MessageType>{message_type}</MessageType>')
+        
+        xml_parts.extend([
+            '<Pagination>',
+            '    <EntriesPerPage>20</EntriesPerPage>',
+            '    <PageNumber>1</PageNumber>',
+            '</Pagination>',
+            '</GetMyMessagesRequest>'
+        ])
+        
+        xml_body = ''.join(xml_parts).encode('utf-8')
+        
+        headers = {
+            'X-EBAY-API-CALL-NAME': 'GetMyMessages',
+            'X-EBAY-API-SITEID': '0',
+            'X-EBAY-API-COMPATIBILITY-LEVEL': '1455',
+            'X-EBAY-API-IAF-TOKEN': access_token,
+            'Content-Type': 'text/xml',
+        }
+        
+        request = Request(self.trading_url, data=xml_body, headers=headers, method='POST')
+        safe_headers = self._sanitize_headers(headers)
+        
+        logger.info(f"GetMyMessages Debug: detail_level={detail_level}, message_type={message_type}")
+        
+        try:
+            with urlopen(request, timeout=30) as response:
+                xml_response = response.read().decode('utf-8')
+                logger.info(f"GetMyMessages Debug Response: {xml_response[:500]}...")
+                return EbayRawApiResponse(
+                    response.status,
+                    self._my_messages_xml(xml_response),
+                    True,
+                    self.trading_url,
+                    safe_headers
+                )
+        except HTTPError as exc:
+            xml_response = exc.read().decode('utf-8', errors='replace')
+            logger.error(f"GetMyMessages Debug Error: {xml_response[:500]}...")
+            return EbayRawApiResponse(
+                exc.code,
+                self._my_messages_xml(xml_response),
+                False,
+                self.trading_url,
+                safe_headers
+            )
+        except (URLError, TimeoutError) as exc:
+            logger.error(f"GetMyMessages Debug Network Error: {exc}")
+            return EbayRawApiResponse(
+                500,
+                {'error': str(exc)},
+                False,
+                self.trading_url,
+                safe_headers
+            )

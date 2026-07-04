@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Integer, String, Text, UniqueConstraint, false
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy import JSON, Column
 
 from app.db.base_class import Base
 
@@ -180,6 +181,7 @@ class Message(Base):
     sent_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     raw_payload: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+    offer_data = Column(JSON, nullable=True)
 
     conversation = relationship('Conversation', back_populates='messages')
     attachments = relationship(
@@ -188,6 +190,17 @@ class Message(Base):
         cascade='all, delete-orphan',
         order_by='MessageAttachment.created_at',
     )
+
+    @staticmethod
+    def normalize_provider(provider: str) -> str:
+        """Normalize provider to uppercase for consistency."""
+        return provider.upper() if provider else 'EBAY'
+    
+    # Add a method to get or create a message with normalized provider
+    @classmethod
+    def get_message_key(cls, provider: str, provider_message_id: str) -> tuple[str, str]:
+        """Get normalized message key for lookup."""
+        return (cls.normalize_provider(provider), provider_message_id)
 
 
 class MessageAttachment(Base):

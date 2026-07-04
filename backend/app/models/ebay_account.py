@@ -1,10 +1,12 @@
+# app/models/ebay_account.py
+
 import enum
 import uuid
 from datetime import UTC, datetime
 
 from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, String, Text
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base_class import Base
 
@@ -58,3 +60,22 @@ class EbayAccount(Base):
         default=lambda: datetime.now(UTC),
         onupdate=lambda: datetime.now(UTC),
     )
+
+    # Relationships
+    # Add the offers relationship - this is the key addition
+    offers: Mapped[list["Offer"]] = relationship(
+        "Offer",
+        back_populates="account",
+        lazy="dynamic",
+        cascade="all, delete-orphan"
+    )
+    
+    # Add other relationships if needed
+    # conversations: Mapped[list["Conversation"]] = relationship(
+    #     "Conversation",
+    #     back_populates="seller_account",
+    #     lazy="dynamic"
+    # )
+    
+    def __repr__(self):
+        return f"<EbayAccount {self.ebay_username} ({self.environment})>"

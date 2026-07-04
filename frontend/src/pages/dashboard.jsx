@@ -596,40 +596,68 @@ function resizeEbayMessageFrame(event) {
   frame.style.height = `${Math.max(documentElement.scrollHeight, body.scrollHeight, 160)}px`
 }
 
-function OfferEvent({ offer }) {
-  let amount = 'Offer'
-  if (offer.offer_amount != null) {
-    try { amount = new Intl.NumberFormat(undefined, { style: 'currency', currency: offer.currency || 'USD' }).format(offer.offer_amount) }
-    catch { amount = `${offer.offer_amount} ${offer.currency || ''}`.trim() }
+
+// ============================================
+// HELPER FUNCTIONS (defined once at the top)
+// ============================================
+function formatCurrency(amount, currency = 'USD') {
+  if (amount == null) return 'N/A'
+  try {
+    return new Intl.NumberFormat(undefined, {
+      style: 'currency',
+      currency: currency || 'USD'
+    }).format(amount)
+  } catch {
+    return `${amount} ${currency || 'USD'}`
   }
+}
+
+// ============================================
+// OFFER EVENT COMPONENT
+// ============================================
+function OfferEvent({ offer }) {
+  const isSellerOffer = offer.type === 'SELLER_OFFER' || offer.direction === 'OUTGOING'
+  const senderName = isSellerOffer 
+    ? 'You (Seller)' 
+    : offer.buyer_username || offer.sender_name || 'Buyer'
+  
+  const amount = formatCurrency(offer.offer_amount || offer.amount, offer.currency)
+  const isPending = offer.status === 'PENDING' || !offer.status
+
   return (
-    <div className="offer-event offer-event-incoming">
+    <div className={`offer-event ${isSellerOffer ? 'offer-event-outgoing' : 'offer-event-incoming'}`}>
       <article className="offer-card">
-        <span className="offer-tag-icon" aria-hidden="true">◇</span>
+        <span className="offer-tag-icon" aria-hidden="true">💰</span>
         <div className="offer-card-copy">
           <div className="offer-card-label">
-            <span>{offer.buyer_username || 'Buyer'} sent an offer</span>
-            {offer.status === 'PENDING' && offer.expires_at ? <small>{Math.max(0, Math.ceil((new Date(offer.expires_at) - Date.now()) / 3600000))}hr left</small> : null}
-            {offer.status !== 'PENDING' ? <small>{offer.status.toLowerCase()}</small> : null}
+            <span>
+              <strong>{senderName}</strong> {isSellerOffer ? 'sent a counteroffer' : 'sent an offer'}
+            </span>
+            {isPending && offer.expires_at ? (
+              <small>{Math.max(0, Math.ceil((new Date(offer.expires_at) - Date.now()) / 3600000))}hr left</small>
+            ) : null}
+            {!isPending ? <small>{offer.status?.toLowerCase() || 'Completed'}</small> : null}
           </div>
           <strong>{amount}</strong>
+          {offer.message && (
+            <p className="offer-message-text">{offer.message}</p>
+          )}
         </div>
       </article>
-      <time className="offer-event-time">{formatDate(offer.created_at)}</time>
+      <time className="offer-event-time">{formatDate(offer.created_at || offer.created_date)}</time>
     </div>
   )
 }
 
+// ============================================
+// MESSAGE THREAD COMPONENT
+// ============================================
 function MessageThread({ messages, offers = [], isSystemConversation }) {
-  /**
-   * Render the chronological conversation and keep its single scroll owner at
-   * the thread-panel level so nested scrollbars cannot trap mouse or touch input.
-   */
   const threadRef = useRef(null)
   const [translations, setTranslations] = useState({})
   const [translatingId, setTranslatingId] = useState(null)
 
-  async function translateBuyerMessage(message) {
+  const translateBuyerMessage = useCallback(async (message) => {
     setTranslatingId(message.id)
     try {
       const result = await translateMessage(message.body, 'en')
@@ -639,7 +667,7 @@ function MessageThread({ messages, offers = [], isSystemConversation }) {
     } finally {
       setTranslatingId(null)
     }
-  }
+  }, [])
 
   useLayoutEffect(() => {
     const thread = threadRef.current
@@ -649,10 +677,56 @@ function MessageThread({ messages, offers = [], isSystemConversation }) {
     }
   }, [messages, offers])
 
-  const events = [
-    ...messages.map((message) => ({ type: 'message', timestamp: message.sent_at, value: message })),
-    ...offers.filter((offer) => offer.direction === 'INCOMING').map((offer) => ({ type: 'offer', timestamp: offer.created_at, value: offer })),
-  ].sort((left, right) => new Date(left.timestamp) - new Date(right.timestamp) || (left.type === 'message' ? -1 : 1))
+  // Combine messages and offers into a single timeline
+  const events = useMemo(() => {
+    // First, create offer events from the offers array
+    const offerEvents = (offers || []).map((offer) => ({ 
+      type: 'offer', 
+      timestamp: offer.created_at || offer.created_date, 
+      value: offer 
+    }))
+
+    // Then, create message events, but check if a message is actually an offer
+    const messageEvents = messages.map((message) => {
+      // Check if this message has offer data
+      const hasOfferData = message.offer_data || message.offer
+      
+      // If the message has offer data, treat it as an offer event
+      if (hasOfferData) {
+        return {
+          type: 'offer',
+          timestamp: message.sent_at || message.created_date,
+          value: {
+            id: message.id,
+            type: hasOfferData.type || 'BUYER_OFFER',
+            direction: message.is_inbound ? 'INCOMING' : 'OUTGOING',
+            offer_amount: hasOfferData.amount || hasOfferData.offer_amount,
+            currency: hasOfferData.currency || 'USD',
+            status: hasOfferData.status || 'PENDING',
+            message: hasOfferData.message || message.body,
+            buyer_username: message.sender_identifier,
+            sender_name: message.sender_identifier,
+            created_at: message.sent_at || message.created_date,
+            expires_at: hasOfferData.expires_at,
+          }
+        }
+      }
+      
+      // Regular message
+      return { 
+        type: 'message', 
+        timestamp: message.sent_at || message.created_date, 
+        value: message 
+      }
+    })
+
+    // Combine and sort all events
+    return [...messageEvents, ...offerEvents].sort((left, right) => {
+      const leftTime = new Date(left.timestamp) || 0
+      const rightTime = new Date(right.timestamp) || 0
+      return leftTime - rightTime
+    })
+  }, [messages, offers])
 
   if (!events.length) {
     return <EmptyPanel title="No messages yet" message="This conversation has no stored message bodies." />
@@ -660,70 +734,102 @@ function MessageThread({ messages, offers = [], isSystemConversation }) {
 
   return (
     <div className="message-thread" ref={threadRef}>
-      {events.map((event) => {
-        if (event.type === 'offer') return <OfferEvent offer={event.value} key={`offer-${event.value.id}`} />
+      {events.map((event, index) => {
+        // Handle offer events - render as OfferEvent
+        if (event.type === 'offer') {
+          return <OfferEvent offer={event.value} key={`offer-${event.value.id || index}`} />
+        }
+
+        // Handle regular messages
         const message = event.value
-        const direction = isEbayNotificationMessage(message) ? 'system' : message.is_inbound ? 'inbound' : 'outbound'
+        const isSystem = isEbayNotificationMessage(message)
+        const direction = isSystem ? 'system' : message.is_inbound ? 'inbound' : 'outbound'
+        const isSeller = direction === 'outbound'
+        
         return (
-        <article className={`message-bubble ${direction}`} key={message.id}>
-          <div className="message-meta">
-            <strong>{direction === 'system' ? 'eBay notification' : message.sender_identifier || message.sender_type}</strong>
-            <time>{formatDate(message.sent_at)}</time>
-          </div>
-          {isSystemConversation && isHtmlBody(message.body) ? (
-            <iframe
-              className="ebay-html-message"
-              title={`eBay message ${message.id}`}
-              srcDoc={message.body}
-              sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
-              scrolling="no"
-              onLoad={resizeEbayMessageFrame}
-            />
-          ) : (
-            <p>{message.body}</p>
-          )}
-          {direction === 'inbound' && message.body ? (
-            <div className="message-translation">
-              <button className="translation-button" type="button" disabled={translatingId === message.id} onClick={() => translateBuyerMessage(message)}>
-                {translatingId === message.id ? 'Translating…' : 'Translate to English'}
-              </button>
-              {translations[message.id]?.text ? <p className="translated-copy"><strong>English:</strong> {translations[message.id].text}</p> : null}
-              {translations[message.id]?.error ? <small role="alert">{translations[message.id].error}</small> : null}
+          <article className={`message-bubble ${direction}`} key={message.id || index}>
+            <div className="message-meta">
+              <strong>
+                {direction === 'system' 
+                  ? 'eBay notification' 
+                  : isSeller 
+                    ? 'You (Seller)' 
+                    : message.sender_identifier || message.sender_type || 'Buyer'
+                }
+              </strong>
+              <time>{formatDate(message.sent_at || message.created_date)}</time>
             </div>
-          ) : null}
-          {SHOW_MESSAGE_ATTACHMENTS && message.attachments?.length ? (
-            <div className="message-attachments">
-              {message.attachments.map((attachment) => {
-                const attachmentUrl = attachment.media_url || attachment.download_url
-                const attachmentName = attachment.media_name || attachment.file_name
-                return (
-                  <div className="attachment-card" key={attachment.id}>
-                    {attachmentUrl && isImageAttachment(attachment) ? (
-                      <a className="attachment-preview" href={attachmentUrl} target="_blank" rel="noreferrer">
-                        <img src={attachmentUrl} alt={attachmentName} loading="lazy" />
-                      </a>
-                    ) : null}
-                    <div>
-                      <strong>📎 {attachmentName}</strong>
-                      {attachment.file_size ? <small>{Math.round(attachment.file_size / 1024)} KB</small> : null}
-                      {attachmentUrl ? (
-                        <span>
-                          <a href={attachmentUrl} target="_blank" rel="noreferrer">
-                            Open
-                          </a>
-                          <a href={attachmentUrl} download={attachmentName}>
-                            Download
-                          </a>
-                        </span>
+
+            {isSystemConversation && isHtmlBody(message.body) ? (
+              <iframe
+                className="ebay-html-message"
+                title={`eBay message ${message.id}`}
+                srcDoc={message.body}
+                sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
+                scrolling="no"
+                onLoad={resizeEbayMessageFrame}
+              />
+            ) : (
+              <p>{message.body || message.message || message.text || ''}</p>
+            )}
+
+            {direction === 'inbound' && message.body && (
+              <div className="message-translation">
+                <button 
+                  className="translation-button" 
+                  type="button" 
+                  disabled={translatingId === message.id} 
+                  onClick={() => translateBuyerMessage(message)}
+                >
+                  {translatingId === message.id ? 'Translating…' : 'Translate to English'}
+                </button>
+                /*
+                {translations[message.id]?.text && (
+                  <p className="translated-copy">
+                    <strong>English:</strong> {translations[message.id].text}
+                  </p>
+                )}
+                */
+                {translations[message.id]?.error && (
+                  <small role="alert">{translations[message.id].error}</small>
+                )}
+              </div>
+            )}
+
+            {SHOW_MESSAGE_ATTACHMENTS && message.attachments && message.attachments.length > 0 && (
+              <div className="message-attachments">
+                {message.attachments.map((attachment) => {
+                  const attachmentUrl = attachment.media_url || attachment.download_url
+                  const attachmentName = attachment.media_name || attachment.file_name
+                  return (
+                    <div className="attachment-card" key={attachment.id}>
+                      {attachmentUrl && isImageAttachment(attachment) ? (
+                        <a className="attachment-preview" href={attachmentUrl} target="_blank" rel="noreferrer">
+                          <img src={attachmentUrl} alt={attachmentName} loading="lazy" />
+                        </a>
                       ) : null}
+                      <div>
+                        <strong>📎 {attachmentName}</strong>
+                        {attachment.file_size ? <small>{Math.round(attachment.file_size / 1024)} KB</small> : null}
+                        {attachmentUrl ? (
+                          <span>
+                            <a href={attachmentUrl} target="_blank" rel="noreferrer">Open</a>
+                            <a href={attachmentUrl} download={attachmentName}>Download</a>
+                          </span>
+                        ) : null}
+                      </div>
                     </div>
-                  </div>
-                )
-              })}
-            </div>
-          ) : null}
-          <span>{message.read_status ? 'Read' : 'Unread'}</span>
-        </article>
+                  )
+                })}
+              </div>
+            )}
+            
+            {message.read_status !== undefined && message.read_status !== null && (
+              <span className="message-status">
+                {message.read_status ? '✓ Read' : '● Unread'}
+              </span>
+            )}
+          </article>
         )
       })}
     </div>
@@ -738,6 +844,7 @@ function ReplyUnavailableNotice() {
     </div>
   )
 }
+
 
 function AssignmentPanel({ detail, users, usersError, isSubmitting, onAssign }) {
   const currentAssignee = detail.current_assignment?.assignee
@@ -1146,7 +1253,7 @@ function Dashboard({ currentUser, onLogout }) {
   const [filters, setFilters] = useState({
     search: '',
     status: '',
-    provider: 'ebay',
+    provider: 'EBAY',
     conversation_type: '',
     ebay_account_id: '',
     assigned_user_id: '',
@@ -1192,6 +1299,7 @@ function Dashboard({ currentUser, onLogout }) {
       }
     : undefined
 
+  // In dashboard.jsx, around line 445
   const loadConversations = useCallback(async () => {
     setIsListLoading(true)
     setListError('')
@@ -1202,9 +1310,11 @@ function Dashboard({ currentUser, onLogout }) {
         offset,
         ...filters,
       })
+      console.log('Conversations response:', response) // Add this
       setConversations(response.items || [])
       setTotal(response.total || 0)
     } catch (caughtError) {
+      console.error('Error loading conversations:', caughtError) // Add this
       setListError(caughtError.message)
       setConversations([])
       setTotal(0)
