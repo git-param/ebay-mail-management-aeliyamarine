@@ -286,7 +286,7 @@ class EbayAuthClient:
             seller_account_id=user_id,
             store_name=store_name,
         )
-        logger.info(
+        logger.warning(
             'Verified eBay seller identity username=%s user_id=%s store_name=%s',
             seller_identity.username,
             seller_identity.user_id,
@@ -428,7 +428,7 @@ class EbayAuthClient:
             logger.warning('eBay OAuth token response did not include an access token')
             raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail='eBay OAuth response was invalid')
 
-        logger.info('eBay OAuth token request succeeded')
+        logger.warning('eBay OAuth token request succeeded')
 
         return EbayTokenPayload(
             access_token=access_token,
@@ -497,11 +497,11 @@ class EbayAuthClient:
             method=method,
         )
         sanitized_headers = self._sanitize_headers(headers)
-        logger.info('Calling eBay Message API url=%s method=%s headers=%s payload=%s', request_url, method, sanitized_headers, payload)
+        logger.warning('Calling eBay Message API url=%s method=%s headers=%s payload=%s', request_url, method, sanitized_headers, payload)
         try:
             with urlopen(request, timeout=20) as response:
                 response_body = response.read().decode('utf-8')
-                logger.info(
+                logger.warning(
                     'eBay Message API response url=%s method=%s status_code=%s body=%s',
                     request_url,
                     method,
@@ -562,7 +562,7 @@ class EbayAuthClient:
             headers['Content-Type'] = 'application/json'
         request = Request(request_url, data=data, headers=headers, method=method)
         sanitized_headers = self._sanitize_headers(headers)
-        logger.info('Calling eBay JSON API url=%s method=%s headers=%s', request_url, method, sanitized_headers)
+        logger.warning('Calling eBay JSON API url=%s method=%s headers=%s', request_url, method, sanitized_headers)
         try:
             with urlopen(request, timeout=20) as response:
                 response_body = response.read().decode('utf-8')
@@ -963,12 +963,12 @@ class EbayAuthClient:
         request = Request(self.trading_url, data=xml_body, headers=headers, method='POST')
         safe_headers = self._sanitize_headers(headers)
         
-        logger.info(f"GetMyMessages Debug: detail_level={detail_level}, message_type={message_type}")
+        logger.warning(f"GetMyMessages Debug: detail_level={detail_level}, message_type={message_type}")
         
         try:
             with urlopen(request, timeout=30) as response:
                 xml_response = response.read().decode('utf-8')
-                logger.info(f"GetMyMessages Debug Response: {xml_response[:500]}...")
+                logger.warning(f"GetMyMessages Debug Response: {xml_response[:500]}...")
                 return EbayRawApiResponse(
                     response.status,
                     self._my_messages_xml(xml_response),

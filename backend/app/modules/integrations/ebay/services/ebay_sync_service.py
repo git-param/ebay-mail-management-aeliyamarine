@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 try:
     from app.modules.integrations.ebay.services.ebay_seller_offer_sync_service import EbaySellerOfferSyncService
-    logger.info("✅ EbaySellerOfferSyncService imported successfully")
+    logger.warning("✅ EbaySellerOfferSyncService imported successfully")
 except ImportError as e:
     logger.error("❌ Failed to import EbaySellerOfferSyncService: %s", e)
     raise
@@ -69,7 +69,7 @@ class EbaySyncService:
         self.product_context_service = ConversationProductContextService(db)
         self.best_offer_sync_service = EbayBestOfferSyncService(db)
         self.seller_offer_sync_service = EbaySellerOfferSyncService(db)
-        logger.info("✅ EbaySyncService initialized with seller_offer_sync_service")
+        logger.warning("✅ EbaySyncService initialized with seller_offer_sync_service")
 
     # ebay_sync_service.py - Refactored version
 
@@ -100,7 +100,7 @@ class EbaySyncService:
             order_sync_result, order_sync_error = self._sync_related_data(account)
             
             run_backfill(account.id)  # Run backfill for offers
-            
+
             # Complete sync
             return self._finalize_sync(account, sync_log, counters, sync_context, order_sync_result, order_sync_error)
             
@@ -337,7 +337,7 @@ class EbaySyncService:
         detail_response,
     ) -> None:
         """Log conversation detail diagnostic information."""
-        logger.info(
+        logger.warning(
             'eBay conversation detail diagnostic account_id=%s conversation_id=%s conversation_type=%s request_url=%s request_headers=%s',
             account.id,
             conversation_id,
@@ -372,7 +372,7 @@ class EbaySyncService:
             max_conversations=sync_context['max_conversations'],
             conversations_processed=counters['conversations_processed'] + counters['conversations_failed'],
         )
-        logger.info(
+        logger.warning(
             'eBay sync progress account_id=%s processed=%s current_conversation_id=%s elapsed_seconds=%.2f remaining_count=%s',
             account.id,
             counters['conversations_processed'],
@@ -433,7 +433,7 @@ class EbaySyncService:
         try:
             result = self.seller_offer_sync_service.sync_account(account.id, commit=False)
             if result.get('matched', 0) > 0:
-                logger.info(
+                logger.warning(
                     'Seller offer sync: created=%s updated=%s matched=%s',
                     result.get('created', 0),
                     result.get('updated', 0),
@@ -474,7 +474,7 @@ class EbaySyncService:
         
         self.db.commit()
         
-        logger.info(
+        logger.warning(
             'eBay message sync succeeded account_id=%s conversations=%s messages_created=%s messages_updated=%s elapsed_seconds=%.2f',
             account.id,
             counters['conversations_processed'],
@@ -632,7 +632,7 @@ class EbaySyncService:
                 total = payload.get('total')
                 page_total = total if isinstance(total, int) else None
                 conversations = payload.get('conversations') if isinstance(payload.get('conversations'), list) else []
-                logger.info(
+                logger.warning(
                     'eBay conversation list page fetched type=%s offset=%s limit=%s page_count=%s total_available=%s max_conversations=%s',
                     conversation_type,
                     offset,
@@ -659,7 +659,7 @@ class EbaySyncService:
                 if not conversations:
                     break
                 if updated_since and yielded_from_page == 0 and older_or_equal_count == len(conversations):
-                    logger.info(
+                    logger.warning(
                         'Stopping incremental eBay sync account_id=%s conversation_type=%s offset=%s because page is older than last_sync_at=%s',
                         account.id,
                         conversation_type,
@@ -692,7 +692,7 @@ class EbaySyncService:
         return account
 
     def _refresh_account_after_unauthorized(self, account: EbayAccount) -> EbayAccount:
-        logger.info('Refreshing eBay access token after 401 account_id=%s', account.id)
+        logger.warning('Refreshing eBay access token after 401 account_id=%s', account.id)
         refreshed_account = self.token_service.refresh_access_token(account.id)
         self.db.refresh(refreshed_account)
         return refreshed_account

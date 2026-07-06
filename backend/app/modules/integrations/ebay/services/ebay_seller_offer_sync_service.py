@@ -38,25 +38,25 @@ class EbaySellerOfferSyncService:
         account = self.db.get(EbayAccount, account_id)
         processed_offers = set()
 
-        logger.info("🔔 ATTEMPTING SELLER OFFER SYNC FOR ACCOUNT: %s", account_id)
+        logger.warning("🔔 ATTEMPTING SELLER OFFER SYNC FOR ACCOUNT: %s", account_id)
         
         if not account or not account.is_active:
             logger.error(f"❌ Account not found or inactive: {account_id}")
             raise ValueError('Active eBay account not found')
         
-        logger.info(f"✅ Account found: {account.ebay_username}")
+        logger.warning(f"✅ Account found: {account.ebay_username}")
         
         # Ensure valid token
         if not account.access_token or (
             account.access_token_expires_at and 
             account.access_token_expires_at <= datetime.now(UTC)
         ):
-            logger.info("🔄 Refreshing access token...")
+            logger.warning("🔄 Refreshing access token...")
             account = self.tokens.refresh_access_token(account.id)
-            logger.info("✅ Token refreshed")
+            logger.warning("✅ Token refreshed")
         
         # Fetch messages with headers only
-        logger.info("📥 Fetching messages from GetMyMessages...")
+        logger.warning("📥 Fetching messages from GetMyMessages...")
         self.api_usage.reserve_calls(1)
         response = self.tokens.client.get_my_messages_raw(
             account.access_token,
@@ -65,10 +65,10 @@ class EbaySellerOfferSyncService:
             detail_level="ReturnHeaders",
         )
         
-        logger.info(f"📊 Response status: {response.status_code}, OK: {response.ok}")
+        logger.warning(f"📊 Response status: {response.status_code}, OK: {response.ok}")
         
         if response.status_code == 401:
-            logger.info("🔄 Token expired, refreshing and retrying...")
+            logger.warning("🔄 Token expired, refreshing and retrying...")
             account = self.tokens.refresh_access_token(account.id)
             self.api_usage.reserve_calls(1)
             response = self.tokens.client.get_my_messages_raw(
@@ -77,7 +77,7 @@ class EbaySellerOfferSyncService:
                 entries_per_page=200,
                 detail_level="ReturnHeaders",
             )
-            logger.info(f"📊 Retry response status: {response.status_code}, OK: {response.ok}")
+            logger.warning(f"📊 Retry response status: {response.status_code}, OK: {response.ok}")
         
         if not response.ok:
             logger.error(f"❌ GetMyMessages failed: {response.payload}")
@@ -86,11 +86,11 @@ class EbaySellerOfferSyncService:
         payload = response.payload if isinstance(response.payload, dict) else {}
         messages = payload.get('messages', [])
         
-        logger.info(f"📨 Total messages from GetMyMessages: {len(messages)}")
+        logger.warning(f"📨 Total messages from GetMyMessages: {len(messages)}")
         
         # Log first few messages for debugging
         for i, msg in enumerate(messages[:5]):
-            logger.info(f"  Message {i+1}: subject={msg.get('subject', '')[:50]}...")
+            logger.warning(f"  Message {i+1}: subject={msg.get('subject', '')[:50]}...")
         
         created = 0
         updated = 0
@@ -112,7 +112,7 @@ class EbaySellerOfferSyncService:
             if not self._is_offer_notification(subject):
                 continue
             
-            logger.info(f"🎯 Found offer notification: {subject[:100]}...")
+            logger.warning(f"🎯 Found offer notification: {subject[:100]}...")
             
             # Parse offer data from subject
             offer_data = self._parse_offer_from_subject(subject)
@@ -120,7 +120,7 @@ class EbaySellerOfferSyncService:
                 logger.warning(f"⚠️ Could not parse offer from subject: {subject}")
                 continue
             
-            logger.info(f"📊 Parsed offer data: {offer_data}")
+            logger.warning(f"📊 Parsed offer data: {offer_data}")
             
             # Extract item ID from the message
             item_id = msg.get('item_id') or offer_data.get('item_id')
@@ -147,10 +147,10 @@ class EbaySellerOfferSyncService:
 
             # --- ADD THIS CHECK ---
             if conversation.provider_conversation_type == 'FROM_EBAY':
-                logger.info(f"Skipping offer notification {message_id}: Conversation is FROM_EBAY")
+                logger.warning(f"Skipping offer notification {message_id}: Conversation is FROM_EBAY")
                 continue
             
-            logger.info(f"✅ Matched to conversation: {conversation.id}")
+            logger.warning(f"✅ Matched to conversation: {conversation.id}")
             matched += 1
             
             # Create or update system message
@@ -160,7 +160,7 @@ class EbaySellerOfferSyncService:
             
             # Build message body
             body = self._build_offer_message_body(offer_data, subject)
-            logger.info(f"📝 Creating/updating message: {body[:100]}...")
+            logger.warning(f"📝 Creating/updating message: {body[:100]}...")
             
             # *** FIX: Proper UPSERT logic ***
             # Check if message already exists by provider_message_id
@@ -183,7 +183,7 @@ class EbaySellerOfferSyncService:
                 updated += 1
             else:
                 # ✅ INSERT: Create new message
-                logger.info(f"✨ Creating new message: {message_id}")
+                logger.warning(f"✨ Creating new message: {message_id}")
                 is_inbound = offer_data.get('direction') == 'INCOMING'
                 
                 message = Message(
@@ -225,12 +225,12 @@ class EbaySellerOfferSyncService:
                     raw_msg=msg,
                 )
         
-        logger.info(f"📊 Final results: created={created}, updated={updated}, matched={matched}")
+        logger.warning(f"📊 Final results: created={created}, updated={updated}, matched={matched}")
         
         if commit:
-            logger.info("💾 Committing to database...")
+            logger.warning("💾 Committing to database...")
             self.db.commit()
-            logger.info("✅ Commit complete")
+            logger.warning("✅ Commit complete")
         else:
             self.db.flush()
         

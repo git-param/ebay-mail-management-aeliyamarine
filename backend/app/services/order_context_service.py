@@ -138,7 +138,7 @@ class OrderContextService:
             match_strategy=strategy,
             confidence_score=confidence,
         )
-        logger.info(
+        logger.warning(
             'Conversation order context linked conversation_id=%s order_id=%s item_id=%s strategy=%s confidence=%s',
             conversation.id,
             order.order_id if order else 'not found',

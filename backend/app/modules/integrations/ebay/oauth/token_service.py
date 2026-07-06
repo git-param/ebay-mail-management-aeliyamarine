@@ -42,7 +42,7 @@ class EbayTokenService:
         account.oauth_state = None
         self.db.commit()
         self.db.refresh(account)
-        logger.info('Stored eBay OAuth tokens for account %s', account.id)
+        logger.warning('Stored eBay OAuth tokens for account %s', account.id)
         return account
 
     def refresh_access_token(self, account_id: UUID) -> EbayAccount:
@@ -58,7 +58,7 @@ class EbayTokenService:
         try:
             token_payload = self.client.refresh_access_token(account.refresh_token)
             refreshed_account = self.store_tokens(account, token_payload)
-            logger.info('eBay access token refresh succeeded for account %s', account.id)
+            logger.warning('eBay access token refresh succeeded for account %s', account.id)
             return refreshed_account
         except HTTPException:
             logger.warning('eBay access token refresh failed for account %s', account.id)

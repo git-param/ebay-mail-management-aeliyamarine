@@ -29,9 +29,9 @@ def main() -> None:
                 linked += 1
             if processed % 100 == 0:
                 db.commit()
-                logger.info('Backfilled %s conversations, linked %s order contexts', processed, linked)
+                logger.warning('Backfilled %s conversations, linked %s order contexts', processed, linked)
         db.commit()
-    logger.info('Backfill complete. processed=%s linked=%s', processed, linked)
+    logger.warning('Backfill complete. processed=%s linked=%s', processed, linked)
 
 
 if __name__ == '__main__':

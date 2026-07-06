@@ -178,7 +178,7 @@ class EbayReplyService:
         message_media: list[dict] = []
 
         if clean_attachments:
-            logger.info(
+            logger.warning(
                 'Saving %s outbound reply attachments locally: conversation_id=%s',
                 len(clean_attachments),
                 conversation.id,
@@ -193,7 +193,7 @@ class EbayReplyService:
             self.db.flush()
 
             # Upload each file to eBay — any failure aborts the entire reply.
-            logger.info(
+            logger.warning(
                 'Uploading %s attachments to eBay: conversation_id=%s',
                 len(saved_attachments),
                 conversation.id,
@@ -209,14 +209,14 @@ class EbayReplyService:
                 self.db.rollback()
                 raise
 
-            logger.info(
+            logger.warning(
                 'All eBay uploads successful: conversation_id=%s media_count=%s',
                 conversation.id,
                 len(message_media),
             )
 
         # --- 7. Send the reply message to eBay ---
-        logger.info(
+        logger.warning(
             'Sending eBay reply: conversation_id=%s has_media=%s',
             conversation.id,
             bool(message_media),
@@ -230,7 +230,7 @@ class EbayReplyService:
             message_media=message_media or None,
         )
 
-        logger.info(
+        logger.warning(
             'eBay reply send response: conversation_id=%s ok=%s payload=%s',
             conversation.id,
             response.ok,

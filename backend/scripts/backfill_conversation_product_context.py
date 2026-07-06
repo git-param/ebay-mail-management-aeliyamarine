@@ -31,9 +31,9 @@ def main() -> None:
                 enriched += 1
             if processed % 50 == 0:
                 db.commit()
-                logger.info('Product-context backfill processed=%s enriched=%s', processed, enriched)
+                logger.warning('Product-context backfill processed=%s enriched=%s', processed, enriched)
         db.commit()
-    logger.info('Product-context backfill complete processed=%s enriched=%s', processed, enriched)
+    logger.warning('Product-context backfill complete processed=%s enriched=%s', processed, enriched)
 
 
 if __name__ == '__main__':

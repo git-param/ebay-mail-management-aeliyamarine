@@ -36,5 +36,5 @@ class EbayOAuthService:
         self.db.commit()
 
         authorization_url = self.client.build_authorization_url(state=state)
-        logger.info('Generated eBay OAuth authorization URL for account %s', account.id)
+        logger.warning('Generated eBay OAuth authorization URL for account %s', account.id)
         return authorization_url, state

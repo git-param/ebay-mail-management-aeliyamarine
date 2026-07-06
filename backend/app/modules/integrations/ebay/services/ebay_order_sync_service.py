@@ -66,7 +66,7 @@ class EbayOrderSyncService:
         pages = 0
         offset = 0
 
-        logger.info(
+        logger.warning(
             'Starting eBay order sync account_id=%s provider=%s incremental=%s cursor=%s',
             account.id,
             type(self.provider).__name__,
@@ -95,7 +95,7 @@ class EbayOrderSyncService:
                         payload.get('orderId'),
                     )
             self.db.flush()
-            logger.info(
+            logger.warning(
                 'eBay order sync page complete account_id=%s page=%s offset=%s page_orders=%s total=%s',
                 account.id,
                 pages,
@@ -113,7 +113,7 @@ class EbayOrderSyncService:
             self.db.commit()
         else:
             self.db.flush()
-        logger.info(
+        logger.warning(
             'eBay order sync succeeded account_id=%s orders=%s failed=%s pages=%s conversations_matched=%s cursor=%s',
             account.id,
             processed,
