@@ -20,6 +20,7 @@ from app.services.conversation_product_context_service import ConversationProduc
 from app.services.order_context_service import OrderContextService
 from app.services.sync_log_service import SyncLogService
 from app.modules.integrations.ebay.services.ebay_seller_offer_sync_service import EbaySellerOfferSyncService
+from app.services.backfill_offers import run_backfill
 
 logger = logging.getLogger(__name__)
 
@@ -97,6 +98,8 @@ class EbaySyncService:
             
             # Sync related data
             order_sync_result, order_sync_error = self._sync_related_data(account)
+            
+            run_backfill(account.id)  # Run backfill for offers
             
             # Complete sync
             return self._finalize_sync(account, sync_log, counters, sync_context, order_sync_result, order_sync_error)

@@ -612,42 +612,149 @@ function formatCurrency(amount, currency = 'USD') {
   }
 }
 
+function getOfferLabel(offer, isSellerOffer) {
+  const status = String(offer.status || '').toUpperCase()
+  const type = String(offer.offer_type || offer.type || '').toUpperCase()
+
+  if (status === 'ACCEPTED' || type.includes('ACCEPTED')) {
+    return 'accepted an offer'
+  }
+
+  if (isSellerOffer) {
+    return 'sent a counteroffer'
+  }
+
+  if (type.includes('COUNTER')) {
+    return 'sent a counteroffer'
+  }
+
+  return 'sent an offer'
+}
+
+
+function parseOfferFromMessage(message, conversation) {
+  const body = String(message.body || '').trim()
+  if (!body) return null
+
+  const lower = body.toLowerCase()
+
+  const isOfferMessage =
+    lower.includes('buyer sent an offer') ||
+    lower.includes('you sent a counteroffer') ||
+    lower.includes('sent a counteroffer') ||
+    lower.includes('accepted an offer') ||
+    lower.includes('offer accepted')
+
+  if (!isOfferMessage) return null
+
+  const amountMatch = body.match(/\b(USD|EUR|GBP|AUD|CAD|JPY)?\s*\$?\s*([\d,]+(?:\.\d{1,2})?)/i)
+
+  const amount = amountMatch ? Number(amountMatch[2].replace(/,/g, '')) : null
+  const currency = amountMatch?.[1]?.toUpperCase() || 'USD'
+
+  const isOutgoing =
+    lower.includes('you sent') ||
+    lower.includes('seller') ||
+    message.is_inbound === false
+
+  const isAccepted =
+    lower.includes('accepted an offer') ||
+    lower.includes('offer accepted') ||
+    String(message.offer_data?.status || '').toUpperCase() === 'ACCEPTED'
+
+  let offerType = isOutgoing ? 'SELLER_COUNTEROFFER' : 'BUYER_OFFER'
+  let status = 'PENDING'
+
+  if (isAccepted) {
+    offerType = 'ACCEPTED_OFFER'
+    status = 'ACCEPTED'
+  }
+
+  return {
+    id: `message-offer-${message.id}`,
+    source_message_id: message.id,
+    buyer_username:
+      message.offer_data?.buyer_username ||
+      conversation?.buyer_identifier ||
+      message.sender_identifier ||
+      'Buyer',
+    direction: isOutgoing ? 'OUTGOING' : 'INCOMING',
+    offer_type: offerType,
+    type: isOutgoing ? 'SELLER_OFFER' : 'BUYER_OFFER',
+    status,
+    offer_amount: amount,
+    amount,
+    currency,
+    message: '',
+    created_at: message.sent_at || message.created_date,
+    created_date: message.sent_at || message.created_date,
+    original_body: body,
+  }
+}
+
 // ============================================
 // OFFER EVENT COMPONENT
 // ============================================
 function OfferEvent({ offer, conversation }) {
-  const isSellerOffer = offer.type === 'SELLER_OFFER' || offer.direction === 'OUTGOING';
+  const direction = String(offer.direction || '').toUpperCase()
+  const offerType = String(offer.offer_type || offer.type || '').toUpperCase()
+  const status = String(offer.status || '').toUpperCase()
 
-  // For FROM_MEMBERS (non-system), use the buyer_username from offer or fallback to conversation buyer
+  const isSellerOffer =
+    direction === 'OUTGOING' ||
+    offerType.includes('SELLER') ||
+    offerType.includes('COUNTEROFFER') && direction !== 'INCOMING'
+
+  const isAccepted =
+    status === 'ACCEPTED' ||
+    offerType.includes('ACCEPTED')
+
   const senderName = isSellerOffer
-    ? 'You (Seller)'
-    : offer.buyer_username || conversation?.buyer_identifier || 'Buyer';
+    ? 'You'
+    : offer.buyer_username || conversation?.buyer_identifier || 'Buyer'
 
-  const amount = formatCurrency(offer.offer_amount || offer.amount, offer.currency);
-  const isPending = offer.status === 'PENDING' || !offer.status;
+  const label = isAccepted
+    ? 'accepted an offer'
+    : isSellerOffer
+      ? 'sent a counteroffer'
+      : offerType.includes('COUNTER')
+        ? 'sent a counteroffer'
+        : 'sent an offer'
+
+  const amount = formatCurrency(
+    offer.offer_amount ?? offer.amount,
+    offer.currency || 'USD'
+  )
 
   return (
     <div className={`offer-event ${isSellerOffer ? 'offer-event-outgoing' : 'offer-event-incoming'}`}>
-      <article className="offer-card">
-        <span className="offer-tag-icon" aria-hidden="true">💰</span>
+      <article className={`offer-card ${isAccepted ? 'offer-card-accepted' : ''}`}>
+        <span className="offer-tag-icon" aria-hidden="true">
+          {isAccepted ? '✓' : 'Q'}
+        </span>
+
         <div className="offer-card-copy">
           <div className="offer-card-label">
             <span>
-              <strong>{senderName}</strong> {isSellerOffer ? 'sent a counteroffer' : 'sent an offer'}
+              <strong>{senderName}</strong> {label}
             </span>
-            {isPending && offer.expires_at ? (
-              <small>{Math.max(0, Math.ceil((new Date(offer.expires_at) - Date.now()) / 3600000))}hr left</small>
-            ) : null}
-            {!isPending ? <small>{offer.status?.toLowerCase() || 'Completed'}</small> : null}
           </div>
-          <strong>{amount}</strong>
-          {offer.message && <p className="offer-message-text">{offer.message}</p>}
+
+          <strong className="offer-amount">{amount}</strong>
+
+          {offer.message ? (
+            <p className="offer-message-text">{offer.message}</p>
+          ) : null}
         </div>
       </article>
-      <time className="offer-event-time">{formatDate(offer.created_at || offer.created_date)}</time>
+
+      <time className="offer-event-time">
+        {formatDate(offer.created_at || offer.created_date)}
+      </time>
     </div>
-  );
+  )
 }
+
 
 // ============================================
 // MESSAGE THREAD COMPONENT
@@ -678,33 +785,60 @@ function MessageThread({ messages, offers = [], isSystemConversation, conversati
   }, [messages, offers])
 
   // Filter out offers if the conversation is FROM_EBAY
-  const isEbaySystem = conversation?.provider_conversation_type === 'FROM_EBAY';
-  const displayOffers = isEbaySystem ? [] : offers;
-
-  // Combine messages and offers into a single timeline
   const events = useMemo(() => {
-    // Only use offers from the offers array (filtered for FROM_MEMBERS)
-    const displayOffers = conversation?.provider_conversation_type === 'FROM_EBAY' ? [] : offers;
-    
-    const offerEvents = displayOffers.map((offer) => ({
+    const offerEventsFromMessages = []
+    const normalMessageEvents = []
+
+    messages.forEach((message) => {
+      const parsedOffer = message.offer_data
+        ? {
+            ...message.offer_data,
+            id: `message-offer-${message.id}`,
+            source_message_id: message.id,
+            buyer_username:
+              message.offer_data.buyer_username ||
+              conversation?.buyer_identifier ||
+              message.sender_identifier,
+            direction:
+              message.offer_data.direction ||
+              (message.is_inbound ? 'INCOMING' : 'OUTGOING'),
+            created_at: message.sent_at || message.created_date,
+            created_date: message.sent_at || message.created_date,
+          }
+        : parseOfferFromMessage(message, conversation)
+
+      if (parsedOffer) {
+        offerEventsFromMessages.push({
+          type: 'offer',
+          timestamp: parsedOffer.created_at || parsedOffer.created_date,
+          value: parsedOffer,
+        })
+        return
+      }
+
+      normalMessageEvents.push({
+        type: 'message',
+        timestamp: message.sent_at || message.created_date,
+        value: message,
+      })
+    })
+
+    const offerEventsFromApi = (offers || []).map((offer) => ({
       type: 'offer',
       timestamp: offer.created_at || offer.created_date,
       value: offer,
-    }));
+    }))
 
-    // All messages are treated as regular messages – no conversion to offers
-    const messageEvents = messages.map((message) => ({
-      type: 'message',
-      timestamp: message.sent_at || message.created_date,
-      value: message,
-    }));
-
-    return [...messageEvents, ...offerEvents].sort((left, right) => {
-      const leftTime = new Date(left.timestamp) || 0;
-      const rightTime = new Date(right.timestamp) || 0;
-      return leftTime - rightTime;
-    });
-  }, [messages, offers, conversation]);
+    return [
+      ...normalMessageEvents,
+      ...offerEventsFromMessages,
+      ...offerEventsFromApi,
+    ].sort((left, right) => {
+      const leftTime = new Date(left.timestamp || 0).getTime() || 0
+      const rightTime = new Date(right.timestamp || 0).getTime() || 0
+      return leftTime - rightTime
+    })
+  }, [messages, offers, conversation])
 
   if (!events.length) {
     return <EmptyPanel title="No messages yet" message="This conversation has no stored message bodies." />

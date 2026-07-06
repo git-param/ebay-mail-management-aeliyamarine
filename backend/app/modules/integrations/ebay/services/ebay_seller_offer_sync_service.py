@@ -36,7 +36,8 @@ class EbaySellerOfferSyncService:
         
         # Get account first
         account = self.db.get(EbayAccount, account_id)
-        
+        processed_offers = set()
+
         logger.info("🔔 ATTEMPTING SELLER OFFER SYNC FOR ACCOUNT: %s", account_id)
         
         if not account or not account.is_active:
@@ -98,7 +99,15 @@ class EbaySellerOfferSyncService:
         for msg in messages:
             subject = msg.get('subject', '')
             message_id = msg.get('message_id')
-            
+            if not message_id:
+                continue
+
+            # Skip if already processed in this batch (add this)
+            if message_id in processed_offers:
+                logger.debug(f"Skipping duplicate offer: {message_id}")
+                continue
+            processed_offers.add(message_id)
+
             # Check if this is an offer notification
             if not self._is_offer_notification(subject):
                 continue
@@ -142,6 +151,7 @@ class EbaySellerOfferSyncService:
                 continue
             
             logger.info(f"✅ Matched to conversation: {conversation.id}")
+            matched += 1
             
             # Create or update system message
             sent_at = self._parse_datetime(msg.get('sent_date') or msg.get('receive_date'))
@@ -187,9 +197,33 @@ class EbaySellerOfferSyncService:
                     is_inbound=is_inbound,
                     sent_at=sent_at,
                     raw_payload=msg,
+                    offer_data={
+                        'type': offer_data.get('offer_type'),
+                        'amount': str(offer_data.get('amount')) if offer_data.get('amount') is not None else None,
+                        'currency': offer_data.get('currency', 'USD'),
+                        'status': offer_data.get('status').value if hasattr(offer_data.get('status'), 'value') else str(offer_data.get('status') or 'PENDING'),
+                        'display_type': offer_data.get('display_type'),
+                        'direction': offer_data.get('direction'),
+                        'buyer_username': buyer_username,
+                    },
                 )
+                
                 self.db.add(message)
                 created += 1
+
+                buyer_username = offer_data.get('buyer') or conversation.buyer_identifier
+
+                
+
+                self._upsert_offer(
+                    account_id=account.id,
+                    conversation_id=conversation.id,
+                    offer_data={
+                        **offer_data,
+                        'buyer': buyer_username,
+                    },
+                    raw_msg=msg,
+                )
         
         logger.info(f"📊 Final results: created={created}, updated={updated}, matched={matched}")
         
@@ -212,6 +246,10 @@ class EbaySellerOfferSyncService:
         subject_lower = subject.lower()
         
         patterns = [
+            'accepted an offer',
+            'accepted your offer',
+            'buyer accepted',
+            'offer accepted',
             'counteroffer submitted to buyer',   # Seller sent counteroffer
             'you have a new offer',               # Buyer sent offer
             'buyer made a counteroffer',          # Buyer sent counteroffer
@@ -219,7 +257,8 @@ class EbaySellerOfferSyncService:
             'new offer for',                      # New offer notification
             'offer from',                         # Offer from buyer
             'offer submitted to',                 # Offer submitted
-            'your offer on',                      # Your offer
+            'your offer on',        
+            'sent an offer',              # Your offer
         ]
         
         return any(pattern in subject_lower for pattern in patterns)
@@ -275,6 +314,11 @@ class EbaySellerOfferSyncService:
             result['status'] = OfferStatus.PENDING
             result['offer_type'] = 'BUYER_COUNTEROFFER'
             result['display_type'] = 'Buyer sent a counteroffer'
+        elif "accepted an offer" in subject.lower() or "offer accepted" in subject.lower():
+            result['direction'] = 'INCOMING'
+            result['status'] = OfferStatus.ACCEPTED
+            result['offer_type'] = 'ACCEPTED_OFFER'
+            result['display_type'] = 'accepted an offer'
         else:
             # Try to detect from context
             if any(word in subject.lower() for word in ['submitted to buyer', 'you sent']):
@@ -359,30 +403,31 @@ class EbaySellerOfferSyncService:
         return self.db.scalar(statement.limit(1))
     
     def _upsert_offer(self, account_id: UUID, conversation_id: UUID, offer_data: dict, raw_msg: dict):
-        """Create or update Offer record."""
+        """Create or update Offer record - check existing first."""
         provider_offer_id = raw_msg.get('message_id')
-        
-        # Check if offer exists by provider_offer_id
+        if not provider_offer_id:
+            return
+
+        # Check if offer already exists
         existing = self.db.scalar(
             select(Offer).where(
                 Offer.provider_offer_id == provider_offer_id,
                 Offer.account_id == account_id,
             )
         )
-        
+
         if existing:
-            # UPDATE existing offer
-            logger.info(f"🔄 Updating existing offer: {provider_offer_id}")
+            # Update existing offer
             if offer_data.get('status'):
                 existing.status = offer_data['status']
             existing.raw_payload = raw_msg
+            if offer_data.get('buyer'):
+                existing.buyer_username = offer_data['buyer']
+            logger.debug(f"Updated existing offer: {provider_offer_id}")
             return
-        
-        # Determine direction
+
+        # Create new offer
         direction = OfferDirection.OUTGOING if offer_data.get('direction') == 'OUTGOING' else OfferDirection.INCOMING
-        
-        # CREATE new offer
-        logger.info(f"✨ Creating new offer: {provider_offer_id}")
         offer = Offer(
             account_id=account_id,
             conversation_id=conversation_id,
@@ -399,6 +444,7 @@ class EbaySellerOfferSyncService:
             raw_payload=raw_msg,
         )
         self.db.add(offer)
+        logger.debug(f"Created new offer: {provider_offer_id}")
     
     def _parse_datetime(self, value: str | None) -> datetime | None:
         if not value:
