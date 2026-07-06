@@ -27,7 +27,7 @@ class EbayOAuthCallbackService:
         )
 
     def handle_callback(self, *, code: str | None, state: str | None, error: str | None = None) -> EbayAccount:
-        logger.info('Received eBay OAuth callback')
+        logger.warning('Received eBay OAuth callback')
         account = self._get_account_by_state(state)
         if error:
             account.connection_status = EbayConnectionStatus.FAILED
@@ -67,7 +67,7 @@ class EbayOAuthCallbackService:
 
             account.ebay_user_id = seller_identity.seller_account_id
             account.store_name = seller_identity.store_name
-            logger.info(
+            logger.warning(
                 'Persisting verified eBay seller identity for account %s username=%s user_id=%s store_name=%s',
                 account.id,
                 account.ebay_username,
@@ -76,7 +76,7 @@ class EbayOAuthCallbackService:
             )
 
             connected_account = EbayTokenService(self.db).store_tokens(account, token_payload)
-            logger.info('eBay OAuth callback token exchange succeeded for account %s', account.id)
+            logger.warning('eBay OAuth callback token exchange succeeded for account %s', account.id)
             return connected_account
         except HTTPException:
             account.connection_status = EbayConnectionStatus.FAILED

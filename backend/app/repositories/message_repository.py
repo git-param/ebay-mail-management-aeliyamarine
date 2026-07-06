@@ -76,7 +76,7 @@ class MessageRepository:
 
             existing_attachment = existing_by_provider_id.get(provider_attachment_id) if provider_attachment_id else None
             if existing_attachment:
-                logger.info(
+                logger.warning(
                     'Reusing existing eBay attachment during sync: message_id=%s provider_attachment_id=%s file_name=%s',
                     message.id,
                     provider_attachment_id,

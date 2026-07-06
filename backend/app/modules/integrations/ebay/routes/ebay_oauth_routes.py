@@ -251,7 +251,7 @@ def test_ebay_conversations(
         limit=limit,
         offset=offset,
     )
-    logger.info(
+    logger.warning(
         'eBay conversation test account_id=%s ebay_username=%s request_url=%s response_status_code=%s',
         account.id,
         account.ebay_username,
@@ -295,7 +295,7 @@ def test_ebay_conversation(
         limit=limit,
         offset=offset,
     )
-    logger.info(
+    logger.warning(
         'eBay conversation detail test account_id=%s ebay_username=%s conversation_id=%s request_url=%s response_status_code=%s',
         account.id,
         account.ebay_username,

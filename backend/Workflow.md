@@ -959,7 +959,7 @@ def _fetch_page_with_retry(self, account, *, offset, filter_value):
 
 ```python
 def _refresh_account_after_unauthorized(self, account):
-    logger.info('Refreshing eBay access token after 401 account_id=%s', account.id)
+    logger.warning('Refreshing eBay access token after 401 account_id=%s', account.id)
     refreshed_account = self.token_service.refresh_access_token(account.id)
     self.db.refresh(refreshed_account)
     return refreshed_account
@@ -1309,7 +1309,7 @@ import logging
 logging.basicConfig(level=logging.DEBUG)
 
 # Log raw responses
-logger.info('eBay API response: %s', response.payload)
+logger.warning('eBay API response: %s', response.payload)
 
 # Check sync status
 sync_result = sync_service.sync_account(account_id)

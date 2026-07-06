@@ -89,7 +89,7 @@ class CategorizationService:
                 conversation.category_id = category_id
                 updated += 1
             self.db.commit()
-            logger.info('Categorized batch processed=%s updated=%s', processed, updated)
+            logger.warning('Categorized batch processed=%s updated=%s', processed, updated)
             if only_uncategorized:
                 offset = 0
             else:

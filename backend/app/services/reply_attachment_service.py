@@ -177,7 +177,7 @@ class ReplyAttachmentService:
             storage_path = self.upload_dir / stored_name
             storage_path.write_bytes(content)
 
-            logger.info(
+            logger.warning(
                 'Stored reply attachment locally: filename=%s path=%s size=%s',
                 safe_name,
                 storage_path,
@@ -259,7 +259,7 @@ class ReplyAttachmentService:
             media_name = attachment.media_name or attachment.file_name
             mime_type = attachment.mime_type or 'image/jpeg'
 
-            logger.info(
+            logger.warning(
                 'Uploading attachment to eBay: attachment_id=%s media_name=%s mime_type=%s size=%s',
                 attachment.id,
                 media_name,
@@ -274,7 +274,7 @@ class ReplyAttachmentService:
                 media_name=media_name,
             )
 
-            logger.info(
+            logger.warning(
                 'eBay upload response: attachment_id=%s ok=%s payload=%s',
                 attachment.id,
                 response.ok,
@@ -306,7 +306,7 @@ class ReplyAttachmentService:
                     detail=f'eBay did not return a hosted URL for attachment "{media_name}". Cannot send reply.',
                 )
 
-            logger.info(
+            logger.warning(
                 'eBay-hosted media URL obtained: attachment_id=%s url=%s',
                 attachment.id,
                 ebay_media_url,

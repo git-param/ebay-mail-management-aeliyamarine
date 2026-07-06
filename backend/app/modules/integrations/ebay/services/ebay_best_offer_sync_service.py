@@ -54,11 +54,11 @@ class EbayBestOfferSyncService:
                 
                 # Skip if conversation is FROM_EBAY or no conversation found
                 if not conversation:
-                    logger.info(f"Skipping offer {raw.get('offerId')}: No matching conversation")
+                    logger.warning(f"Skipping offer {raw.get('offerId')}: No matching conversation")
                     continue
                     
                 if conversation.provider_conversation_type == 'FROM_EBAY':
-                    logger.info(f"Skipping offer {raw.get('offerId')}: Conversation is FROM_EBAY")
+                    logger.warning(f"Skipping offer {raw.get('offerId')}: Conversation is FROM_EBAY")
                     continue
                 
                 # Only now process the offer
@@ -71,7 +71,7 @@ class EbayBestOfferSyncService:
                 if result.conversation_id:
                     conversation = self.db.get(Conversation, result.conversation_id)
                     if conversation and conversation.provider_conversation_type == 'FROM_EBAY':
-                        logger.info(f"Skipping offer {result.provider_offer_id} from FROM_EBAY conversation")
+                        logger.warning(f"Skipping offer {result.provider_offer_id} from FROM_EBAY conversation")
                         continue
                     
             if page >= int(payload.get('totalPages') or 1):
@@ -184,7 +184,7 @@ class EbayBestOfferSyncService:
                             'currency': seller_response.get('currency', 'USD'),
                             'message': seller_response.get('message', ''),
                         }
-                        logger.info(
+                        logger.warning(
                             'Created seller offer response message for conversation %s offer %s',
                             offer.conversation_id,
                             offer.provider_offer_id
