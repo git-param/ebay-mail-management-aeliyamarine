@@ -416,18 +416,17 @@ class EbaySyncService:
             )
         except Exception as exc:
             order_sync_error = str(exc)
-            logger.exception(
-                'Non-fatal eBay order sync failure account_id=%s; message sync will still complete',
-                account.id,
-            )
+            logger.exception('Non-fatal eBay order sync failure account_id=%s', account.id)
 
         # Sync buyer-originated offers (Best Offers)
+        # The service already skips FROM_EBAY internally
         try:
             self.best_offer_sync_service.sync_account(account.id, commit=False)
         except Exception:
             logger.exception('Non-fatal eBay buyer-offer sync failure account_id=%s', account.id)
 
         # Sync seller-initiated offers (My Messages)
+        # The service will skip FROM_EBAY after the change above
         try:
             result = self.seller_offer_sync_service.sync_account(account.id, commit=False)
             if result.get('matched', 0) > 0:

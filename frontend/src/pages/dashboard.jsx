@@ -615,14 +615,16 @@ function formatCurrency(amount, currency = 'USD') {
 // ============================================
 // OFFER EVENT COMPONENT
 // ============================================
-function OfferEvent({ offer }) {
-  const isSellerOffer = offer.type === 'SELLER_OFFER' || offer.direction === 'OUTGOING'
-  const senderName = isSellerOffer 
-    ? 'You (Seller)' 
-    : offer.buyer_username || offer.sender_name || 'Buyer'
-  
-  const amount = formatCurrency(offer.offer_amount || offer.amount, offer.currency)
-  const isPending = offer.status === 'PENDING' || !offer.status
+function OfferEvent({ offer, conversation }) {
+  const isSellerOffer = offer.type === 'SELLER_OFFER' || offer.direction === 'OUTGOING';
+
+  // For FROM_MEMBERS (non-system), use the buyer_username from offer or fallback to conversation buyer
+  const senderName = isSellerOffer
+    ? 'You (Seller)'
+    : offer.buyer_username || conversation?.buyer_identifier || 'Buyer';
+
+  const amount = formatCurrency(offer.offer_amount || offer.amount, offer.currency);
+  const isPending = offer.status === 'PENDING' || !offer.status;
 
   return (
     <div className={`offer-event ${isSellerOffer ? 'offer-event-outgoing' : 'offer-event-incoming'}`}>
@@ -639,20 +641,18 @@ function OfferEvent({ offer }) {
             {!isPending ? <small>{offer.status?.toLowerCase() || 'Completed'}</small> : null}
           </div>
           <strong>{amount}</strong>
-          {offer.message && (
-            <p className="offer-message-text">{offer.message}</p>
-          )}
+          {offer.message && <p className="offer-message-text">{offer.message}</p>}
         </div>
       </article>
       <time className="offer-event-time">{formatDate(offer.created_at || offer.created_date)}</time>
     </div>
-  )
+  );
 }
 
 // ============================================
 // MESSAGE THREAD COMPONENT
 // ============================================
-function MessageThread({ messages, offers = [], isSystemConversation }) {
+function MessageThread({ messages, offers = [], isSystemConversation, conversation }) {
   const threadRef = useRef(null)
   const [translations, setTranslations] = useState({})
   const [translatingId, setTranslatingId] = useState(null)
@@ -677,56 +677,34 @@ function MessageThread({ messages, offers = [], isSystemConversation }) {
     }
   }, [messages, offers])
 
+  // Filter out offers if the conversation is FROM_EBAY
+  const isEbaySystem = conversation?.provider_conversation_type === 'FROM_EBAY';
+  const displayOffers = isEbaySystem ? [] : offers;
+
   // Combine messages and offers into a single timeline
   const events = useMemo(() => {
-    // First, create offer events from the offers array
-    const offerEvents = (offers || []).map((offer) => ({ 
-      type: 'offer', 
-      timestamp: offer.created_at || offer.created_date, 
-      value: offer 
-    }))
+    // Only use offers from the offers array (filtered for FROM_MEMBERS)
+    const displayOffers = conversation?.provider_conversation_type === 'FROM_EBAY' ? [] : offers;
+    
+    const offerEvents = displayOffers.map((offer) => ({
+      type: 'offer',
+      timestamp: offer.created_at || offer.created_date,
+      value: offer,
+    }));
 
-    // Then, create message events, but check if a message is actually an offer
-    const messageEvents = messages.map((message) => {
-      // Check if this message has offer data
-      const hasOfferData = message.offer_data || message.offer
-      
-      // If the message has offer data, treat it as an offer event
-      if (hasOfferData) {
-        return {
-          type: 'offer',
-          timestamp: message.sent_at || message.created_date,
-          value: {
-            id: message.id,
-            type: hasOfferData.type || 'BUYER_OFFER',
-            direction: message.is_inbound ? 'INCOMING' : 'OUTGOING',
-            offer_amount: hasOfferData.amount || hasOfferData.offer_amount,
-            currency: hasOfferData.currency || 'USD',
-            status: hasOfferData.status || 'PENDING',
-            message: hasOfferData.message || message.body,
-            buyer_username: message.sender_identifier,
-            sender_name: message.sender_identifier,
-            created_at: message.sent_at || message.created_date,
-            expires_at: hasOfferData.expires_at,
-          }
-        }
-      }
-      
-      // Regular message
-      return { 
-        type: 'message', 
-        timestamp: message.sent_at || message.created_date, 
-        value: message 
-      }
-    })
+    // All messages are treated as regular messages – no conversion to offers
+    const messageEvents = messages.map((message) => ({
+      type: 'message',
+      timestamp: message.sent_at || message.created_date,
+      value: message,
+    }));
 
-    // Combine and sort all events
     return [...messageEvents, ...offerEvents].sort((left, right) => {
-      const leftTime = new Date(left.timestamp) || 0
-      const rightTime = new Date(right.timestamp) || 0
-      return leftTime - rightTime
-    })
-  }, [messages, offers])
+      const leftTime = new Date(left.timestamp) || 0;
+      const rightTime = new Date(right.timestamp) || 0;
+      return leftTime - rightTime;
+    });
+  }, [messages, offers, conversation]);
 
   if (!events.length) {
     return <EmptyPanel title="No messages yet" message="This conversation has no stored message bodies." />
@@ -735,9 +713,13 @@ function MessageThread({ messages, offers = [], isSystemConversation }) {
   return (
     <div className="message-thread" ref={threadRef}>
       {events.map((event, index) => {
-        // Handle offer events - render as OfferEvent
         if (event.type === 'offer') {
-          return <OfferEvent offer={event.value} key={`offer-${event.value.id || index}`} />
+          // Pass the conversation context to OfferEvent
+          return <OfferEvent 
+            offer={event.value} 
+            key={`offer-${event.value.id || index}`}
+            conversation={conversation}  // Add this
+          />
         }
 
         // Handle regular messages
@@ -753,7 +735,7 @@ function MessageThread({ messages, offers = [], isSystemConversation }) {
                 {direction === 'system' 
                   ? 'eBay notification' 
                   : isSeller 
-                    ? 'You (Seller)' 
+                    ? 'You' 
                     : message.sender_identifier || message.sender_type || 'Buyer'
                 }
               </strong>
@@ -1227,7 +1209,12 @@ function ConversationDetail({
       ) : (
         <div className="thread-panel">
           <ConversationContextBanner detail={detail} />
-          <MessageThread messages={detail.messages || []} offers={detail.offers || []} isSystemConversation={isEbaySystemConversation(detail)} />
+          <MessageThread 
+            messages={detail.messages || []} 
+            offers={detail.offers || []} 
+            isSystemConversation={isEbaySystemConversation(detail)}
+            conversation={detail}  // Pass the conversation
+          />        
           {isEbaySystemConversation(detail) ? (
             <ReplyUnavailableNotice />
           ) : (

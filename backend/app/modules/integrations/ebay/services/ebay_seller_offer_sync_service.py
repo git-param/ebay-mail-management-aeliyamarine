@@ -135,6 +135,11 @@ class EbaySellerOfferSyncService:
                     subject[:100],
                 )
                 continue
+
+            # --- ADD THIS CHECK ---
+            if conversation.provider_conversation_type == 'FROM_EBAY':
+                logger.info(f"Skipping offer notification {message_id}: Conversation is FROM_EBAY")
+                continue
             
             logger.info(f"✅ Matched to conversation: {conversation.id}")
             
