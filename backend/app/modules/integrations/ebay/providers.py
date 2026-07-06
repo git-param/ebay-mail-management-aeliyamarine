@@ -10,7 +10,7 @@ from typing import Any
 
 import requests
 
-EBAY_PROVIDER_NAME = 'ebay'
+EBAY_PROVIDER_NAME = 'EBAY'
 
 
 class EbayConversationProvider(ConversationProvider, MessageProvider):
