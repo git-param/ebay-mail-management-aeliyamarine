@@ -118,7 +118,9 @@ class ConversationRepository:
         conversation = self.get_by_provider_id(provider, provider_conversation_id)
         created = conversation is None
         if created:
+            # Remove provider from values to avoid duplicate keyword argument
             creation_values = {'category_manually_selected': False, **values}
+            creation_values.pop('provider', None)  # <-- add this line
             conversation = Conversation(
                 provider=provider,
                 provider_conversation_id=provider_conversation_id,
@@ -127,7 +129,8 @@ class ConversationRepository:
             self.db.add(conversation)
         else:
             for key, value in values.items():
-                setattr(conversation, key, value)
+                if key != 'provider':  # skip provider to be safe
+                    setattr(conversation, key, value)
         return conversation, created
 
     def _filtered_statement(

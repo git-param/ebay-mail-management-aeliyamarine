@@ -43,15 +43,36 @@ class EbayBestOfferSyncService:
             if not response.ok:
                 raise RuntimeError(str(response.payload.get('error') if isinstance(response.payload, dict) else 'GetBestOffers failed'))
             payload = response.payload if isinstance(response.payload, dict) else {}
+            
             for raw in payload.get('offers', []):
-                result, was_created = self._upsert(account, raw)
+                # First, try to match conversation
+                conversation = self._match_conversation(
+                    account.id, 
+                    raw.get('listingId'), 
+                    raw.get('buyerUsername')
+                )
+                
+                # Skip if conversation is FROM_EBAY or no conversation found
+                if not conversation:
+                    logger.info(f"Skipping offer {raw.get('offerId')}: No matching conversation")
+                    continue
+                    
+                if conversation.provider_conversation_type == 'FROM_EBAY':
+                    logger.info(f"Skipping offer {raw.get('offerId')}: Conversation is FROM_EBAY")
+                    continue
+                
+                # Only now process the offer
+                result, was_created = self._upsert(account, raw, conversation)
                 created += int(was_created)
                 updated += int(not was_created)
                 linked += int(result.conversation_id is not None)
                 
                 # Also sync the seller's offer response if present
                 if result.conversation_id:
-                    self._sync_seller_offer_response(account, result)
+                    conversation = self.db.get(Conversation, result.conversation_id)
+                    if conversation and conversation.provider_conversation_type == 'FROM_EBAY':
+                        logger.info(f"Skipping offer {result.provider_offer_id} from FROM_EBAY conversation")
+                        continue
                     
             if page >= int(payload.get('totalPages') or 1):
                 break
@@ -62,19 +83,23 @@ class EbayBestOfferSyncService:
             self.db.flush()
         return {'created': created, 'updated': updated, 'linked': linked}
 
-    def _upsert(self, account: EbayAccount, raw: dict) -> tuple[Offer, bool]:
+    def _upsert(self, account: EbayAccount, raw: dict, conversation: Conversation) -> tuple[Offer, bool]:
         provider_id = str(raw.get('offerId') or '').strip()
         listing_id = str(raw.get('listingId') or '').strip()
+
         if not provider_id or not listing_id:
             raise ValueError('GetBestOffers response omitted offer or listing ID')
+
         offer = self.db.scalar(select(Offer).where(Offer.provider_offer_id == provider_id))
         created = offer is None
+
         if offer is None:
             offer = Offer(provider_offer_id=provider_id, listing_id=listing_id, raw_payload=raw)
             self.db.add(offer)
-        conversation = self._match_conversation(account.id, listing_id, raw.get('buyerUsername'))
+
+        # Use the passed conversation (already validated as FROM_MEMBERS)
         offer.account_id = account.id
-        offer.conversation_id = conversation.id if conversation else None
+        offer.conversation_id = conversation.id
         offer.buyer_username = raw.get('buyerUsername')
         offer.offer_amount = self._decimal(raw.get('amount'))
         offer.currency = raw.get('currency')
@@ -85,6 +110,7 @@ class EbayBestOfferSyncService:
         offer.message = raw.get('buyerMessage')
         offer.expires_at = self._datetime(raw.get('expirationTime'))
         offer.raw_payload = raw
+
         if created and conversation:
             matching_message = next((
                 message for message in reversed(conversation.messages)
@@ -166,20 +192,34 @@ class EbayBestOfferSyncService:
         except Exception as e:
             logger.warning('Failed to sync seller offer response: %s', e)
 
-    def _match_conversation(self, account_id: UUID, listing_id: str, buyer) -> Conversation | None:
+    # In ebay_best_offer_sync_service.py
+    def _match_conversation(self, account_id: UUID, listing_id: str, buyer: str) -> Conversation | None:
         buyer = str(buyer or '').strip()
-        listing_match = or_(
-            Conversation.reference_id == listing_id,
-            ConversationProductContext.reference_id == listing_id,
-        )
+        
+        # Try to find by listing_id and buyer
         statement = (
-            select(Conversation).outerjoin(ConversationProductContext)
-            .where(Conversation.provider_account_id == account_id, listing_match)
+            select(Conversation)
+            .where(
+                Conversation.provider_account_id == account_id,
+                Conversation.reference_id == listing_id,
+                Conversation.buyer_identifier == buyer
+            )
         )
-        if buyer:
-            statement = statement.where(Conversation.buyer_identifier == buyer)
-        matches = list(self.db.scalars(statement.limit(2)))
-        return matches[0] if len(matches) == 1 else None
+        conversation = self.db.scalar(statement)
+        
+        if conversation:
+            return conversation
+        
+        # Try just by buyer
+        statement = (
+            select(Conversation)
+            .where(
+                Conversation.provider_account_id == account_id,
+                Conversation.buyer_identifier == buyer
+            )
+            .order_by(Conversation.created_at.desc())
+        )
+        return self.db.scalar(statement)
 
     def _status(self, value) -> OfferStatus:
         normalized = str(value or 'Pending').upper()

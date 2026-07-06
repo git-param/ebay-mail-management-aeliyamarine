@@ -95,6 +95,10 @@ class EbayMessageService:
     ) -> tuple[int, int]:
         created_count = 0
         updated_count = 0
+        
+        # Determine if this is a FROM_EBAY conversation
+        is_from_ebay = conversation.provider_conversation_type == 'FROM_EBAY'
+        
         for message_payload in self._messages_from_detail(conversation_detail):
             message_id = self._string_or_none(message_payload.get('messageId'))
             if not message_id:
@@ -105,14 +109,22 @@ class EbayMessageService:
             recipient_username = self._string_or_none(message_payload.get('recipientUsername'))
             is_inbound = sender_username != account.ebay_username
             
-            # Extract offer data if present
+            # --- ONLY extract offer data for FROM_MEMBERS conversations ---
             offer_data = None
-            if 'offer' in message_payload:
-                offer_data = message_payload.get('offer')
+            if not is_from_ebay and 'offer' in message_payload:
+                offer = message_payload.get('offer')
+                offer_data = {
+                    'type': 'SELLER_OFFER' if message_payload.get('sender_type') == 'SELLER' else 'BUYER_OFFER',
+                    'amount': offer.get('amount'),
+                    'currency': offer.get('currency', 'USD'),
+                    'status': offer.get('status', 'PENDING'),
+                    'message': offer.get('message'),
+                    'expires_at': offer.get('expiration_time'),
+                }
             
             values = {
                 'conversation_id': conversation.id,
-                'provider': self.provider,  # 'EBAY'
+                'provider': self.provider,
                 'sender_type': MessageSenderType.CUSTOMER if is_inbound else MessageSenderType.AGENT,
                 'sender_identifier': sender_username,
                 'recipient_identifier': recipient_username,
@@ -121,7 +133,7 @@ class EbayMessageService:
                 'is_inbound': is_inbound,
                 'sent_at': sent_at,
                 'raw_payload': message_payload,
-                'offer_data': offer_data,  # Store offer data in JSON field
+                'offer_data': offer_data,  # Will be None for FROM_EBAY
             }
             message, created = self.message_repository.upsert_by_provider_id(
                 self.provider,  # 'EBAY'
