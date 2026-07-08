@@ -10,13 +10,32 @@ from app.models.offer import Offer, OfferDirection, OfferStatus
 
 
 OFFER_PHRASES = (
+    "buyer sent an offer",
+    "you have a new offer",
+    "new offer for",
+    "offer from",
     "sent an offer",
+    "you sent an offer",
+    "your offer on",
+    "offer submitted to",
+    "counteroffer submitted to buyer",
+    "you sent a counteroffer",
+    "buyer made a counteroffer",
     "sent a counteroffer",
     "accepted an offer",
     "accepted your offer",
+    "buyer accepted",
     "offer accepted",
-    "you sent an offer",
-    "you sent a counteroffer",
+    "best offer accepted",
+    "counteroffer accepted",
+    "offer expired",
+    "best offer expired",
+    "counteroffer expired",
+    "offer has expired",
+    "counteroffer has expired",
+    "offer declined",
+    "declined your offer",
+    "counteroffer declined",
 )
 
 
@@ -169,8 +188,12 @@ class EbayConversationOfferResolver:
         if not any(phrase in lower for phrase in OFFER_PHRASES):
             return None
 
+        status = self._status(lower)
         amount, currency = self._extract_money(text)
-        if amount is None:
+
+        # Pending offers must have amount.
+        # Accepted / expired / declined notifications may not always repeat the amount.
+        if amount is None and status == OfferStatus.PENDING:
             return None
 
         listing_id = self._listing_id(raw_payload, message_subject, conversation, text)
@@ -188,7 +211,7 @@ class EbayConversationOfferResolver:
             "buyer_username": buyer_username,
             "offer_amount": amount,
             "currency": currency or "USD",
-            "status": self._status(lower),
+            "status": status,
             "direction": self._direction(lower, message),
             "offer_type": self._offer_type(lower),
             "quantity": self._quantity(raw_payload),
