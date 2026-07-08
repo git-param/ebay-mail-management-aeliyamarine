@@ -632,66 +632,6 @@ function getOfferLabel(offer, isSellerOffer) {
 }
 
 
-function parseOfferFromMessage(message, conversation) {
-  const body = String(message.body || '').trim()
-  if (!body) return null
-
-  const lower = body.toLowerCase()
-
-  const isOfferMessage =
-    lower.includes('buyer sent an offer') ||
-    lower.includes('you sent a counteroffer') ||
-    lower.includes('sent a counteroffer') ||
-    lower.includes('accepted an offer') ||
-    lower.includes('offer accepted')
-
-  if (!isOfferMessage) return null
-
-  const amountMatch = body.match(/\b(USD|EUR|GBP|AUD|CAD|JPY)?\s*\$?\s*([\d,]+(?:\.\d{1,2})?)/i)
-
-  const amount = amountMatch ? Number(amountMatch[2].replace(/,/g, '')) : null
-  const currency = amountMatch?.[1]?.toUpperCase() || 'USD'
-
-  const isOutgoing =
-    lower.includes('you sent') ||
-    lower.includes('seller') ||
-    message.is_inbound === false
-
-  const isAccepted =
-    lower.includes('accepted an offer') ||
-    lower.includes('offer accepted') ||
-    String(message.offer_data?.status || '').toUpperCase() === 'ACCEPTED'
-
-  let offerType = isOutgoing ? 'SELLER_COUNTEROFFER' : 'BUYER_OFFER'
-  let status = 'PENDING'
-
-  if (isAccepted) {
-    offerType = 'ACCEPTED_OFFER'
-    status = 'ACCEPTED'
-  }
-
-  return {
-    id: `message-offer-${message.id}`,
-    source_message_id: message.id,
-    buyer_username:
-      message.offer_data?.buyer_username ||
-      conversation?.buyer_identifier ||
-      message.sender_identifier ||
-      'Buyer',
-    direction: isOutgoing ? 'OUTGOING' : 'INCOMING',
-    offer_type: offerType,
-    type: isOutgoing ? 'SELLER_OFFER' : 'BUYER_OFFER',
-    status,
-    offer_amount: amount,
-    amount,
-    currency,
-    message: '',
-    created_at: message.sent_at || message.created_date,
-    created_date: message.sent_at || message.created_date,
-    original_body: body,
-  }
-}
-
 // ============================================
 // OFFER EVENT COMPONENT
 // ============================================
@@ -805,7 +745,7 @@ function MessageThread({ messages, offers = [], isSystemConversation, conversati
             created_at: message.sent_at || message.created_date,
             created_date: message.sent_at || message.created_date,
           }
-        : parseOfferFromMessage(message, conversation)
+        : null
 
       if (parsedOffer) {
         offerEventsFromMessages.push({
