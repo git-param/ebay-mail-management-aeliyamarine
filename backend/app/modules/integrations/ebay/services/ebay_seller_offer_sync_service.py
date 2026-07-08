@@ -185,7 +185,8 @@ class EbaySellerOfferSyncService:
                 # ✅ INSERT: Create new message
                 logger.warning(f"✨ Creating new message: {message_id}")
                 is_inbound = offer_data.get('direction') == 'INCOMING'
-                
+                buyer_username = offer_data.get('buyer') or conversation.buyer_identifier
+
                 message = Message(
                     conversation_id=conversation.id,
                     provider='EBAY',
@@ -210,9 +211,6 @@ class EbaySellerOfferSyncService:
                 
                 self.db.add(message)
                 created += 1
-
-                buyer_username = offer_data.get('buyer') or conversation.buyer_identifier
-
                 
 
                 self._upsert_offer(
@@ -429,6 +427,7 @@ class EbaySellerOfferSyncService:
         # Create new offer
         direction = OfferDirection.OUTGOING if offer_data.get('direction') == 'OUTGOING' else OfferDirection.INCOMING
         offer = Offer(
+            provider="EBAY",
             account_id=account_id,
             conversation_id=conversation_id,
             provider_offer_id=provider_offer_id,
@@ -439,7 +438,7 @@ class EbaySellerOfferSyncService:
             status=offer_data.get('status', OfferStatus.PENDING),
             direction=direction,
             offer_type=offer_data.get('offer_type', 'OFFER'),
-            message=offer_data.get('item_title', raw_msg.get('subject')),
+            raw_text=raw_msg.get('subject') or offer_data.get('item_title'),
             created_at=datetime.now(UTC),
             raw_payload=raw_msg,
         )

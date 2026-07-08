@@ -501,7 +501,7 @@ class EbayAuthClient:
         try:
             with urlopen(request, timeout=20) as response:
                 response_body = response.read().decode('utf-8')
-                logger.warning(
+                logger.info(
                     'eBay Message API response url=%s method=%s status_code=%s body=%s',
                     request_url,
                     method,
@@ -562,7 +562,7 @@ class EbayAuthClient:
             headers['Content-Type'] = 'application/json'
         request = Request(request_url, data=data, headers=headers, method=method)
         sanitized_headers = self._sanitize_headers(headers)
-        logger.warning('Calling eBay JSON API url=%s method=%s headers=%s', request_url, method, sanitized_headers)
+        logger.info('Calling eBay JSON API url=%s method=%s headers=%s', request_url, method, sanitized_headers)
         try:
             with urlopen(request, timeout=20) as response:
                 response_body = response.read().decode('utf-8')

@@ -1,7 +1,7 @@
 from decimal import Decimal, InvalidOperation
 import re
 
-from sqlalchemy import select
+from sqlalchemy import or_, and_, func,select
 from sqlalchemy.orm import Session
 
 from app.models.conversation import Conversation, Message
@@ -57,12 +57,45 @@ class EbayConversationOfferResolver:
             for offer in self.db.scalars(
                 select(Offer).where(
                     Offer.provider == "EBAY",
-                    Offer.account_id == conversation.provider_account_id,
+                    Offer.account_id == account.id,
                     Offer.conversation_id == conversation.id,
                 )
             )
             if offer.provider_offer_id
         }
+
+        reference_id = str(conversation.reference_id or "").strip()
+        buyer_identifier = str(conversation.buyer_identifier or "").strip().lower()
+
+        # Attach existing synced offers to the opened conversation.
+        # This handles offers created from eBay offer APIs where message_id is missing.
+        if reference_id and buyer_identifier:
+            existing_external_offers = list(
+                self.db.scalars(
+                    select(Offer).where(
+                        Offer.provider == "EBAY",
+                        Offer.account_id == account.id,
+                        or_(
+                            Offer.conversation_id == conversation.id,
+                            and_(
+                                Offer.listing_id == reference_id,
+                                func.lower(func.coalesce(Offer.buyer_username, "")) == buyer_identifier,
+                            ),
+                            and_(
+                                Offer.conversation_id.is_(None),
+                                Offer.listing_id == reference_id,
+                                Offer.buyer_username.is_(None),
+                            ),
+                        ),
+                    )
+                )
+            )
+
+            for offer in existing_external_offers:
+                offer.conversation_id = conversation.id
+                if not offer.buyer_username and conversation.buyer_identifier:
+                    offer.buyer_username = conversation.buyer_identifier
+                offers_by_provider_id[offer.provider_offer_id] = offer
 
         for message in conversation.messages:
             offer_data = self._extract_from_message(message, conversation, account)
@@ -92,9 +125,11 @@ class EbayConversationOfferResolver:
                     provider_offer_id=provider_offer_id,
                 )
                 self.db.add(offer)
+                self.db.flush()
 
             offers_by_provider_id[provider_offer_id] = offer
 
+            offer.conversation_id = conversation.id
             offer.message_id = message.id
             offer.listing_id = offer_data["listing_id"]
             offer.buyer_username = offer_data["buyer_username"]
@@ -125,7 +160,11 @@ class EbayConversationOfferResolver:
         return list(
             self.db.scalars(
                 select(Offer)
-                .where(Offer.conversation_id == conversation.id)
+                .where(
+                    Offer.provider == "EBAY",
+                    Offer.account_id == account.id,
+                    Offer.conversation_id == conversation.id,
+                )
                 .order_by(Offer.created_at.asc())
             )
         )

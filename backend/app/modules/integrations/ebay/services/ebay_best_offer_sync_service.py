@@ -44,25 +44,35 @@ class EbayBestOfferSyncService:
                 raise RuntimeError(str(response.payload.get('error') if isinstance(response.payload, dict) else 'GetBestOffers failed'))
             payload = response.payload if isinstance(response.payload, dict) else {}
             
+
+            logger.warning(
+                "BestOffer API account_id=%s page=%s total_pages=%s offers_count=%s payload_keys=%s",
+                account.id,
+                page,
+                payload.get("totalPages"),
+                len(payload.get("offers", []) or []),
+                list(payload.keys()),
+            )
+
             for raw in payload.get('offers', []):
-                # First, try to match conversation
                 conversation = self._match_conversation(
-                    account.id, 
-                    raw.get('listingId'), 
-                    raw.get('buyerUsername')
+                    account.id,
+                    raw.get('listingId'),
+                    raw.get('buyerUsername'),
                 )
-                
-                # Skip if conversation is FROM_EBAY or no conversation found
-                if not conversation:
-                    logger.warning(f"Skipping offer {raw.get('offerId')}: No matching conversation")
-                    continue
-                    
-                if conversation.provider_conversation_type == 'FROM_EBAY':
-                    logger.warning(f"Skipping offer {raw.get('offerId')}: Conversation is FROM_EBAY")
-                    continue
-                
-                # Only now process the offer
+
+                # Never skip saving the offer just because conversation was not found.
+                # Save it first, link it later from the conversation resolver.
+                if conversation and conversation.provider_conversation_type == 'FROM_EBAY':
+                    logger.warning(
+                        "Best offer %s matched FROM_EBAY conversation %s, saving offer without conversation link",
+                        raw.get("offerId"),
+                        conversation.id,
+                    )
+                    conversation = None
+
                 result, was_created = self._upsert(account, raw, conversation)
+
                 created += int(was_created)
                 updated += int(not was_created)
                 linked += int(result.conversation_id is not None)
@@ -73,7 +83,16 @@ class EbayBestOfferSyncService:
                     if conversation and conversation.provider_conversation_type == 'FROM_EBAY':
                         logger.warning(f"Skipping offer {result.provider_offer_id} from FROM_EBAY conversation")
                         continue
-                    
+
+
+            logger.warning(
+                "BestOffer sync finished account_id=%s created=%s updated=%s linked=%s",
+                account.id,
+                created,
+                updated,
+                linked,
+            )
+
             if page >= int(payload.get('totalPages') or 1):
                 break
             page += 1
@@ -83,23 +102,36 @@ class EbayBestOfferSyncService:
             self.db.flush()
         return {'created': created, 'updated': updated, 'linked': linked}
 
-    def _upsert(self, account: EbayAccount, raw: dict, conversation: Conversation) -> tuple[Offer, bool]:
+    def _upsert(self, account: EbayAccount, raw: dict, conversation: Conversation | None) -> tuple[Offer, bool]:
         provider_id = str(raw.get('offerId') or '').strip()
         listing_id = str(raw.get('listingId') or '').strip()
 
         if not provider_id or not listing_id:
             raise ValueError('GetBestOffers response omitted offer or listing ID')
 
-        offer = self.db.scalar(select(Offer).where(Offer.provider_offer_id == provider_id))
+        offer = self.db.scalar(
+            select(Offer).where(
+                Offer.provider == "EBAY",
+                Offer.account_id == account.id,
+                Offer.provider_offer_id == provider_id,
+            )
+        )
         created = offer is None
 
         if offer is None:
-            offer = Offer(provider_offer_id=provider_id, listing_id=listing_id, raw_payload=raw)
+            offer = Offer(
+                provider="EBAY",
+                account_id=account.id,
+                provider_offer_id=provider_id,
+                listing_id=listing_id,
+                raw_payload=raw,
+            )
             self.db.add(offer)
 
         # Use the passed conversation (already validated as FROM_MEMBERS)
+        offer.provider = "EBAY"
         offer.account_id = account.id
-        offer.conversation_id = conversation.id
+        offer.conversation_id = conversation.id if conversation else None
         offer.buyer_username = raw.get('buyerUsername')
         offer.offer_amount = self._decimal(raw.get('amount'))
         offer.currency = raw.get('currency')
@@ -107,7 +139,7 @@ class EbayBestOfferSyncService:
         offer.direction = OfferDirection.INCOMING
         offer.offer_type = raw.get('offerType')
         offer.quantity = int(raw.get('quantity') or 1)
-        offer.message = raw.get('buyerMessage')
+        offer.raw_text = raw.get('buyerMessage')
         offer.expires_at = self._datetime(raw.get('expirationTime'))
         offer.raw_payload = raw
 

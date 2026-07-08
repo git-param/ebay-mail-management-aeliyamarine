@@ -340,7 +340,7 @@ class EbaySyncService:
         detail_response,
     ) -> None:
         """Log conversation detail diagnostic information."""
-        logger.warning(
+        logger.info(
             'eBay conversation detail diagnostic account_id=%s conversation_id=%s conversation_type=%s request_url=%s request_headers=%s',
             account.id,
             conversation_id,
@@ -426,24 +426,24 @@ class EbaySyncService:
 
         # Sync buyer-originated offers (Best Offers)
         # The service already skips FROM_EBAY internally
-        # try:
-        #     self.best_offer_sync_service.sync_account(account.id, commit=False)
-        # except Exception:
-        #     logger.exception('Non-fatal eBay buyer-offer sync failure account_id=%s', account.id)
+        try:
+            self.best_offer_sync_service.sync_account(account.id, commit=False)
+        except Exception:
+            logger.exception('Non-fatal eBay buyer-offer sync failure account_id=%s', account.id)
 
-        # # Sync seller-initiated offers (My Messages)
-        # # The service will skip FROM_EBAY after the change above
-        # try:
-        #     result = self.seller_offer_sync_service.sync_account(account.id, commit=False)
-        #     if result.get('matched', 0) > 0:
-        #         logger.warning(
-        #             'Seller offer sync: created=%s updated=%s matched=%s',
-        #             result.get('created', 0),
-        #             result.get('updated', 0),
-        #             result.get('matched', 0),
-        #         )
-        # except Exception:
-        #     logger.exception('Non-fatal eBay seller-offer sync failure account_id=%s', account.id)
+        # Sync seller-initiated offers (My Messages)
+        # The service will skip FROM_EBAY after the change above
+        try:
+            result = self.seller_offer_sync_service.sync_account(account.id, commit=False)
+            if result.get('matched', 0) > 0:
+                logger.warning(
+                    'Seller offer sync: created=%s updated=%s matched=%s',
+                    result.get('created', 0),
+                    result.get('updated', 0),
+                    result.get('matched', 0),
+                )
+        except Exception:
+            logger.exception('Non-fatal eBay seller-offer sync failure account_id=%s', account.id)
 
         return order_sync_result, order_sync_error
 
@@ -662,7 +662,7 @@ class EbaySyncService:
                 if not conversations:
                     break
                 if updated_since and yielded_from_page == 0 and older_or_equal_count == len(conversations):
-                    logger.warning(
+                    logger.info(
                         'Stopping incremental eBay sync account_id=%s conversation_type=%s offset=%s because page is older than last_sync_at=%s',
                         account.id,
                         conversation_type,

@@ -100,8 +100,7 @@ class ConversationService:
 
             self.db.commit()
             self.db.refresh(conversation)
-
-        
+            conversation = self.repository.get_by_id(conversation_id)
 
         return conversation
 
