@@ -7514,3 +7514,111 @@ html[data-theme='dark'] .message-bubble.inbound {
   font-size: 12px;
   color: #777;
 }
+
+.offer-message-slot {
+  display: grid;
+  gap: 8px;
+  margin: 6px 0;
+}
+
+.offer-chat-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  max-width: 760px;
+}
+
+.offer-chat-row-incoming {
+  justify-self: start;
+}
+
+.offer-chat-row-outgoing {
+  justify-self: end;
+  justify-content: flex-end;
+  width: 100%;
+}
+
+.offer-avatar {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #f7c600;
+  color: #111827;
+  font-size: 16px;
+  font-weight: 900;
+  flex: 0 0 auto;
+}
+
+.offer-chat-card {
+  min-width: 260px;
+  max-width: 420px;
+  min-height: 72px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 18px 22px;
+  border: 1px solid #e5e7eb;
+  border-radius: 18px;
+  background: #ffffff;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+}
+
+.offer-chat-card-incoming {
+  border-top-left-radius: 8px;
+}
+
+.offer-chat-card-outgoing {
+  border-top-right-radius: 8px;
+  background: #f8fafc;
+}
+
+.offer-chat-card-accepted {
+  border-color: #86efac;
+  background: #f0fdf4;
+}
+
+.offer-chat-card-expired,
+.offer-chat-card-declined {
+  border-color: #fecaca;
+  background: #fff7f7;
+}
+
+.offer-chat-label {
+  color: #374151;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.offer-chat-amount {
+  margin-left: auto;
+  color: #374151;
+  font-size: 26px;
+  line-height: 1;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.offer-chat-status {
+  margin-left: 4px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: #e5e7eb;
+  color: #374151;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.offer-chat-time {
+  display: block;
+  margin-top: 6px;
+  color: #6b7280;
+  font-size: 12px;
+  font-weight: 800;
+  text-align: right;
+}
+
+.offer-chat-row-incoming .offer-chat-time {
+  text-align: left;
+}

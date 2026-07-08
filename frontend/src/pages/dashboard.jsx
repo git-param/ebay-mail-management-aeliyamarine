@@ -640,61 +640,68 @@ function OfferEvent({ offer, conversation }) {
   const offerType = String(offer.offer_type || offer.type || '').toUpperCase()
   const status = String(offer.status || '').toUpperCase()
 
-  const isSellerOffer =
-    direction === 'OUTGOING' ||
-    offerType.includes('SELLER') ||
-    offerType.includes('COUNTEROFFER') && direction !== 'INCOMING'
+  const isOutgoing = direction === 'OUTGOING'
+  const isAccepted = status === 'ACCEPTED' || offerType.includes('ACCEPTED')
+  const isExpired = status === 'EXPIRED'
+  const isDeclined = status === 'DECLINED'
 
-  const isAccepted =
-    status === 'ACCEPTED' ||
-    offerType.includes('ACCEPTED')
+  const buyerName = offer.buyer_username || conversation?.buyer_identifier || 'Buyer'
 
-  const senderName = isSellerOffer
-    ? 'You'
-    : offer.buyer_username || conversation?.buyer_identifier || 'Buyer'
+  let label = `${buyerName} sent an offer`
+  if (isOutgoing && offerType.includes('COUNTER')) label = 'You sent a counteroffer'
+  else if (isOutgoing) label = 'You sent an offer'
+  else if (!isOutgoing && offerType.includes('COUNTER')) label = `${buyerName} sent a counteroffer`
+  else if (isAccepted) label = `${buyerName} accepted an offer`
+  else if (isExpired) label = 'Offer expired'
+  else if (isDeclined) label = 'Offer declined'
 
-  const label = isAccepted
-    ? 'accepted an offer'
-    : isSellerOffer
-      ? 'sent a counteroffer'
-      : offerType.includes('COUNTER')
-        ? 'sent a counteroffer'
-        : 'sent an offer'
-
-  const amount = formatCurrency(
-    offer.offer_amount ?? offer.amount,
-    offer.currency || 'USD'
-  )
+  const rawAmount = offer.offer_amount ?? offer.amount
+  const amountNumber = rawAmount == null ? null : Number(rawAmount)
+  const amount = amountNumber == null || Number.isNaN(amountNumber)
+    ? ''
+    : amountNumber.toLocaleString(undefined, {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      })
 
   return (
-    <div className={`offer-event ${isSellerOffer ? 'offer-event-outgoing' : 'offer-event-incoming'}`}>
-      <article className={`offer-card ${isAccepted ? 'offer-card-accepted' : ''}`}>
-        <span className="offer-tag-icon" aria-hidden="true">
-          {isAccepted ? '✓' : 'Q'}
-        </span>
-
-        <div className="offer-card-copy">
-          <div className="offer-card-label">
-            <span>
-              <strong>{senderName}</strong> {label}
-            </span>
-          </div>
-
-          <strong className="offer-amount">{amount}</strong>
-
-          {offer.message ? (
-            <p className="offer-message-text">{offer.message}</p>
-          ) : null}
+    <div className={`offer-chat-row ${isOutgoing ? 'offer-chat-row-outgoing' : 'offer-chat-row-incoming'}`}>
+      {!isOutgoing ? (
+        <div className="offer-avatar">
+          {(buyerName || 'B').slice(0, 1).toUpperCase()}
         </div>
-      </article>
+      ) : null}
 
-      <time className="offer-event-time">
-        {formatDate(offer.created_at || offer.created_date)}
-      </time>
+      <div>
+        <article
+          className={[
+            'offer-chat-card',
+            isOutgoing ? 'offer-chat-card-outgoing' : 'offer-chat-card-incoming',
+            isAccepted ? 'offer-chat-card-accepted' : '',
+            isExpired ? 'offer-chat-card-expired' : '',
+            isDeclined ? 'offer-chat-card-declined' : '',
+          ].filter(Boolean).join(' ')}
+        >
+          <span className="offer-chat-label">{label}</span>
+
+          {amount ? (
+            <strong className="offer-chat-amount">
+              ${amount}
+            </strong>
+          ) : null}
+
+          {status && status !== 'PENDING' ? (
+            <small className="offer-chat-status">{status}</small>
+          ) : null}
+        </article>
+
+        <time className="offer-chat-time">
+          {formatDate(offer.created_at || offer.created_date || offer.sent_at)}
+        </time>
+      </div>
     </div>
   )
 }
-
 
 // ============================================
 // MESSAGE THREAD COMPONENT
@@ -724,94 +731,103 @@ function MessageThread({ messages, offers = [], isSystemConversation, conversati
     }
   }, [messages, offers])
 
-  // Filter out offers if the conversation is FROM_EBAY
-  const events = useMemo(() => {
-    const offerEventsFromMessages = []
-    const normalMessageEvents = []
+  const offersByMessageId = useMemo(() => {
+    const grouped = new Map()
+    const seen = new Set()
+
+    if (isSystemConversation || conversation?.provider_conversation_type === 'FROM_EBAY') {
+      return grouped
+    }
+
+    const addOffer = (messageId, offer) => {
+      if (!messageId || !offer) return
+
+      const key = String(
+        offer.provider_offer_id ||
+        offer.id ||
+        `${messageId}:${offer.offer_amount || offer.amount}:${offer.status}:${offer.direction}`
+      )
+
+      if (seen.has(key)) return
+      seen.add(key)
+
+      const current = grouped.get(messageId) || []
+      grouped.set(messageId, [...current, offer])
+    }
 
     messages.forEach((message) => {
-      const parsedOffer = message.offer_data
-        ? {
-            ...message.offer_data,
-            id: `message-offer-${message.id}`,
-            source_message_id: message.id,
-            buyer_username:
-              message.offer_data.buyer_username ||
-              conversation?.buyer_identifier ||
-              message.sender_identifier,
-            direction:
-              message.offer_data.direction ||
-              (message.is_inbound ? 'INCOMING' : 'OUTGOING'),
-            created_at: message.sent_at || message.created_date,
-            created_date: message.sent_at || message.created_date,
-          }
-        : null
-
-      if (parsedOffer) {
-        offerEventsFromMessages.push({
-          type: 'offer',
-          timestamp: parsedOffer.created_at || parsedOffer.created_date,
-          value: parsedOffer,
+      if (message.offer_data) {
+        addOffer(message.id, {
+          ...message.offer_data,
+          id: `message-offer-${message.id}`,
+          message_id: message.id,
+          source_message_id: message.id,
+          created_at: message.sent_at || message.created_at || message.created_date,
+          created_date: message.sent_at || message.created_at || message.created_date,
+          buyer_username:
+            message.offer_data.buyer_username ||
+            conversation?.buyer_identifier ||
+            message.sender_identifier,
         })
-        return
       }
 
-      normalMessageEvents.push({
-        type: 'message',
-        timestamp: message.sent_at || message.created_date,
-        value: message,
-      })
+      ;(message.offers || []).forEach((offer) => addOffer(message.id, offer))
     })
 
-    const offerEventsFromApi = (offers || []).map((offer) => ({
-      type: 'offer',
-      timestamp: offer.created_at || offer.created_date,
-      value: offer,
-    }))
-
-    return [
-      ...normalMessageEvents,
-      ...offerEventsFromMessages,
-      ...offerEventsFromApi,
-    ].sort((left, right) => {
-      const leftTime = new Date(left.timestamp || 0).getTime() || 0
-      const rightTime = new Date(right.timestamp || 0).getTime() || 0
-      return leftTime - rightTime
+    ;(offers || []).forEach((offer) => {
+      addOffer(offer.message_id || offer.messageId || offer.source_message_id, offer)
     })
-  }, [messages, offers, conversation])
 
-  if (!events.length) {
+    return grouped
+  }, [messages, offers, conversation, isSystemConversation])
+
+  if (!messages.length) {
     return <EmptyPanel title="No messages yet" message="This conversation has no stored message bodies." />
   }
 
   return (
     <div className="message-thread" ref={threadRef}>
-      {events.map((event, index) => {
-        if (event.type === 'offer') {
-          // Pass the conversation context to OfferEvent
-          return <OfferEvent 
-            offer={event.value} 
-            key={`offer-${event.value.id || index}`}
-            conversation={conversation}  // Add this
-          />
-        }
+      {messages.map((message, index) => {
+        const messageOffers = offersByMessageId.get(message.id) || []
+        const isOfferNotification = messageOffers.length > 0
 
-        // Handle regular messages
-        const message = event.value
         const isSystem = isEbayNotificationMessage(message)
         const direction = isSystem ? 'system' : message.is_inbound ? 'inbound' : 'outbound'
         const isSeller = direction === 'outbound'
-        
+
+        // For backend-detected offer notification messages, show only clean eBay-style card.
+        // Do not show raw text like: "🔔 Buyer sent an offer..."
+        if (isOfferNotification) {
+          return (
+            <div className="offer-message-slot" key={message.id || index}>
+              {messageOffers.map((offer, offerIndex) => (
+                <OfferEvent
+                  offer={{
+                    ...offer,
+                    created_at: offer.created_at || message.sent_at || message.created_at || message.created_date,
+                    created_date: offer.created_date || message.sent_at || message.created_at || message.created_date,
+                    buyer_username:
+                      offer.buyer_username ||
+                      conversation?.buyer_identifier ||
+                      message.sender_identifier,
+                  }}
+                  key={`offer-${offer.provider_offer_id || offer.id || message.id}-${offerIndex}`}
+                  conversation={conversation}
+                />
+              ))}
+            </div>
+          )
+        }
+
         return (
           <article className={`message-bubble ${direction}`} key={message.id || index}>
             <div className="message-meta">
               <strong>
-                {direction === 'system' 
-                  ? 'eBay notification' 
-                  : isSeller 
-                    ? 'You' 
-                    : message.sender_identifier || message.sender_type || 'Buyer'
-                }
+                {direction === 'system'
+                  ? 'eBay notification'
+                  : isSeller
+                    ? 'You'
+                    : message.sender_identifier || message.sender_type || 'Buyer'}
               </strong>
               <time>{formatDate(message.sent_at || message.created_date)}</time>
             </div>
@@ -831,19 +847,21 @@ function MessageThread({ messages, offers = [], isSystemConversation, conversati
 
             {direction === 'inbound' && message.body && (
               <div className="message-translation">
-                <button 
-                  className="translation-button" 
-                  type="button" 
-                  disabled={translatingId === message.id} 
+                <button
+                  className="translation-button"
+                  type="button"
+                  disabled={translatingId === message.id}
                   onClick={() => translateBuyerMessage(message)}
                 >
                   {translatingId === message.id ? 'Translating…' : 'Translate to English'}
                 </button>
+
                 {translations[message.id]?.text && (
                   <p className="translated-copy">
                     <strong>English:</strong> {translations[message.id].text}
                   </p>
                 )}
+
                 {translations[message.id]?.error && (
                   <small role="alert">{translations[message.id].error}</small>
                 )}
@@ -855,6 +873,7 @@ function MessageThread({ messages, offers = [], isSystemConversation, conversati
                 {message.attachments.map((attachment) => {
                   const attachmentUrl = attachment.media_url || attachment.download_url
                   const attachmentName = attachment.media_name || attachment.file_name
+
                   return (
                     <div className="attachment-card" key={attachment.id}>
                       {attachmentUrl && isImageAttachment(attachment) ? (
@@ -862,13 +881,22 @@ function MessageThread({ messages, offers = [], isSystemConversation, conversati
                           <img src={attachmentUrl} alt={attachmentName} loading="lazy" />
                         </a>
                       ) : null}
+
                       <div>
                         <strong>📎 {attachmentName}</strong>
-                        {attachment.file_size ? <small>{Math.round(attachment.file_size / 1024)} KB</small> : null}
+
+                        {attachment.file_size ? (
+                          <small>{Math.round(attachment.file_size / 1024)} KB</small>
+                        ) : null}
+
                         {attachmentUrl ? (
                           <span>
-                            <a href={attachmentUrl} target="_blank" rel="noreferrer">Open</a>
-                            <a href={attachmentUrl} download={attachmentName}>Download</a>
+                            <a href={attachmentUrl} target="_blank" rel="noreferrer">
+                              Open
+                            </a>
+                            <a href={attachmentUrl} download={attachmentName}>
+                              Download
+                            </a>
                           </span>
                         ) : null}
                       </div>
@@ -877,7 +905,7 @@ function MessageThread({ messages, offers = [], isSystemConversation, conversati
                 })}
               </div>
             )}
-            
+
             {message.read_status !== undefined && message.read_status !== null && (
               <span className="message-status">
                 {message.read_status ? '✓ Read' : '● Unread'}
