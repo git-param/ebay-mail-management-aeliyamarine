@@ -20,7 +20,6 @@ from app.services.conversation_product_context_service import ConversationProduc
 from app.services.order_context_service import OrderContextService
 from app.services.sync_log_service import SyncLogService
 from app.modules.integrations.ebay.services.ebay_seller_offer_sync_service import EbaySellerOfferSyncService
-from app.services.backfill_offers import run_backfill
 
 logger = logging.getLogger(__name__)
 
@@ -98,11 +97,15 @@ class EbaySyncService:
             
             # Sync related data
             order_sync_result, order_sync_error = self._sync_related_data(account)
-            
-            run_backfill(account.id)  # Run backfill for offers
 
             # Complete sync
-            return self._finalize_sync(account, sync_log, counters, sync_context, order_sync_result, order_sync_error)
+            return self._finalize_sync(account, 
+                                        sync_log, 
+                                        counters, 
+                                        sync_context, 
+                                        order_sync_result, 
+                                        order_sync_error
+                                    )
             
         except Exception as exc:
             return self._handle_sync_failure(account_id, account, sync_log, counters, sync_context, exc)
@@ -423,24 +426,24 @@ class EbaySyncService:
 
         # Sync buyer-originated offers (Best Offers)
         # The service already skips FROM_EBAY internally
-        try:
-            self.best_offer_sync_service.sync_account(account.id, commit=False)
-        except Exception:
-            logger.exception('Non-fatal eBay buyer-offer sync failure account_id=%s', account.id)
+        # try:
+        #     self.best_offer_sync_service.sync_account(account.id, commit=False)
+        # except Exception:
+        #     logger.exception('Non-fatal eBay buyer-offer sync failure account_id=%s', account.id)
 
-        # Sync seller-initiated offers (My Messages)
-        # The service will skip FROM_EBAY after the change above
-        try:
-            result = self.seller_offer_sync_service.sync_account(account.id, commit=False)
-            if result.get('matched', 0) > 0:
-                logger.warning(
-                    'Seller offer sync: created=%s updated=%s matched=%s',
-                    result.get('created', 0),
-                    result.get('updated', 0),
-                    result.get('matched', 0),
-                )
-        except Exception:
-            logger.exception('Non-fatal eBay seller-offer sync failure account_id=%s', account.id)
+        # # Sync seller-initiated offers (My Messages)
+        # # The service will skip FROM_EBAY after the change above
+        # try:
+        #     result = self.seller_offer_sync_service.sync_account(account.id, commit=False)
+        #     if result.get('matched', 0) > 0:
+        #         logger.warning(
+        #             'Seller offer sync: created=%s updated=%s matched=%s',
+        #             result.get('created', 0),
+        #             result.get('updated', 0),
+        #             result.get('matched', 0),
+        #         )
+        # except Exception:
+        #     logger.exception('Non-fatal eBay seller-offer sync failure account_id=%s', account.id)
 
         return order_sync_result, order_sync_error
 

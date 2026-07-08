@@ -1,4 +1,5 @@
 from uuid import UUID
+import logging
 
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
@@ -9,7 +10,9 @@ from app.repositories.assignment_repository import AssignmentRepository
 from app.repositories.conversation_category_history_repository import ConversationCategoryHistoryRepository
 from app.repositories.conversation_repository import ConversationRepository
 from app.repositories.conversation_status_history_repository import ConversationStatusHistoryRepository
+from app.modules.integrations.ebay.services.ebay_conversation_offer_resolver import EbayConversationOfferResolver
 
+logger = logging.getLogger(__name__)
 
 class ConversationService:
     def __init__(self, db: Session):
@@ -87,8 +90,19 @@ class ConversationService:
             visible_category_ids=visible_category_ids,
             visibility_user_id=visibility_user_id,
         )
+
         if not conversation:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Conversation not found')
+
+        
+        if conversation and conversation.provider == "EBAY":
+            offers = EbayConversationOfferResolver(self.db).resolve_for_conversation(conversation)
+
+            self.db.commit()
+            self.db.refresh(conversation)
+
+        
+
         return conversation
 
     def mark_read(self, conversation: Conversation) -> Conversation:

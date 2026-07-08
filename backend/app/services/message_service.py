@@ -15,8 +15,21 @@ class MessageService:
         self.conversation_repository = ConversationRepository(db)
 
     def list_messages(self, conversation_id: UUID) -> list[Message]:
-        ConversationService(self.db).get_conversation(conversation_id)
-        return self.repository.list_by_conversation(conversation_id)
+        conversation = ConversationService(self.db).get_conversation(conversation_id)
+        messages = self.repository.list_by_conversation(conversation_id)
+
+        # Safety: never expose offer cards for FROM_EBAY conversations.
+        if (conversation.provider_conversation_type or '').upper() == 'FROM_EBAY':
+            changed = False
+            for message in messages:
+                if getattr(message, 'offer_data', None) is not None:
+                    message.offer_data = None
+                    changed = True
+
+            if changed:
+                self.db.commit()
+
+        return messages
 
     def add_message(self, message: Message) -> Message:
         self.repository.add(message)
