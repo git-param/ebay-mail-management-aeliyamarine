@@ -10,7 +10,6 @@ from app.repositories.assignment_repository import AssignmentRepository
 from app.repositories.conversation_category_history_repository import ConversationCategoryHistoryRepository
 from app.repositories.conversation_repository import ConversationRepository
 from app.repositories.conversation_status_history_repository import ConversationStatusHistoryRepository
-from app.modules.integrations.ebay.services.ebay_conversation_offer_resolver import EbayConversationOfferResolver
 
 logger = logging.getLogger(__name__)
 
@@ -93,14 +92,6 @@ class ConversationService:
 
         if not conversation:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Conversation not found')
-
-        
-        if conversation and conversation.provider == "EBAY":
-            offers = EbayConversationOfferResolver(self.db).resolve_for_conversation(conversation)
-
-            self.db.commit()
-            self.db.refresh(conversation)
-            conversation = self.repository.get_by_id(conversation_id)
 
         return conversation
 

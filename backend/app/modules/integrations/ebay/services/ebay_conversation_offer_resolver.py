@@ -1,13 +1,21 @@
 from decimal import Decimal, InvalidOperation
+import logging
 import re
 
-from sqlalchemy import or_, and_, func,select
+from sqlalchemy import and_, func, or_, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models.conversation import Conversation, Message
 from app.models.ebay_account import EbayAccount
 from app.models.offer import Offer, OfferDirection, OfferStatus
+from app.modules.integrations.ebay.services.ebay_offer_validation import (
+    normalize_extracted_offer,
+    update_missing_offer_fields,
+)
 
+
+logger = logging.getLogger(__name__)
 
 OFFER_PHRASES = (
     "buyer sent an offer",
@@ -66,8 +74,9 @@ class EbayConversationOfferResolver:
 
         reference_id = str(conversation.reference_id or "").strip()
         buyer_identifier = str(conversation.buyer_identifier or "").strip().lower()
+        seen_offer_keys = set()
 
-        # Attach existing synced offers to the opened conversation.
+        # Attach existing synced offers to the synced conversation.
         # This handles offers created from eBay offer APIs where message_id is missing.
         if reference_id and buyer_identifier:
             existing_external_offers = list(
@@ -104,43 +113,65 @@ class EbayConversationOfferResolver:
                 message.offer_data = None
                 continue
 
+            extracted_offer = offer_data
+            offer_data, skip_reason = normalize_extracted_offer(
+                extracted_offer,
+                message=message,
+                account=account,
+                logger=logger,
+            )
+            if skip_reason:
+                self._log_skipped_offer(
+                    skip_reason,
+                    account=account,
+                    conversation=conversation,
+                    message=message,
+                    payload=extracted_offer,
+                )
+                message.offer_data = None
+                continue
+
             provider_offer_id = offer_data["provider_offer_id"]
-            offer = offers_by_provider_id.get(provider_offer_id)
+            offer_key = ("EBAY", str(account.id), str(provider_offer_id))
+            if offer_key in seen_offer_keys:
+                logger.info("Skipping duplicate offer in same conversation parse: %s", offer_key)
+                continue
+            seen_offer_keys.add(offer_key)
 
-            if not offer:
-                offer = self.db.scalar(
-                    select(Offer).where(
-                        Offer.provider == "EBAY",
-                        Offer.account_id == account.id,
-                        Offer.provider_offer_id == provider_offer_id,
-                    )
+            try:
+                offer = self._upsert_offer_from_message(
+                    account=account,
+                    conversation=conversation,
+                    message=message,
+                    offer_data=offer_data,
+                    offers_by_provider_id=offers_by_provider_id,
                 )
-
-            if not offer:
-                offer = Offer(
-                    provider="EBAY",
-                    account_id=account.id,
-                    conversation_id=conversation.id,
-                    message_id=message.id,
-                    provider_offer_id=provider_offer_id,
+            except IntegrityError:
+                self.db.rollback()
+                logger.warning(
+                    "Offer upsert integrity failure but conversation offer resolution will continue. "
+                    "account_id=%s conversation_id=%s message_id=%s provider_offer_id=%s payload=%s",
+                    account.id,
+                    conversation.id,
+                    message.id,
+                    provider_offer_id,
+                    offer_data,
                 )
-                self.db.add(offer)
-                self.db.flush()
-
-            offers_by_provider_id[provider_offer_id] = offer
-
-            offer.conversation_id = conversation.id
-            offer.message_id = message.id
-            offer.listing_id = offer_data["listing_id"]
-            offer.buyer_username = offer_data["buyer_username"]
-            offer.offer_amount = offer_data["offer_amount"]
-            offer.currency = offer_data["currency"]
-            offer.status = offer_data["status"]
-            offer.direction = offer_data["direction"]
-            offer.offer_type = offer_data["offer_type"]
-            offer.quantity = offer_data["quantity"]
-            offer.raw_text = offer_data["raw_text"]
-            offer.raw_payload = offer_data["raw_payload"]
+                message.offer_data = None
+                continue
+            except Exception:
+                self.db.rollback()
+                logger.exception(
+                    "Unexpected offer upsert error but conversation offer resolution will continue. "
+                    "account_id=%s conversation_id=%s message_id=%s provider_offer_id=%s payload=%s",
+                    account.id,
+                    conversation.id,
+                    message.id,
+                    provider_offer_id,
+                    offer_data,
+                )
+                message.offer_data = None
+                continue
 
             message.offer_data = {
                 "provider_offer_id": offer.provider_offer_id,
@@ -169,6 +200,101 @@ class EbayConversationOfferResolver:
             )
         )
 
+    def _upsert_offer_from_message(
+        self,
+        *,
+        account: EbayAccount,
+        conversation: Conversation,
+        message: Message,
+        offer_data: dict,
+        offers_by_provider_id: dict[str, Offer],
+    ) -> Offer:
+        provider_offer_id = offer_data["provider_offer_id"]
+        account_id = account.id
+        conversation_id = conversation.id
+        message_id = message.id
+        offer = offers_by_provider_id.get(provider_offer_id)
+
+        if not offer:
+            offer = self._existing_offer(account_id, provider_offer_id)
+
+        if not offer:
+            offer = Offer(
+                provider="EBAY",
+                account_id=account_id,
+                conversation_id=conversation_id,
+                message_id=message_id,
+                provider_offer_id=provider_offer_id,
+                listing_id=offer_data.get("listing_id"),
+                buyer_username=offer_data.get("buyer_username"),
+                offer_amount=offer_data.get("offer_amount"),
+                currency=offer_data.get("currency"),
+                status=offer_data.get("status"),
+                direction=offer_data.get("direction"),
+                offer_type=offer_data.get("offer_type"),
+                quantity=offer_data.get("quantity"),
+                raw_text=offer_data.get("raw_text"),
+                raw_payload=offer_data.get("raw_payload"),
+            )
+            self.db.add(offer)
+            try:
+                self.db.flush()
+            except IntegrityError:
+                self.db.rollback()
+                offer = self._existing_offer(account_id, provider_offer_id)
+                if not offer:
+                    raise
+                logger.info(
+                    "Recovered existing eBay offer after duplicate insert race account_id=%s "
+                    "conversation_id=%s message_id=%s provider_offer_id=%s",
+                    account_id,
+                    conversation_id,
+                    message_id,
+                    provider_offer_id,
+                )
+                offer.conversation_id = conversation_id
+                offer.message_id = message_id
+                update_missing_offer_fields(offer, offer_data)
+        else:
+            offer.conversation_id = conversation_id
+            offer.message_id = message_id
+            update_missing_offer_fields(offer, offer_data)
+
+        offers_by_provider_id[provider_offer_id] = offer
+        self.db.flush()
+        return offer
+
+    def _existing_offer(self, account_id, provider_offer_id: str) -> Offer | None:
+        return (
+            self.db.query(Offer)
+            .filter(
+                Offer.provider == "EBAY",
+                Offer.account_id == account_id,
+                Offer.provider_offer_id == provider_offer_id,
+            )
+            .first()
+        )
+
+    def _log_skipped_offer(
+        self,
+        reason: str,
+        *,
+        account: EbayAccount,
+        conversation: Conversation,
+        message: Message,
+        payload: dict | None,
+    ) -> None:
+        logger.warning(
+            "Skipping incomplete eBay offer. reason=%s account_id=%s conversation_id=%s "
+            "message_id=%s provider_offer_id=%s payload=%s",
+            reason,
+            account.id,
+            conversation.id,
+            message.id,
+            payload.get("provider_offer_id") if payload else None,
+            payload,
+        )
+
     def _can_process(self, conversation: Conversation) -> bool:
         if not conversation:
             return False
@@ -188,16 +314,6 @@ class EbayConversationOfferResolver:
 
     def _extract_from_message(self, message: Message, conversation: Conversation, account: EbayAccount) -> dict | None:
         raw_payload = message.raw_payload if isinstance(message.raw_payload, dict) else {}
-
-        sender = str(
-            raw_payload.get("senderUsername")
-            or raw_payload.get("sender_username")
-            or message.sender_identifier
-            or ""
-        ).strip().lower()
-
-        # if sender == "ebay":
-        #     return None
 
         body = str(message.body or "")
 
@@ -241,8 +357,8 @@ class EbayConversationOfferResolver:
         return {
             "provider_offer_id": str(
                 raw_payload.get("offerId")
-                or raw_payload.get("offer_id")
                 or raw_payload.get("messageId")
+                or raw_payload.get("message_id")
                 or message.provider_message_id
                 or f"msg:{message.id}"
             ),
@@ -297,7 +413,7 @@ class EbayConversationOfferResolver:
         return None, None
 
     def _listing_id(self, payload: dict, subject: str, conversation: Conversation, text: str | None = None) -> str | None:
-        for key in ("itemId", "item_id", "listingId", "listing_id"):
+        for key in ("itemId", "listingId", "item_id"):
             value = payload.get(key)
             if self._valid_listing_id(value):
                 return str(value)
@@ -329,10 +445,9 @@ class EbayConversationOfferResolver:
         conversation: Conversation,
         account: EbayAccount,
     ) -> str | None:
-        for key in ("buyerUsername", "buyer_username", "buyer"):
-            value = payload.get(key)
-            if value and str(value).strip().lower() != "ebay":
-                return str(value).strip()
+        buyer = payload.get("buyerUsername")
+        if buyer and str(buyer).strip().lower() != "ebay":
+            return str(buyer).strip()
 
         seller = str(account.ebay_username or "").strip().lower()
 
@@ -357,8 +472,22 @@ class EbayConversationOfferResolver:
         return OfferStatus.PENDING
 
     def _direction(self, lower: str, message: Message) -> str:
-        if "you sent" in lower:
+        if any(phrase in lower for phrase in ("you sent", "submitted to buyer", "offer submitted to")):
             return OfferDirection.OUTGOING
+        if any(
+            phrase in lower
+            for phrase in (
+                "buyer sent",
+                "buyer made",
+                "you have a new offer",
+                "new offer for",
+                "offer from",
+                "accepted an offer",
+                "accepted your offer",
+                "buyer accepted",
+            )
+        ):
+            return OfferDirection.INCOMING
         return OfferDirection.INCOMING if message.is_inbound else OfferDirection.OUTGOING
 
     def _offer_type(self, lower: str) -> str:

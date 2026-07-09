@@ -612,23 +612,72 @@ function formatCurrency(amount, currency = 'USD') {
   }
 }
 
-function getOfferLabel(offer, isSellerOffer) {
+function offerTimestamp(offer) {
+  return offer?.created_at || offer?.created_date || offer?.sent_at || offer?.updated_at || null
+}
+
+function offerNotificationText(message) {
+  return String(message?.body || message?.message || message?.text || '').replace(/\s+/g, ' ').trim()
+}
+
+function isOfferNotificationText(value) {
+  const lower = String(value || '').toLowerCase()
+  return lower.includes('offer') || lower.includes('counteroffer')
+}
+
+function extractOfferAmountFromText(value) {
+  const match = String(value || '').match(/(?:USD|EUR|GBP|AUD|CAD|JPY|INR|US)?\s*\$?\s*([\d,]+(?:\.\d{1,2})?)/i)
+  if (!match) return null
+  const amount = Number(match[1].replace(/,/g, ''))
+  return Number.isNaN(amount) ? null : amount
+}
+
+function directionFromOfferNotification(message, fallbackOffer) {
+  const lower = offerNotificationText(message).toLowerCase()
+  if (lower.includes('accepted')) return 'INCOMING'
+  if (lower.includes('you sent') || lower.includes('submitted to buyer')) return 'OUTGOING'
+  if (lower.includes('buyer sent') || lower.includes('buyer made') || lower.includes('new offer')) return 'INCOMING'
+  if (message?.is_inbound === true) return 'INCOMING'
+  if (message?.is_inbound === false) return 'OUTGOING'
+  return fallbackOffer?.direction || 'INCOMING'
+}
+
+function typeFromOfferNotification(message, fallbackOffer) {
+  const lower = offerNotificationText(message).toLowerCase()
+  if (lower.includes('accepted')) return 'ACCEPTED_OFFER'
+  if (lower.includes('counteroffer')) {
+    return directionFromOfferNotification(message, fallbackOffer) === 'OUTGOING'
+      ? 'SELLER_COUNTEROFFER'
+      : 'BUYER_COUNTEROFFER'
+  }
+  return fallbackOffer?.offer_type || 'BUYER_OFFER'
+}
+
+function statusFromOfferNotification(message, fallbackOffer) {
+  const lower = offerNotificationText(message).toLowerCase()
+  if (lower.includes('accepted')) return 'ACCEPTED'
+  if (lower.includes('declined')) return 'DECLINED'
+  if (lower.includes('expired')) return 'EXPIRED'
+  return fallbackOffer?.status || 'PENDING'
+}
+
+function getOfferLabel(offer, isSellerOffer, buyerName) {
   const status = String(offer.status || '').toUpperCase()
   const type = String(offer.offer_type || offer.type || '').toUpperCase()
 
   if (status === 'ACCEPTED' || type.includes('ACCEPTED')) {
-    return 'accepted an offer'
+    return `${buyerName} accepted an offer`
   }
 
   if (isSellerOffer) {
-    return 'sent a counteroffer'
+    return type.includes('COUNTER') ? 'You sent a counteroffer' : 'You sent an offer'
   }
 
   if (type.includes('COUNTER')) {
-    return 'sent a counteroffer'
+    return `${buyerName} sent a counteroffer`
   }
 
-  return 'sent an offer'
+  return `${buyerName} sent an offer`
 }
 
 
@@ -640,35 +689,36 @@ function OfferEvent({ offer, conversation }) {
   const offerType = String(offer.offer_type || offer.type || '').toUpperCase()
   const status = String(offer.status || '').toUpperCase()
 
-  const isOutgoing = direction === 'OUTGOING'
   const isAccepted = status === 'ACCEPTED' || offerType.includes('ACCEPTED')
+  const isOutgoing = !isAccepted && ['OUTGOING', 'SELLER_TO_BUYER'].includes(direction)
+  const isIncoming = isAccepted || ['INCOMING', 'BUYER_TO_SELLER'].includes(direction)
+  const isNeutral = !isOutgoing && !isIncoming
   const isExpired = status === 'EXPIRED'
   const isDeclined = status === 'DECLINED'
 
   const buyerName = offer.buyer_username || conversation?.buyer_identifier || 'Buyer'
-
-  let label = `${buyerName} sent an offer`
-  if (isOutgoing && offerType.includes('COUNTER')) label = 'You sent a counteroffer'
-  else if (isOutgoing) label = 'You sent an offer'
-  else if (!isOutgoing && offerType.includes('COUNTER')) label = `${buyerName} sent a counteroffer`
-  else if (isAccepted) label = `${buyerName} accepted an offer`
-  else if (isExpired) label = 'Offer expired'
-  else if (isDeclined) label = 'Offer declined'
+  const label = isExpired
+    ? 'Offer expired'
+    : isDeclined
+      ? 'Offer declined'
+      : getOfferLabel(offer, isOutgoing, buyerName)
 
   const rawAmount = offer.offer_amount ?? offer.amount
   const amountNumber = rawAmount == null ? null : Number(rawAmount)
-  const amount = amountNumber == null || Number.isNaN(amountNumber)
-    ? ''
-    : amountNumber.toLocaleString(undefined, {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-      })
+  const amount = amountNumber == null || Number.isNaN(amountNumber) ? '' : formatCurrency(amountNumber, offer.currency || 'USD')
 
   return (
-    <div className={`offer-chat-row ${isOutgoing ? 'offer-chat-row-outgoing' : 'offer-chat-row-incoming'}`}>
-      {!isOutgoing ? (
-        <div className="offer-avatar">
-          {(buyerName || 'B').slice(0, 1).toUpperCase()}
+    <div
+      className={[
+        'offer-chat-row',
+        isOutgoing ? 'offer-chat-row-outgoing' : '',
+        isIncoming ? 'offer-chat-row-incoming' : '',
+        isNeutral ? 'offer-chat-row-neutral' : '',
+      ].filter(Boolean).join(' ')}
+    >
+      {isIncoming ? (
+        <div className={`offer-avatar ${isAccepted ? 'offer-avatar-accepted' : ''}`}>
+          {isAccepted ? <span className="offer-check-mark" aria-hidden="true" /> : (buyerName || 'B').slice(0, 1).toUpperCase()}
         </div>
       ) : null}
 
@@ -686,7 +736,7 @@ function OfferEvent({ offer, conversation }) {
 
           {amount ? (
             <strong className="offer-chat-amount">
-              ${amount}
+              {amount}
             </strong>
           ) : null}
 
@@ -696,11 +746,32 @@ function OfferEvent({ offer, conversation }) {
         </article>
 
         <time className="offer-chat-time">
-          {formatDate(offer.created_at || offer.created_date || offer.sent_at)}
+          {formatDate(offerTimestamp(offer))}
         </time>
       </div>
     </div>
   )
+}
+
+function offerFromNotificationMessage(message, matchedOffer, conversation) {
+  const textAmount = extractOfferAmountFromText(offerNotificationText(message))
+  const direction = directionFromOfferNotification(message, matchedOffer)
+  return {
+    ...(matchedOffer || {}),
+    id: matchedOffer?.id || `notification-offer-${message.id}`,
+    provider_offer_id: matchedOffer?.provider_offer_id || message.provider_message_id,
+    offer_amount: matchedOffer?.offer_amount ?? matchedOffer?.amount ?? textAmount,
+    currency: matchedOffer?.currency || 'USD',
+    status: statusFromOfferNotification(message, matchedOffer),
+    direction,
+    offer_type: typeFromOfferNotification(message, matchedOffer),
+    buyer_username:
+      matchedOffer?.buyer_username ||
+      conversation?.buyer_identifier ||
+      message.sender_identifier,
+    created_at: message.sent_at || message.created_at || message.created_date,
+    created_date: message.sent_at || message.created_at || message.created_date,
+  }
 }
 
 // ============================================
@@ -733,7 +804,6 @@ function MessageThread({ messages, offers = [], isSystemConversation, conversati
 
   const offersByMessageId = useMemo(() => {
     const grouped = new Map()
-    const seen = new Set()
 
     if (isSystemConversation || conversation?.provider_conversation_type === 'FROM_EBAY') {
       return grouped
@@ -741,15 +811,6 @@ function MessageThread({ messages, offers = [], isSystemConversation, conversati
 
     const addOffer = (messageId, offer) => {
       if (!messageId || !offer) return
-
-      const key = String(
-        offer.provider_offer_id ||
-        offer.id ||
-        `${messageId}:${offer.offer_amount || offer.amount}:${offer.status}:${offer.direction}`
-      )
-
-      if (seen.has(key)) return
-      seen.add(key)
 
       const current = grouped.get(messageId) || []
       grouped.set(messageId, [...current, offer])
@@ -781,6 +842,90 @@ function MessageThread({ messages, offers = [], isSystemConversation, conversati
     return grouped
   }, [messages, offers, conversation, isSystemConversation])
 
+  const structuredOffers = useMemo(() => {
+    if (isSystemConversation || conversation?.provider_conversation_type === 'FROM_EBAY') {
+      return []
+    }
+
+    const seen = new Set()
+    const items = []
+
+    const addOffer = (offer, sourceMessage = null) => {
+      if (!offer) return
+      const key = String(
+        offer.provider_offer_id ||
+        offer.id ||
+        `${sourceMessage?.id || 'top'}:${offer.offer_amount || offer.amount}:${offer.status}:${offer.direction}:${offerTimestamp(offer) || sourceMessage?.sent_at || ''}`
+      )
+      if (seen.has(key)) return
+      seen.add(key)
+      items.push({
+        ...offer,
+        id: offer.id || `offer-${key}`,
+        message_id: offer.message_id || offer.messageId || offer.source_message_id || sourceMessage?.id,
+        created_at: offerTimestamp(offer) || sourceMessage?.sent_at || sourceMessage?.created_at || sourceMessage?.created_date,
+        created_date: offer.created_date || offerTimestamp(offer) || sourceMessage?.sent_at || sourceMessage?.created_at || sourceMessage?.created_date,
+        buyer_username:
+          offer.buyer_username ||
+          conversation?.buyer_identifier ||
+          sourceMessage?.sender_identifier,
+      })
+    }
+
+    messages.forEach((message) => {
+      if (message.offer_data) {
+        addOffer(message.offer_data, message)
+      }
+      ;(message.offers || []).forEach((offer) => addOffer(offer, message))
+    })
+    ;(offers || []).forEach((offer) => addOffer(offer))
+
+    return items
+  }, [messages, offers, conversation, isSystemConversation])
+
+  const structuredOfferKeys = useMemo(() => {
+    return new Set(
+      structuredOffers
+        .map((offer) => String(offer.provider_offer_id || offer.id || ''))
+        .filter(Boolean)
+    )
+  }, [structuredOffers])
+
+  const unlinkedStructuredOffers = useMemo(() => {
+    const messageIds = new Set(messages.map((message) => message.id))
+    return structuredOffers.filter((offer) => !offer.message_id || !messageIds.has(offer.message_id))
+  }, [structuredOffers, messages])
+
+  const offerNotificationAssignments = useMemo(() => {
+    const assigned = new Map()
+    const usedOfferKeys = new Set()
+    const offerMessages = messages.filter((message) => (
+      isEbayNotificationMessage(message) && isOfferNotificationText(offerNotificationText(message))
+    ))
+
+    offerMessages.forEach((message) => {
+      const textAmount = extractOfferAmountFromText(offerNotificationText(message))
+      const match = unlinkedStructuredOffers.find((offer) => {
+        const key = String(offer.provider_offer_id || offer.id || '')
+        if (key && usedOfferKeys.has(key)) return false
+        const offerAmount = Number(offer.offer_amount ?? offer.amount)
+        if (textAmount !== null && !Number.isNaN(offerAmount)) {
+          return Math.abs(offerAmount - textAmount) < 0.01
+        }
+        return true
+      })
+
+      if (match) {
+        const key = String(match.provider_offer_id || match.id || '')
+        if (key) usedOfferKeys.add(key)
+      }
+
+      assigned.set(message.id, offerFromNotificationMessage(message, match, conversation))
+    })
+
+    return assigned
+  }, [messages, unlinkedStructuredOffers, conversation])
+
   if (!messages.length) {
     return <EmptyPanel title="No messages yet" message="This conversation has no stored message bodies." />
   }
@@ -789,7 +934,13 @@ function MessageThread({ messages, offers = [], isSystemConversation, conversati
     <div className="message-thread" ref={threadRef}>
       {messages.map((message, index) => {
         const messageOffers = offersByMessageId.get(message.id) || []
-        const isOfferNotification = messageOffers.length > 0
+        const visibleMessageOffers = messageOffers.filter((offer) => {
+          const key = String(offer.provider_offer_id || offer.id || '')
+          return !key || structuredOfferKeys.has(key)
+        })
+        const notificationOffer = offerNotificationAssignments.get(message.id)
+        const displayOffers = notificationOffer ? [notificationOffer] : visibleMessageOffers
+        const isOfferNotification = displayOffers.length > 0
 
         const isSystem = isEbayNotificationMessage(message)
         const direction = isSystem ? 'system' : message.is_inbound ? 'inbound' : 'outbound'
@@ -800,12 +951,12 @@ function MessageThread({ messages, offers = [], isSystemConversation, conversati
         if (isOfferNotification) {
           return (
             <div className="offer-message-slot" key={message.id || index}>
-              {messageOffers.map((offer, offerIndex) => (
+              {displayOffers.map((offer, offerIndex) => (
                 <OfferEvent
                   offer={{
                     ...offer,
-                    created_at: offer.created_at || message.sent_at || message.created_at || message.created_date,
-                    created_date: offer.created_date || message.sent_at || message.created_at || message.created_date,
+                    created_at: message.sent_at || message.created_at || message.created_date || offer.created_at,
+                    created_date: message.sent_at || message.created_at || message.created_date || offer.created_date,
                     buyer_username:
                       offer.buyer_username ||
                       conversation?.buyer_identifier ||

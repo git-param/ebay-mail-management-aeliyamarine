@@ -14,6 +14,7 @@ from app.modules.integrations.ebay.oauth.token_service import EbayTokenService
 from app.modules.integrations.ebay.providers import EBAY_PROVIDER_NAME
 from app.modules.integrations.ebay.services.ebay_message_service import EbayMessageService
 from app.modules.integrations.ebay.services.ebay_best_offer_sync_service import EbayBestOfferSyncService
+from app.modules.integrations.ebay.services.ebay_conversation_offer_resolver import EbayConversationOfferResolver
 from app.modules.integrations.ebay.services.ebay_order_sync_service import EbayOrderSyncService
 from app.services.ebay_api_usage_service import EbayApiUsageService
 from app.services.conversation_product_context_service import ConversationProductContextService
@@ -22,16 +23,6 @@ from app.services.sync_log_service import SyncLogService
 from app.modules.integrations.ebay.services.ebay_seller_offer_sync_service import EbaySellerOfferSyncService
 
 logger = logging.getLogger(__name__)
-
-try:
-    from app.modules.integrations.ebay.services.ebay_seller_offer_sync_service import EbaySellerOfferSyncService
-    logger.warning("✅ EbaySellerOfferSyncService imported successfully")
-except ImportError as e:
-    logger.error("❌ Failed to import EbaySellerOfferSyncService: %s", e)
-    raise
-
-
-
 
 EBAY_MESSAGE_SYNC_TYPE = 'EBAY_MESSAGE_SYNC'
 EBAY_CONVERSATION_TYPES = ('FROM_MEMBERS', 'FROM_EBAY')
@@ -68,6 +59,7 @@ class EbaySyncService:
         self.product_context_service = ConversationProductContextService(db)
         self.best_offer_sync_service = EbayBestOfferSyncService(db)
         self.seller_offer_sync_service = EbaySellerOfferSyncService(db)
+        self.conversation_offer_resolver = EbayConversationOfferResolver(db)
         logger.warning("✅ EbaySyncService initialized with seller_offer_sync_service")
 
     # ebay_sync_service.py - Refactored version
@@ -260,6 +252,7 @@ class EbaySyncService:
                 conversation=conversation,
                 conversation_detail=conversation_detail,
             )
+            self.conversation_offer_resolver.resolve_for_conversation(conversation)
             
             counters['conversations_processed'] += 1
             if created:

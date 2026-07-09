@@ -4,12 +4,17 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models.conversation import Conversation, Message, MessageSenderType
 from app.models.ebay_account import EbayAccount
-from app.models.offer import Offer, OfferDirection, OfferStatus
+from app.models.offer import Offer, OfferStatus
+from app.modules.integrations.ebay.services.ebay_offer_validation import (
+    normalize_extracted_offer,
+    update_missing_offer_fields,
+)
 from app.modules.integrations.ebay.oauth.token_service import EbayTokenService
 from app.services.ebay_api_usage_service import EbayApiUsageService
 
@@ -359,8 +364,6 @@ class EbaySellerOfferSyncService:
         if not item_id and not buyer:
             return None
         
-        from sqlalchemy import or_
-        
         statement = select(Conversation).where(
             Conversation.provider_account_id == account_id
         )
@@ -388,8 +391,6 @@ class EbaySellerOfferSyncService:
         if not item_id:
             return None
         
-        from sqlalchemy import or_
-        
         statement = select(Conversation).where(
             Conversation.provider_account_id == account_id,
             or_(
@@ -402,49 +403,98 @@ class EbaySellerOfferSyncService:
     
     def _upsert_offer(self, account_id: UUID, conversation_id: UUID, offer_data: dict, raw_msg: dict):
         """Create or update Offer record - check existing first."""
-        provider_offer_id = raw_msg.get('message_id')
-        if not provider_offer_id:
-            return
-
-        # Check if offer already exists
-        existing = self.db.scalar(
-            select(Offer).where(
-                Offer.provider_offer_id == provider_offer_id,
-                Offer.account_id == account_id,
+        extracted_offer = {
+            "provider_offer_id": raw_msg.get("message_id"),
+            "listing_id": offer_data.get("item_id"),
+            "buyer_username": offer_data.get("buyer"),
+            "offer_amount": offer_data.get("amount"),
+            "currency": offer_data.get("currency"),
+            "status": offer_data.get("status"),
+            "direction": offer_data.get("direction"),
+            "offer_type": offer_data.get("offer_type"),
+            "quantity": offer_data.get("quantity"),
+            "raw_text": raw_msg.get("subject") or offer_data.get("item_title"),
+            "created_at": datetime.now(UTC),
+            "raw_payload": raw_msg,
+        }
+        normalized_offer, skip_reason = normalize_extracted_offer(
+            extracted_offer,
+            account=self.db.get(EbayAccount, account_id),
+            logger=logger,
+        )
+        if skip_reason:
+            logger.warning(
+                "Skipping incomplete seller offer. reason=%s account_id=%s conversation_id=%s "
+                "message_id=%s provider_offer_id=%s payload=%s",
+                skip_reason,
+                account_id,
+                conversation_id,
+                raw_msg.get("message_id"),
+                extracted_offer.get("provider_offer_id"),
+                extracted_offer,
             )
-        )
-
-        if existing:
-            # Update existing offer
-            if offer_data.get('status'):
-                existing.status = offer_data['status']
-            existing.raw_payload = raw_msg
-            if offer_data.get('buyer'):
-                existing.buyer_username = offer_data['buyer']
-            logger.debug(f"Updated existing offer: {provider_offer_id}")
             return
 
-        # Create new offer
-        direction = OfferDirection.OUTGOING if offer_data.get('direction') == 'OUTGOING' else OfferDirection.INCOMING
-        offer = Offer(
-            provider="EBAY",
-            account_id=account_id,
-            conversation_id=conversation_id,
-            provider_offer_id=provider_offer_id,
-            listing_id=offer_data.get('item_id'),
-            buyer_username=offer_data.get('buyer'),
-            offer_amount=offer_data.get('amount'),
-            currency=offer_data.get('currency', 'USD'),
-            status=offer_data.get('status', OfferStatus.PENDING),
-            direction=direction,
-            offer_type=offer_data.get('offer_type', 'OFFER'),
-            raw_text=raw_msg.get('subject') or offer_data.get('item_title'),
-            created_at=datetime.now(UTC),
-            raw_payload=raw_msg,
-        )
-        self.db.add(offer)
-        logger.debug(f"Created new offer: {provider_offer_id}")
-    
+        provider_offer_id = normalized_offer["provider_offer_id"]
+
+        try:
+            # Check if offer already exists
+            existing = self.db.scalar(
+                select(Offer).where(
+                    Offer.provider_offer_id == provider_offer_id,
+                    Offer.account_id == account_id,
+                )
+            )
+
+            if existing:
+                update_missing_offer_fields(existing, normalized_offer)
+                logger.debug(f"Updated existing offer: {provider_offer_id}")
+                return
+
+            # Create new offer only after validation has populated required fields.
+            offer = Offer(
+                provider="EBAY",
+                account_id=account_id,
+                conversation_id=conversation_id,
+                provider_offer_id=provider_offer_id,
+                listing_id=normalized_offer.get("listing_id"),
+                buyer_username=normalized_offer.get("buyer_username"),
+                offer_amount=normalized_offer.get("offer_amount"),
+                currency=normalized_offer.get("currency"),
+                status=normalized_offer.get("status"),
+                direction=normalized_offer.get("direction"),
+                offer_type=normalized_offer.get("offer_type") or "OFFER",
+                quantity=normalized_offer.get("quantity"),
+                raw_text=normalized_offer.get("raw_text"),
+                created_at=normalized_offer.get("created_at") or datetime.now(UTC),
+                raw_payload=normalized_offer.get("raw_payload"),
+            )
+            self.db.add(offer)
+            self.db.flush()
+            logger.debug(f"Created new offer: {provider_offer_id}")
+        except IntegrityError:
+            self.db.rollback()
+            logger.exception(
+                "Seller offer upsert failed but sync will continue. account_id=%s conversation_id=%s "
+                "message_id=%s provider_offer_id=%s payload=%s",
+                account_id,
+                conversation_id,
+                raw_msg.get("message_id"),
+                provider_offer_id,
+                extracted_offer,
+            )
+        except Exception:
+            self.db.rollback()
+            logger.exception(
+                "Unexpected seller offer upsert error but sync will continue. account_id=%s conversation_id=%s "
+                "message_id=%s provider_offer_id=%s payload=%s",
+                account_id,
+                conversation_id,
+                raw_msg.get("message_id"),
+                provider_offer_id,
+                extracted_offer,
+            )
+
     def _parse_datetime(self, value: str | None) -> datetime | None:
         if not value:
             return None
