@@ -17,6 +17,7 @@ from app.modules.integrations.ebay.services.ebay_offer_validation import (
 from app.models.order_context import ConversationProductContext
 from app.modules.integrations.ebay.oauth.token_service import EbayTokenService
 from app.services.ebay_api_usage_service import EbayApiUsageService
+from app.services.offer_consistency_service import OfferConsistencyService
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +38,7 @@ class EbayBestOfferSyncService:
             account = self.tokens.refresh_access_token(account.id)
 
         created = updated = linked = 0
+        touched_conversation_ids = set()
         page = 1
         while True:
             self.api_usage.reserve_calls(1)
@@ -79,6 +81,11 @@ class EbayBestOfferSyncService:
                         conversation = None
 
                     result, was_created = self._upsert(account, raw, conversation)
+                    touched_conversation_ids.update(
+                        value
+                        for value in (getattr(conversation, "id", None), result.conversation_id)
+                        if value
+                    )
 
                     created += int(was_created)
                     updated += int(not was_created)
@@ -136,6 +143,7 @@ class EbayBestOfferSyncService:
             if page >= int(payload.get('totalPages') or 1):
                 break
             page += 1
+        OfferConsistencyService(self.db).sync_conversations(touched_conversation_ids)
         if commit:
             self.db.commit()
         else:
@@ -232,10 +240,11 @@ class EbayBestOfferSyncService:
         )
 
         if created and conversation:
+            offer_text = (offer.raw_text or "").strip()
             matching_message = next((
                 message for message in reversed(conversation.messages)
                 if message.is_inbound
-                and (not offer.message or message.body.strip() == offer.message.strip())
+                and (not offer_text or message.body.strip() == offer_text)
             ), None)
             if matching_message:
                 offer.created_at = matching_message.sent_at
@@ -296,14 +305,7 @@ class EbayBestOfferSyncService:
                         )
                         self.db.add(seller_message)
                         
-                        # Also store the offer details in the message metadata
-                        seller_message.offer_data = {
-                            'type': 'SELLER_OFFER',
-                            'amount': float(seller_response.get('amount', 0)),
-                            'status': seller_response.get('status', 'PENDING'),
-                            'currency': seller_response.get('currency', 'USD'),
-                            'message': seller_response.get('message', ''),
-                        }
+                        seller_message.offer_data = None
                         logger.warning(
                             'Created seller offer response message for conversation %s offer %s',
                             offer.conversation_id,

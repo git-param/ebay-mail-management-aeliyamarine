@@ -17,6 +17,7 @@ from app.modules.integrations.ebay.services.ebay_offer_validation import (
 )
 from app.modules.integrations.ebay.oauth.token_service import EbayTokenService
 from app.services.ebay_api_usage_service import EbayApiUsageService
+from app.services.offer_consistency_service import OfferConsistencyService
 
 logger = logging.getLogger(__name__)
 
@@ -100,6 +101,7 @@ class EbaySellerOfferSyncService:
         created = 0
         updated = 0
         matched = 0
+        touched_conversation_ids = set()
         
         for msg in messages:
             subject = msg.get('subject', '')
@@ -165,6 +167,7 @@ class EbaySellerOfferSyncService:
             
             # Build message body
             body = self._build_offer_message_body(offer_data, subject)
+            buyer_username = offer_data.get('buyer') or conversation.buyer_identifier
             logger.warning(f"📝 Creating/updating message: {body[:100]}...")
             
             # *** FIX: Proper UPSERT logic ***
@@ -183,15 +186,15 @@ class EbaySellerOfferSyncService:
                 existing.body = body
                 existing.sent_at = sent_at
                 existing.raw_payload = msg
+                existing.offer_data = {'notification_type': 'OFFER'}
                 if existing.conversation_id != conversation.id:
                     existing.conversation_id = conversation.id
+                offer_message = existing
                 updated += 1
             else:
                 # ✅ INSERT: Create new message
                 logger.warning(f"✨ Creating new message: {message_id}")
                 is_inbound = offer_data.get('direction') == 'INCOMING'
-                buyer_username = offer_data.get('buyer') or conversation.buyer_identifier
-
                 message = Message(
                     conversation_id=conversation.id,
                     provider='EBAY',
@@ -203,33 +206,30 @@ class EbaySellerOfferSyncService:
                     is_inbound=is_inbound,
                     sent_at=sent_at,
                     raw_payload=msg,
-                    offer_data={
-                        'type': offer_data.get('offer_type'),
-                        'amount': str(offer_data.get('amount')) if offer_data.get('amount') is not None else None,
-                        'currency': offer_data.get('currency', 'USD'),
-                        'status': offer_data.get('status').value if hasattr(offer_data.get('status'), 'value') else str(offer_data.get('status') or 'PENDING'),
-                        'display_type': offer_data.get('display_type'),
-                        'direction': offer_data.get('direction'),
-                        'buyer_username': buyer_username,
-                    },
+                    offer_data={'notification_type': 'OFFER'},
                 )
                 
                 self.db.add(message)
+                self.db.flush()
+                offer_message = message
                 created += 1
                 
 
-                self._upsert_offer(
-                    account_id=account.id,
-                    conversation_id=conversation.id,
-                    offer_data={
-                        **offer_data,
-                        'buyer': buyer_username,
-                    },
-                    raw_msg=msg,
-                )
+            self._upsert_offer(
+                account_id=account.id,
+                conversation_id=conversation.id,
+                offer_data={
+                    **offer_data,
+                    'buyer': buyer_username,
+                },
+                raw_msg=msg,
+                message_id=offer_message.id,
+            )
+            touched_conversation_ids.add(conversation.id)
         
         logger.warning(f"📊 Final results: created={created}, updated={updated}, matched={matched}")
         
+        OfferConsistencyService(self.db).sync_conversations(touched_conversation_ids)
         if commit:
             logger.warning("💾 Committing to database...")
             self.db.commit()
@@ -401,7 +401,7 @@ class EbaySellerOfferSyncService:
         
         return self.db.scalar(statement.limit(1))
     
-    def _upsert_offer(self, account_id: UUID, conversation_id: UUID, offer_data: dict, raw_msg: dict):
+    def _upsert_offer(self, account_id: UUID, conversation_id: UUID, offer_data: dict, raw_msg: dict, message_id: UUID | None = None):
         """Create or update Offer record - check existing first."""
         extracted_offer = {
             "provider_offer_id": raw_msg.get("message_id"),
@@ -447,6 +447,8 @@ class EbaySellerOfferSyncService:
             )
 
             if existing:
+                existing.conversation_id = conversation_id
+                existing.message_id = message_id
                 update_missing_offer_fields(existing, normalized_offer)
                 logger.debug(f"Updated existing offer: {provider_offer_id}")
                 return
@@ -456,6 +458,7 @@ class EbaySellerOfferSyncService:
                 provider="EBAY",
                 account_id=account_id,
                 conversation_id=conversation_id,
+                message_id=message_id,
                 provider_offer_id=provider_offer_id,
                 listing_id=normalized_offer.get("listing_id"),
                 buyer_username=normalized_offer.get("buyer_username"),

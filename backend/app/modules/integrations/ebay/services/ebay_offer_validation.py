@@ -19,7 +19,18 @@ OFFER_UPDATE_FIELDS = (
     "quantity",
     "raw_text",
     "raw_payload",
+    "expires_at",
+    "created_at_provider",
 )
+OFFER_ALWAYS_UPDATE_FIELDS = {
+    "offer_amount",
+    "status",
+    "direction",
+    "offer_type",
+    "quantity",
+    "expires_at",
+    "raw_payload",
+}
 
 
 def infer_offer_direction(message: Any = None, account: Any = None) -> str | None:
@@ -101,7 +112,7 @@ def update_missing_offer_fields(
         value = offer_data.get(field)
         if value is None:
             continue
-        if field == "direction":
+        if field in OFFER_ALWAYS_UPDATE_FIELDS:
             setattr(offer, field, value)
         elif getattr(offer, field, None) in (None, ""):
             setattr(offer, field, value)

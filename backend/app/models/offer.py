@@ -40,7 +40,7 @@ class Offer(Base):
 
     provider: Mapped[str] = mapped_column(String(50), nullable=False, default="EBAY")
     account_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("ebay_accounts.id"), nullable=False, index=True)
-    conversation_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("conversations.id"), nullable=False, index=True)
+    conversation_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("conversations.id"), nullable=True, index=True)
     message_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("messages.id"), nullable=True, index=True)
 
     provider_offer_id: Mapped[str] = mapped_column(String(255), nullable=False, index=True)

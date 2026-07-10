@@ -14,6 +14,7 @@ from app.db.session import get_db
 from app.models.category import Category, CategoryUserAssignment
 from app.models.conversation import Conversation, ConversationAssignment, ConversationNote, ConversationStatus, Message, MessageAttachment
 from app.models.ebay_account import EbayAccount
+from app.models.offer import Offer
 from app.models.user import User
 from app.schemas.conversation import (
     AssignConversationRequest,
@@ -49,6 +50,7 @@ from app.services.message_service import MessageService
 from app.services.message_type_detection_service import MessageTypeDetectionService
 from app.services.ebay_reply_service import EbayReplyService
 from app.services.notification_service import NotificationService
+from app.services.offer_consistency_service import OfferConsistencyService
 from app.services.order_context_service import OrderContextService
 from app.services.reply_attachment_service import ReplyAttachmentService
 from app.services.translation_service import TranslationService
@@ -182,6 +184,7 @@ def serialize_conversation(
     product_context: dict | None = None,
     order_context: dict | None = None,
     suggested_message_type_id: UUID | None = None,
+    offers: list[Offer] | None = None,
 ) -> ConversationDetailResponse:
     """
     Serialize a full conversation with messages, notes, assignment, and audit-derived indicators.
@@ -225,6 +228,7 @@ def serialize_conversation(
         status=conversation.status,
         category_id=conversation.category_id,
         category_manually_selected=conversation.category_manually_selected,
+        has_offers=conversation.has_offers,
         category=serialize_category_brief(conversation.category) if conversation.category else None,
         last_message_at=conversation.last_message_at,
         external_created_at=conversation.external_created_at,
@@ -234,7 +238,7 @@ def serialize_conversation(
         seller_account=serialize_ebay_account_brief(seller_account) if seller_account else None,
         current_assignee_id=current_assignee_id,
         messages=[serialize_message(message) for message in conversation.messages],
-        offers=list(conversation.offers),
+        offers=offers or [],
         assignments=assignments,
         notes=[serialize_note(note) for note in conversation.notes],
         product_context=product_context,
@@ -287,6 +291,7 @@ def serialize_conversation_summary(
         status=conversation.status,
         category_id=conversation.category_id,
         category_manually_selected=conversation.category_manually_selected,
+        has_offers=conversation.has_offers,
         category=serialize_category_brief(conversation.category) if conversation.category else None,
         last_message_at=conversation.last_message_at,
         external_created_at=conversation.external_created_at,
@@ -300,6 +305,7 @@ def serialize_conversation_summary(
 def serialize_message(message: Message) -> MessageResponse:
     """Serialize a message with attachments and delivery warnings."""
     raw_payload = message.raw_payload if isinstance(message.raw_payload, dict) else {}
+    offer_data = message.offer_data if isinstance(message.offer_data, dict) else {}
     return MessageResponse(
         id=message.id,
         conversation_id=message.conversation_id,
@@ -315,7 +321,24 @@ def serialize_message(message: Message) -> MessageResponse:
         created_at=message.created_at,
         attachments=[serialize_attachment(attachment) for attachment in message.attachments],
         attachment_delivery_warning=raw_payload.get('attachment_delivery_warning'),
+        is_offer_notification=offer_data.get('notification_type') == 'OFFER',
     )
+
+
+def stored_conversation_offers(db: Session, conversation: Conversation) -> list[Offer]:
+    if not conversation.has_offers:
+        return []
+
+    offers = list(
+        db.scalars(
+            select(Offer)
+            .where(Offer.conversation_id == conversation.id)
+            .order_by(Offer.created_at.asc())
+        )
+    )
+    if not offers:
+        OfferConsistencyService(db).sync_conversation(conversation.id)
+    return offers
 
 
 def serialize_attachment(attachment) -> MessageAttachmentResponse:
@@ -873,6 +896,7 @@ def get_conversation(
     product_context = product_service.serialize(product_service.context_for_conversation(conversation))
     context = OrderContextService(db).build_context(conversation)
     order_context = OrderContextService(db).serialize_context(context)
+    offers = stored_conversation_offers(db, conversation)
     db.commit()
     return serialize_conversation(
         conversation,
@@ -881,6 +905,7 @@ def get_conversation(
         product_context,
         order_context,
         MessageTypeDetectionService(db).suggest(conversation),
+        offers,
     )
 
 
@@ -903,8 +928,9 @@ def select_conversation_order(
     product_context = product_service.serialize(product_service.context_for_conversation(conversation))
     context = OrderContextService(db).build_context(conversation)
     order_context = OrderContextService(db).serialize_context(context)
+    offers = stored_conversation_offers(db, conversation)
     db.commit()
-    return serialize_conversation(conversation, service.get_current_assignee_id(conversation.id), seller_account, product_context, order_context)
+    return serialize_conversation(conversation, service.get_current_assignee_id(conversation.id), seller_account, product_context, order_context, offers=offers)
 
 
 @router.get('/{conversation_id}/context', response_model=ConversationProductContextResponse | None)
@@ -1119,8 +1145,9 @@ def update_conversation_status(
     seller_account = db.get(EbayAccount, conversation.provider_account_id) if conversation.provider_account_id else None
     product_service = ConversationProductContextService(db)
     product_context = product_service.serialize(product_service.context_for_conversation(conversation))
+    offers = stored_conversation_offers(db, conversation)
     db.commit()
-    return serialize_conversation(conversation, service.get_current_assignee_id(conversation.id), seller_account, product_context)
+    return serialize_conversation(conversation, service.get_current_assignee_id(conversation.id), seller_account, product_context, offers=offers)
 
 
 @router.patch('/{conversation_id}/category', response_model=ConversationDetailResponse)
@@ -1155,8 +1182,9 @@ def update_conversation_category(
     seller_account = db.get(EbayAccount, conversation.provider_account_id) if conversation.provider_account_id else None
     product_service = ConversationProductContextService(db)
     product_context = product_service.serialize(product_service.context_for_conversation(conversation))
+    offers = stored_conversation_offers(db, conversation)
     db.commit()
-    return serialize_conversation(conversation, service.get_current_assignee_id(conversation.id), seller_account, product_context)
+    return serialize_conversation(conversation, service.get_current_assignee_id(conversation.id), seller_account, product_context, offers=offers)
 
 
 @router.post('/bulk-update', response_model=BulkConversationUpdateResponse)

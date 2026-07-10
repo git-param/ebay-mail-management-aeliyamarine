@@ -13,6 +13,7 @@ from app.modules.integrations.ebay.services.ebay_offer_validation import (
     normalize_extracted_offer,
     update_missing_offer_fields,
 )
+from app.services.offer_consistency_service import OfferConsistencyService
 
 
 logger = logging.getLogger(__name__)
@@ -54,6 +55,7 @@ class EbayConversationOfferResolver:
     def resolve_for_conversation(self, conversation: Conversation) -> list[Offer]:
         if not self._can_process(conversation):
             self._clear_message_offer_data(conversation)
+            OfferConsistencyService(self.db).sync_conversation(conversation.id)
             return []
 
         account = self.db.get(EbayAccount, conversation.provider_account_id)
@@ -106,11 +108,23 @@ class EbayConversationOfferResolver:
                     offer.buyer_username = conversation.buyer_identifier
                 offers_by_provider_id[offer.provider_offer_id] = offer
 
-        for message in conversation.messages:
+        messages = list(
+            self.db.scalars(
+                select(Message)
+                .where(Message.conversation_id == conversation.id)
+                .order_by(Message.sent_at.asc(), Message.created_at.asc())
+            )
+        )
+
+        for message in messages:
             offer_data = self._extract_from_message(message, conversation, account)
 
             if not offer_data:
                 message.offer_data = None
+                continue
+
+            message.offer_data = {"notification_type": "OFFER"}
+            if offer_data.get("_notification_only"):
                 continue
 
             extracted_offer = offer_data
@@ -128,7 +142,6 @@ class EbayConversationOfferResolver:
                     message=message,
                     payload=extracted_offer,
                 )
-                message.offer_data = None
                 continue
 
             provider_offer_id = offer_data["provider_offer_id"]
@@ -157,7 +170,6 @@ class EbayConversationOfferResolver:
                     provider_offer_id,
                     offer_data,
                 )
-                message.offer_data = None
                 continue
             except Exception:
                 self.db.rollback()
@@ -170,23 +182,12 @@ class EbayConversationOfferResolver:
                     provider_offer_id,
                     offer_data,
                 )
-                message.offer_data = None
                 continue
 
-            message.offer_data = {
-                "provider_offer_id": offer.provider_offer_id,
-                "listing_id": offer.listing_id,
-                "buyer_username": offer.buyer_username,
-                "offer_amount": str(offer.offer_amount) if offer.offer_amount is not None else None,
-                "amount": str(offer.offer_amount) if offer.offer_amount is not None else None,
-                "currency": offer.currency,
-                "status": offer.status,
-                "direction": offer.direction,
-                "offer_type": offer.offer_type,
-                "message_id": str(message.id),
-            }
+            message.offer_data = {"notification_type": "OFFER"}
 
         self.db.flush()
+        OfferConsistencyService(self.db).sync_conversation(conversation.id)
 
         return list(
             self.db.scalars(
@@ -308,7 +309,8 @@ class EbayConversationOfferResolver:
         return True
 
     def _clear_message_offer_data(self, conversation: Conversation) -> None:
-        for message in conversation.messages:
+        messages = self.db.scalars(select(Message).where(Message.conversation_id == conversation.id))
+        for message in messages:
             message.offer_data = None
         self.db.flush()
 
@@ -349,7 +351,7 @@ class EbayConversationOfferResolver:
         # Pending offers must have amount.
         # Accepted / expired / declined notifications may not always repeat the amount.
         if amount is None and status == OfferStatus.PENDING:
-            return None
+            return {"_notification_only": True}
 
         listing_id = self._listing_id(raw_payload, message_subject, conversation, text)
         buyer_username = self._buyer_username(raw_payload, message, conversation, account)
