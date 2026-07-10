@@ -63,7 +63,7 @@ class ConversationProductContextService:
 
         reference_id = self._string(conversation.reference_id)
         reference_type = self._string(conversation.reference_type)
-        logger.warning(
+        logger.info(
             'Product context enrichment started conversation_id=%s reference_id=%s reference_type=%s',
             conversation.id,
             reference_id or 'not found',
@@ -297,7 +297,7 @@ class ConversationProductContextService:
             context.price_value = line_item.price_value or context.price_value
             context.price_currency = line_item.price_currency or context.price_currency
             context.raw_payload = {'source': 'LOCAL_ORDER_LINE_ITEM', 'line_item': line_item.raw_payload}
-        logger.warning(
+        logger.info(
             'Product context local match conversation_id=%s reference_id=%s matched=%s',
             context.conversation_id,
             context.reference_id,

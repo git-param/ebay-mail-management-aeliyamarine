@@ -62,6 +62,12 @@ class Conversation(Base):
         default=False,
         server_default=false(),
     )
+    has_offers: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+        server_default=false(),
+    )
     last_message_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     external_created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     raw_payload: Mapped[dict | None] = mapped_column(JSONB, nullable=True)

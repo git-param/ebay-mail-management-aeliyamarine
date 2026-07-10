@@ -66,7 +66,7 @@ class EbayOrderSyncService:
         pages = 0
         offset = 0
 
-        logger.warning(
+        logger.info(
             'Starting eBay order sync account_id=%s provider=%s incremental=%s cursor=%s',
             account.id,
             type(self.provider).__name__,

@@ -51,6 +51,7 @@ class ConversationSummaryResponse(BaseModel):
     status: ConversationStatus
     category_id: UUID | None
     category_manually_selected: bool = False
+    has_offers: bool = False
     category: CategoryBriefResponse | None = None
     last_message_at: datetime | None
     external_created_at: datetime | None
@@ -77,6 +78,7 @@ class MessageResponse(BaseModel):
     created_at: datetime
     attachments: list['MessageAttachmentResponse'] = Field(default_factory=list)
     attachment_delivery_warning: str | None = None
+    is_offer_notification: bool = False
 
 
 class MessageAttachmentResponse(BaseModel):

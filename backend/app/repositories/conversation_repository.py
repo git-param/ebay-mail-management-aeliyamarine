@@ -41,7 +41,6 @@ class ConversationRepository:
             selectinload(Conversation.assignments).joinedload(ConversationAssignment.assignee),
             selectinload(Conversation.assignments).joinedload(ConversationAssignment.assigner),
             selectinload(Conversation.messages).selectinload(Message.attachments),
-            selectinload(Conversation.offers),
             joinedload(Conversation.category),
         ).order_by(Conversation.last_message_at.desc().nullslast(), Conversation.created_at.desc())
         if offset:
@@ -90,7 +89,6 @@ class ConversationRepository:
                 selectinload(Conversation.assignments).joinedload(ConversationAssignment.assignee),
                 selectinload(Conversation.assignments).joinedload(ConversationAssignment.assigner),
                 selectinload(Conversation.messages).selectinload(Message.attachments),
-                selectinload(Conversation.offers),
                 selectinload(Conversation.notes).joinedload(ConversationNote.author),
                 joinedload(Conversation.category),
             )

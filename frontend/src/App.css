@@ -7622,3 +7622,147 @@ html[data-theme='dark'] .message-bubble.inbound {
 .offer-chat-row-incoming .offer-chat-time {
   text-align: left;
 }
+
+/* Final offer notification treatment: compact eBay-style chat bubbles. */
+.conversation-detail .offer-message-slot {
+  width: 100%;
+  display: grid;
+  gap: 8px;
+  margin: 4px 0;
+}
+
+.conversation-detail .offer-chat-row {
+  width: 100%;
+  max-width: none;
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.conversation-detail .offer-chat-row-incoming {
+  justify-content: flex-start;
+}
+
+.conversation-detail .offer-chat-row-outgoing {
+  justify-content: flex-end;
+}
+
+.conversation-detail .offer-chat-row-neutral {
+  justify-content: center;
+}
+
+.conversation-detail .offer-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  background: #f59e0b;
+  color: #111827;
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.conversation-detail .offer-avatar-accepted {
+  background: #238636;
+  color: #ffffff;
+  font-size: 0;
+}
+
+.conversation-detail .offer-avatar-accepted::before,
+.conversation-detail .offer-check-mark {
+  content: "";
+  width: 12px;
+  height: 7px;
+  display: block;
+  border-left: 3px solid currentColor;
+  border-bottom: 3px solid currentColor;
+  transform: rotate(-45deg);
+}
+
+.conversation-detail .offer-chat-card {
+  width: fit-content;
+  min-width: 230px;
+  max-width: min(420px, calc(100vw - 120px));
+  min-height: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 17px 20px;
+  border: 1px solid #dedede;
+  border-radius: 16px;
+  background: #ffffff;
+  box-shadow: none;
+}
+
+.conversation-detail .offer-chat-card-incoming {
+  border-top-left-radius: 16px;
+}
+
+.conversation-detail .offer-chat-card-outgoing {
+  border-top-right-radius: 16px;
+  background: #ffffff;
+}
+
+.conversation-detail .offer-chat-card-accepted {
+  border: 1.5px solid #1f2937;
+  background: #ffffff;
+}
+
+.conversation-detail .offer-chat-card-expired,
+.conversation-detail .offer-chat-card-declined {
+  border-color: #d7d7d7;
+  background: #fafafa;
+}
+
+.conversation-detail .offer-chat-label {
+  min-width: 0;
+  color: #111827;
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1.25;
+}
+
+.conversation-detail .offer-chat-amount {
+  margin-left: 0;
+  color: #595959;
+  font-size: 22px;
+  font-weight: 900;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.conversation-detail .offer-chat-card-accepted .offer-chat-label {
+  font-weight: 850;
+}
+
+.conversation-detail .offer-chat-card-accepted .offer-chat-amount {
+  color: #050505;
+}
+
+.conversation-detail .offer-chat-status {
+  display: none;
+}
+
+.conversation-detail .offer-chat-time {
+  display: block;
+  margin-top: 6px;
+  color: #777777;
+  font-size: 12px;
+  font-weight: 500;
+  text-align: left;
+}
+
+.conversation-detail .offer-chat-row-outgoing .offer-chat-time {
+  text-align: right;
+}
+
+@media (max-width: 760px) {
+  .conversation-detail .offer-chat-card {
+    min-width: 0;
+    max-width: calc(100vw - 92px);
+    flex-wrap: wrap;
+    padding: 14px 16px;
+  }
+}

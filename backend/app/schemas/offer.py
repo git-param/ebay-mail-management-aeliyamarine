@@ -9,6 +9,9 @@ from app.models.offer import OfferDirection, OfferStatus
 
 class OfferResponse(BaseModel):
     id: UUID
+    account_id: UUID | None = None
+    conversation_id: UUID | None = None
+    message_id: UUID | None = None
     provider_offer_id: str | None = None
     listing_id: str | None = None
     buyer_username: str | None = None

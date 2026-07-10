@@ -612,23 +612,27 @@ function formatCurrency(amount, currency = 'USD') {
   }
 }
 
-function getOfferLabel(offer, isSellerOffer) {
+function offerTimestamp(offer) {
+  return offer?.created_at || offer?.created_date || offer?.sent_at || offer?.updated_at || null
+}
+
+function getOfferLabel(offer, isSellerOffer, buyerName) {
   const status = String(offer.status || '').toUpperCase()
   const type = String(offer.offer_type || offer.type || '').toUpperCase()
 
   if (status === 'ACCEPTED' || type.includes('ACCEPTED')) {
-    return 'accepted an offer'
+    return `${buyerName} accepted an offer`
   }
 
   if (isSellerOffer) {
-    return 'sent a counteroffer'
+    return type.includes('COUNTER') ? 'You sent a counteroffer' : 'You sent an offer'
   }
 
   if (type.includes('COUNTER')) {
-    return 'sent a counteroffer'
+    return `${buyerName} sent a counteroffer`
   }
 
-  return 'sent an offer'
+  return `${buyerName} sent an offer`
 }
 
 
@@ -640,35 +644,36 @@ function OfferEvent({ offer, conversation }) {
   const offerType = String(offer.offer_type || offer.type || '').toUpperCase()
   const status = String(offer.status || '').toUpperCase()
 
-  const isOutgoing = direction === 'OUTGOING'
   const isAccepted = status === 'ACCEPTED' || offerType.includes('ACCEPTED')
+  const isOutgoing = !isAccepted && ['OUTGOING', 'SELLER_TO_BUYER'].includes(direction)
+  const isIncoming = isAccepted || ['INCOMING', 'BUYER_TO_SELLER'].includes(direction)
+  const isNeutral = !isOutgoing && !isIncoming
   const isExpired = status === 'EXPIRED'
   const isDeclined = status === 'DECLINED'
 
   const buyerName = offer.buyer_username || conversation?.buyer_identifier || 'Buyer'
-
-  let label = `${buyerName} sent an offer`
-  if (isOutgoing && offerType.includes('COUNTER')) label = 'You sent a counteroffer'
-  else if (isOutgoing) label = 'You sent an offer'
-  else if (!isOutgoing && offerType.includes('COUNTER')) label = `${buyerName} sent a counteroffer`
-  else if (isAccepted) label = `${buyerName} accepted an offer`
-  else if (isExpired) label = 'Offer expired'
-  else if (isDeclined) label = 'Offer declined'
+  const label = isExpired
+    ? 'Offer expired'
+    : isDeclined
+      ? 'Offer declined'
+      : getOfferLabel(offer, isOutgoing, buyerName)
 
   const rawAmount = offer.offer_amount ?? offer.amount
   const amountNumber = rawAmount == null ? null : Number(rawAmount)
-  const amount = amountNumber == null || Number.isNaN(amountNumber)
-    ? ''
-    : amountNumber.toLocaleString(undefined, {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-      })
+  const amount = amountNumber == null || Number.isNaN(amountNumber) ? '' : formatCurrency(amountNumber, offer.currency || 'USD')
 
   return (
-    <div className={`offer-chat-row ${isOutgoing ? 'offer-chat-row-outgoing' : 'offer-chat-row-incoming'}`}>
-      {!isOutgoing ? (
-        <div className="offer-avatar">
-          {(buyerName || 'B').slice(0, 1).toUpperCase()}
+    <div
+      className={[
+        'offer-chat-row',
+        isOutgoing ? 'offer-chat-row-outgoing' : '',
+        isIncoming ? 'offer-chat-row-incoming' : '',
+        isNeutral ? 'offer-chat-row-neutral' : '',
+      ].filter(Boolean).join(' ')}
+    >
+      {isIncoming ? (
+        <div className={`offer-avatar ${isAccepted ? 'offer-avatar-accepted' : ''}`}>
+          {isAccepted ? <span className="offer-check-mark" aria-hidden="true" /> : (buyerName || 'B').slice(0, 1).toUpperCase()}
         </div>
       ) : null}
 
@@ -686,7 +691,7 @@ function OfferEvent({ offer, conversation }) {
 
           {amount ? (
             <strong className="offer-chat-amount">
-              ${amount}
+              {amount}
             </strong>
           ) : null}
 
@@ -696,7 +701,7 @@ function OfferEvent({ offer, conversation }) {
         </article>
 
         <time className="offer-chat-time">
-          {formatDate(offer.created_at || offer.created_date || offer.sent_at)}
+          {formatDate(offerTimestamp(offer))}
         </time>
       </div>
     </div>
@@ -733,7 +738,6 @@ function MessageThread({ messages, offers = [], isSystemConversation, conversati
 
   const offersByMessageId = useMemo(() => {
     const grouped = new Map()
-    const seen = new Set()
 
     if (isSystemConversation || conversation?.provider_conversation_type === 'FROM_EBAY') {
       return grouped
@@ -742,70 +746,93 @@ function MessageThread({ messages, offers = [], isSystemConversation, conversati
     const addOffer = (messageId, offer) => {
       if (!messageId || !offer) return
 
-      const key = String(
-        offer.provider_offer_id ||
-        offer.id ||
-        `${messageId}:${offer.offer_amount || offer.amount}:${offer.status}:${offer.direction}`
-      )
-
-      if (seen.has(key)) return
-      seen.add(key)
-
       const current = grouped.get(messageId) || []
       grouped.set(messageId, [...current, offer])
     }
-
-    messages.forEach((message) => {
-      if (message.offer_data) {
-        addOffer(message.id, {
-          ...message.offer_data,
-          id: `message-offer-${message.id}`,
-          message_id: message.id,
-          source_message_id: message.id,
-          created_at: message.sent_at || message.created_at || message.created_date,
-          created_date: message.sent_at || message.created_at || message.created_date,
-          buyer_username:
-            message.offer_data.buyer_username ||
-            conversation?.buyer_identifier ||
-            message.sender_identifier,
-        })
-      }
-
-      ;(message.offers || []).forEach((offer) => addOffer(message.id, offer))
-    })
 
     ;(offers || []).forEach((offer) => {
       addOffer(offer.message_id || offer.messageId || offer.source_message_id, offer)
     })
 
     return grouped
-  }, [messages, offers, conversation, isSystemConversation])
+  }, [offers, conversation, isSystemConversation])
 
-  if (!messages.length) {
+  const structuredOffers = useMemo(() => {
+    if (isSystemConversation || conversation?.provider_conversation_type === 'FROM_EBAY') {
+      return []
+    }
+
+    const seen = new Set()
+    const items = []
+
+    const addOffer = (offer, sourceMessage = null) => {
+      if (!offer) return
+      const key = String(
+        offer.provider_offer_id ||
+        offer.id ||
+        `${sourceMessage?.id || 'top'}:${offer.offer_amount || offer.amount}:${offer.status}:${offer.direction}:${offerTimestamp(offer) || sourceMessage?.sent_at || ''}`
+      )
+      if (seen.has(key)) return
+      seen.add(key)
+      items.push({
+        ...offer,
+        id: offer.id || `offer-${key}`,
+        message_id: offer.message_id || offer.messageId || offer.source_message_id || sourceMessage?.id,
+        created_at: offerTimestamp(offer) || sourceMessage?.sent_at || sourceMessage?.created_at || sourceMessage?.created_date,
+        created_date: offer.created_date || offerTimestamp(offer) || sourceMessage?.sent_at || sourceMessage?.created_at || sourceMessage?.created_date,
+        buyer_username:
+          offer.buyer_username ||
+          conversation?.buyer_identifier ||
+          sourceMessage?.sender_identifier,
+      })
+    }
+
+    ;(offers || []).forEach((offer) => addOffer(offer))
+
+    return items
+  }, [offers, conversation, isSystemConversation])
+
+  const unlinkedStructuredOffers = useMemo(() => {
+    const messageIds = new Set(messages.map((message) => message.id))
+    return structuredOffers.filter((offer) => !offer.message_id || !messageIds.has(offer.message_id))
+  }, [structuredOffers, messages])
+
+  if (!messages.length && !structuredOffers.length) {
     return <EmptyPanel title="No messages yet" message="This conversation has no stored message bodies." />
   }
 
   return (
     <div className="message-thread" ref={threadRef}>
+      {unlinkedStructuredOffers.map((offer, offerIndex) => (
+        <div className="offer-message-slot" key={`unlinked-offer-${offer.provider_offer_id || offer.id || offerIndex}`}>
+          <OfferEvent offer={offer} conversation={conversation} />
+        </div>
+      ))}
+
       {messages.map((message, index) => {
         const messageOffers = offersByMessageId.get(message.id) || []
-        const isOfferNotification = messageOffers.length > 0
+        const displayOffers = messageOffers
+        const isOfferNotification = displayOffers.length > 0
 
         const isSystem = isEbayNotificationMessage(message)
         const direction = isSystem ? 'system' : message.is_inbound ? 'inbound' : 'outbound'
         const isSeller = direction === 'outbound'
+
+        if (message.is_offer_notification && !displayOffers.length) {
+          return null
+        }
 
         // For backend-detected offer notification messages, show only clean eBay-style card.
         // Do not show raw text like: "🔔 Buyer sent an offer..."
         if (isOfferNotification) {
           return (
             <div className="offer-message-slot" key={message.id || index}>
-              {messageOffers.map((offer, offerIndex) => (
+              {displayOffers.map((offer, offerIndex) => (
                 <OfferEvent
                   offer={{
                     ...offer,
-                    created_at: offer.created_at || message.sent_at || message.created_at || message.created_date,
-                    created_date: offer.created_date || message.sent_at || message.created_at || message.created_date,
+                    created_at: message.sent_at || message.created_at || message.created_date || offer.created_at,
+                    created_date: message.sent_at || message.created_at || message.created_date || offer.created_date,
                     buyer_username:
                       offer.buyer_username ||
                       conversation?.buyer_identifier ||
@@ -1267,8 +1294,6 @@ function ConversationDetail({
   const isDetailsView = mobilePane === 'details'
   const detailsButtonLabel = isDetailsView ? 'Thread' : isDetailsOpen ? 'Hide Details' : 'Details'
   const detailsButtonAction = isDetailsView ? onCloseDetails : isDetailsOpen ? onHideDetails : onOpenDetails
-  const sellerAccount = detail.seller_account
-
   return (
     <section className="conversation-detail" aria-label="Conversation detail">
       <div className="detail-header">
