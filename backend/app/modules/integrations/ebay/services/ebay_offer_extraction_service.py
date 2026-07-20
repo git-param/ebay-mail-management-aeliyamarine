@@ -184,6 +184,7 @@ class EbayOfferExtractionService:
     def _extract_money(self, text: str) -> tuple[Decimal | None, str | None]:
         patterns = (
             r"\b(?P<currency>USD|EUR|GBP|AUD|CAD|JPY|INR)\s*(?P<amount>[\d,]+(?:\.\d{1,2})?)",
+            r"\b(?P<currency>AU)\s*\$\s*(?P<amount>[\d,]+(?:\.\d{1,2})?)",
             r"\bUS\s*\$\s*(?P<amount>[\d,]+(?:\.\d{1,2})?)",
             r"\$\s*(?P<amount>[\d,]+(?:\.\d{1,2})?)",
             r"€\s*(?P<amount>[\d,]+(?:\.\d{1,2})?)",
@@ -208,7 +209,10 @@ class EbayOfferExtractionService:
                     raw_currency = "USD"
 
             try:
-                return Decimal(raw_amount.replace(",", "")), raw_currency.upper()
+                normalized_currency = raw_currency.upper()
+                if normalized_currency == "AU":
+                    normalized_currency = "AUD"
+                return Decimal(raw_amount.replace(",", "")), normalized_currency
             except (InvalidOperation, AttributeError):
                 return None, None
 

@@ -1,4 +1,5 @@
 from types import SimpleNamespace
+from decimal import Decimal
 
 from app.modules.integrations.ebay.services.ebay_offer_validation import (
     infer_offer_direction,
@@ -6,6 +7,7 @@ from app.modules.integrations.ebay.services.ebay_offer_validation import (
     update_missing_offer_fields,
 )
 from app.modules.integrations.ebay.services.ebay_conversation_offer_resolver import EbayConversationOfferResolver
+from app.modules.integrations.ebay.services.ebay_seller_offer_sync_service import EbaySellerOfferSyncService
 
 
 def test_normalize_extracted_offer_skips_missing_provider_offer_id():
@@ -71,3 +73,43 @@ def test_update_missing_offer_fields_corrects_existing_direction():
 
     assert offer.direction == "INCOMING"
     assert offer.currency == "USD"
+
+
+def test_seller_offer_parser_does_not_treat_item_numbers_as_amounts():
+    service = EbaySellerOfferSyncService(db=None)
+
+    parsed = service._parse_offer_from_subject(
+        "obsolete-spares555 accepted an offer for MERLIN GERIN C60HC C16 2 Pole Circuit Breaker 415V 16A (336157359770)"
+    )
+
+    assert parsed is not None
+    assert parsed["status"] == "ACCEPTED"
+    assert "amount" not in parsed
+    assert parsed["item_id"] == "336157359770"
+
+
+def test_seller_offer_parser_extracts_aud_offer_amount():
+    service = EbaySellerOfferSyncService(db=None)
+
+    parsed = service._parse_offer_from_subject(
+        "Counteroffer submitted to buyer: AUD $173.39 for Enraf 34382 Maintenance Repair Kit (406358458381)"
+    )
+
+    assert parsed["amount"] == Decimal("173.39")
+    assert parsed["currency"] == "AUD"
+    assert parsed["direction"] == "OUTGOING"
+    assert parsed["item_id"] == "406358458381"
+    assert "buyer" not in parsed
+
+
+def test_seller_offer_parser_extracts_au_dollar_counteroffer_amount():
+    service = EbaySellerOfferSyncService(db=None)
+
+    parsed = service._parse_offer_from_subject(
+        "Counteroffer submitted to buyer: AU $173.39 for Enraf 34382 Maintenance Repair Kit (406358458381)"
+    )
+
+    assert parsed["amount"] == Decimal("173.39")
+    assert parsed["currency"] == "AUD"
+    assert parsed["direction"] == "OUTGOING"
+    assert "buyer" not in parsed
