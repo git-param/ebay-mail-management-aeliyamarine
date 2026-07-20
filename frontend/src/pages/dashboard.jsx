@@ -602,13 +602,20 @@ function resizeEbayMessageFrame(event) {
 // ============================================
 function formatCurrency(amount, currency = 'USD') {
   if (amount == null) return 'N/A'
+  const normalizedCurrency = String(currency || 'USD').toUpperCase()
+  if (normalizedCurrency === 'AUD') {
+    return `AU $${Number(amount).toLocaleString(undefined, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`
+  }
   try {
     return new Intl.NumberFormat(undefined, {
       style: 'currency',
-      currency: currency || 'USD'
+      currency: normalizedCurrency
     }).format(amount)
   } catch {
-    return `${amount} ${currency || 'USD'}`
+    return `${amount} ${normalizedCurrency}`
   }
 }
 

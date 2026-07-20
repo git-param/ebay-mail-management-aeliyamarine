@@ -92,11 +92,6 @@ class EbayConversationOfferResolver:
                                 Offer.listing_id == reference_id,
                                 func.lower(func.coalesce(Offer.buyer_username, "")) == buyer_identifier,
                             ),
-                            and_(
-                                Offer.conversation_id.is_(None),
-                                Offer.listing_id == reference_id,
-                                Offer.buyer_username.is_(None),
-                            ),
                         ),
                     )
                 )
@@ -128,6 +123,7 @@ class EbayConversationOfferResolver:
                 continue
 
             extracted_offer = offer_data
+            self._fill_missing_notification_amount(extracted_offer, offers_by_provider_id)
             offer_data, skip_reason = normalize_extracted_offer(
                 extracted_offer,
                 message=message,
@@ -296,6 +292,39 @@ class EbayConversationOfferResolver:
             payload,
         )
 
+    def _fill_missing_notification_amount(
+        self,
+        offer_data: dict,
+        offers_by_provider_id: dict[str, Offer],
+    ) -> None:
+        if offer_data.get("offer_amount") is not None:
+            return
+        if offer_data.get("status") not in {OfferStatus.ACCEPTED, OfferStatus.DECLINED, OfferStatus.EXPIRED}:
+            return
+
+        listing_id = str(offer_data.get("listing_id") or "").strip()
+        buyer_username = str(offer_data.get("buyer_username") or "").strip().lower()
+        matching_offers = [
+            offer
+            for offer in offers_by_provider_id.values()
+            if offer.offer_amount is not None
+            and (not listing_id or offer.listing_id == listing_id)
+            and (
+                not buyer_username
+                or str(offer.buyer_username or "").strip().lower() == buyer_username
+            )
+        ]
+        if not matching_offers:
+            return
+
+        source_offer = max(matching_offers, key=lambda offer: offer.created_at_provider or offer.created_at)
+        offer_data["offer_amount"] = source_offer.offer_amount
+        offer_data["currency"] = source_offer.currency
+        if not offer_data.get("listing_id"):
+            offer_data["listing_id"] = source_offer.listing_id
+        if not offer_data.get("buyer_username"):
+            offer_data["buyer_username"] = source_offer.buyer_username
+
     def _can_process(self, conversation: Conversation) -> bool:
         if not conversation:
             return False
@@ -384,6 +413,7 @@ class EbayConversationOfferResolver:
     def _extract_money(self, text: str):
         patterns = (
             r"\b(?P<currency>USD|EUR|GBP|AUD|CAD|JPY|INR)\s*(?P<amount>[\d,]+(?:\.\d{1,2})?)",
+            r"\b(?P<currency>AU)\s*\$\s*(?P<amount>[\d,]+(?:\.\d{1,2})?)",
             r"\bUS\s*\$\s*(?P<amount>[\d,]+(?:\.\d{1,2})?)",
             r"\$\s*(?P<amount>[\d,]+(?:\.\d{1,2})?)",
             r"€\s*(?P<amount>[\d,]+(?:\.\d{1,2})?)",
@@ -408,7 +438,10 @@ class EbayConversationOfferResolver:
                     currency = "USD"
 
             try:
-                return Decimal(amount.replace(",", "")), currency.upper()
+                currency = currency.upper()
+                if currency == "AU":
+                    currency = "AUD"
+                return Decimal(amount.replace(",", "")), currency
             except (InvalidOperation, AttributeError):
                 return None, None
 

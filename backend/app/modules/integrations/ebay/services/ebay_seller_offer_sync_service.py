@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import or_, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -139,9 +139,10 @@ class EbaySellerOfferSyncService:
                 offer_data.get('buyer'),
             )
             
-            if not conversation:
-                # Try to match by item_id only
-                conversation = self._match_conversation_by_item_id(account.id, item_id)
+            if not conversation and item_id and not offer_data.get('buyer'):
+                # Use item-only matching only when eBay did not include a buyer and
+                # the item identifies exactly one member conversation.
+                conversation = self._match_unique_conversation_by_item_id(account.id, item_id)
             
             if not conversation:
                 logger.warning(
@@ -270,29 +271,26 @@ class EbaySellerOfferSyncService:
         """Parse offer details from subject line."""
         result = {}
         
-        # Match any currency: "US $43.41", "$43.41", "EUR 116.23", "GBP 50.00", "JPY 5000"
-        # Pattern: optional 3-letter currency code + space + amount
-        currency_pattern = r'(?:([A-Z]{3})\s+)?(?:US\s+)?\$?([\d,]+\.?\d*)'
+        # Match actual money, not arbitrary numbers in item titles/models.
+        currency_pattern = r'\b(?:(USD|EUR|GBP|AUD|CAD|JPY|INR|AU)\s+|US\s+)?\$([\d,]+(?:\.\d{1,2})?)\b|\b(USD|EUR|GBP|AUD|CAD|JPY|INR)\s+([\d,]+(?:\.\d{1,2})?)\b'
         amount_match = re.search(currency_pattern, subject)
         
         if amount_match:
-            # If currency code is present, use it; otherwise default to USD
-            result['currency'] = amount_match.group(1) if amount_match.group(1) else 'USD'
-            result['amount'] = Decimal(amount_match.group(2).replace(',', ''))
-        else:
-            return None
+            result['currency'] = self._normalize_currency(amount_match.group(1) or amount_match.group(3) or 'USD')
+            raw_amount = amount_match.group(2) or amount_match.group(4)
+            result['amount'] = Decimal(raw_amount.replace(',', ''))
         
         # Extract item ID from parentheses at end
         item_match = re.search(r'\(([0-9]+)\)\s*$', subject)
         if item_match:
             result['item_id'] = item_match.group(1)
         
-        # Extract buyer username
-        # Pattern for seller counteroffer: "Counteroffer submitted to buyer: US $43.41 for OMRON..."
-        buyer_match = re.search(r'to buyer[:\s]+(?:US\s+\$[\d.]+ for )?([a-zA-Z0-9_-]+)', subject)
-        if not buyer_match:
-            # Pattern for buyer counteroffer: "Buyer made a counteroffer: US $23.00 for OMRON..."
-            buyer_match = re.search(r'Buyer made a counteroffer[:\s]+(?:US\s+\$[\d.]+ for )?([a-zA-Z0-9_-]+)', subject)
+        # Extract buyer username only when the subject explicitly includes one.
+        # In subjects like "Counteroffer submitted to buyer: AUD $173.39 for ...",
+        # the token after the colon is currency, not a username.
+        buyer_match = re.search(r'\bbuyer\s+([a-zA-Z0-9_-]+)\b', subject, re.IGNORECASE)
+        if buyer_match and buyer_match.group(1).lower() in {'made', 'accepted', 'sent'}:
+            buyer_match = None
         if buyer_match:
             result['buyer'] = buyer_match.group(1)
         
@@ -333,7 +331,7 @@ class EbaySellerOfferSyncService:
             result['status'] = OfferStatus.PENDING
             result['offer_type'] = 'OFFER'
         
-        if 'amount' not in result:
+        if 'amount' not in result and result.get('status') == OfferStatus.PENDING:
             return None
         
         return result
@@ -363,46 +361,68 @@ class EbaySellerOfferSyncService:
         """Find conversation by item ID and/or buyer."""
         if not item_id and not buyer:
             return None
+
+        item_id = str(item_id or '').strip()
+        buyer = str(buyer or '').strip()
         
-        statement = select(Conversation).where(
-            Conversation.provider_account_id == account_id
+        base = select(Conversation).where(
+            Conversation.provider_account_id == account_id,
+            Conversation.provider_conversation_type == 'FROM_MEMBERS',
         )
-        
-        conditions = []
-        if item_id:
-            # Try exact match on reference_id
-            conditions.append(Conversation.reference_id == item_id)
-            # Try partial match (eBay sometimes uses different formats)
-            conditions.append(Conversation.reference_id.like(f'%{item_id}%'))
-        
+
+        if item_id and buyer:
+            statement = base.where(
+                or_(
+                    Conversation.reference_id == item_id,
+                    Conversation.reference_id.like(f'%{item_id}%'),
+                ),
+                func.lower(Conversation.buyer_identifier) == buyer.lower(),
+            ).order_by(Conversation.last_message_at.desc().nullslast())
+            return self.db.scalar(statement.limit(1))
+
         if buyer:
-            conditions.append(Conversation.buyer_identifier == buyer)
-        
-        if not conditions:
-            return None
-        
-        statement = statement.where(or_(*conditions))
-        statement = statement.order_by(Conversation.last_message_at.desc().nullslast())
-        
-        return self.db.scalar(statement.limit(1))
+            return self._match_unique_conversation_by_buyer(account_id, buyer)
+
+        return self._match_unique_conversation_by_item_id(account_id, item_id)
     
-    def _match_conversation_by_item_id(self, account_id: UUID, item_id: str | None) -> Conversation | None:
-        """Fallback: Find conversation by item ID only."""
+    def _match_unique_conversation_by_item_id(self, account_id: UUID, item_id: str | None) -> Conversation | None:
+        """Find a member conversation by item ID only when the match is unambiguous."""
         if not item_id:
             return None
         
         statement = select(Conversation).where(
             Conversation.provider_account_id == account_id,
+            Conversation.provider_conversation_type == 'FROM_MEMBERS',
             or_(
                 Conversation.reference_id == item_id,
                 Conversation.reference_id.like(f'%{item_id}%')
             )
         ).order_by(Conversation.last_message_at.desc().nullslast())
         
-        return self.db.scalar(statement.limit(1))
+        matches = list(self.db.scalars(statement.limit(2)))
+        return matches[0] if len(matches) == 1 else None
+
+    def _match_unique_conversation_by_buyer(self, account_id: UUID, buyer: str | None) -> Conversation | None:
+        """Find a member conversation by buyer only when the match is unambiguous."""
+        if not buyer:
+            return None
+
+        statement = (
+            select(Conversation)
+            .where(
+                Conversation.provider_account_id == account_id,
+                Conversation.provider_conversation_type == 'FROM_MEMBERS',
+                func.lower(Conversation.buyer_identifier) == str(buyer).strip().lower(),
+            )
+            .order_by(Conversation.last_message_at.desc().nullslast())
+        )
+
+        matches = list(self.db.scalars(statement.limit(2)))
+        return matches[0] if len(matches) == 1 else None
     
     def _upsert_offer(self, account_id: UUID, conversation_id: UUID, offer_data: dict, raw_msg: dict, message_id: UUID | None = None):
         """Create or update Offer record - check existing first."""
+        self._fill_missing_notification_amount(account_id, conversation_id, offer_data)
         extracted_offer = {
             "provider_offer_id": raw_msg.get("message_id"),
             "listing_id": offer_data.get("item_id"),
@@ -498,6 +518,39 @@ class EbaySellerOfferSyncService:
                 extracted_offer,
             )
 
+    def _fill_missing_notification_amount(self, account_id: UUID, conversation_id: UUID, offer_data: dict) -> None:
+        if offer_data.get("amount") is not None:
+            return
+        if offer_data.get("status") not in {OfferStatus.ACCEPTED, OfferStatus.DECLINED, OfferStatus.EXPIRED}:
+            return
+
+        item_id = str(offer_data.get("item_id") or "").strip()
+        buyer = str(offer_data.get("buyer") or "").strip().lower()
+        statement = (
+            select(Offer)
+            .where(
+                Offer.provider == "EBAY",
+                Offer.account_id == account_id,
+                Offer.conversation_id == conversation_id,
+                Offer.offer_amount.is_not(None),
+            )
+            .order_by(Offer.created_at.desc())
+        )
+
+        candidates = list(self.db.scalars(statement.limit(10)))
+        for offer in candidates:
+            if item_id and offer.listing_id != item_id:
+                continue
+            if buyer and str(offer.buyer_username or "").strip().lower() != buyer:
+                continue
+            offer_data["amount"] = offer.offer_amount
+            offer_data["currency"] = offer.currency
+            if not offer_data.get("item_id"):
+                offer_data["item_id"] = offer.listing_id
+            if not offer_data.get("buyer"):
+                offer_data["buyer"] = offer.buyer_username
+            return
+
     def _parse_datetime(self, value: str | None) -> datetime | None:
         if not value:
             return None
@@ -505,3 +558,7 @@ class EbaySellerOfferSyncService:
             return datetime.fromisoformat(value.replace('Z', '+00:00'))
         except (ValueError, AttributeError):
             return None
+
+    def _normalize_currency(self, value: str | None) -> str:
+        normalized = str(value or 'USD').strip().upper()
+        return {'AU': 'AUD'}.get(normalized, normalized)
