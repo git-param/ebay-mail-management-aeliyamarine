@@ -56,6 +56,18 @@ def get_item_price(item):
 
 def serialize_item(item):
     item_id = str(item.get("item_id", ""))
+    image_document_id = str(
+        item.get("image_document_id", "")
+    ).strip()
+
+    image_url = None
+
+    if image_document_id:
+        image_url = (
+            "https://inventory.zoho.in/"
+            f"DocTemplates_ItemImage_Small_{image_document_id}.zbfs"
+            f"?organization_id={ORGANIZATION_ID}"
+        )
 
     return {
         "item_id": item_id,
@@ -66,16 +78,10 @@ def serialize_item(item):
         "condition": item.get("cf_condition", ""),
         "stock_on_hand": item.get("stock_on_hand", 0),
         "ebay_price": get_item_price(item),
-        "has_image": bool(
-            item.get("image_document_id")
-            or item.get("has_attachment")
-            or item.get("image_name")
-        ),
-        "image_url": (
-            f"/api/items/{item_id}/image"
-            if item_id
-            else None
-        ),
+
+        "has_image": bool(image_document_id),
+        "image_url": image_url,
+
         "zoho_url": (
             "https://inventory.zoho.in/app/60001240355"
             f"#/inventory/items/{item_id}"
@@ -177,64 +183,6 @@ def zoho_get(endpoint, params):
 
     return data
 
-def get_item_image(item_id):
-    access_token = get_access_token()
-
-    url = f"{API_URL}/items/{item_id}/image"
-
-    response = requests.get(
-        url,
-        headers={
-            "Authorization": f"Zoho-oauthtoken {access_token}",
-        },
-        params={
-            "organization_id": ORGANIZATION_ID,
-        },
-        timeout=60,
-    )
-
-    if response.status_code == 401:
-        access_token = refresh_access_token()
-
-        response = requests.get(
-            url,
-            headers={
-                "Authorization": (
-                    f"Zoho-oauthtoken {access_token}"
-                ),
-            },
-            params={
-                "organization_id": ORGANIZATION_ID,
-            },
-            timeout=60,
-        )
-
-    if response.status_code != 200:
-        raise RuntimeError(
-            f"Image request failed for {item_id}: "
-            f"{response.status_code} {response.text[:300]}"
-        )
-
-    return {
-        "content": response.content,
-        "content_type": response.headers.get(
-            "Content-Type",
-            "image/jpeg",
-        ),
-    }
-
-def search_exact_sku(keyword):
-    results = search_inventory(keyword, limit=50)
-
-    exact_results = [
-        item
-        for item in results
-        if str(item.get("sku", "")).strip().lower()
-        == keyword.strip().lower()
-    ]
-
-    return exact_results
-
 def search_inventory(keyword, limit=20):
     keyword = str(keyword).strip()
 
@@ -242,92 +190,16 @@ def search_inventory(keyword, limit=20):
         return []
 
     limit = max(1, min(int(limit), 200))
-    query = keyword.casefold()
 
-    results = []
-    seen_item_ids = set()
-
-    def matches(item):
-        searchable_values = [
-            item.get("name"),
-            item.get("item_name"),
-            item.get("sku"),
-            item.get("brand"),
-            item.get("manufacturer"),
-            item.get("part_number"),
-            item.get("cf_condition"),
-            item.get("description"),
-            item.get("purchase_description"),
-        ]
-
-        for value in searchable_values:
-            if query in str(value or "").casefold():
-                return True
-
-        # Search every custom field returned by Zoho.
-        for key, value in item.items():
-            if key.startswith("cf_"):
-                if query in str(value or "").casefold():
-                    return True
-
-        return False
-
-    def add_matching_items(items):
-        for item in items:
-            item_id = str(item.get("item_id", ""))
-
-            if not item_id or item_id in seen_item_ids:
-                continue
-
-            if matches(item):
-                results.append(item)
-                seen_item_ids.add(item_id)
-
-            if len(results) >= limit:
-                return True
-
-        return False
-
-    # First use Zoho's normal search.
-    search_data = zoho_get(
+    data = zoho_get(
         "items",
         {
             "organization_id": ORGANIZATION_ID,
             "search_text": keyword,
             "filter_by": "Status.All",
             "page": 1,
-            "per_page": 200,
+            "per_page": limit,
         },
     )
 
-    if add_matching_items(search_data.get("items", [])):
-        return results[:limit]
-
-    # If Zoho search does not find enough results, scan the inventory
-    # in Zoho's original name-based order.
-    page = 1
-
-    while True:
-        data = zoho_get(
-            "items",
-            {
-                "organization_id": ORGANIZATION_ID,
-                "filter_by": "Status.All",
-                "sort_column": "name",
-                "sort_order": "A",
-                "page": page,
-                "per_page": 200,
-            },
-        )
-
-        if add_matching_items(data.get("items", [])):
-            break
-
-        page_context = data.get("page_context", {})
-
-        if not page_context.get("has_more_page"):
-            break
-
-        page += 1
-
-    return results[:limit]
+    return data.get("items", [])

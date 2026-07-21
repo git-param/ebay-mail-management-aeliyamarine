@@ -1,11 +1,6 @@
-from flask import Flask, Response, jsonify, request
-import requests
+from flask import Flask, jsonify, request
 
 from zoho_inventory import (
-    API_URL,
-    ORGANIZATION_ID,
-    get_access_token,
-    refresh_access_token,
     search_inventory,
     serialize_item,
 )
@@ -241,7 +236,7 @@ HTML_PAGE = """
         .product-name:hover {
             text-decoration: underline;
         }
-        
+
     </style>
 </head>
 
@@ -562,73 +557,6 @@ def search_api():
             "error": str(error),
         }), 500
 
-
-@app.get("/api/items/<item_id>/image")
-def item_image_api(item_id):
-    """
-    Proxy the private Zoho image.
-
-    Nothing is written to disk.
-    The browser receives an ordinary image URL from this backend.
-    """
-
-    try:
-        access_token = get_access_token()
-
-        zoho_url = (
-            f"{API_URL}/items/{item_id}/image"
-        )
-
-        response = requests.get(
-            zoho_url,
-            headers={
-                "Authorization": (
-                    f"Zoho-oauthtoken {access_token}"
-                ),
-            },
-            params={
-                "organization_id": ORGANIZATION_ID,
-            },
-            timeout=60,
-        )
-
-        if response.status_code == 401:
-            access_token = refresh_access_token()
-
-            response = requests.get(
-                zoho_url,
-                headers={
-                    "Authorization": (
-                        f"Zoho-oauthtoken "
-                        f"{access_token}"
-                    ),
-                },
-                params={
-                    "organization_id": ORGANIZATION_ID,
-                },
-                timeout=60,
-            )
-
-        if response.status_code != 200:
-            return Response(status=404)
-
-        content_type = response.headers.get(
-            "Content-Type",
-            "image/jpeg",
-        )
-
-        return Response(
-            response.content,
-            content_type=content_type,
-            headers={
-                "Cache-Control": (
-                    "private, max-age=3600"
-                ),
-            },
-        )
-
-    except Exception:
-        return Response(status=404)
 
 
 if __name__ == "__main__":
