@@ -11,4 +11,6 @@ sqlalchemy
 uvicorn
 python-multipart
 requests
+beautifulsoup4
 openpyxl
+bs4

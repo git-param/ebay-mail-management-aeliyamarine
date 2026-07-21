@@ -47,6 +47,12 @@ const NAV_ITEMS = [
     label: 'Message Reports', path: '/message-reports', icon: 'chart', roles: ['ADMIN', 'OPS_MANAGER', 'AGENT'],
   },
   {
+    label: 'Search Across Platforms',
+    path: '/search-across-platforms',
+    icon: 'search',
+    roles: ['ADMIN', 'OPS_MANAGER', 'AGENT'],
+  },
+  {
     label: 'Audit Logs',
     path: '/audit-logs',
     icon: 'audit',
@@ -108,6 +114,7 @@ export function Icon({ name }) {
     moon: <path d="M14.5 13.5A6 6 0 0 1 7 6a6 6 0 1 0 7.5 7.5Z" />,
     chart: <path d="M4 16V5m0 11h12M7 13V9m4 4V6m4 7v-3" />,
     audit: <path d="M5 4h8l2 2v10H5V4Zm7 0v3h3M7 9h6M7 12h6" />,
+    search: <path d="M8.5 14a5.5 5.5 0 1 1 3.9-1.6L16 16l-1.4 1.4-3.6-3.6A5.5 5.5 0 0 1 8.5 14Zm0-2a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" />,
   }
 
   return (

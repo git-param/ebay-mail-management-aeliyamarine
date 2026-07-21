@@ -59,6 +59,10 @@ class Settings(BaseSettings):
     reply_attachment_upload_dir: str = Field(default='uploads/reply_attachments', validation_alias='REPLY_ATTACHMENT_UPLOAD_DIR')
     translation_api_url: str = Field(default='', validation_alias='TRANSLATION_API_URL')
     translation_api_key: str = Field(default='', validation_alias='TRANSLATION_API_KEY')
+    zoho_client_id: str = Field(default='', validation_alias='ZOHO_CLIENT_ID')
+    zoho_client_secret: str = Field(default='', validation_alias='ZOHO_CLIENT_SECRET')
+    zoho_organization_id: str = Field(default='', validation_alias='ZOHO_ORGANIZATION_ID')
+    zoho_token_file: str = Field(default='zoho_tokens.json', validation_alias='ZOHO_TOKEN_FILE')
 
     model_config = SettingsConfigDict(env_file=ENV_FILE, env_file_encoding='utf-8', extra='ignore')
 
