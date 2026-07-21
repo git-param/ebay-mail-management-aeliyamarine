@@ -66,21 +66,19 @@ def serialize_item(item):
         "condition": item.get("cf_condition", ""),
         "stock_on_hand": item.get("stock_on_hand", 0),
         "ebay_price": get_item_price(item),
-        "sales_price": item.get("rate", ""),
-        "purchase_price": item.get("purchase_rate", ""),
-        "description": item.get("description", ""),
-        "purchase_description": item.get(
-            "purchase_description",
-            "",
-        ),
         "has_image": bool(
             item.get("image_document_id")
             or item.get("has_attachment")
             or item.get("image_name")
         ),
-        "image_name": item.get("image_name", ""),
         "image_url": (
             f"/api/items/{item_id}/image"
+            if item_id
+            else None
+        ),
+        "zoho_url": (
+            "https://inventory.zoho.in/app/60001240355"
+            f"#/inventory/items/{item_id}"
             if item_id
             else None
         ),
@@ -244,16 +242,92 @@ def search_inventory(keyword, limit=20):
         return []
 
     limit = max(1, min(int(limit), 200))
+    query = keyword.casefold()
 
-    data = zoho_get(
+    results = []
+    seen_item_ids = set()
+
+    def matches(item):
+        searchable_values = [
+            item.get("name"),
+            item.get("item_name"),
+            item.get("sku"),
+            item.get("brand"),
+            item.get("manufacturer"),
+            item.get("part_number"),
+            item.get("cf_condition"),
+            item.get("description"),
+            item.get("purchase_description"),
+        ]
+
+        for value in searchable_values:
+            if query in str(value or "").casefold():
+                return True
+
+        # Search every custom field returned by Zoho.
+        for key, value in item.items():
+            if key.startswith("cf_"):
+                if query in str(value or "").casefold():
+                    return True
+
+        return False
+
+    def add_matching_items(items):
+        for item in items:
+            item_id = str(item.get("item_id", ""))
+
+            if not item_id or item_id in seen_item_ids:
+                continue
+
+            if matches(item):
+                results.append(item)
+                seen_item_ids.add(item_id)
+
+            if len(results) >= limit:
+                return True
+
+        return False
+
+    # First use Zoho's normal search.
+    search_data = zoho_get(
         "items",
         {
             "organization_id": ORGANIZATION_ID,
             "search_text": keyword,
             "filter_by": "Status.All",
             "page": 1,
-            "per_page": limit,
+            "per_page": 200,
         },
     )
 
-    return data.get("items", [])[:limit]
+    if add_matching_items(search_data.get("items", [])):
+        return results[:limit]
+
+    # If Zoho search does not find enough results, scan the inventory
+    # in Zoho's original name-based order.
+    page = 1
+
+    while True:
+        data = zoho_get(
+            "items",
+            {
+                "organization_id": ORGANIZATION_ID,
+                "filter_by": "Status.All",
+                "sort_column": "name",
+                "sort_order": "A",
+                "page": page,
+                "per_page": 200,
+            },
+        )
+
+        if add_matching_items(data.get("items", [])):
+            break
+
+        page_context = data.get("page_context", {})
+
+        if not page_context.get("has_more_page"):
+            break
+
+        page += 1
+
+    return results[:limit]

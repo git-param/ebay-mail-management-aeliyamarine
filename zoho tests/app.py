@@ -230,6 +230,18 @@ HTML_PAGE = """
                 width: 100%;
             }
         }
+
+        .product-name {
+            font-weight: 600;
+            color: #1d4ed8;
+            line-height: 1.45;
+            text-decoration: none;
+        }
+
+        .product-name:hover {
+            text-decoration: underline;
+        }
+        
     </style>
 </head>
 
@@ -278,9 +290,6 @@ HTML_PAGE = """
                         <th>Condition</th>
                         <th>Stock</th>
                         <th>eBay USD</th>
-                        <th>Sales price</th>
-                        <th>Description</th>
-                        <th>Purchase description</th>
                     </tr>
                 </thead>
 
@@ -391,17 +400,26 @@ HTML_PAGE = """
                 <tr>
                     <td>
                         <div class="product-cell">
-                            ${createImage(item)}
+                            <a
+                                href="${escapeHtml(item.zoho_url)}"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                            >
+                                ${createImage(item)}
+                            </a>
 
                             <div>
-                                <div class="product-name">
+                                <a
+                                    class="product-name"
+                                    href="${escapeHtml(item.zoho_url)}"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                >
                                     ${escapeHtml(item.name)}
-                                </div>
+                                </a>
 
                                 <div class="product-brand">
-                                    ${escapeHtml(
-                                        item.brand || "No brand"
-                                    )}
+                                    ${escapeHtml(item.brand || "No brand")}
                                 </div>
                             </div>
                         </div>
@@ -410,45 +428,19 @@ HTML_PAGE = """
                     <td>${escapeHtml(item.sku || "—")}</td>
 
                     <td>
-                        ${escapeHtml(
-                            item.part_number || "—"
-                        )}
+                        ${escapeHtml(item.part_number || "—")}
                     </td>
 
                     <td>
-                        ${escapeHtml(
-                            item.condition || "—"
-                        )}
+                        ${escapeHtml(item.condition || "—")}
                     </td>
 
                     <td>
-                        ${escapeHtml(
-                            item.stock_on_hand ?? 0
-                        )}
+                        ${escapeHtml(item.stock_on_hand ?? 0)}
                     </td>
 
                     <td class="price">
-                        ${escapeHtml(
-                            formatPrice(item.ebay_price)
-                        )}
-                    </td>
-
-                    <td class="price">
-                        ${escapeHtml(
-                            formatPrice(item.sales_price)
-                        )}
-                    </td>
-
-                    <td class="description">
-                        ${escapeHtml(
-                            item.description || "—"
-                        )}
-                    </td>
-
-                    <td class="description">
-                        ${escapeHtml(
-                            item.purchase_description || "—"
-                        )}
+                        ${escapeHtml(formatPrice(item.ebay_price))}
                     </td>
                 </tr>
             `).join("");
