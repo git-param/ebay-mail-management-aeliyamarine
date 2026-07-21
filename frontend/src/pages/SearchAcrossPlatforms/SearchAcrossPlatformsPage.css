@@ -1,0 +1,251 @@
+.cross-search-page {
+  width: min(1440px, 100%);
+  margin: 0 auto;
+  padding: 30px 28px 44px;
+}
+
+.cross-search-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 22px;
+}
+
+.cross-search-header h1 {
+  margin: 0;
+  color: #10172e;
+  font-size: 34px;
+  line-height: 1.1;
+}
+
+.cross-search-header p {
+  margin-top: 8px;
+  color: #5a687b;
+}
+
+.cross-search-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 150px 150px;
+  gap: 14px;
+  align-items: end;
+  margin-bottom: 18px;
+  padding: 18px;
+  border: 1px solid #d8e4f3;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 18px 46px rgba(15, 23, 42, 0.08);
+}
+
+.cross-search-button {
+  min-height: 52px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.cross-search-button .ui-icon {
+  width: 18px;
+  height: 18px;
+}
+
+.cross-search-error {
+  margin-bottom: 18px;
+}
+
+.platform-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+
+.platform-column {
+  min-width: 0;
+  min-height: 360px;
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid #d8e4f3;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 18px 46px rgba(15, 23, 42, 0.08);
+}
+
+.platform-column-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #e8eef7;
+}
+
+.platform-column-header h2 {
+  margin: 0;
+  color: #10172e;
+  font-size: 18px;
+}
+
+.platform-column-header span {
+  min-width: 34px;
+  min-height: 28px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 999px;
+  background: #edf4ff;
+  color: #0e54b3;
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.platform-results {
+  display: grid;
+  gap: 10px;
+}
+
+.product-result-card {
+  display: grid;
+  grid-template-columns: 74px minmax(0, 1fr);
+  gap: 12px;
+  min-height: 96px;
+  padding: 10px;
+  border: 1px solid #e1e9f5;
+  border-radius: 8px;
+  color: inherit;
+  text-decoration: none;
+  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.product-result-card:hover {
+  border-color: #9ab7dc;
+  box-shadow: 0 12px 26px rgba(15, 23, 42, 0.1);
+  transform: translateY(-1px);
+}
+
+.product-thumb,
+.product-thumb-placeholder {
+  width: 74px;
+  height: 74px;
+  border-radius: 7px;
+  background: #f4f7fb;
+}
+
+.product-thumb {
+  display: block;
+  overflow: hidden;
+  border: 1px solid #e1e9f5;
+}
+
+.product-thumb img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: contain;
+}
+
+.product-thumb-placeholder {
+  display: grid;
+  place-items: center;
+  color: #7a8aa0;
+  font-size: 11px;
+  font-weight: 800;
+  text-align: center;
+}
+
+.product-thumb-placeholder[hidden] {
+  display: none;
+}
+
+.product-result-body {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+}
+
+.product-result-body strong {
+  color: #10172e;
+  font-size: 14px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.product-sku {
+  color: #0e54b3;
+  font-size: 12px;
+  font-weight: 850;
+  overflow-wrap: anywhere;
+}
+
+.product-meta-list {
+  display: grid;
+  gap: 2px;
+}
+
+.product-meta-list small {
+  color: #64748b;
+  font-size: 11px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.platform-state,
+.platform-error {
+  min-height: 210px;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  border: 1px dashed #cfdbea;
+  border-radius: 8px;
+  color: #64748b;
+  text-align: center;
+}
+
+.platform-state span {
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  background: #edf4ff;
+}
+
+.platform-state-loading span {
+  border: 3px solid #d8e4f3;
+  border-top-color: #0e54b3;
+  background: transparent;
+  animation: cross-search-spin 900ms linear infinite;
+}
+
+.platform-error {
+  border-color: rgba(210, 28, 45, 0.24);
+  background: rgba(210, 28, 45, 0.06);
+  color: #a11120;
+  font-weight: 800;
+}
+
+@keyframes cross-search-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 1100px) {
+  .platform-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .cross-search-page {
+    padding: 20px 14px 32px;
+  }
+
+  .cross-search-form,
+  .platform-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .cross-search-button {
+    width: 100%;
+  }
+}

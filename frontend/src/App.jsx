@@ -9,6 +9,7 @@ import ForgotPassword from './pages/forgot_password'
 import Login from './pages/login'
 import LoginSuccess from './pages/login_success'
 import ResetPassword from './pages/reset_password'
+import SearchAcrossPlatformsPage from './pages/SearchAcrossPlatforms/SearchAcrossPlatformsPage'
 import Templates from './pages/templates'
 import Users from './pages/users'
 import MessageTypes from './pages/message_types'
@@ -82,6 +83,11 @@ const PROTECTED_ROUTES = [
   },
   {
     path: '/message-reports', component: MessageReports, allowedRoles: ['ADMIN', 'OPS_MANAGER', 'AGENT'],
+  },
+  {
+    path: '/search-across-platforms',
+    component: SearchAcrossPlatformsPage,
+    allowedRoles: ['ADMIN', 'OPS_MANAGER', 'AGENT'],
   },
   {
     path: '/audit-logs',

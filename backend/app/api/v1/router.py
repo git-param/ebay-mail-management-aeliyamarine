@@ -2,6 +2,7 @@ from fastapi import APIRouter
 
 from app.api.v1.routes import analytics, audit_logs, auth, categories, conversations, ebay_accounts, message_types, notifications, offers, templates, users
 from app.modules.integrations.ebay.routes import ebay_oauth_routes
+from app.modules.search_sku.router import router as search_sku_router
 
 
 api_router = APIRouter()
@@ -17,6 +18,7 @@ api_router.include_router(analytics.router, prefix='/analytics', tags=['analytic
 api_router.include_router(templates.router, prefix='/templates', tags=['templates'])
 api_router.include_router(message_types.router, prefix='/message-types', tags=['message-types'])
 api_router.include_router(message_types.reports_router, prefix='/reports', tags=['message-type-reports'])
+api_router.include_router(search_sku_router, tags=['search-sku'])
 api_router.include_router(
     ebay_oauth_routes.router,
     prefix='/integrations/ebay',
