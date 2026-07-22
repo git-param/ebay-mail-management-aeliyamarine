@@ -1,3 +1,4 @@
+import re
 from datetime import UTC, datetime
 
 from sqlalchemy.orm import Session
@@ -14,6 +15,11 @@ from app.services.sla_service import SLAService
 
 
 class EbayMessageService:
+    EBAY_IMAGE_URL_PATTERN = re.compile(
+        r'^https://i\.ebayimg\.com/00/s/[^/]+/z/(?P<image_id>[^/]+)/\$_1\.[^/?#]+(?:[?#].*)?$',
+        re.IGNORECASE,
+    )
+
     def __init__(self, db: Session):
         self.db = db
         self.conversation_repository = ConversationRepository(db)
@@ -202,6 +208,7 @@ class EbayMessageService:
                 or payload.get('url')
                 or payload.get('href')
             )
+            display_media_url = self._clear_ebay_image_url(media_url) if media_url else None
             media_type = self._string_or_none(payload.get('mediaType') or payload.get('MediaType'))
             file_size = payload.get('fileSize') or payload.get('size') or payload.get('contentLength')
             try:
@@ -215,7 +222,7 @@ class EbayMessageService:
                     provider_attachment_id=provider_attachment_id,
                     file_name=file_name[:500],
                     media_name=file_name[:500],
-                    media_url=media_url,
+                    media_url=display_media_url,
                     media_type=media_type,
                     mime_type=self._string_or_none(payload.get('mimeType') or payload.get('contentType')),
                     file_size=normalized_file_size,
@@ -224,6 +231,12 @@ class EbayMessageService:
                 )
             )
         return attachments
+
+    def _clear_ebay_image_url(self, media_url: str) -> str:
+        match = self.EBAY_IMAGE_URL_PATTERN.match(media_url)
+        if not match:
+            return media_url
+        return f'https://i.ebayimg.com/images/g/{match.group("image_id")}/s-l1600.jpg'
 
     def _latest_message_at(self, conversation_summary: dict, messages: list[dict]) -> datetime | None:
         latest_message = conversation_summary.get('latestMessage')
