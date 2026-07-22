@@ -11,6 +11,7 @@ from app.models.offer import OfferDirection, OfferStatus
 
 SUPPORTED_OFFER_PHRASES = (
     "buyer sent an offer",
+    "buyer sent a new offer",
     "you sent an offer",
     "you sent a counteroffer",
     "buyer made a counteroffer",

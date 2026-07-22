@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 
 OFFER_PHRASES = (
     "buyer sent an offer",
+    "buyer sent a new offer",
     "you have a new offer",
     "new offer for",
     "offer from",
@@ -193,7 +194,7 @@ class EbayConversationOfferResolver:
                     Offer.account_id == account.id,
                     Offer.conversation_id == conversation.id,
                 )
-                .order_by(Offer.created_at.asc())
+                .order_by(func.coalesce(Offer.created_at_provider, Offer.created_at).asc(), Offer.created_at.asc())
             )
         )
 
@@ -513,6 +514,7 @@ class EbayConversationOfferResolver:
             phrase in lower
             for phrase in (
                 "buyer sent",
+                "buyer sent a new offer",
                 "buyer made",
                 "you have a new offer",
                 "new offer for",

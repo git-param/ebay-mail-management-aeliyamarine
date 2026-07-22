@@ -101,6 +101,7 @@ class EbaySellerOfferSyncService:
         created = 0
         updated = 0
         matched = 0
+        unmatched = 0
         touched_conversation_ids = set()
         
         for msg in messages:
@@ -145,7 +146,8 @@ class EbaySellerOfferSyncService:
                 conversation = self._match_unique_conversation_by_item_id(account.id, item_id)
             
             if not conversation:
-                logger.warning(
+                unmatched += 1
+                logger.info(
                     '⚠️ Could not match offer to conversation: item=%s buyer=%s subject=%s',
                     item_id,
                     offer_data.get('buyer'),
@@ -242,8 +244,119 @@ class EbaySellerOfferSyncService:
             'created': created,
             'updated': updated,
             'matched': matched,
+            'unmatched': unmatched,
             'total_messages': len(messages),
         }
+
+    def sync_notification_conversation(self, account: EbayAccount, notification_conversation: Conversation) -> dict:
+        """Link a FROM_EBAY offer notification conversation to the matching member thread."""
+        if (notification_conversation.provider_conversation_type or '').upper() != 'FROM_EBAY':
+            return {'matched': 0, 'unmatched': 0}
+
+        subject = notification_conversation.subject or self._conversation_title(notification_conversation)
+        if not subject or not self._is_offer_notification(subject):
+            return {'matched': 0, 'unmatched': 0}
+
+        offer_data = self._parse_offer_from_subject(subject)
+        if not offer_data:
+            logger.info("Could not parse FROM_EBAY offer notification subject=%s", subject[:100])
+            return {'matched': 0, 'unmatched': 1}
+
+        item_id = offer_data.get('item_id') or notification_conversation.reference_id
+        conversation = self._match_conversation(account.id, item_id, offer_data.get('buyer'))
+        if not conversation and item_id and not offer_data.get('buyer'):
+            conversation = self._match_unique_conversation_by_item_id(account.id, item_id)
+
+        if not conversation:
+            logger.info(
+                "Could not match FROM_EBAY offer notification to a member conversation: item=%s buyer=%s subject=%s",
+                item_id,
+                offer_data.get('buyer'),
+                subject[:100],
+            )
+            return {'matched': 0, 'unmatched': 1}
+
+        notification_message = self._notification_message(notification_conversation)
+        if not notification_message:
+            return {'matched': 0, 'unmatched': 1}
+
+        sent_at = notification_message.sent_at or datetime.now(UTC)
+        body = self._build_offer_message_body(offer_data, subject)
+        buyer_username = offer_data.get('buyer') or conversation.buyer_identifier
+        raw_msg = {
+            'message_id': notification_message.provider_message_id,
+            'item_id': item_id,
+            'subject': subject,
+            'sender': 'eBay',
+            'recipient': account.ebay_username,
+            'receive_date': sent_at.isoformat(),
+            'original_raw_payload': notification_message.raw_payload,
+        }
+
+        notification_message.conversation_id = conversation.id
+        notification_message.provider = 'EBAY'
+        notification_message.body = body
+        notification_message.sender_type = MessageSenderType.SYSTEM
+        notification_message.sender_identifier = 'eBay System'
+        notification_message.recipient_identifier = account.ebay_username
+        notification_message.is_inbound = offer_data.get('direction') == 'INCOMING'
+        notification_message.sent_at = sent_at
+        notification_message.raw_payload = raw_msg
+        notification_message.offer_data = {'notification_type': 'OFFER'}
+
+        self._upsert_offer(
+            account_id=account.id,
+            conversation_id=conversation.id,
+            offer_data={
+                **offer_data,
+                'item_id': item_id,
+                'buyer': buyer_username,
+            },
+            raw_msg=raw_msg,
+            message_id=notification_message.id,
+        )
+        OfferConsistencyService(self.db).sync_conversation(conversation.id)
+        OfferConsistencyService(self.db).sync_conversation(notification_conversation.id)
+        return {'matched': 1, 'unmatched': 0}
+
+    def _conversation_title(self, conversation: Conversation) -> str | None:
+        payload = conversation.raw_payload if isinstance(conversation.raw_payload, dict) else {}
+        summary = payload.get('summary') if isinstance(payload.get('summary'), dict) else {}
+        detail = payload.get('detail') if isinstance(payload.get('detail'), dict) else {}
+        value = (
+            summary.get('conversationTitle')
+            or detail.get('conversationTitle')
+            or summary.get('subject')
+            or detail.get('subject')
+        )
+        return str(value).strip() if value else None
+
+    def _notification_message(self, conversation: Conversation) -> Message | None:
+        messages = list(
+            self.db.scalars(
+                select(Message)
+                .where(Message.conversation_id == conversation.id)
+                .order_by(Message.sent_at.asc(), Message.created_at.asc())
+            )
+        )
+        if not messages:
+            return None
+
+        for message in messages:
+            raw_payload = message.raw_payload if isinstance(message.raw_payload, dict) else {}
+            text = " ".join(
+                str(value or "")
+                for value in (
+                    raw_payload.get('subject'),
+                    raw_payload.get('messageSubject'),
+                    raw_payload.get('title'),
+                    message.body,
+                )
+            ).lower()
+            if self._is_offer_notification(text):
+                return message
+
+        return messages[0]
     
     def _is_offer_notification(self, subject: str) -> bool:
         """Check if subject indicates any type of offer notification."""
@@ -256,6 +369,7 @@ class EbaySellerOfferSyncService:
             'offer accepted',
             'counteroffer submitted to buyer',   # Seller sent counteroffer
             'you have a new offer',               # Buyer sent offer
+            'buyer sent a new offer',             # Buyer sent offer
             'buyer made a counteroffer',          # Buyer sent counteroffer
             'best offer',                         # General best offer
             'new offer for',                      # New offer notification
@@ -300,29 +414,30 @@ class EbaySellerOfferSyncService:
             result['item_title'] = title_match.group(1).strip()
         
         # Determine direction and type
-        if "Counteroffer submitted to buyer" in subject:
+        subject_lower = subject.lower()
+        if "counteroffer submitted to buyer" in subject_lower:
             result['direction'] = 'OUTGOING'
             result['status'] = OfferStatus.PENDING
             result['offer_type'] = 'SELLER_COUNTEROFFER'
             result['display_type'] = 'You sent a counteroffer'
-        elif "You have a new offer" in subject:
+        elif "you have a new offer" in subject_lower or "buyer sent a new offer" in subject_lower:
             result['direction'] = 'INCOMING'
             result['status'] = OfferStatus.PENDING
             result['offer_type'] = 'BUYER_OFFER'
             result['display_type'] = 'Buyer sent an offer'
-        elif "Buyer made a counteroffer" in subject:
+        elif "buyer made a counteroffer" in subject_lower:
             result['direction'] = 'INCOMING'
             result['status'] = OfferStatus.PENDING
             result['offer_type'] = 'BUYER_COUNTEROFFER'
             result['display_type'] = 'Buyer sent a counteroffer'
-        elif "accepted an offer" in subject.lower() or "offer accepted" in subject.lower():
+        elif "accepted an offer" in subject_lower or "offer accepted" in subject_lower:
             result['direction'] = 'INCOMING'
             result['status'] = OfferStatus.ACCEPTED
             result['offer_type'] = 'ACCEPTED_OFFER'
             result['display_type'] = 'accepted an offer'
         else:
             # Try to detect from context
-            if any(word in subject.lower() for word in ['submitted to buyer', 'you sent']):
+            if any(word in subject_lower for word in ['submitted to buyer', 'you sent']):
                 result['direction'] = 'OUTGOING'
                 result['display_type'] = 'You sent an offer'
             else:
