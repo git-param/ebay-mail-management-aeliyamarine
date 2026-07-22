@@ -853,8 +853,11 @@ function MessageThread({ messages, offers = [], isSystemConversation, conversati
           )
         }
 
+        const hasBody = Boolean(message.body || message.message || message.text)
+        const hasOnlyImageAttachments = !hasBody && message.attachments?.length && message.attachments.every(isImageAttachment)
+
         return (
-          <article className={`message-bubble ${direction}`} key={message.id || index}>
+          <article className={`message-bubble ${direction} ${hasOnlyImageAttachments ? 'image-attachment-message' : ''}`} key={message.id || index}>
             <div className="message-meta">
               <strong>
                 {direction === 'system'
@@ -866,7 +869,7 @@ function MessageThread({ messages, offers = [], isSystemConversation, conversati
               <time>{formatDate(message.sent_at || message.created_date)}</time>
             </div>
 
-            {isSystemConversation && isHtmlBody(message.body) ? (
+            {hasOnlyImageAttachments ? null : isSystemConversation && isHtmlBody(message.body) ? (
               <iframe
                 className="ebay-html-message"
                 title={`eBay message ${message.id}`}
@@ -907,33 +910,21 @@ function MessageThread({ messages, offers = [], isSystemConversation, conversati
                 {message.attachments.map((attachment) => {
                   const attachmentUrl = attachment.media_url || attachment.download_url
                   const attachmentName = attachment.media_name || attachment.file_name
+                  const isImage = attachmentUrl && isImageAttachment(attachment)
 
                   return (
-                    <div className="attachment-card" key={attachment.id}>
-                      {attachmentUrl && isImageAttachment(attachment) ? (
-                        <a className="attachment-preview" href={attachmentUrl} target="_blank" rel="noreferrer">
+                    <div className={`attachment-card ${isImage ? 'attachment-card-image' : ''}`} key={attachment.id}>
+                      {isImage ? (
+                        <a className="attachment-preview" href={attachmentUrl} target="_blank" rel="noreferrer" aria-label={`Open ${attachmentName}`}>
                           <img src={attachmentUrl} alt={attachmentName} loading="lazy" />
                         </a>
-                      ) : null}
-
-                      <div>
-                        <strong>📎 {attachmentName}</strong>
-
-                        {attachment.file_size ? (
-                          <small>{Math.round(attachment.file_size / 1024)} KB</small>
-                        ) : null}
-
-                        {attachmentUrl ? (
-                          <span>
-                            <a href={attachmentUrl} target="_blank" rel="noreferrer">
-                              Open
-                            </a>
-                            <a href={attachmentUrl} download={attachmentName}>
-                              Download
-                            </a>
-                          </span>
-                        ) : null}
-                      </div>
+                      ) : (
+                        <div>
+                          <strong>{attachmentName}</strong>
+                          {attachment.file_size ? <small>{Math.round(attachment.file_size / 1024)} KB</small> : null}
+                          {!attachmentUrl ? <small>Attachment URL unavailable</small> : null}
+                        </div>
+                      )}
                     </div>
                   )
                 })}
