@@ -741,12 +741,17 @@ function MessageThread({ messages, offers = [], isSystemConversation, conversati
   }, [])
 
   useLayoutEffect(() => {
-    const thread = threadRef.current
-    const scrollContainer = thread?.closest('.thread-panel')
-    if (scrollContainer) {
-      scrollContainer.scrollTop = scrollContainer.scrollHeight
-    }
-  }, [messages, offers])
+      const thread = threadRef.current;
+      if (!thread) 
+        return;
+      thread.scrollTop = thread.scrollHeight
+    ;}, 
+    [
+      conversation?.id,
+      messages.length,
+      offers.length,
+  ]);
+
 
   const offersByMessageId = useMemo(() => {
     const grouped = new Map()
@@ -762,9 +767,9 @@ function MessageThread({ messages, offers = [], isSystemConversation, conversati
       grouped.set(messageId, [...current, offer])
     }
 
-    ;(offers || []).forEach((offer) => {
-      addOffer(offer.message_id || offer.messageId || offer.source_message_id, offer)
-    })
+      ; (offers || []).forEach((offer) => {
+        addOffer(offer.message_id || offer.messageId || offer.source_message_id, offer)
+      })
 
     return grouped
   }, [offers, conversation, isSystemConversation])
@@ -799,7 +804,7 @@ function MessageThread({ messages, offers = [], isSystemConversation, conversati
       })
     }
 
-    ;(offers || []).forEach((offer) => addOffer(offer))
+      ; (offers || []).forEach((offer) => addOffer(offer))
 
     return items
   }, [offers, conversation, isSystemConversation])
@@ -848,7 +853,6 @@ function MessageThread({ messages, offers = [], isSystemConversation, conversati
             </div>
           )
         }
-
         const { message, index } = item
         const messageOffers = offersByMessageId.get(message.id) || []
         const displayOffers = messageOffers
@@ -857,7 +861,6 @@ function MessageThread({ messages, offers = [], isSystemConversation, conversati
         const isSystem = isEbayNotificationMessage(message)
         const direction = isSystem ? 'system' : message.is_inbound ? 'inbound' : 'outbound'
         const isSeller = direction === 'outbound'
-
         if (message.is_offer_notification && !displayOffers.length) {
           return null
         }
@@ -1195,9 +1198,9 @@ function ContextItemBanner({ context, actionLabel, ariaLabel }) {
   const formattedPrice = context.price == null
     ? null
     : new Intl.NumberFormat(undefined, {
-        style: context.currency ? 'currency' : 'decimal',
-        currency: context.currency || undefined,
-      }).format(context.price)
+      style: context.currency ? 'currency' : 'decimal',
+      currency: context.currency || undefined,
+    }).format(context.price)
   return (
     <section className="product-context-banner" aria-label={ariaLabel}>
       <div className="product-context-main">
@@ -1330,7 +1333,7 @@ function ConversationDetail({
       <div className="detail-header">
         <div>
           <button className="thread-back-button" type="button" onClick={onBack}>
-          ← Back to inbox
+            ← Back to inbox
           </button>
         </div>
         <div className="detail-header-actions">
@@ -1367,12 +1370,12 @@ function ConversationDetail({
       ) : (
         <div className="thread-panel">
           <ConversationContextBanner detail={detail} />
-          <MessageThread 
-            messages={detail.messages || []} 
-            offers={detail.offers || []} 
+          <MessageThread
+            messages={detail.messages || []}
+            offers={detail.offers || []}
             isSystemConversation={isEbaySystemConversation(detail)}
             conversation={detail}  // Pass the conversation
-          />        
+          />
           {isEbaySystemConversation(detail) ? (
             <ReplyUnavailableNotice />
           ) : (
@@ -1436,10 +1439,10 @@ function Dashboard({ currentUser, onLogout }) {
 
   const workspaceStyle = hasSelectedConversation
     ? {
-        gridTemplateColumns: isDetailsOpen
-          ? `${listWidth}px 8px minmax(0, 1fr) 8px ${detailsWidth}px`
-          : `${listWidth}px 8px minmax(0, 1fr)`,
-      }
+      gridTemplateColumns: isDetailsOpen
+        ? `${listWidth}px 8px minmax(0, 1fr) 8px ${detailsWidth}px`
+        : `${listWidth}px 8px minmax(0, 1fr)`,
+    }
     : undefined
 
   // In dashboard.jsx, around line 445
@@ -1869,7 +1872,7 @@ function Dashboard({ currentUser, onLogout }) {
                   isSelected={conversation.id === selectedConversationId}
                   isBulkSelected={bulkSelectedIds.has(conversation.id)}
                   onSelect={selectConversation}
-                  onToggleBulk={canManageAssignments ? toggleBulkSelection : () => {}}
+                  onToggleBulk={canManageAssignments ? toggleBulkSelection : () => { }}
                   key={conversation.id}
                 />
               ))
