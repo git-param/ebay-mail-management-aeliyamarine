@@ -620,7 +620,12 @@ function formatCurrency(amount, currency = 'USD') {
 }
 
 function offerTimestamp(offer) {
-  return offer?.created_at || offer?.created_date || offer?.sent_at || offer?.updated_at || null
+  return offer?.created_at_provider || offer?.createdAtProvider || offer?.created_at || offer?.created_date || offer?.sent_at || offer?.updated_at || null
+}
+
+function eventTimeValue(value) {
+  const time = value ? new Date(value).getTime() : NaN
+  return Number.isNaN(time) ? 0 : time
 }
 
 function getOfferLabel(offer, isSellerOffer, buyerName) {
@@ -804,19 +809,47 @@ function MessageThread({ messages, offers = [], isSystemConversation, conversati
     return structuredOffers.filter((offer) => !offer.message_id || !messageIds.has(offer.message_id))
   }, [structuredOffers, messages])
 
+  const timelineItems = useMemo(() => {
+    const items = [
+      ...messages.map((message, index) => ({
+        type: 'message',
+        message,
+        index,
+        timestamp: message.sent_at || message.created_at || message.created_date,
+      })),
+      ...unlinkedStructuredOffers.map((offer, index) => ({
+        type: 'offer',
+        offer,
+        index,
+        timestamp: offerTimestamp(offer),
+      })),
+    ]
+
+    return items.sort((left, right) => {
+      const diff = eventTimeValue(left.timestamp) - eventTimeValue(right.timestamp)
+      if (diff !== 0) return diff
+      if (left.type !== right.type) return left.type === 'offer' ? -1 : 1
+      return left.index - right.index
+    })
+  }, [messages, unlinkedStructuredOffers])
+
   if (!messages.length && !structuredOffers.length) {
     return <EmptyPanel title="No messages yet" message="This conversation has no stored message bodies." />
   }
 
   return (
     <div className="message-thread" ref={threadRef}>
-      {unlinkedStructuredOffers.map((offer, offerIndex) => (
-        <div className="offer-message-slot" key={`unlinked-offer-${offer.provider_offer_id || offer.id || offerIndex}`}>
-          <OfferEvent offer={offer} conversation={conversation} />
-        </div>
-      ))}
+      {timelineItems.map((item) => {
+        if (item.type === 'offer') {
+          const offer = item.offer
+          return (
+            <div className="offer-message-slot" key={`unlinked-offer-${offer.provider_offer_id || offer.id || item.index}`}>
+              <OfferEvent offer={offer} conversation={conversation} />
+            </div>
+          )
+        }
 
-      {messages.map((message, index) => {
+        const { message, index } = item
         const messageOffers = offersByMessageId.get(message.id) || []
         const displayOffers = messageOffers
         const isOfferNotification = displayOffers.length > 0

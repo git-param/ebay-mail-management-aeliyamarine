@@ -17,16 +17,16 @@ from app.services.conversation_service import ConversationService
 router = APIRouter()
 
 
+@router.post('/sync/account/{account_id}', status_code=status.HTTP_202_ACCEPTED)
+def sync_buyer_offers(account_id: UUID, background_tasks: BackgroundTasks, _=Depends(require_admin)):
+    """Queue official Trading API BestOffer sync across all statuses."""
+    background_tasks.add_task(_sync_buyer_offers, account_id)
+    return {'status': 'queued', 'account_id': str(account_id), 'source': 'official_trading_get_best_offers_all'}
+
+
 def _sync_buyer_offers(account_id: UUID) -> None:
     with SessionLocal() as db:
         EbayBestOfferSyncService(db).sync_account(account_id)
-
-
-@router.post('/sync/account/{account_id}', status_code=status.HTTP_202_ACCEPTED)
-def sync_buyer_offers(account_id: UUID, background_tasks: BackgroundTasks, _=Depends(require_admin)):
-    """Queue non-blocking buyer-offer ingestion; safe for a scheduler to call."""
-    background_tasks.add_task(_sync_buyer_offers, account_id)
-    return {'status': 'queued', 'account_id': str(account_id)}
 
 
 def _visible_conversation(conversation_id: UUID, db: Session, user):

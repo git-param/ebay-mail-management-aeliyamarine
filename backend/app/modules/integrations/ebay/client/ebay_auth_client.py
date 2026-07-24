@@ -57,6 +57,7 @@ class EbayRawApiResponse:
     ok: bool
     request_url: str
     request_headers: dict[str, str]
+    response_headers: dict[str, str] | None = None
 
 @dataclass
 class EbayMediaUploadResponse:
@@ -129,12 +130,21 @@ class EbayAuthClient:
     def trading_url(self) -> str:
         return 'https://api.ebay.com/ws/api.dll' if self.environment == 'PRODUCTION' else 'https://api.sandbox.ebay.com/ws/api.dll'
 
-    def get_best_offers_raw(self, access_token: str, *, page: int = 1, entries_per_page: int = 200) -> EbayRawApiResponse:
-        """Retrieve active buyer Best Offers through eBay's Trading API."""
+    def get_best_offers_raw(
+        self,
+        access_token: str,
+        *,
+        page: int = 1,
+        entries_per_page: int = 200,
+        best_offer_status: str = 'All',
+        item_id: str | None = None,
+    ) -> EbayRawApiResponse:
+        """Retrieve Best Offers through eBay's official Trading API."""
+        item_filter = f'<ItemID>{item_id}</ItemID>' if item_id else ''
         body = (
             '<?xml version="1.0" encoding="utf-8"?>'
             '<GetBestOffersRequest xmlns="urn:ebay:apis:eBLBaseComponents">'
-            '<DetailLevel>ReturnAll</DetailLevel><BestOfferStatus>Active</BestOfferStatus>'
+            f'<DetailLevel>ReturnAll</DetailLevel>{item_filter}<BestOfferStatus>{best_offer_status}</BestOfferStatus>'
             f'<Pagination><EntriesPerPage>{entries_per_page}</EntriesPerPage><PageNumber>{page}</PageNumber></Pagination>'
             '</GetBestOffersRequest>'
         ).encode('utf-8')
@@ -150,11 +160,23 @@ class EbayAuthClient:
                 xml = response.read().decode('utf-8')
                 payload = self._best_offers_xml(xml)
                 return EbayRawApiResponse(
-                    response.status, payload, payload.get('ack') in {'Success', 'Warning'}, self.trading_url, safe_headers
+                    response.status,
+                    payload,
+                    payload.get('ack') in {'Success', 'Warning'},
+                    self.trading_url,
+                    safe_headers,
+                    dict(response.headers.items()),
                 )
         except HTTPError as exc:
             xml = exc.read().decode('utf-8', errors='replace')
-            return EbayRawApiResponse(exc.code, self._best_offers_xml(xml), False, self.trading_url, safe_headers)
+            return EbayRawApiResponse(
+                exc.code,
+                self._best_offers_xml(xml),
+                False,
+                self.trading_url,
+                safe_headers,
+                dict(exc.headers.items()) if exc.headers else None,
+            )
         except (URLError, TimeoutError, ET.ParseError) as exc:
             raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail='Unable to retrieve eBay buyer offers') from exc
 
@@ -191,6 +213,13 @@ class EbayAuthClient:
             'quantity': node.findtext('./e:Quantity', default='1', namespaces=ns),
             'status': node.findtext('./e:Status', default='Pending', namespaces=ns),
             'offerType': node.findtext('./e:BestOfferCodeType', namespaces=ns),
+            'createdTime': (
+                node.findtext('./e:CreatedTime', namespaces=ns)
+                or node.findtext('./e:CreationTime', namespaces=ns)
+                or node.findtext('./e:BestOfferCreatedTime', namespaces=ns)
+                or node.findtext('./e:OfferTime', namespaces=ns)
+                or node.findtext('./e:StartTime', namespaces=ns)
+            ),
         }
 
     def build_authorization_url(self, *, state: str) -> str:

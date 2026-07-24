@@ -20,7 +20,6 @@ from app.services.ebay_api_usage_service import EbayApiUsageService
 from app.services.conversation_product_context_service import ConversationProductContextService
 from app.services.order_context_service import OrderContextService
 from app.services.sync_log_service import SyncLogService
-from app.modules.integrations.ebay.services.ebay_seller_offer_sync_service import EbaySellerOfferSyncService
 
 logger = logging.getLogger(__name__)
 
@@ -58,9 +57,8 @@ class EbaySyncService:
         self.order_sync_service = EbayOrderSyncService(db)
         self.product_context_service = ConversationProductContextService(db)
         self.best_offer_sync_service = EbayBestOfferSyncService(db)
-        self.seller_offer_sync_service = EbaySellerOfferSyncService(db)
         self.conversation_offer_resolver = EbayConversationOfferResolver(db)
-        logger.warning("✅ EbaySyncService initialized with seller_offer_sync_service")
+        logger.warning("EbaySyncService initialized")
 
     # ebay_sync_service.py - Refactored version
 
@@ -417,26 +415,10 @@ class EbaySyncService:
             order_sync_error = str(exc)
             logger.exception('Non-fatal eBay order sync failure account_id=%s', account.id)
 
-        # Sync buyer-originated offers (Best Offers)
-        # The service already skips FROM_EBAY internally
         try:
             self.best_offer_sync_service.sync_account(account.id, commit=False)
         except Exception:
-            logger.exception('Non-fatal eBay buyer-offer sync failure account_id=%s', account.id)
-
-        # Sync seller-initiated offers (My Messages)
-        # The service will skip FROM_EBAY after the change above
-        try:
-            result = self.seller_offer_sync_service.sync_account(account.id, commit=False)
-            if result.get('matched', 0) > 0:
-                logger.warning(
-                    'Seller offer sync: created=%s updated=%s matched=%s',
-                    result.get('created', 0),
-                    result.get('updated', 0),
-                    result.get('matched', 0),
-                )
-        except Exception:
-            logger.exception('Non-fatal eBay seller-offer sync failure account_id=%s', account.id)
+            logger.exception('Non-fatal eBay official BestOffer sync failure account_id=%s', account.id)
 
         return order_sync_result, order_sync_error
 

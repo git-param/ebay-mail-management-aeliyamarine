@@ -37,6 +37,7 @@ class EbayOrderSyncService:
     PAGE_SIZE = 200
     MAX_RETRIES = 3
     CURSOR_OVERLAP = timedelta(minutes=5)
+    FILTER_END_SAFETY_LAG = timedelta(minutes=15)
 
     def __init__(self, db: Session, *, provider: OrderProvider | None = None):
         self.db = db
@@ -59,8 +60,9 @@ class EbayOrderSyncService:
             raise OrderSyncError('eBay account has no access token')
 
         started_at = datetime.now(UTC)
+        safe_filter_end = started_at - self.FILTER_END_SAFETY_LAG
         previous_cursor = account.last_order_sync_at
-        filter_value = self._incremental_filter(previous_cursor, started_at)
+        filter_value = self._incremental_filter(previous_cursor, safe_filter_end)
         processed = 0
         failed = 0
         pages = 0
@@ -108,7 +110,7 @@ class EbayOrderSyncService:
             offset += len(page.orders)
 
         matched = self.match_account_conversations(account.id)
-        account.last_order_sync_at = started_at
+        account.last_order_sync_at = safe_filter_end
         if commit:
             self.db.commit()
         else:
@@ -120,9 +122,9 @@ class EbayOrderSyncService:
             failed,
             pages,
             matched,
-            started_at,
+            safe_filter_end,
         )
-        return OrderSyncResult(account.id, processed, failed, matched, pages, previous_cursor is not None, started_at)
+        return OrderSyncResult(account.id, processed, failed, matched, pages, previous_cursor is not None, safe_filter_end)
 
     def match_account_conversations(self, account_id: UUID) -> int:
         conversations = self.db.scalars(
@@ -187,7 +189,11 @@ class EbayOrderSyncService:
     def _incremental_filter(self, cursor: datetime | None, end: datetime) -> str | None:
         if cursor is None:
             return None
-        start = cursor - self.CURSOR_OVERLAP
+        cursor = cursor.astimezone(UTC) if cursor.tzinfo else cursor.replace(tzinfo=UTC)
+        if cursor >= end:
+            start = end - self.CURSOR_OVERLAP
+        else:
+            start = cursor - self.CURSOR_OVERLAP
         return f'lastmodifieddate:[{self._ebay_datetime(start)}..{self._ebay_datetime(end)}]'
 
     @staticmethod

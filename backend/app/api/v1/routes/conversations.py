@@ -1,12 +1,12 @@
-from datetime import timedelta
 from html.parser import HTMLParser
 from multiprocessing import context
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 import requests
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile, status
 from fastapi.responses import FileResponse
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.api.dependencies import can_manage_operations, get_current_user, is_admin, is_operations_manager, is_support_agent
@@ -58,6 +58,9 @@ from app import db
 
 
 router = APIRouter()
+BUYER_BEST_OFFER_EXPIRY_DURATION = timedelta(days=1)
+SELLER_COUNTEROFFER_EXPIRY_DURATION = timedelta(days=4)
+ACCEPTED_COUNTEROFFER_SEQUENCE_OFFSET = timedelta(minutes=70)
 
 
 @router.post('/translate', response_model=TranslationResponse)
@@ -326,19 +329,154 @@ def serialize_message(message: Message) -> MessageResponse:
 
 
 def stored_conversation_offers(db: Session, conversation: Conversation) -> list[Offer]:
+    offers = list(
+        db.scalars(
+            select(Offer)
+            .where(Offer.conversation_id == conversation.id)
+            .order_by(func.coalesce(Offer.created_at_provider, Offer.created_at).asc(), Offer.created_at.asc())
+        )
+    )
+    if not offers:
+        offers = link_unattached_conversation_offers(db, conversation)
+    if not offers:
+        OfferConsistencyService(db).sync_conversation(conversation.id)
+        db.flush()
+        return []
+    for offer in offers:
+        raw_timestamp = offer_timestamp_from_raw_payload(offer.raw_payload, offer)
+        if raw_timestamp and (
+            not offer.created_at_provider
+            or offer_timestamp_is_sync_fallback(offer)
+            or raw_timestamp < offer.created_at_provider
+        ):
+            offer.created_at_provider = raw_timestamp
+    infer_missing_offer_timeline_timestamps(offers)
     if not conversation.has_offers:
+        conversation.has_offers = True
+        db.flush()
+    return sorted(offers, key=lambda offer: (offer.created_at_provider or offer.created_at, offer.created_at))
+
+
+def link_unattached_conversation_offers(db: Session, conversation: Conversation) -> list[Offer]:
+    account_id = conversation.provider_account_id
+    listing_id = str(conversation.reference_id or "").strip()
+    buyer = str(conversation.buyer_identifier or "").strip().lower()
+    if not account_id or not listing_id or not buyer:
         return []
 
     offers = list(
         db.scalars(
             select(Offer)
-            .where(Offer.conversation_id == conversation.id)
-            .order_by(Offer.created_at.asc())
+            .where(
+                Offer.provider == "EBAY",
+                Offer.account_id == account_id,
+                Offer.conversation_id.is_(None),
+                Offer.listing_id == listing_id,
+                func.lower(func.coalesce(Offer.buyer_username, "")) == buyer,
+            )
+            .order_by(func.coalesce(Offer.created_at_provider, Offer.created_at).asc(), Offer.created_at.asc())
         )
     )
-    if not offers:
-        OfferConsistencyService(db).sync_conversation(conversation.id)
+    for offer in offers:
+        offer.conversation_id = conversation.id
+    if offers:
+        db.flush()
     return offers
+
+
+def infer_missing_offer_timeline_timestamps(offers: list[Offer]) -> None:
+    anchors: dict[tuple[str | None, str | None], datetime] = {}
+    sequence_anchors: dict[tuple[str | None, str | None], datetime] = {}
+    for offer in offers:
+        if not offer.created_at_provider:
+            continue
+        provider_offer_id = str(offer.provider_offer_id or "")
+        raw_payload = offer.raw_payload if isinstance(offer.raw_payload, dict) else {}
+        source_id = raw_payload.get("derivedFromOfferId")
+        if source_id:
+            anchors[(str(source_id), "SELLER_COUNTEROFFER")] = offer.created_at_provider
+        if provider_offer_id.endswith(":seller-counteroffer-submitted"):
+            anchors[(provider_offer_id.removesuffix(":seller-counteroffer-submitted"), "SELLER_COUNTEROFFER")] = offer.created_at_provider
+            sequence_anchors[offer_sequence_key(offer)] = offer.created_at_provider
+
+    for offer in offers:
+        if offer.created_at_provider:
+            continue
+        offer_type = str(offer.offer_type or "").upper()
+        status = str(offer.status or "").upper()
+        provider_offer_id = str(offer.provider_offer_id or "")
+
+        if offer_type == "SELLER_COUNTEROFFER" and status == "ACCEPTED":
+            anchor = anchors.get((provider_offer_id, "SELLER_COUNTEROFFER"))
+            if anchor:
+                offer.created_at_provider = anchor + timedelta(seconds=1)
+                continue
+
+        if offer_type == "BUYER_OFFER":
+            matching_anchor = sequence_anchors.get(offer_sequence_key(offer))
+            if matching_anchor:
+                offer.created_at_provider = matching_anchor - timedelta(seconds=1)
+
+
+def offer_sequence_key(offer: Offer) -> tuple[str | None, str | None]:
+    return (
+        str(offer.listing_id or "").strip() or None,
+        str(offer.buyer_username or "").strip().lower() or None,
+    )
+
+
+def offer_timestamp_is_sync_fallback(offer: Offer) -> bool:
+    if not offer.created_at_provider:
+        return True
+    if not offer.created_at:
+        return False
+    return abs((offer.created_at_provider - offer.created_at).total_seconds()) < 1
+
+
+def offer_timestamp_from_raw_payload(payload, offer: Offer | None = None) -> datetime | None:
+    if not isinstance(payload, dict):
+        return None
+
+    for key in ("createdTime", "createdDate", "sent_at", "sentAt", "timestamp"):
+        parsed = parse_offer_payload_datetime(payload.get(key))
+        if parsed:
+            return parsed
+
+    posted_time = payload.get("messagePostedTime")
+    if isinstance(posted_time, dict):
+        parsed = parse_offer_payload_datetime((posted_time.get("value") or {}).get("value") if isinstance(posted_time.get("value"), dict) else posted_time.get("value"))
+        if parsed:
+            return parsed
+
+    expiration_time = parse_offer_payload_datetime(payload.get("expirationTime"))
+    if expiration_time and offer:
+        offer_type = str(offer.offer_type or "").upper()
+        status = str(offer.status or "").upper()
+        raw_offer_type = str(payload.get("offerType") or "").upper()
+        if offer_type == "BUYER_OFFER" or raw_offer_type == "BUYERBESTOFFER":
+            return expiration_time - BUYER_BEST_OFFER_EXPIRY_DURATION
+        if offer_type == "SELLER_COUNTEROFFER" or raw_offer_type == "SELLERCOUNTEROFFER":
+            timestamp = expiration_time - SELLER_COUNTEROFFER_EXPIRY_DURATION
+            if status == "ACCEPTED":
+                return timestamp + ACCEPTED_COUNTEROFFER_SEQUENCE_OFFSET
+            return timestamp
+
+    for nested_key in ("original_raw_payload", "card", "raw"):
+        parsed = offer_timestamp_from_raw_payload(payload.get(nested_key), offer)
+        if parsed:
+            return parsed
+
+    return None
+
+
+def parse_offer_payload_datetime(value) -> datetime | None:
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return parsed.replace(tzinfo=UTC) if parsed.tzinfo is None else parsed.astimezone(UTC)
 
 
 def serialize_attachment(attachment) -> MessageAttachmentResponse:
