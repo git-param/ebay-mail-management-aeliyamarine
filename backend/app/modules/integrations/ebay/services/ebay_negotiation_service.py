@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models.conversation import Conversation
@@ -17,16 +17,18 @@ class EbayNegotiationService:
 
     def conversation_offers(self, conversation_id: UUID) -> list[Offer]:
         conversation = self.db.get(Conversation, conversation_id)
-        if conversation and not conversation.has_offers:
-            return []
-
         offers = list(self.db.scalars(
             select(Offer).where(Offer.conversation_id == conversation_id).order_by(Offer.created_at.desc())
         ))
+        if not offers and conversation:
+            offers = self._link_unattached_offers(conversation)
         if not offers:
             OfferConsistencyService(self.db).sync_conversation(conversation_id)
             self.db.flush()
             return []
+        if conversation and not conversation.has_offers:
+            conversation.has_offers = True
+            self.db.flush()
 
         now = datetime.now(UTC)
         changed = False
@@ -36,4 +38,30 @@ class EbayNegotiationService:
                 changed = True
         if changed:
             self.db.commit()
+        return offers
+
+    def _link_unattached_offers(self, conversation: Conversation) -> list[Offer]:
+        account_id = conversation.provider_account_id
+        listing_id = str(conversation.reference_id or "").strip()
+        buyer = str(conversation.buyer_identifier or "").strip().lower()
+        if not account_id or not listing_id or not buyer:
+            return []
+
+        offers = list(
+            self.db.scalars(
+                select(Offer)
+                .where(
+                    Offer.provider == "EBAY",
+                    Offer.account_id == account_id,
+                    Offer.conversation_id.is_(None),
+                    Offer.listing_id == listing_id,
+                    func.lower(func.coalesce(Offer.buyer_username, "")) == buyer,
+                )
+                .order_by(Offer.created_at.desc())
+            )
+        )
+        for offer in offers:
+            offer.conversation_id = conversation.id
+        if offers:
+            self.db.flush()
         return offers

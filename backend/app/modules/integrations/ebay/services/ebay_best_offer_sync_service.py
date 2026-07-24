@@ -229,7 +229,12 @@ class EbayBestOfferSyncService:
         )
         if not response.ok:
             error = str(payload.get('error') if isinstance(payload, dict) else 'GetBestOffers failed')
-            if 'no best offers found' in error.lower():
+            empty_listing_errors = (
+                'no best offers found',
+                'not best offer enabled',
+                'best offer is not enabled',
+            )
+            if any(fragment in error.lower() for fragment in empty_listing_errors):
                 return {'offers': [], 'totalPages': 1, 'error': error, 'ack': 'Failure'}
             raise RuntimeError(error)
         return payload

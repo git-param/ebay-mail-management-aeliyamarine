@@ -1,4 +1,3 @@
-from datetime import timedelta
 from html.parser import HTMLParser
 from multiprocessing import context
 from datetime import UTC, datetime, timedelta
@@ -59,6 +58,9 @@ from app import db
 
 
 router = APIRouter()
+BUYER_BEST_OFFER_EXPIRY_DURATION = timedelta(days=1)
+SELLER_COUNTEROFFER_EXPIRY_DURATION = timedelta(days=4)
+ACCEPTED_COUNTEROFFER_SEQUENCE_OFFSET = timedelta(minutes=70)
 
 
 @router.post('/translate', response_model=TranslationResponse)
@@ -327,9 +329,6 @@ def serialize_message(message: Message) -> MessageResponse:
 
 
 def stored_conversation_offers(db: Session, conversation: Conversation) -> list[Offer]:
-    if not conversation.has_offers:
-        return []
-
     offers = list(
         db.scalars(
             select(Offer)
@@ -338,12 +337,51 @@ def stored_conversation_offers(db: Session, conversation: Conversation) -> list[
         )
     )
     if not offers:
+        offers = link_unattached_conversation_offers(db, conversation)
+    if not offers:
         OfferConsistencyService(db).sync_conversation(conversation.id)
+        db.flush()
+        return []
     for offer in offers:
-        if not offer.created_at_provider:
-            offer.created_at_provider = offer_timestamp_from_raw_payload(offer.raw_payload)
+        raw_timestamp = offer_timestamp_from_raw_payload(offer.raw_payload, offer)
+        if raw_timestamp and (
+            not offer.created_at_provider
+            or offer_timestamp_is_sync_fallback(offer)
+            or raw_timestamp < offer.created_at_provider
+        ):
+            offer.created_at_provider = raw_timestamp
     infer_missing_offer_timeline_timestamps(offers)
+    if not conversation.has_offers:
+        conversation.has_offers = True
+        db.flush()
     return sorted(offers, key=lambda offer: (offer.created_at_provider or offer.created_at, offer.created_at))
+
+
+def link_unattached_conversation_offers(db: Session, conversation: Conversation) -> list[Offer]:
+    account_id = conversation.provider_account_id
+    listing_id = str(conversation.reference_id or "").strip()
+    buyer = str(conversation.buyer_identifier or "").strip().lower()
+    if not account_id or not listing_id or not buyer:
+        return []
+
+    offers = list(
+        db.scalars(
+            select(Offer)
+            .where(
+                Offer.provider == "EBAY",
+                Offer.account_id == account_id,
+                Offer.conversation_id.is_(None),
+                Offer.listing_id == listing_id,
+                func.lower(func.coalesce(Offer.buyer_username, "")) == buyer,
+            )
+            .order_by(func.coalesce(Offer.created_at_provider, Offer.created_at).asc(), Offer.created_at.asc())
+        )
+    )
+    for offer in offers:
+        offer.conversation_id = conversation.id
+    if offers:
+        db.flush()
+    return offers
 
 
 def infer_missing_offer_timeline_timestamps(offers: list[Offer]) -> None:
@@ -387,7 +425,15 @@ def offer_sequence_key(offer: Offer) -> tuple[str | None, str | None]:
     )
 
 
-def offer_timestamp_from_raw_payload(payload) -> datetime | None:
+def offer_timestamp_is_sync_fallback(offer: Offer) -> bool:
+    if not offer.created_at_provider:
+        return True
+    if not offer.created_at:
+        return False
+    return abs((offer.created_at_provider - offer.created_at).total_seconds()) < 1
+
+
+def offer_timestamp_from_raw_payload(payload, offer: Offer | None = None) -> datetime | None:
     if not isinstance(payload, dict):
         return None
 
@@ -402,8 +448,21 @@ def offer_timestamp_from_raw_payload(payload) -> datetime | None:
         if parsed:
             return parsed
 
+    expiration_time = parse_offer_payload_datetime(payload.get("expirationTime"))
+    if expiration_time and offer:
+        offer_type = str(offer.offer_type or "").upper()
+        status = str(offer.status or "").upper()
+        raw_offer_type = str(payload.get("offerType") or "").upper()
+        if offer_type == "BUYER_OFFER" or raw_offer_type == "BUYERBESTOFFER":
+            return expiration_time - BUYER_BEST_OFFER_EXPIRY_DURATION
+        if offer_type == "SELLER_COUNTEROFFER" or raw_offer_type == "SELLERCOUNTEROFFER":
+            timestamp = expiration_time - SELLER_COUNTEROFFER_EXPIRY_DURATION
+            if status == "ACCEPTED":
+                return timestamp + ACCEPTED_COUNTEROFFER_SEQUENCE_OFFSET
+            return timestamp
+
     for nested_key in ("original_raw_payload", "card", "raw"):
-        parsed = offer_timestamp_from_raw_payload(payload.get(nested_key))
+        parsed = offer_timestamp_from_raw_payload(payload.get(nested_key), offer)
         if parsed:
             return parsed
 
