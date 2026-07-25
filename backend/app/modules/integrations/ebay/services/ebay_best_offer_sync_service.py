@@ -37,7 +37,7 @@ class EbayBestOfferSyncService:
         self.tokens = EbayTokenService(db)
         self.api_usage = EbayApiUsageService(db)
 
-    def sync_account(self, account_id: UUID, *, commit: bool = True) -> dict[str, int]:
+    def sync_account(self, account_id: UUID, *, listing_ids: list[str] | None = None,  commit: bool = True) -> dict[str, int]:
         account = self.db.get(EbayAccount, account_id)
         if not account or not account.is_active:
             raise ValueError('Active eBay account not found')
@@ -48,15 +48,31 @@ class EbayBestOfferSyncService:
         created = updated = linked = listings_checked = listings_skipped = api_calls = 0
         touched_conversation_ids = set()
         started_at = perf_counter()
-        candidates = self._conversation_listing_candidates(account.id)
+        
+        # Determine candidates
+        if listing_ids is not None:
+            # Build candidates from the provided listing_ids
+            candidates = [
+                {
+                    "listing_id": lid,
+                    "activity_at": None, 
+                    "conversation_count": 0,
+                }
+                for lid in set(listing_ids) if lid
+            ]
+        else:
+            candidates = self._conversation_listing_candidates(account.id)
+
         logger.warning(
             "BestOffer sync started operation_id=%s account_id=%s candidate_listings=%s strategy=conversation_listing_full_scan",
             sync_operation_id,
             account.id,
             len(candidates),
         )
+
         for candidate in candidates:
             listing_id = candidate["listing_id"]
+            
             listings_checked += 1
             page = 1
             listing_offer_count = 0
@@ -269,43 +285,7 @@ class EbayBestOfferSyncService:
                 }
             )
         return candidates
-
-    def _should_skip_listing(self, account_id: UUID, candidate: dict) -> bool:
-        listing_id = candidate["listing_id"]
-        state = self._listing_state(account_id, listing_id)
-        if not state or not state.last_checked_at:
-            return False
-
-        now = datetime.now(UTC)
-        activity_at = self._aware(candidate.get("activity_at"))
-        last_checked_at = self._aware(state.last_checked_at)
-        if activity_at and last_checked_at and activity_at > last_checked_at:
-            return False
-        if self._needs_seller_counteroffer_repair(account_id, listing_id):
-            return False
-
-        active_offer_exists = self.db.scalar(
-            select(Offer.id)
-            .where(
-                Offer.provider == "EBAY",
-                Offer.account_id == account_id,
-                Offer.listing_id == listing_id,
-                Offer.status.in_((OfferStatus.PENDING, OfferStatus.COUNTERED)),
-            )
-            .limit(1)
-        )
-        if active_offer_exists:
-            return bool(last_checked_at and now - last_checked_at < OFFER_LISTING_RECHECK_AFTER)
-
-        if state.last_offer_count > 0:
-            return bool(last_checked_at and now - last_checked_at < OFFER_LISTING_RECHECK_AFTER)
-
-        recent_activity = bool(activity_at and now - activity_at < RECENT_CONVERSATION_WINDOW)
-        if recent_activity:
-            return bool(last_checked_at and now - last_checked_at < EMPTY_LISTING_RECHECK_AFTER)
-
-        return True
-
+    
     def _needs_seller_counteroffer_repair(self, account_id: UUID, listing_id: str) -> bool:
         accepted_counteroffers = list(
             self.db.scalars(
@@ -334,7 +314,6 @@ class EbayBestOfferSyncService:
         return False
 
     def _update_listing_state(self, account_id: UUID, candidate: dict, offer_count: int, error: str | None) -> None:
-        return
         now = datetime.now(UTC)
         state = self._listing_state(account_id, candidate["listing_id"], create=True)
         state.last_checked_at = now
@@ -366,6 +345,13 @@ class EbayBestOfferSyncService:
         self.db.add(state)
         return state
 
+    def _extract_currency(self, raw: dict) -> str | None:
+        amount_obj = raw.get("amount")
+        if isinstance(amount_obj, dict):
+            return amount_obj.get("currencyId") or amount_obj.get("currencyID")
+        # Fallback to a top-level currency field (just in case)
+        return raw.get("currency")
+
     def _upsert(self, account: EbayAccount, raw: dict, conversation: Conversation | None) -> tuple[Offer, bool]:
         normalized_offer, skip_reason = normalize_extracted_offer(
             {
@@ -373,7 +359,7 @@ class EbayBestOfferSyncService:
                 "listing_id": raw.get("listingId"),
                 "buyer_username": raw.get("buyerUsername"),
                 "offer_amount": self._decimal(raw.get("amount")),
-                "currency": raw.get("currency"),
+                "currency": self._extract_currency(raw),
                 "status": self._status(raw.get("status")),
                 "direction": self._direction(raw.get("offerType"), raw.get("status")),
                 "offer_type": self._offer_type(raw.get("offerType")),

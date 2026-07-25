@@ -370,6 +370,7 @@ class EbayConversationOfferResolver:
 
         text = " ".join((conversation_subject, message_subject, body)).replace("\xa0", " ")
         text = " ".join(text.split())
+        logger.warning("Offer text to parse: %s", text)
         lower = text.lower()
 
         if not any(phrase in lower for phrase in OFFER_PHRASES):

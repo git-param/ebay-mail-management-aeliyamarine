@@ -86,7 +86,7 @@ class EbaySyncService:
             self._process_conversations(account, updated_since, max_conversations, sync_log, counters, sync_context)
             
             # Sync related data
-            order_sync_result, order_sync_error = self._sync_related_data(account)
+            order_sync_result, order_sync_error = self._sync_related_data(account, sync_context)
 
             # Complete sync
             return self._finalize_sync(account, 
@@ -138,6 +138,7 @@ class EbaySyncService:
             'detail_seconds_total': 0.0,
             'sync_started_at': perf_counter(),
             'failed_conversations': [],
+            'touched_listing_ids': set(),
         }
 
 
@@ -242,6 +243,10 @@ class EbaySyncService:
                 conversation_detail=conversation_detail,
                 conversation_type=conversation_type,
             )
+
+            if conversation.reference_id and conversation.provider_conversation_type == 'FROM_MEMBERS':
+                sync_context['touched_listing_ids'].add(conversation.reference_id)
+
             self.db.flush()
 
             self.product_context_service.enrich_conversation(conversation)
@@ -399,7 +404,7 @@ class EbaySyncService:
             )
 
 
-    def _sync_related_data(self, account: EbayAccount) -> tuple[any, str | None]:
+    def _sync_related_data(self, account: EbayAccount, sync_context: dict) -> tuple[any, str | None]:
         """Sync related data (orders, offers)."""
         order_sync_result = None
         order_sync_error = None
@@ -415,10 +420,13 @@ class EbaySyncService:
             order_sync_error = str(exc)
             logger.exception('Non-fatal eBay order sync failure account_id=%s', account.id)
 
-        try:
-            self.best_offer_sync_service.sync_account(account.id, commit=False)
-        except Exception:
-            logger.exception('Non-fatal eBay official BestOffer sync failure account_id=%s', account.id)
+        # Sync best offers only for touched listings
+        touched_listing_ids = list(sync_context.get('touched_listing_ids', []))
+        if touched_listing_ids:
+            self.best_offer_sync_service.sync_account(account.id, listing_ids=touched_listing_ids, commit=False)
+        else:
+            # Skip entirely to save API calls – no listings were updated in this sync
+            logger.info('No touched listings, skipping BestOffer sync for account_id=%s', account.id)
 
         return order_sync_result, order_sync_error
 
