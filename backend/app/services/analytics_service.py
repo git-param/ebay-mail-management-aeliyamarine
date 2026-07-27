@@ -89,7 +89,7 @@ class AnalyticsService:
         conversations = self._conversation_rows(scoped_filters)
         rows = [self._conversation_record(conversation) for conversation in conversations]
         total_replies = sum(row['reply_count'] for row in rows)
-        pending = [row for row in rows if row['status'] in {ConversationStatus.OPEN.value, ConversationStatus.PENDING.value} and not row['is_replied']]
+        pending = [row for row in rows if row['status'] == ConversationStatus.PENDING.value]
         overdue = [row for row in rows if row['is_overdue']]
         compliant_count = sum(1 for row in rows if row['sla_compliant'] is True)
         measured_sla = sum(1 for row in rows if row['sla_compliant'] is not None)
@@ -106,7 +106,7 @@ class AnalyticsService:
                 self._metric('Average response time', self._minutes_label(avg_response)),
             ],
             'by_category': self._count_by(rows, 'category_name', default='Uncategorized'),
-            'by_status': self._count_by(rows, 'calculated_status', default='Unknown'),
+            'by_status': self._count_by(rows, 'status', default='Unknown'),
             'by_assigned_user': self._count_by(rows, 'assigned_to_name', default='Unassigned'),
             'daily_trends': self._daily_trends(rows, scoped_filters),
             'sla_metrics': [
@@ -449,7 +449,7 @@ class AnalyticsService:
                 'Agent': label,
                 'Conversations': len(items),
                 'Replies': sum(item['reply_count'] for item in items),
-                'Pending': sum(1 for item in items if not item['is_replied']),
+                'Pending': sum(1 for item in items if item['status'] == ConversationStatus.PENDING.value),
                 'Overdue': sum(1 for item in items if item['is_overdue']),
                 'Average Response': self._minutes_label(self._average([item['first_response_minutes'] for item in items if item['first_response_minutes'] is not None])),
             }
@@ -479,7 +479,7 @@ class AnalyticsService:
                 'Category': label,
                 'Conversations': len(items),
                 'Replies': sum(item['reply_count'] for item in items),
-                'Pending': sum(1 for item in items if not item['is_replied']),
+                'Pending': sum(1 for item in items if item['status'] == ConversationStatus.PENDING.value),
                 'Overdue': sum(1 for item in items if item['is_overdue']),
                 'SLA Compliance': self._percent(
                     sum(1 for item in items if item['sla_compliant'] is True),

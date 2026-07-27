@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from fastapi import HTTPException, status
 
 from app.models.conversation import Conversation
@@ -7,6 +9,7 @@ from app.modules.offer_management.permissions import can_view_all_offer_entries,
 from app.modules.offer_management.repository import OfferManagementRepository
 from app.modules.offer_management.schemas import OfferEntryCreate, OfferEntryUpdate
 from app.modules.offer_management.utils import default_listing_url, extract_listing_id, is_high_value_amount
+from app.modules.config_management.service import ConfigService
 
 
 class OfferManagementService:
@@ -35,6 +38,8 @@ class OfferManagementService:
         values['ebay_account_name'] = values.get('ebay_account_name') or account.account_name or account.store_name or account.ebay_username
         merged = {column.name: getattr(existing, column.name, None) for column in OfferManagementEntry.__table__.columns} if existing else {}
         merged.update(values)
+        threshold = ConfigService(self.db).get_decimal('offer.high_value_amount', default=Decimal('500'))
+        quantity = merged.get('offer_quantity') or merged.get('listing_quantity')
         values['is_high_value'] = is_high_value_amount(
             merged.get('listed_price'),
             merged.get('revised_price'),
@@ -42,6 +47,8 @@ class OfferManagementService:
             merged.get('buyer_offer_price'),
             merged.get('counteroffer_price'),
             merged.get('final_price'),
+            threshold=threshold,
+            quantity=quantity,
         )
         return values
 

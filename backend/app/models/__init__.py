@@ -1,4 +1,5 @@
 from app.models.audit_log import AuditLog
+from app.models.app_config import AppConfigSetting
 from app.models.category import Category, CategoryKeyword, CategoryUserAssignment
 from app.models.conversation import (
     Conversation,
@@ -29,6 +30,7 @@ from app.modules.offer_management.models import OfferManagementEntry, OfferManag
 
 __all__ = [
     'AuditLog',
+    'AppConfigSetting',
     'Category',
     'CategoryKeyword',
     'CategoryUserAssignment',

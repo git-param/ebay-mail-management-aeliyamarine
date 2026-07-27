@@ -8013,6 +8013,33 @@ html[data-theme='dark'] .message-bubble.inbound {
   color: #061426;
 }
 
+.config-sections {
+  display: grid;
+  gap: 18px;
+}
+
+.config-section {
+  padding: 18px;
+}
+
+.config-section-header h2 {
+  margin: 0 0 14px;
+  color: #061426;
+  font-size: 18px;
+}
+
+.config-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.config-field small {
+  color: #64748b;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
 .offer-entry-form .modal-actions {
   position: sticky;
   bottom: 0;

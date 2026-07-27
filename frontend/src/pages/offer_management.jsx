@@ -115,6 +115,7 @@ function OfferForm({ entry, lookups, accounts, onCancel, onSaved }) {
       setLookupResult(data)
       applyLookup(data)
     } catch (err) {
+      setLookupResult(null)
       setError(err.message)
     } finally {
       setFetching(false)
@@ -164,7 +165,7 @@ function OfferForm({ entry, lookups, accounts, onCancel, onSaved }) {
               <label className="field"><span>Listing ID or eBay URL</span><input value={lookupText} onChange={(event) => setLookupText(event.target.value)} /></label>
               <button className="secondary-button compact-action" type="button" disabled={fetching || !lookupText} onClick={fetchDetails}>{fetching ? 'Fetching...' : 'Fetch Details'}</button>
             </div>
-            {lookupResult ? <p className="form-message success">{lookupResult.message}</p> : null}
+            {error ? <p className="form-message error">{error}</p> : lookupResult ? <p className="form-message success">{lookupResult.message}</p> : null}
             {lookupResult?.matches?.length > 1 ? <div className="offer-match-list">{lookupResult.matches.map((match) => <button key={match.offer_id} type="button" className="secondary-button compact-action" onClick={() => setForm((current) => ({ ...current, ebay_account_id: match.seller_account_id || current.ebay_account_id, ebay_account_name: match.seller_account || current.ebay_account_name, buyer_id: match.buyer_id || '', buyer_offer_price: match.offer_amount || '', automated_offer_price: match.offer_type === 'OUTGOING' ? match.offer_amount || '' : current.automated_offer_price, currency: match.currency || current.currency, related_offer_id: match.offer_id, related_conversation_id: match.related_conversation_id || current.related_conversation_id }))}>{match.buyer_id || 'Unknown buyer'} · {match.offer_type || 'Offer'} · {money(match.offer_amount, match.currency)} · {match.seller_account || 'Account'} · {match.offer_status}</button>)}</div> : null}
           </section>
           <section className="offer-form-section">
@@ -188,7 +189,6 @@ function OfferForm({ entry, lookups, accounts, onCancel, onSaved }) {
           </section>
           <section className="offer-form-section"><h3>Follow-ups</h3><div className="form-grid two"><label className="field"><span>Follow-up 1</span><textarea value={form.follow_up_1_notes || ''} onChange={(event) => update('follow_up_1_notes', event.target.value)} /></label><label className="field"><span>Follow-up 2</span><textarea value={form.follow_up_2_notes || ''} onChange={(event) => update('follow_up_2_notes', event.target.value)} /></label></div></section>
           <section className="offer-form-section"><h3>Notes</h3><div className="form-grid two"><label className="field"><span>Remarks</span><textarea value={form.remarks || ''} onChange={(event) => update('remarks', event.target.value)} /></label></div></section>
-          {error ? <p className="form-message error">{error}</p> : null}
           <div className="modal-actions"><button className="secondary-button" type="button" onClick={onCancel}>Cancel</button><button className="secondary-button" type="button" disabled={saving} onClick={() => save(true)}>Save and Preview</button><button className="primary-button" type="button" disabled={saving} onClick={() => save(false)}>{saving ? 'Saving...' : 'Save Entry'}</button></div>
         </div>
       </section>

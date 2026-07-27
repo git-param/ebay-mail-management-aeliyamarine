@@ -471,7 +471,7 @@ function Analytics({ currentUser, onLogout }) {
               <TrendChart items={dashboard.daily_trends} />
             </div>
             <div className="analytics-grid">
-              <MetricList title="Messages by Status" items={dashboard.by_status} />
+              <MetricList title="Conversations by Status" items={dashboard.by_status} />
               <MetricList title="Agent-wise Handling" items={(dashboard.agent_summary || []).map((item) => ({ label: item.Agent, value: `${item.Conversations} conv / ${item.Replies} replies` }))} />
               <MetricList title="Category-wise Handling" items={(dashboard.category_summary || []).map((item) => ({ label: item.Category, value: `${item.Conversations} conv / ${item['SLA Compliance']} SLA` }))} />
             </div>
