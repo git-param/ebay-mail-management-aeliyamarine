@@ -47,6 +47,12 @@ const NAV_ITEMS = [
     label: 'Message Reports', path: '/message-reports', icon: 'chart', roles: ['ADMIN', 'OPS_MANAGER', 'AGENT'],
   },
   {
+    label: 'Offer Management',
+    path: '/offer-management',
+    icon: 'handshake',
+    roles: ['ADMIN', 'OPS_MANAGER', 'AGENT'],
+  },
+  {
     label: 'Search Across Platforms',
     path: '/search-across-platforms',
     icon: 'search',
@@ -115,6 +121,7 @@ export function Icon({ name }) {
     chart: <path d="M4 16V5m0 11h12M7 13V9m4 4V6m4 7v-3" />,
     audit: <path d="M5 4h8l2 2v10H5V4Zm7 0v3h3M7 9h6M7 12h6" />,
     search: <path d="M8.5 14a5.5 5.5 0 1 1 3.9-1.6L16 16l-1.4 1.4-3.6-3.6A5.5 5.5 0 0 1 8.5 14Zm0-2a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" />,
+    handshake: <path d="M7 8.5 9.2 6.3a2 2 0 0 1 2.8 0l.7.7H15l2 3-2.5 4.5h-2.2L10 16.2 7.7 14H5.5L3 9.5l2-3h2l.8.8L6.2 9 8 10.8l1.4-1.4M5.5 14.5 3 10m12 4.5 2-4m-5-3.5 2.8 2.8a1.4 1.4 0 0 1 0 2L12 14.5" />,
   }
 
   return (
