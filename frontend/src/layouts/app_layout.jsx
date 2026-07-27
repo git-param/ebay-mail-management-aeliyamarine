@@ -64,6 +64,12 @@ const NAV_ITEMS = [
     icon: 'audit',
     roles: ['ADMIN'],
   },
+  {
+    label: 'Config',
+    path: '/config',
+    icon: 'settings',
+    roles: ['ADMIN'],
+  },
 ]
 
 function getInitials(name) {
@@ -124,6 +130,7 @@ export function Icon({ name }) {
     handshake: <path d="M7 8.5 9.2 6.3a2 2 0 0 1 2.8 0l.7.7H15l2 3-2.5 4.5h-2.2L10 16.2 7.7 14H5.5L3 9.5l2-3h2l.8.8L6.2 9 8 10.8l1.4-1.4M5.5 14.5 3 10m12 4.5 2-4m-5-3.5 2.8 2.8a1.4 1.4 0 0 1 0 2L12 14.5" />,
     trash: <path d="M6 7h8m-7 0 .6 9h4.8L13 7M8 7V5h4v2M9 10v4m2-4v4" />,
     external: <path d="M8 5H5v10h10v-3M11 5h4v4m0-4-6 6" />,
+    settings: <path d="M8.8 3h2.4l.4 2a5.8 5.8 0 0 1 1.2.5l1.8-1.1 1.2 2.1-1.5 1.3c.1.4.2.8.2 1.2s-.1.8-.2 1.2l1.5 1.3-1.2 2.1-1.8-1.1a5.8 5.8 0 0 1-1.2.5l-.4 2H8.8l-.4-2a5.8 5.8 0 0 1-1.2-.5l-1.8 1.1-1.2-2.1 1.5-1.3A5 5 0 0 1 5.5 9c0-.4.1-.8.2-1.2L4.2 6.5l1.2-2.1 1.8 1.1c.4-.2.8-.4 1.2-.5l.4-2Zm1.2 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z" />,
   }
 
   return (

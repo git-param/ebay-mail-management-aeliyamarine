@@ -3,6 +3,7 @@ import { useState } from 'react'
 import Categories from './pages/categories'
 import Analytics from './pages/analytics'
 import AuditLogs from './pages/audit_logs'
+import Config from './pages/config'
 import Dashboard from './pages/dashboard'
 import EbayAccounts from './pages/ebay_accounts'
 import ForgotPassword from './pages/forgot_password'
@@ -98,6 +99,11 @@ const PROTECTED_ROUTES = [
   {
     path: '/audit-logs',
     component: AuditLogs,
+    allowedRoles: ['ADMIN'],
+  },
+  {
+    path: '/config',
+    component: Config,
     allowedRoles: ['ADMIN'],
   },
 ]

@@ -22,11 +22,14 @@ def default_listing_url(listing_id: str) -> str:
     return f'https://www.ebay.com/itm/{listing_id}'
 
 
-def is_high_value_amount(*values) -> bool:
+def is_high_value_amount(*values, threshold: Decimal = Decimal('500'), quantity: int | None = None) -> bool:
     for value in values:
         if value is None or value == '':
             continue
-        if Decimal(str(value)) >= Decimal('500'):
+        amount = Decimal(str(value))
+        if amount >= threshold:
+            return True
+        if quantity and amount * Decimal(str(quantity)) >= threshold:
             return True
     return False
 

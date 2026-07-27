@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.models.ebay_api_usage import EbayApiUsage
+from app.modules.config_management.service import ConfigService
 
 
 @dataclass(frozen=True)
@@ -25,6 +26,9 @@ class EbayApiUsageService:
     def __init__(self, db: Session):
         self.db = db
         self.settings = get_settings()
+
+    def _daily_limit(self) -> int:
+        return ConfigService(self.db).get_int('api.ebay_daily_api_limit', self.settings.ebay_daily_api_limit)
 
     def get_today_usage(self) -> EbayApiUsageSummary:
         usage = self._get_or_create_usage_row(self._today())
@@ -67,7 +71,7 @@ class EbayApiUsageService:
         usage = EbayApiUsage(
             usage_date=usage_date,
             call_count=0,
-            daily_limit=self.settings.ebay_daily_api_limit,
+            daily_limit=self._daily_limit(),
         )
         self.db.add(usage)
         try:
@@ -86,10 +90,11 @@ class EbayApiUsageService:
             raise
 
     def _sync_daily_limit(self, usage: EbayApiUsage) -> None:
-        if usage.daily_limit == self.settings.ebay_daily_api_limit:
+        daily_limit = self._daily_limit()
+        if usage.daily_limit == daily_limit:
             return
 
-        usage.daily_limit = self.settings.ebay_daily_api_limit
+        usage.daily_limit = daily_limit
         usage.updated_at = datetime.now(UTC)
 
     def _to_summary(self, usage: EbayApiUsage) -> EbayApiUsageSummary:

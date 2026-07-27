@@ -1,6 +1,7 @@
 from app.db.base_class import Base
 from app.models import (
     AuditLog,
+    AppConfigSetting,
     Category,
     CategoryKeyword,
     CategoryUserAssignment,
@@ -41,6 +42,7 @@ from app.modules.offer_management.models import OfferManagementEntry, OfferManag
 
 __all__ = [
     'AuditLog',
+    'AppConfigSetting',
     'Base',
     'Category',
     'CategoryKeyword',
