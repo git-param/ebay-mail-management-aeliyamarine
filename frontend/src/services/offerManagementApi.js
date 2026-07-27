@@ -37,6 +37,17 @@ export function updateOfferEntry(id, payload) {
   return request(`/offer-management/${id}`, { method: 'PUT', body: JSON.stringify(payload) })
 }
 
+export function deleteOfferEntry(id) {
+  return request(`/offer-management/${id}`, { method: 'DELETE' })
+}
+
+export function bulkDeleteOfferEntries(entryIds) {
+  return request('/offer-management/bulk-delete', {
+    method: 'POST',
+    body: JSON.stringify({ entry_ids: entryIds }),
+  })
+}
+
 export function fetchOfferEntry(id) {
   return request(`/offer-management/${id}`)
 }

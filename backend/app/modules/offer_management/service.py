@@ -3,7 +3,7 @@ from fastapi import HTTPException, status
 from app.models.conversation import Conversation
 from app.models.ebay_account import EbayAccount
 from app.modules.offer_management.models import OfferManagementEntry
-from app.modules.offer_management.permissions import can_view_all_offer_entries, require_offer_entry_access
+from app.modules.offer_management.permissions import can_view_all_offer_entries, require_offer_entry_access, require_offer_entry_delete_access
 from app.modules.offer_management.repository import OfferManagementRepository
 from app.modules.offer_management.schemas import OfferEntryCreate, OfferEntryUpdate
 from app.modules.offer_management.utils import default_listing_url, extract_listing_id, is_high_value_amount
@@ -47,6 +47,12 @@ class OfferManagementService:
 
     def create(self, payload: OfferEntryCreate, user) -> OfferManagementEntry:
         values = self._prepare_values(payload, user)
+        existing = self.repo.get_by_listing_id(values['listing_id'])
+        if existing:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f'Entry for listing {values["listing_id"]} is already done as entry #{existing.entry_number}. Please edit it from the list below.',
+            )
         entry = OfferManagementEntry(
             **values,
             entry_number=self.repo.next_entry_number(),
@@ -66,6 +72,23 @@ class OfferManagementService:
         values.pop('entry_number', None)
         return self.repo.update(entry, values, user.id)
 
+    def delete(self, entry_id, user) -> None:
+        require_offer_entry_delete_access(user)
+        entry = self.repo.get(entry_id)
+        if not entry:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Offer entry not found.')
+        self.repo.delete(entry)
+
+    def delete_many(self, entry_ids, user) -> int:
+        require_offer_entry_delete_access(user)
+        unique_ids = list(dict.fromkeys(entry_ids))
+        entries = []
+        for entry_id in unique_ids:
+            entry = self.repo.get(entry_id)
+            if entry:
+                entries.append(entry)
+        return self.repo.delete_many(entries)
+
     def get(self, entry_id, user):
         entry = self.repo.get(entry_id)
         if not entry:
@@ -80,6 +103,12 @@ class OfferManagementService:
 
     def lookup(self, listing_value: str) -> dict:
         listing_id = extract_listing_id(listing_value)
+        existing = self.repo.get_by_listing_id(listing_id)
+        if existing:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f'Entry for listing {listing_id} is already done as entry #{existing.entry_number}. Please edit it from the list below.',
+            )
         sources = self.repo.lookup_sources(listing_id)
         product = sources['product']
         order_line = sources['order_line']

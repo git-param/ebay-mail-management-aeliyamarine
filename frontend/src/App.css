@@ -7962,6 +7962,57 @@ html[data-theme='dark'] .message-bubble.inbound {
   width: min(560px, 100vw);
 }
 
+.offer-icon-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.offer-action-icon {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+}
+
+.offer-action-preview {
+  color: #2563eb;
+  background: #eff6ff;
+}
+
+.offer-action-edit {
+  color: #b45309;
+  background: #fffbeb;
+}
+
+.offer-action-delete {
+  color: #dc2626;
+  background: #fef2f2;
+}
+
+.offer-action-external {
+  color: #047857;
+  background: #ecfdf5;
+}
+
+.offer-action-conversation {
+  color: #6d28d9;
+  background: #f5f3ff;
+}
+
+.offer-bulk-bar {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-bottom: 12px;
+  min-height: 40px;
+  color: #45556c;
+}
+
+.offer-bulk-bar strong {
+  color: #061426;
+}
+
 .offer-entry-form .modal-actions {
   position: sticky;
   bottom: 0;
