@@ -167,3 +167,11 @@ class OfferSummaryResponse(BaseModel):
     awaiting_payment: int
     sold: int
     high_value_offers: int
+
+
+class OfferBulkDeleteRequest(BaseModel):
+    entry_ids: list[UUID]
+
+
+class OfferBulkDeleteResponse(BaseModel):
+    deleted_count: int

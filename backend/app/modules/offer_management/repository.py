@@ -35,6 +35,15 @@ class OfferManagementRepository:
             .first()
         )
 
+    def get_by_listing_id(self, listing_id: str) -> OfferManagementEntry | None:
+        return (
+            self.db.query(OfferManagementEntry)
+            .options(joinedload(OfferManagementEntry.created_by))
+            .filter(OfferManagementEntry.listing_id == listing_id)
+            .order_by(OfferManagementEntry.created_at.desc())
+            .first()
+        )
+
     def update(self, entry: OfferManagementEntry, values: dict, user_id: UUID) -> OfferManagementEntry:
         previous = self.snapshot(entry)
         for key, value in values.items():
@@ -50,6 +59,17 @@ class OfferManagementRepository:
         self.db.commit()
         self.db.refresh(entry)
         return entry
+
+    def delete(self, entry: OfferManagementEntry) -> None:
+        self.db.delete(entry)
+        self.db.commit()
+
+    def delete_many(self, entries: list[OfferManagementEntry]) -> int:
+        count = len(entries)
+        for entry in entries:
+            self.db.delete(entry)
+        self.db.commit()
+        return count
 
     def add_history(self, entry_id: UUID, user_id: UUID | None, action: str, previous: dict | None, new: dict | None) -> None:
         self.db.add(OfferManagementEntryHistory(
@@ -70,9 +90,7 @@ class OfferManagementRepository:
 
     def query_entries(self, filters: dict, user) :
         query = self.db.query(OfferManagementEntry).options(joinedload(OfferManagementEntry.created_by))
-        if not filters.get('can_view_all'):
-            query = query.filter(OfferManagementEntry.created_by_user_id == user.id)
-        elif filters.get('created_by_user_id'):
+        if filters.get('created_by_user_id'):
             query = query.filter(OfferManagementEntry.created_by_user_id == filters['created_by_user_id'])
         if filters.get('from_date'):
             query = query.filter(OfferManagementEntry.offer_date >= filters['from_date'])
@@ -126,6 +144,13 @@ class OfferManagementRepository:
             conversation = self.db.query(Conversation).filter(Conversation.id == product.conversation_id).first()
         elif offers and offers[0].conversation_id:
             conversation = offers[0].conversation
+        else:
+            conversation = (
+                self.db.query(Conversation)
+                .filter(Conversation.reference_id == listing_id)
+                .order_by(Conversation.updated_at.desc())
+                .first()
+            )
         account = None
         account_id = (
             offers[0].account_id if offers else

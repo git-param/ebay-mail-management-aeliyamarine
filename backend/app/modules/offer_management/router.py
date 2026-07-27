@@ -1,7 +1,7 @@
 from datetime import date
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Response, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
@@ -16,6 +16,8 @@ from app.modules.offer_management.schemas import (
     OfferEntryListResponse,
     OfferEntryResponse,
     OfferEntryUpdate,
+    OfferBulkDeleteRequest,
+    OfferBulkDeleteResponse,
     OfferLookupResponse,
     OfferSummaryResponse,
 )
@@ -120,6 +122,18 @@ def read_entry(entry_id: UUID, db: Session = Depends(get_db), current_user=Depen
 @router.put('/{entry_id}', response_model=OfferEntryResponse)
 def update_entry(entry_id: UUID, payload: OfferEntryUpdate, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     return serialize_entry(OfferManagementService(db).update(entry_id, payload, current_user))
+
+
+@router.delete('/{entry_id}', status_code=status.HTTP_204_NO_CONTENT)
+def delete_entry(entry_id: UUID, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    OfferManagementService(db).delete(entry_id, current_user)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post('/bulk-delete', response_model=OfferBulkDeleteResponse)
+def bulk_delete_entries(payload: OfferBulkDeleteRequest, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    deleted_count = OfferManagementService(db).delete_many(payload.entry_ids, current_user)
+    return {'deleted_count': deleted_count}
 
 
 @router.get('/{entry_id}/history', response_model=list[OfferEntryHistoryResponse])

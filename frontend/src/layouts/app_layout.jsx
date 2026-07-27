@@ -122,6 +122,8 @@ export function Icon({ name }) {
     audit: <path d="M5 4h8l2 2v10H5V4Zm7 0v3h3M7 9h6M7 12h6" />,
     search: <path d="M8.5 14a5.5 5.5 0 1 1 3.9-1.6L16 16l-1.4 1.4-3.6-3.6A5.5 5.5 0 0 1 8.5 14Zm0-2a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" />,
     handshake: <path d="M7 8.5 9.2 6.3a2 2 0 0 1 2.8 0l.7.7H15l2 3-2.5 4.5h-2.2L10 16.2 7.7 14H5.5L3 9.5l2-3h2l.8.8L6.2 9 8 10.8l1.4-1.4M5.5 14.5 3 10m12 4.5 2-4m-5-3.5 2.8 2.8a1.4 1.4 0 0 1 0 2L12 14.5" />,
+    trash: <path d="M6 7h8m-7 0 .6 9h4.8L13 7M8 7V5h4v2M9 10v4m2-4v4" />,
+    external: <path d="M8 5H5v10h10v-3M11 5h4v4m0-4-6 6" />,
   }
 
   return (
