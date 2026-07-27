@@ -34,6 +34,10 @@ function getStoredNumber(key, fallback) {
   return Number.isFinite(value) ? value : fallback
 }
 
+function getConversationIdFromUrl() {
+  return new URLSearchParams(window.location.search).get('conversation_id') || ''
+}
+
 function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max)
 }
@@ -1408,7 +1412,7 @@ function Dashboard({ currentUser, onLogout }) {
   const [page, setPage] = useState(0)
   const [conversations, setConversations] = useState([])
   const [total, setTotal] = useState(0)
-  const [selectedConversationId, setSelectedConversationId] = useState('')
+  const [selectedConversationId, setSelectedConversationId] = useState(getConversationIdFromUrl)
   const [bulkSelectedIds, setBulkSelectedIds] = useState(() => new Set())
   const [bulkAssignedUserId, setBulkAssignedUserId] = useState('')
   const [detail, setDetail] = useState(null)
@@ -1547,6 +1551,18 @@ function Dashboard({ currentUser, onLogout }) {
   }, [])
 
   useEffect(() => {
+    function syncConversationFromUrl() {
+      const conversationId = getConversationIdFromUrl()
+      setSelectedConversationId(conversationId)
+      setMobilePane(conversationId ? 'thread' : 'list')
+    }
+
+    syncConversationFromUrl()
+    window.addEventListener('popstate', syncConversationFromUrl)
+    return () => window.removeEventListener('popstate', syncConversationFromUrl)
+  }, [])
+
+  useEffect(() => {
     loadConversations()
   }, [loadConversations])
 
@@ -1573,6 +1589,7 @@ function Dashboard({ currentUser, onLogout }) {
     () => conversations.find((conversation) => conversation.id === selectedConversationId),
     [conversations, selectedConversationId],
   )
+  const visibleConversation = detail || selectedConversation
 
   const bulkSelectedCount = bulkSelectedIds.size
   const activeFilterCount = Object.entries(filters).filter(([key, value]) => key !== 'provider' && Boolean(value)).length
@@ -1612,6 +1629,9 @@ function Dashboard({ currentUser, onLogout }) {
   function selectConversation(conversationId) {
     setSelectedConversationId(conversationId)
     setMobilePane('thread')
+    const url = new URL(window.location.href)
+    url.searchParams.set('conversation_id', conversationId)
+    window.history.replaceState({}, '', url)
   }
 
   function toggleBulkSelection(conversationId) {
@@ -1636,6 +1656,9 @@ function Dashboard({ currentUser, onLogout }) {
     setDetail(null)
     setNotes([])
     setMobilePane('list')
+    const url = new URL(window.location.href)
+    url.searchParams.delete('conversation_id')
+    window.history.replaceState({}, '', url)
   }
 
   function changePageSize(nextPageSize) {
@@ -1900,7 +1923,7 @@ function Dashboard({ currentUser, onLogout }) {
                 <EmptyPanel title="Could not load conversation" message={detailError} />
               ) : (
                 <ConversationDetail
-                  detail={detail || selectedConversation}
+                  detail={visibleConversation}
                   notes={notes}
                   users={users}
                   usersError={usersError}
@@ -1932,11 +1955,11 @@ function Dashboard({ currentUser, onLogout }) {
               )}
             </section>
 
-            {isDetailsOpen ? (
+            {isDetailsOpen && visibleConversation ? (
               <>
                 <button className="resize-handle" type="button" onMouseDown={beginDetailsResize} aria-label="Resize details panel" />
                 <DetailsPanel
-                  detail={detail || selectedConversation}
+                  detail={visibleConversation}
                   notes={notes}
                   users={users}
                   usersError={usersError}

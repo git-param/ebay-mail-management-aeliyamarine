@@ -37,6 +37,7 @@ from app.models import (
     OfferDirection,
     OfferStatus,
 )
+from app.modules.offer_management.models import OfferManagementEntry, OfferManagementEntryHistory
 
 __all__ = [
     'AuditLog',
@@ -76,4 +77,6 @@ __all__ = [
     'Offer',
     'OfferDirection',
     'OfferStatus',
+    'OfferManagementEntry',
+    'OfferManagementEntryHistory',
 ]

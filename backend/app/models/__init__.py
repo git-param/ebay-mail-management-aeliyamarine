@@ -25,6 +25,7 @@ from app.models.user import User
 from app.models.message_type import MessageClassification, MessageType, MessageTypeKeyword
 from app.models.offer import Offer, OfferDirection, OfferStatus
 from app.models.ebay_best_offer_listing_sync_state import EbayBestOfferListingSyncState
+from app.modules.offer_management.models import OfferManagementEntry, OfferManagementEntryHistory
 
 __all__ = [
     'AuditLog',
@@ -63,4 +64,6 @@ __all__ = [
     'Offer',
     'OfferDirection',
     'OfferStatus',
+    'OfferManagementEntry',
+    'OfferManagementEntryHistory',
 ]
