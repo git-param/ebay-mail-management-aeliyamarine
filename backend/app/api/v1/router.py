@@ -5,6 +5,7 @@ from app.modules.integrations.ebay.routes import ebay_oauth_routes
 from app.modules.config_management.router import router as config_router
 from app.modules.offer_management.router import router as offer_management_router
 from app.modules.search_sku.router import router as search_sku_router
+from app.modules.sold_posting.router import router as sold_posting_router
 
 
 api_router = APIRouter()
@@ -22,6 +23,7 @@ api_router.include_router(message_types.router, prefix='/message-types', tags=['
 api_router.include_router(message_types.reports_router, prefix='/reports', tags=['message-type-reports'])
 api_router.include_router(search_sku_router, tags=['search-sku'])
 api_router.include_router(offer_management_router, prefix='/offer-management', tags=['offer-management'])
+api_router.include_router(sold_posting_router, prefix='/sold-posting', tags=['sold-posting'])
 api_router.include_router(config_router, prefix='/config', tags=['config'])
 api_router.include_router(
     ebay_oauth_routes.router,

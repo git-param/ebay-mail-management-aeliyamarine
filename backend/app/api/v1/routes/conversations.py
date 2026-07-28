@@ -1259,12 +1259,6 @@ def update_conversation_status(
         visible_category_ids=visible_category_ids_for_user(db, current_user),
         visibility_user_id=visibility_user_id_for_user(current_user),
     )
-    if conversation.status == ConversationStatus.CLOSED:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail='Closed conversations are final and read-only')
-    if payload.status == ConversationStatus.RESOLVED:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='Resolved is set automatically after a successful reply')
-    if payload.status == ConversationStatus.CLOSED and not (is_admin(current_user) or is_operations_manager(current_user)):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='Only admins and operations managers can close conversations')
     conversation = service.update_status(
         conversation_id=conversation_id,
         new_status=payload.status,

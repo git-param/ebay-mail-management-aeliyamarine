@@ -39,6 +39,7 @@ from app.models import (
     OfferStatus,
 )
 from app.modules.offer_management.models import OfferManagementEntry, OfferManagementEntryHistory
+from app.modules.sold_posting.models import SoldPostingLineItem, SoldPostingOrder, SoldPostingSyncState
 
 __all__ = [
     'AuditLog',
@@ -81,4 +82,7 @@ __all__ = [
     'OfferStatus',
     'OfferManagementEntry',
     'OfferManagementEntryHistory',
+    'SoldPostingOrder',
+    'SoldPostingLineItem',
+    'SoldPostingSyncState',
 ]
