@@ -93,8 +93,9 @@ def add_account_audit_log(db: Session, *, action: str, actor_id: UUID, account_i
 @router.get('', response_model=list[EbayAccountResponse])
 def list_ebay_accounts(
     db: Session = Depends(get_db),
-    current_user=Depends(require_admin),
+    current_user=Depends(get_current_user),
 ) -> list[EbayAccountResponse]:
+    _ = current_user
     statement = select(EbayAccount).order_by(EbayAccount.created_at.desc())
     return [serialize_account(account) for account in db.scalars(statement)]
 

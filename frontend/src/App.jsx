@@ -16,6 +16,7 @@ import Users from './pages/users'
 import MessageTypes from './pages/message_types'
 import MessageReports from './pages/message_reports'
 import OfferManagement from './pages/offer_management'
+import SoldPosting from './pages/sold_posting'
 import { logoutUser } from './services/authApi'
 import { clearStoredSession } from './services/http'
 import { normalizeRole } from './utils/roles'
@@ -89,6 +90,11 @@ const PROTECTED_ROUTES = [
   {
     path: '/offer-management',
     component: OfferManagement,
+    allowedRoles: ['ADMIN', 'OPS_MANAGER', 'AGENT'],
+  },
+  {
+    path: '/sold-posting',
+    component: SoldPosting,
     allowedRoles: ['ADMIN', 'OPS_MANAGER', 'AGENT'],
   },
   {
