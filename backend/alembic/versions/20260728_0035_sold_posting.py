@@ -17,14 +17,13 @@ depends_on = None
 
 
 sold_posting_status = postgresql.ENUM(
-    "AWAITING_PAYMENT",
-    "AWAITING_SHIPMENT",
-    "PARTIALLY_SHIPPED",
-    "SHIPPED",
-    "CANCELLED",
-    "REFUNDED",
-    "PARTIALLY_REFUNDED",
-    "OTHER",
+        "AWAITING_PAYMENT",
+        "AWAITING_SHIPMENT",
+        "SHIPPED",
+        "DELIVERED",
+        "CANCELLED",
+        "REFUNDED",
+        "OTHER",
     name="sold_posting_status",
     create_type=False,
 )
@@ -129,10 +128,6 @@ def upgrade() -> None:
         ),
         sa.Column(
             "discount_total",
-            sa.Numeric(14, 2),
-        ),
-        sa.Column(
-            "tax_total",
             sa.Numeric(14, 2),
         ),
         sa.Column(
@@ -252,16 +247,16 @@ def upgrade() -> None:
             sa.String(255),
         ),
         sa.Column(
-            "legacy_variation_id",
-            sa.String(255),
-        ),
-        sa.Column(
             "sku",
             sa.String(255),
         ),
         sa.Column(
             "title",
             sa.String(500),
+        ),
+        sa.Column(
+            "condition",
+            sa.String(120),
         ),
         sa.Column(
             "quantity",
@@ -292,10 +287,6 @@ def upgrade() -> None:
             sa.Numeric(14, 2),
         ),
         sa.Column(
-            "shipping_cost",
-            sa.Numeric(14, 2),
-        ),
-        sa.Column(
             "discount_amount",
             sa.Numeric(14, 2),
         ),
@@ -314,10 +305,6 @@ def upgrade() -> None:
         sa.Column(
             "image_url",
             sa.Text,
-        ),
-        sa.Column(
-            "variation_aspects_json",
-            postgresql.JSONB,
         ),
         sa.Column(
             "raw_payload_json",

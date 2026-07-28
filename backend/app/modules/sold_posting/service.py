@@ -224,6 +224,35 @@ class SoldPostingService:
             )
         return order
 
+    def update_line_order_fields(self, line_item_record_id: UUID, payload) -> dict:
+        row = self.repo.get_line_with_order(line_item_record_id)
+        if not row:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sold Posting line item not found")
+        line, order = row
+        values = payload.model_dump(exclude_unset=True)
+
+        status_value = values.pop("status", None)
+        if status_value not in (None, ""):
+            try:
+                order.normalized_status = SoldPostingStatus(status_value)
+            except ValueError as exc:
+                raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid Sold Posting status") from exc
+
+        for key in ["tracking_number", "shipping_carrier_code", "shipping_service_code", "ship_by_date", "order_payment_status", "order_fulfillment_status", "buyer_username"]:
+            if key in values:
+                setattr(order, key, values[key] or None)
+        for key in ["sku", "condition", "title", "quantity"]:
+            if key in values:
+                setattr(line, key, values[key] if values[key] != "" else None)
+
+        now = datetime.now(UTC)
+        order.updated_at = now
+        line.updated_at = now
+        self.db.commit()
+        self.db.refresh(order)
+        self.db.refresh(line)
+        return self._row(line, order, order.account)
+
     # -------------------------------------------------------------------------
     # Private helpers
     # -------------------------------------------------------------------------
@@ -301,7 +330,7 @@ class SoldPostingService:
         payment = payload.get("paymentSummary") or {}
         cancel = payload.get("cancelStatus") or {}
         instructions = payload.get("fulfillmentStartInstructions") or []
-        ship = instructions[0] if instructions else {}
+        fulfillment = self._fulfillment_values(instructions)
         line_items = payload.get("lineItems") or []
         currency = self._money(pricing.get("total"))[1]
         status_value = normalize_sold_posting_status(payload)
@@ -333,19 +362,17 @@ class SoldPostingService:
                 ]
                 if v is not None
             ),
-            "tax_total": self._money(pricing.get("tax"))[0],
             "order_total": self._money(pricing.get("total"))[0],
             "total_due_seller": self._money(payment.get("totalDueSeller"))[0],
             "total_marketplace_fee": self._money(payload.get("totalMarketplaceFee"))[0],
             "listing_marketplace_ids": list({x.get("listingMarketplaceId") for x in line_items if x.get("listingMarketplaceId")}),
             "purchase_marketplace_ids": list({x.get("purchaseMarketplaceId") for x in line_items if x.get("purchaseMarketplaceId")}),
-            "shipping_carrier_code": ship.get("shippingCarrierCode"),
-            "shipping_service_code": ship.get("shippingServiceCode"),
-            "tracking_number": ((ship.get("shippingStep") or {}).get("shipTo") or {}).get("trackingNumber")
-            or (ship.get("shippingStep") or {}).get("trackingNumber"),
-            "ship_by_date": self._dt(ship.get("shipByDate")),
-            "min_estimated_delivery_date": self._dt(ship.get("minEstimatedDeliveryDate")),
-            "max_estimated_delivery_date": self._dt(ship.get("maxEstimatedDeliveryDate")),
+            "shipping_carrier_code": fulfillment.get("shipping_carrier_code"),
+            "shipping_service_code": fulfillment.get("shipping_service_code"),
+            "tracking_number": fulfillment.get("tracking_number"),
+            "ship_by_date": fulfillment.get("ship_by_date"),
+            "min_estimated_delivery_date": fulfillment.get("min_estimated_delivery_date"),
+            "max_estimated_delivery_date": fulfillment.get("max_estimated_delivery_date"),
             "raw_payload_json": payload,
         }
 
@@ -355,15 +382,16 @@ class SoldPostingService:
             item_currency = self._money(item.get("total") or item.get("lineItemCost"))[1] or currency
             legacy_item_id = item.get("legacyItemId")
             sku = item.get("sku") or None
+            condition = self._condition(item) or self.repo.resolve_condition(account.id, legacy_item_id=legacy_item_id, sku=sku)
             mapped_lines.append(
                 {
                     "ebay_account_id": account.id,
                     "order_id": order_values["order_id"],
                     "line_item_id": str(item.get("lineItemId")),
                     "legacy_item_id": legacy_item_id,
-                    "legacy_variation_id": item.get("legacyVariationId"),
                     "sku": sku,
                     "title": item.get("title"),
+                    "condition": condition,
                     "quantity": item.get("quantity"),
                     "sold_format": item.get("soldFormat"),
                     "line_item_fulfillment_status": item.get("lineItemFulfillmentStatus"),
@@ -371,7 +399,6 @@ class SoldPostingService:
                     "purchase_marketplace_id": item.get("purchaseMarketplaceId"),
                     "unit_price": self._money(item.get("lineItemCost"))[0],
                     "line_item_cost": self._money(item.get("lineItemCost"))[0],
-                    "shipping_cost": self._money(item.get("deliveryCost"))[0],
                     "discount_amount": self._money(item.get("discountedLineItemCost"))[0],
                     "line_item_total": self._money(item.get("total"))[0],
                     "currency": item_currency,
@@ -379,7 +406,6 @@ class SoldPostingService:
                     "image_url": self.repo.resolve_image_url(
                         account.id, legacy_item_id=legacy_item_id, sku=sku
                     ),
-                    "variation_aspects_json": item.get("variationAspects"),
                     "raw_payload_json": item,
                 }
             )
@@ -401,12 +427,19 @@ class SoldPostingService:
             "sku": line.sku,
             "item_id": line.legacy_item_id,
             "product": line.title,
+            "condition": line.condition,
             "buyer_username": order.buyer_username,
             "quantity": line.quantity,
             "item_price": line.line_item_cost,
-            "shipping": line.shipping_cost,
+            "shipping": order.delivery_cost,
             "total": line.line_item_total or order.order_total,
             "currency": line.currency or order.currency,
+            "tracking_number": order.tracking_number,
+            "shipping_carrier_code": order.shipping_carrier_code,
+            "shipping_service_code": order.shipping_service_code,
+            "ship_by_date": order.ship_by_date,
+            "order_payment_status": order.order_payment_status,
+            "order_fulfillment_status": order.order_fulfillment_status,
             "image_url": line.image_url,
             "seller_hub_url": f"https://www.ebay.com/sh/ord/details?orderid={order.order_id}",
         }
@@ -465,3 +498,50 @@ class SoldPostingService:
     def _ebay_datetime(value: datetime) -> str:
         """Format a datetime into the eBay API's expected string format."""
         return value.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+
+    @classmethod
+    def _fulfillment_values(cls, instructions: list[dict]) -> dict:
+        values = {
+            "shipping_carrier_code": None,
+            "shipping_service_code": None,
+            "tracking_number": None,
+            "ship_by_date": None,
+            "min_estimated_delivery_date": None,
+            "max_estimated_delivery_date": None,
+        }
+        for instruction in instructions:
+            for key, value in cls._walk(instruction):
+                normalized = key.lower().replace("_", "")
+                if normalized in {"shippingcarriercode", "carrier", "carriername"} and not values["shipping_carrier_code"]:
+                    values["shipping_carrier_code"] = str(value) if value else None
+                elif normalized in {"shippingservicecode", "shippingservice", "shippingservicename"} and not values["shipping_service_code"]:
+                    values["shipping_service_code"] = str(value) if value else None
+                elif normalized in {"trackingnumber", "shipmenttrackingnumber"} and not values["tracking_number"]:
+                    values["tracking_number"] = str(value) if value else None
+                elif normalized == "shipbydate" and not values["ship_by_date"]:
+                    values["ship_by_date"] = cls._dt(value)
+                elif normalized == "minestimateddeliverydate" and not values["min_estimated_delivery_date"]:
+                    values["min_estimated_delivery_date"] = cls._dt(value)
+                elif normalized == "maxestimateddeliverydate" and not values["max_estimated_delivery_date"]:
+                    values["max_estimated_delivery_date"] = cls._dt(value)
+        return values
+
+    @staticmethod
+    def _condition(item: dict) -> str | None:
+        for key in ["condition", "conditionDisplayName", "conditionDescription", "itemCondition"]:
+            value = item.get(key)
+            if isinstance(value, dict):
+                value = value.get("displayName") or value.get("name") or value.get("value")
+            if value:
+                return str(value)
+        return None
+
+    @staticmethod
+    def _walk(value):
+        if isinstance(value, dict):
+            for key, item in value.items():
+                yield str(key), item
+                yield from SoldPostingService._walk(item)
+        elif isinstance(value, list):
+            for item in value:
+                yield from SoldPostingService._walk(item)

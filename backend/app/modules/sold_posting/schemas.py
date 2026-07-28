@@ -18,12 +18,19 @@ class SoldPostingRow(BaseModel):
     sku: str | None = None
     item_id: str | None = None
     product: str | None = None
+    condition: str | None = None
     buyer_username: str | None = None
     quantity: int | None = None
     item_price: Decimal | None = None
     shipping: Decimal | None = None
     total: Decimal | None = None
     currency: str | None = None
+    tracking_number: str | None = None
+    shipping_carrier_code: str | None = None
+    shipping_service_code: str | None = None
+    ship_by_date: datetime | None = None
+    order_payment_status: str | None = None
+    order_fulfillment_status: str | None = None
     image_url: str | None = None
     seller_hub_url: str | None = None
 
@@ -55,19 +62,17 @@ class SoldPostingLineItemResponse(BaseModel):
     line_item_id: str
     sku: str | None = None
     legacy_item_id: str | None = None
-    legacy_variation_id: str | None = None
     title: str | None = None
+    condition: str | None = None
     quantity: int | None = None
     sold_format: str | None = None
     line_item_fulfillment_status: str | None = None
     unit_price: Decimal | None = None
-    shipping_cost: Decimal | None = None
     discount_amount: Decimal | None = None
     line_item_total: Decimal | None = None
     currency: str | None = None
     ship_by_date: datetime | None = None
     image_url: str | None = None
-    variation_aspects_json: list | None = None
 
     class Config:
         from_attributes = True
@@ -124,3 +129,18 @@ class SoldPostingSyncResponse(BaseModel):
 class SoldPostingFilterOptions(BaseModel):
     accounts: list[dict]
     statuses: list[str]
+
+
+class SoldPostingEditRequest(BaseModel):
+    status: str | None = None
+    sku: str | None = None
+    condition: str | None = None
+    title: str | None = None
+    quantity: int | None = None
+    tracking_number: str | None = None
+    shipping_carrier_code: str | None = None
+    shipping_service_code: str | None = None
+    ship_by_date: datetime | None = None
+    order_payment_status: str | None = None
+    order_fulfillment_status: str | None = None
+    buyer_username: str | None = None

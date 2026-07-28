@@ -78,6 +78,19 @@ class SoldPostingRepository:
                 return product.image_url
         return None
 
+    def resolve_condition(self, account_id: UUID, *, legacy_item_id: str | None, sku: str | None) -> str | None:
+        if legacy_item_id:
+            product = self.db.query(ConversationProductContext).filter(ConversationProductContext.reference_id == legacy_item_id).order_by(ConversationProductContext.updated_at.desc()).first()
+            condition = ((product.raw_payload or {}).get('condition') if product and isinstance(product.raw_payload, dict) else None)
+            if condition:
+                return str(condition)
+        if sku:
+            product = self.db.query(ConversationProductContext).filter(ConversationProductContext.sku == sku).order_by(ConversationProductContext.updated_at.desc()).first()
+            condition = ((product.raw_payload or {}).get('condition') if product and isinstance(product.raw_payload, dict) else None)
+            if condition:
+                return str(condition)
+        return None
+
     def query_rows(self, filters: dict):
         query = self.db.query(SoldPostingLineItem, SoldPostingOrder, EbayAccount).join(SoldPostingOrder, SoldPostingLineItem.sold_posting_order_id == SoldPostingOrder.id).join(EbayAccount, SoldPostingOrder.ebay_account_id == EbayAccount.id)
         if filters.get('date_sold_from'):
@@ -109,6 +122,7 @@ class SoldPostingRepository:
                 SoldPostingLineItem.sku.ilike(term),
                 SoldPostingLineItem.legacy_item_id.ilike(term),
                 SoldPostingLineItem.title.ilike(term),
+                SoldPostingLineItem.condition.ilike(term),
                 SoldPostingOrder.buyer_username.ilike(term),
                 EbayAccount.account_name.ilike(term),
                 EbayAccount.ebay_username.ilike(term),
@@ -123,11 +137,20 @@ class SoldPostingRepository:
             'line_item_count': len(rows),
             'quantity_sold': sum((line.quantity or 0) for line, _, _ in rows),
             'awaiting_shipment': sum(1 for _, order, _ in rows if order.normalized_status.value == 'AWAITING_SHIPMENT'),
-            'shipped': sum(1 for _, order, _ in rows if order.normalized_status.value == 'SHIPPED'),
+            'shipped': sum(1 for _, order, _ in rows if order.normalized_status.value in {'SHIPPED', 'DELIVERED'}),
         }
 
     def get_order_detail(self, order_id: str) -> SoldPostingOrder | None:
         return self.db.query(SoldPostingOrder).options(joinedload(SoldPostingOrder.line_items), joinedload(SoldPostingOrder.account)).filter(SoldPostingOrder.order_id == order_id).first()
+
+    def get_line_with_order(self, line_item_record_id: UUID) -> tuple[SoldPostingLineItem, SoldPostingOrder] | None:
+        row = (
+            self.db.query(SoldPostingLineItem, SoldPostingOrder)
+            .join(SoldPostingOrder, SoldPostingLineItem.sold_posting_order_id == SoldPostingOrder.id)
+            .filter(SoldPostingLineItem.id == line_item_record_id)
+            .first()
+        )
+        return row
 
 
 def _date_start(value: date) -> datetime:

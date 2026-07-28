@@ -8074,9 +8074,10 @@ html[data-theme='dark'] .message-bubble.inbound {
 .sold-filter-bar {
   align-items: end;
   display: grid;
-  grid-template-columns: repeat(6, minmax(150px, 1fr));
-  gap: 14px;
+  grid-template-columns: repeat(6, minmax(138px, 1fr));
+  gap: 10px 12px;
   overflow: hidden;
+  padding: 14px;
 }
 
 .sold-filter-bar .field {
@@ -8089,12 +8090,23 @@ html[data-theme='dark'] .message-bubble.inbound {
 }
 
 .sold-filter-bar select[multiple] {
-  min-height: 86px;
+  min-height: 76px;
   padding: 8px 10px;
 }
 
 .sold-filter-bar .compact-action {
-  min-height: 52px;
+  min-height: 46px;
+}
+
+.sold-filter-bar .field {
+  gap: 6px;
+  font-size: 12px;
+}
+
+.sold-filter-bar .field input,
+.sold-filter-bar .field select {
+  min-height: 46px;
+  border-radius: 8px;
 }
 
 .sold-thumb {
@@ -8151,7 +8163,7 @@ html[data-theme='dark'] .message-bubble.inbound {
 
 .sold-table {
   table-layout: fixed;
-  min-width: 1480px;
+  min-width: 1670px;
 }
 
 .sold-table thead th {
@@ -8209,33 +8221,73 @@ html[data-theme='dark'] .message-bubble.inbound {
 
 .sold-table th:nth-child(7),
 .sold-table td:nth-child(7) {
-  width: 120px;
+  width: 132px;
 }
 
 .sold-table th:nth-child(8),
 .sold-table td:nth-child(8) {
-  width: 88px;
+  width: 120px;
 }
 
 .sold-table th:nth-child(9),
-.sold-table td:nth-child(9),
+.sold-table td:nth-child(9) {
+  width: 88px;
+}
+
 .sold-table th:nth-child(10),
 .sold-table td:nth-child(10),
 .sold-table th:nth-child(11),
-.sold-table td:nth-child(11) {
+.sold-table td:nth-child(11),
+.sold-table th:nth-child(12),
+.sold-table td:nth-child(12) {
   width: 112px;
 }
 
-.sold-table th:nth-child(12),
-.sold-table td:nth-child(12),
 .sold-table th:nth-child(13),
-.sold-table td:nth-child(13) {
+.sold-table td:nth-child(13),
+.sold-table th:nth-child(14),
+.sold-table td:nth-child(14) {
   width: 156px;
 }
 
-.sold-table th:nth-child(14),
-.sold-table td:nth-child(14) {
+.sold-table th:nth-child(15),
+.sold-table td:nth-child(15) {
   width: 136px;
+}
+
+.sold-table th:nth-child(16),
+.sold-table td:nth-child(16) {
+  width: 80px;
+}
+
+.sold-edit-modal {
+  width: min(980px, calc(100vw - 48px));
+  max-height: calc(100vh - 48px);
+  overflow: hidden;
+  padding: 0;
+}
+
+.sold-edit-modal .modal-header {
+  margin: 0;
+  padding: 20px 24px 14px;
+  border-bottom: 1px solid #eef2fb;
+}
+
+.sold-edit-form {
+  display: grid;
+  gap: 18px;
+  max-height: calc(100vh - 132px);
+  overflow-y: auto;
+  padding: 20px 24px 0;
+}
+
+.sold-edit-form .modal-actions {
+  position: sticky;
+  bottom: 0;
+  margin: 0 -24px;
+  padding: 16px 24px;
+  border-top: 1px solid #eef2fb;
+  background: #ffffff;
 }
 
 .copy-chip {

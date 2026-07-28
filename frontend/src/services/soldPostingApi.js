@@ -29,3 +29,10 @@ export function fetchSoldPostingOptions() {
 export function syncSoldPosting() {
   return apiRequest('/sold-posting/sync', { method: 'POST', body: JSON.stringify({}) })
 }
+
+export function updateSoldPostingLineItem(lineItemRecordId, payload) {
+  return apiRequest(`/sold-posting/line-items/${encodeURIComponent(lineItemRecordId)}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  })
+}

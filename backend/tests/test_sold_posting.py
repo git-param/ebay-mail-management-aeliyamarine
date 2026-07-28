@@ -29,12 +29,15 @@ def order(payment='PAID', fulfillment='NOT_STARTED', **extra):
     [
         (order('NOT_PAID', 'NOT_STARTED'), SoldPostingStatus.AWAITING_PAYMENT),
         (order('PAID', 'NOT_STARTED'), SoldPostingStatus.AWAITING_SHIPMENT),
-        (order('PAID', 'IN_PROGRESS'), SoldPostingStatus.PARTIALLY_SHIPPED),
+        (order('PAID', 'IN_PROGRESS'), SoldPostingStatus.SHIPPED),
         (order('PAID', 'FULFILLED'), SoldPostingStatus.SHIPPED),
+        (order('PAID', 'FULFILLED', fulfillmentStartInstructions=[{'shipmentTrackingStatus': 'DELIVERED'}]), SoldPostingStatus.DELIVERED),
         (order(cancelStatus={'cancelState': 'CANCELLED'}), SoldPostingStatus.CANCELLED),
+        (order(cancelStatus={'cancelState': 'CANCELED'}), SoldPostingStatus.CANCELLED),
+        (order(cancelStatus={'cancelState': 'CANCEL_CLOSED', 'cancelRequests': [{'requestStatus': 'COMPLETED'}]}), SoldPostingStatus.CANCELLED),
         (order(cancelStatus={'cancelState': 'CANCEL_CLOSED'}), SoldPostingStatus.AWAITING_SHIPMENT),
         (order(paymentSummary={'payments': [], 'refunds': [{'amount': {'value': '100.00', 'currency': 'USD'}}]}), SoldPostingStatus.REFUNDED),
-        (order(paymentSummary={'payments': [], 'refunds': [{'amount': {'value': '10.00', 'currency': 'USD'}}]}), SoldPostingStatus.PARTIALLY_REFUNDED),
+        (order(paymentSummary={'payments': [], 'refunds': [{'amount': {'value': '10.00', 'currency': 'USD'}}]}), SoldPostingStatus.REFUNDED),
         (order('SOME_FUTURE_STATUS', 'SOME_FUTURE_STATUS'), SoldPostingStatus.OTHER),
     ],
 )
@@ -44,7 +47,7 @@ def test_normalized_status_mapping(payload, expected):
 
 def test_map_order_handles_multiple_line_items_missing_sku_and_payment_date():
     service = SoldPostingService.__new__(SoldPostingService)
-    service.repo = SimpleNamespace(resolve_image_url=lambda *args, **kwargs: None)
+    service.repo = SimpleNamespace(resolve_image_url=lambda *args, **kwargs: None, resolve_condition=lambda *args, **kwargs: None)
     account = SimpleNamespace(id=uuid4(), account_name='Store A', store_name=None, ebay_username='seller-a')
     payload = order(lineItems=[
         {'lineItemId': 'LINE-1', 'legacyItemId': '123', 'sku': '', 'title': 'First', 'quantity': 1, 'lineItemCost': {'value': '12.00', 'currency': 'USD'}},
@@ -59,6 +62,30 @@ def test_map_order_handles_multiple_line_items_missing_sku_and_payment_date():
     assert len(line_values) == 2
     assert line_values[0]['sku'] is None
     assert line_values[1]['sku'] is None
+
+
+def test_map_order_extracts_tracking_and_condition():
+    service = SoldPostingService.__new__(SoldPostingService)
+    service.repo = SimpleNamespace(resolve_image_url=lambda *args, **kwargs: None, resolve_condition=lambda *args, **kwargs: None)
+    account = SimpleNamespace(id=uuid4(), account_name='Store A', store_name=None, ebay_username='seller-a')
+    payload = order(
+        fulfillmentStartInstructions=[{
+            'shippingStep': {
+                'shippingCarrierCode': 'DHL',
+                'shippingServiceCode': 'EXPEDITED',
+                'shipTo': {'shipmentTrackingNumber': 'TRACK-123'},
+            },
+            'shipByDate': '2026-07-29T10:00:00.000Z',
+        }],
+        lineItems=[{'lineItemId': 'LINE-1', 'legacyItemId': '123', 'title': 'First', 'condition': 'New - Open box', 'quantity': 1}],
+    )
+
+    order_values, line_values = SoldPostingService._map_order(service, account, payload)
+
+    assert order_values['shipping_carrier_code'] == 'DHL'
+    assert order_values['shipping_service_code'] == 'EXPEDITED'
+    assert order_values['tracking_number'] == 'TRACK-123'
+    assert line_values[0]['condition'] == 'New - Open box'
 
 
 def test_filter_strategy_initial_and_incremental():

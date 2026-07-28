@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import AppLayout, { Icon } from '../layouts/app_layout'
-import { fetchSoldPostingDetail, fetchSoldPostingOptions, fetchSoldPostingOrders, syncSoldPosting } from '../services/soldPostingApi'
+import { fetchSoldPostingDetail, fetchSoldPostingOptions, fetchSoldPostingOrders, syncSoldPosting, updateSoldPostingLineItem } from '../services/soldPostingApi'
 import { normalizeRole } from '../utils/roles'
 
 const emptyFilters = { page: 1, page_size: 50, sort_by: 'date_sold', sort_direction: 'desc' }
@@ -22,7 +22,7 @@ function StatusBadge({ value }) {
 
 function CopyValue({ value }) {
   if (!value) return <span>-</span>
-  return <button className="copy-chip" type="button" title="Copy" onClick={() => navigator.clipboard?.writeText(value)}>{value}</button>
+  return <button className="copy-chip" type="button" title="Copy" onClick={(event) => { event.stopPropagation(); navigator.clipboard?.writeText(value) }}>{value}</button>
 }
 
 function DetailDrawer({ order, onClose }) {
@@ -34,8 +34,57 @@ function DetailDrawer({ order, onClose }) {
         <div className="drawer-profile"><h3>{order.ebay_account_name}</h3><p>{order.buyer_username || 'Buyer hidden'} - {dt(order.creation_date)}</p><StatusBadge value={order.normalized_status} /></div>
         <section className="drawer-section"><h3>Payment</h3><p>Status: {order.order_payment_status || '-'}</p><p>Paid: {dt(order.payment_date)}</p><p>Total: {money(order.order_total, order.currency)} - Due seller: {money(order.total_due_seller, order.currency)}</p></section>
         <section className="drawer-section"><h3>Fulfillment</h3><p>Status: {order.order_fulfillment_status || '-'}</p><p>Carrier: {order.shipping_carrier_code || '-'} - Service: {order.shipping_service_code || '-'}</p><p>Tracking: {order.tracking_number || '-'}</p><p>Ship by: {dt(order.ship_by_date)}</p></section>
-        <section className="drawer-section"><h3>Line Items</h3>{(order.line_items || []).map((item) => <p key={item.id}>{item.title || 'Untitled'} - <CopyValue value={item.sku || 'No SKU'} /> - Qty {item.quantity || 0} - {money(item.line_item_total, item.currency)}</p>)}</section>
+        <section className="drawer-section"><h3>Line Items</h3>{(order.line_items || []).map((item) => <p key={item.id}>{item.title || 'Untitled'} - {item.condition || 'No condition'} - <CopyValue value={item.sku || 'No SKU'} /> - Qty {item.quantity || 0} - {money(item.line_item_total, item.currency)}</p>)}</section>
       </aside>
+    </div>
+  )
+}
+
+function EditSoldPostingModal({ row, statuses, saving, error, onChange, onCancel, onSave }) {
+  if (!row) return null
+  const field = (key, title, type = 'text') => (
+    <label className="field">
+      <span>{title}</span>
+      <input type={type} value={row[key] || ''} onChange={(event) => onChange(key, event.target.value)} />
+    </label>
+  )
+  return (
+    <div className="modal-backdrop" role="presentation">
+      <section className="modal-panel sold-edit-modal" role="dialog" aria-modal="true">
+        <div className="modal-header">
+          <h2>Edit Order</h2>
+          <button className="icon-button" type="button" onClick={onCancel}><Icon name="close" /></button>
+        </div>
+        <div className="management-form sold-edit-form">
+          {error ? <p className="form-message error">{error}</p> : null}
+          <section className="offer-form-section">
+            <h3>Order</h3>
+            <div className="form-grid">
+              <label className="field"><span>Status</span><select value={row.status || ''} onChange={(event) => onChange('status', event.target.value)}>{statuses.map((status) => <option key={status} value={status}>{status.replaceAll('_', ' ')}</option>)}</select></label>
+              {field('tracking_number', 'Tracking number')}
+              {field('shipping_carrier_code', 'Carrier')}
+              {field('shipping_service_code', 'Service')}
+              {field('ship_by_date', 'Ship by', 'datetime-local')}
+              {field('buyer_username', 'Buyer username')}
+              {field('order_payment_status', 'Payment status')}
+              {field('order_fulfillment_status', 'Fulfillment status')}
+            </div>
+          </section>
+          <section className="offer-form-section">
+            <h3>Line Item</h3>
+            <div className="form-grid">
+              {field('sku', 'SKU')}
+              {field('condition', 'Condition')}
+              {field('title', 'Product title')}
+              {field('quantity', 'Quantity', 'number')}
+            </div>
+          </section>
+          <div className="modal-actions">
+            <button className="secondary-button" type="button" onClick={onCancel}>Cancel</button>
+            <button className="primary-button" type="button" disabled={saving} onClick={onSave}>{saving ? 'Saving...' : 'Save Changes'}</button>
+          </div>
+        </div>
+      </section>
     </div>
   )
 }
@@ -50,6 +99,9 @@ export default function SoldPosting({ currentUser, onLogout }) {
   const [syncing, setSyncing] = useState(false)
   const [syncResult, setSyncResult] = useState(null)
   const [selected, setSelected] = useState(null)
+  const [editTarget, setEditTarget] = useState(null)
+  const [editError, setEditError] = useState('')
+  const [savingEdit, setSavingEdit] = useState(false)
   const [partialError, setPartialError] = useState('')
   const activeFilters = useMemo(() => filters, [filters])
 
@@ -72,6 +124,47 @@ export default function SoldPosting({ currentUser, onLogout }) {
   function updateFilter(key, value) { setFilters((current) => ({ ...current, [key]: value, page: 1 })) }
   function updateMulti(key, event) { updateFilter(key, Array.from(event.target.selectedOptions).map((option) => option.value)) }
   async function openDetail(orderId) { setSelected(await fetchSoldPostingDetail(orderId)) }
+  function openEdit(row, event) {
+    event.stopPropagation()
+    setEditError('')
+    setEditTarget({
+      ...row,
+      title: row.product || '',
+      ship_by_date: row.ship_by_date ? new Date(row.ship_by_date).toISOString().slice(0, 16) : '',
+      tracking_number: row.tracking_number || '',
+      shipping_carrier_code: row.shipping_carrier_code || '',
+      shipping_service_code: row.shipping_service_code || '',
+      order_payment_status: row.order_payment_status || '',
+      order_fulfillment_status: row.order_fulfillment_status || '',
+    })
+  }
+  function updateEditField(key, value) { setEditTarget((current) => ({ ...current, [key]: value })) }
+  async function saveEdit() {
+    setSavingEdit(true)
+    setEditError('')
+    try {
+      await updateSoldPostingLineItem(editTarget.id, {
+        status: editTarget.status,
+        sku: editTarget.sku,
+        condition: editTarget.condition,
+        title: editTarget.title,
+        quantity: editTarget.quantity === '' ? null : Number(editTarget.quantity),
+        tracking_number: editTarget.tracking_number,
+        shipping_carrier_code: editTarget.shipping_carrier_code,
+        shipping_service_code: editTarget.shipping_service_code,
+        ship_by_date: editTarget.ship_by_date ? new Date(editTarget.ship_by_date).toISOString() : null,
+        order_payment_status: editTarget.order_payment_status,
+        order_fulfillment_status: editTarget.order_fulfillment_status,
+        buyer_username: editTarget.buyer_username,
+      })
+      setEditTarget(null)
+      await load(filters)
+    } catch (err) {
+      setEditError(err.message)
+    } finally {
+      setSavingEdit(false)
+    }
+  }
   async function syncLatest() {
     setSyncing(true); setPartialError(''); setSyncResult(null)
     try {
@@ -113,11 +206,12 @@ export default function SoldPosting({ currentUser, onLogout }) {
           <button className="secondary-button compact-action" type="button" onClick={() => setFilters(emptyFilters)}>Reset filters</button>
         </form>
         <section className="table-card">
-          {loading ? <div className="empty-state">Loading sold items...</div> : data.items.length ? <div className="table-scroll sold-table-scroll"><table className="users-table sold-table"><thead><tr>{['Image', 'Account', 'Status', 'Order ID', 'SKU', 'Product', 'Buyer', 'Quantity', 'Item price', 'Shipping', 'Total', 'Date sold', 'Date paid', 'Item ID'].map((head) => <th key={head}>{head}</th>)}</tr></thead><tbody>{data.items.map((row) => <tr key={row.id} onClick={() => openDetail(row.order_id)}><td>{row.image_url ? <img className="sold-thumb" src={row.image_url} alt="" /> : <span className="sold-thumb placeholder"><Icon name="bag" /></span>}</td><td>{row.ebay_account_name}</td><td><StatusBadge value={row.status} /></td><td><CopyValue value={row.order_id} /></td><td><CopyValue value={row.sku} /></td><td className="sold-title">{row.product || '-'}</td><td>{row.buyer_username || '-'}</td><td>{row.quantity || 0}</td><td>{money(row.item_price, row.currency)}</td><td>{money(row.shipping, row.currency)}</td><td>{money(row.total, row.currency)}</td><td>{dt(row.date_sold)}</td><td>{dt(row.date_paid)}</td><td><CopyValue value={row.item_id} /></td></tr>)}</tbody></table></div> : <div className="empty-state">No sold items match these filters.</div>}
+          {loading ? <div className="empty-state">Loading sold items...</div> : data.items.length ? <div className="table-scroll sold-table-scroll"><table className="users-table sold-table"><thead><tr>{['Image', 'Account', 'Status', 'Order ID', 'SKU', 'Product', 'Condition', 'Buyer', 'Quantity', 'Item price', 'Shipping', 'Total', 'Date sold', 'Date paid', 'Item ID', 'Actions'].map((head) => <th key={head}>{head}</th>)}</tr></thead><tbody>{data.items.map((row) => <tr key={row.id} onClick={() => openDetail(row.order_id)}><td>{row.item_id ? <a href={`https://www.ebay.com/itm/${row.item_id}`} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>{row.image_url ? <img className="sold-thumb" src={row.image_url} alt="" /> : <span className="sold-thumb placeholder"><Icon name="bag" /></span>}</a> : row.image_url ? <img className="sold-thumb" src={row.image_url} alt="" /> : <span className="sold-thumb placeholder"><Icon name="bag" /></span>}</td><td>{row.ebay_account_name}</td><td><StatusBadge value={row.status} /></td><td><CopyValue value={row.order_id} /></td><td><CopyValue value={row.sku} /></td><td className="sold-title">{row.product || '-'}</td><td>{row.condition || '-'}</td><td>{row.buyer_username || '-'}</td><td>{row.quantity || 0}</td><td>{money(row.item_price, row.currency)}</td><td>{money(row.shipping, row.currency)}</td><td>{money(row.total, row.currency)}</td><td>{dt(row.date_sold)}</td><td>{dt(row.date_paid)}</td><td><CopyValue value={row.item_id} /></td><td><button className="icon-button offer-action-icon offer-action-edit" type="button" title="Edit order" aria-label="Edit order" onClick={(event) => openEdit(row, event)}><Icon name="edit" /></button></td></tr>)}</tbody></table></div> : <div className="empty-state">No sold items match these filters.</div>}
           <div className="pagination-bar"><span>Showing {data.items.length} of {data.total || 0}</span><div><button className="pagination-button" type="button" disabled={filters.page <= 1} onClick={() => setFilters((f) => ({ ...f, page: f.page - 1 }))}>Prev</button><button className="pagination-button" type="button" disabled={filters.page * filters.page_size >= (data.total || 0)} onClick={() => setFilters((f) => ({ ...f, page: f.page + 1 }))}>Next</button><select value={filters.page_size} onChange={(event) => setFilters((f) => ({ ...f, page: 1, page_size: Number(event.target.value) }))}><option>25</option><option>50</option><option>100</option></select></div></div>
         </section>
       </main>
       <DetailDrawer order={selected} onClose={() => setSelected(null)} />
+      <EditSoldPostingModal row={editTarget} statuses={options.statuses || []} saving={savingEdit} error={editError} onChange={updateEditField} onCancel={() => setEditTarget(null)} onSave={saveEdit} />
     </AppLayout>
   )
 }

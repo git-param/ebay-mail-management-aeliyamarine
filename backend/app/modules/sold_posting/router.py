@@ -8,7 +8,17 @@ from app.api.dependencies import get_current_user
 from app.db.session import get_db
 from app.models.ebay_account import EbayAccount
 from app.modules.sold_posting.models import SoldPostingStatus
-from app.modules.sold_posting.schemas import SoldPostingFilterOptions, SoldPostingListResponse, SoldPostingOrderDetail, SoldPostingSyncResponse
+
+VISIBLE_STATUSES = [
+    SoldPostingStatus.AWAITING_PAYMENT.value,
+    SoldPostingStatus.AWAITING_SHIPMENT.value,
+    SoldPostingStatus.SHIPPED.value,
+    SoldPostingStatus.DELIVERED.value,
+    SoldPostingStatus.CANCELLED.value,
+    SoldPostingStatus.REFUNDED.value,
+    SoldPostingStatus.OTHER.value,
+]
+from app.modules.sold_posting.schemas import SoldPostingEditRequest, SoldPostingFilterOptions, SoldPostingListResponse, SoldPostingRow, SoldPostingOrderDetail, SoldPostingSyncResponse
 from app.modules.sold_posting.service import SoldPostingService
 
 
@@ -67,6 +77,12 @@ def order_detail(order_id: str, db: Session = Depends(get_db), current_user=Depe
     }
 
 
+@router.put('/line-items/{line_item_record_id}', response_model=SoldPostingRow)
+def update_line_item(line_item_record_id: UUID, payload: SoldPostingEditRequest, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    _ = current_user
+    return SoldPostingService(db).update_line_order_fields(line_item_record_id, payload)
+
+
 @router.post('/sync', response_model=SoldPostingSyncResponse)
 def sync(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     service = SoldPostingService(db)
@@ -86,5 +102,5 @@ def filter_options(db: Session = Depends(get_db), current_user=Depends(get_curre
     accounts = db.query(EbayAccount).filter(EbayAccount.is_active.is_(True)).order_by(EbayAccount.account_name.asc()).all()
     return {
         'accounts': [{'id': str(a.id), 'name': a.account_name or a.store_name or a.ebay_username} for a in accounts],
-        'statuses': [item.value for item in SoldPostingStatus],
+        'statuses': VISIBLE_STATUSES,
     }

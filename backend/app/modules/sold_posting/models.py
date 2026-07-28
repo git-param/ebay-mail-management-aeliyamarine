@@ -12,11 +12,10 @@ from app.db.base_class import Base
 class SoldPostingStatus(str, enum.Enum):
     AWAITING_PAYMENT = 'AWAITING_PAYMENT'
     AWAITING_SHIPMENT = 'AWAITING_SHIPMENT'
-    PARTIALLY_SHIPPED = 'PARTIALLY_SHIPPED'
     SHIPPED = 'SHIPPED'
+    DELIVERED = 'DELIVERED'
     CANCELLED = 'CANCELLED'
     REFUNDED = 'REFUNDED'
-    PARTIALLY_REFUNDED = 'PARTIALLY_REFUNDED'
     OTHER = 'OTHER'
 
 
@@ -60,7 +59,6 @@ class SoldPostingOrder(Base):
     price_subtotal: Mapped[float | None] = mapped_column(Numeric(14, 2), nullable=True)
     delivery_cost: Mapped[float | None] = mapped_column(Numeric(14, 2), nullable=True)
     discount_total: Mapped[float | None] = mapped_column(Numeric(14, 2), nullable=True)
-    tax_total: Mapped[float | None] = mapped_column(Numeric(14, 2), nullable=True)
     order_total: Mapped[float | None] = mapped_column(Numeric(14, 2), nullable=True)
     total_due_seller: Mapped[float | None] = mapped_column(Numeric(14, 2), nullable=True)
     total_marketplace_fee: Mapped[float | None] = mapped_column(Numeric(14, 2), nullable=True)
@@ -96,9 +94,9 @@ class SoldPostingLineItem(Base):
     order_id: Mapped[str] = mapped_column(String(255), nullable=False)
     line_item_id: Mapped[str] = mapped_column(String(255), nullable=False)
     legacy_item_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    legacy_variation_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     sku: Mapped[str | None] = mapped_column(String(255), nullable=True)
     title: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    condition: Mapped[str | None] = mapped_column(String(120), nullable=True)
     quantity: Mapped[int | None] = mapped_column(Integer, nullable=True)
     sold_format: Mapped[str | None] = mapped_column(String(80), nullable=True)
     line_item_fulfillment_status: Mapped[str | None] = mapped_column(String(100), nullable=True)
@@ -106,13 +104,11 @@ class SoldPostingLineItem(Base):
     purchase_marketplace_id: Mapped[str | None] = mapped_column(String(80), nullable=True)
     unit_price: Mapped[float | None] = mapped_column(Numeric(14, 2), nullable=True)
     line_item_cost: Mapped[float | None] = mapped_column(Numeric(14, 2), nullable=True)
-    shipping_cost: Mapped[float | None] = mapped_column(Numeric(14, 2), nullable=True)
     discount_amount: Mapped[float | None] = mapped_column(Numeric(14, 2), nullable=True)
     line_item_total: Mapped[float | None] = mapped_column(Numeric(14, 2), nullable=True)
     currency: Mapped[str | None] = mapped_column(String(10), nullable=True)
     ship_by_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     image_url: Mapped[str | None] = mapped_column(Text, nullable=True)
-    variation_aspects_json: Mapped[list | None] = mapped_column(JSONB, nullable=True)
     raw_payload_json: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC), nullable=False)
