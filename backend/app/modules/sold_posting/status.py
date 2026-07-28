@@ -8,7 +8,14 @@ def normalize_sold_posting_status(order: dict) -> SoldPostingStatus:
     refunds = ((order.get('paymentSummary') or {}).get('refunds') or [])
     line_refunds = [refund for item in order.get('lineItems') or [] for refund in item.get('refunds') or []]
 
-    if cancel_state and cancel_state not in {'NONE', 'CANCEL_REQUEST_REJECTED'}:
+    if cancel_state in {
+        'CANCELLED',
+        'CANCEL_REQUESTED',
+        'CANCEL_PENDING',
+        'CANCEL_IN_PROGRESS',
+        'CANCEL_COMPLETE',
+        'CANCEL_COMPLETED',
+    }:
         return SoldPostingStatus.CANCELLED
     if _has_full_refund(order, refunds, line_refunds):
         return SoldPostingStatus.REFUNDED

@@ -38,7 +38,6 @@ class SoldPostingRepository:
         else:
             for key, value in values.items():
                 setattr(order, key, value)
-            order.last_synced_at = now
             order.updated_at = now
             self.db.flush()
 

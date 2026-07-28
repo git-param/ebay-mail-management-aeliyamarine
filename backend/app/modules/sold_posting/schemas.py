@@ -96,8 +96,6 @@ class SoldPostingOrderDetail(BaseModel):
     shipping_service_code: str | None = None
     tracking_number: str | None = None
     ship_by_date: datetime | None = None
-    first_synced_at: datetime
-    last_synced_at: datetime
     line_items: list[SoldPostingLineItemResponse]
 
     class Config:

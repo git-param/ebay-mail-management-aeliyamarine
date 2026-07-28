@@ -66,11 +66,6 @@ def upgrade() -> None:
             nullable=False,
         ),
         sa.Column(
-            "provider",
-            sa.String(40),
-            nullable=False,
-        ),
-        sa.Column(
             "order_id",
             sa.String(255),
             nullable=False,
@@ -187,16 +182,6 @@ def upgrade() -> None:
         sa.Column(
             "raw_payload_json",
             postgresql.JSONB,
-        ),
-        sa.Column(
-            "first_synced_at",
-            sa.DateTime(timezone=True),
-            nullable=False,
-        ),
-        sa.Column(
-            "last_synced_at",
-            sa.DateTime(timezone=True),
-            nullable=False,
         ),
         sa.Column(
             "created_at",

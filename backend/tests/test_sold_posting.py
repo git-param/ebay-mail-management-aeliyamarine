@@ -32,6 +32,7 @@ def order(payment='PAID', fulfillment='NOT_STARTED', **extra):
         (order('PAID', 'IN_PROGRESS'), SoldPostingStatus.PARTIALLY_SHIPPED),
         (order('PAID', 'FULFILLED'), SoldPostingStatus.SHIPPED),
         (order(cancelStatus={'cancelState': 'CANCELLED'}), SoldPostingStatus.CANCELLED),
+        (order(cancelStatus={'cancelState': 'CANCEL_CLOSED'}), SoldPostingStatus.AWAITING_SHIPMENT),
         (order(paymentSummary={'payments': [], 'refunds': [{'amount': {'value': '100.00', 'currency': 'USD'}}]}), SoldPostingStatus.REFUNDED),
         (order(paymentSummary={'payments': [], 'refunds': [{'amount': {'value': '10.00', 'currency': 'USD'}}]}), SoldPostingStatus.PARTIALLY_REFUNDED),
         (order('SOME_FUTURE_STATUS', 'SOME_FUTURE_STATUS'), SoldPostingStatus.OTHER),

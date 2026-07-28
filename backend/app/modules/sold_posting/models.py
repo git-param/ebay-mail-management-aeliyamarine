@@ -44,7 +44,6 @@ class SoldPostingOrder(Base):
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     ebay_account_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey('ebay_accounts.id'), nullable=False)
     ebay_account_name: Mapped[str] = mapped_column(String(255), nullable=False)
-    provider: Mapped[str] = mapped_column(String(40), nullable=False, default='FULFILLMENT')
     order_id: Mapped[str] = mapped_column(String(255), nullable=False)
     legacy_order_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     sales_record_reference: Mapped[str | None] = mapped_column(String(255), nullable=True)
@@ -74,8 +73,6 @@ class SoldPostingOrder(Base):
     min_estimated_delivery_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     max_estimated_delivery_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     raw_payload_json: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
-    first_synced_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False)
-    last_synced_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC), nullable=False)
 
