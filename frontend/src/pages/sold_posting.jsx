@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import AppLayout, { Icon } from '../layouts/app_layout'
-import { fetchSoldPostingDetail, fetchSoldPostingOptions, fetchSoldPostingOrders, syncSoldPosting, updateSoldPostingLineItem } from '../services/soldPostingApi'
+import { fetchSoldPostingDetail, fetchSoldPostingOptions, fetchSoldPostingOrders, markSoldPostingCopied, syncSoldPosting, updateSoldPostingLineItem } from '../services/soldPostingApi'
 import { normalizeRole } from '../utils/roles'
 
 const emptyFilters = { page: 1, page_size: 50, sort_by: 'date_sold', sort_direction: 'desc' }
@@ -23,6 +23,34 @@ function StatusBadge({ value }) {
 function CopyValue({ value }) {
   if (!value) return <span>-</span>
   return <button className="copy-chip" type="button" title="Copy" onClick={(event) => { event.stopPropagation(); navigator.clipboard?.writeText(value) }}>{value}</button>
+}
+
+function copyAccountName(name) {
+  const account = String(name || '').trim()
+  return `Aeliya-${account || 'Account'}110`
+}
+
+function soldReferenceText(row) {
+  const sku = row.sku || row.item_id || row.order_id || '-'
+  const condition = row.condition || 'No condition'
+  const quantity = row.quantity || 0
+  return `Sold ref no ${sku} ${condition} ${quantity} Pc (${copyAccountName(row.ebay_account_name)})`
+}
+
+async function writeClipboard(text) {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text)
+    return
+  }
+  const textarea = document.createElement('textarea')
+  textarea.value = text
+  textarea.setAttribute('readonly', '')
+  textarea.style.position = 'fixed'
+  textarea.style.left = '-9999px'
+  document.body.appendChild(textarea)
+  textarea.select()
+  document.execCommand('copy')
+  document.body.removeChild(textarea)
 }
 
 function DetailDrawer({ order, onClose }) {
@@ -102,6 +130,7 @@ export default function SoldPosting({ currentUser, onLogout }) {
   const [editTarget, setEditTarget] = useState(null)
   const [editError, setEditError] = useState('')
   const [savingEdit, setSavingEdit] = useState(false)
+  const [copiedToastId, setCopiedToastId] = useState(null)
   const [partialError, setPartialError] = useState('')
   const activeFilters = useMemo(() => filters, [filters])
 
@@ -179,6 +208,21 @@ export default function SoldPosting({ currentUser, onLogout }) {
       setSyncing(false)
     }
   }
+  async function copySoldReference(row, event) {
+    event.stopPropagation()
+    try {
+      await writeClipboard(soldReferenceText(row))
+      const updated = await markSoldPostingCopied(row.id)
+      setData((current) => ({
+        ...current,
+        items: (current.items || []).map((item) => (item.id === row.id ? { ...item, ...updated } : item)),
+      }))
+      setCopiedToastId(row.id)
+      window.setTimeout(() => setCopiedToastId((current) => (current === row.id ? null : current)), 1400)
+    } catch (err) {
+      setError(err.message || 'Could not copy sold reference')
+    }
+  }
 
   return (
     <AppLayout activePage="Sold Posting" currentUser={currentUser} onLogout={onLogout}>
@@ -206,7 +250,7 @@ export default function SoldPosting({ currentUser, onLogout }) {
           <button className="secondary-button compact-action" type="button" onClick={() => setFilters(emptyFilters)}>Reset filters</button>
         </form>
         <section className="table-card">
-          {loading ? <div className="empty-state">Loading sold items...</div> : data.items.length ? <div className="table-scroll sold-table-scroll"><table className="users-table sold-table"><thead><tr>{['Image', 'Account', 'Status', 'Order ID', 'SKU', 'Product', 'Condition', 'Buyer', 'Quantity', 'Item price', 'Shipping', 'Total', 'Date sold', 'Date paid', 'Item ID', 'Actions'].map((head) => <th key={head}>{head}</th>)}</tr></thead><tbody>{data.items.map((row) => <tr key={row.id} onClick={() => openDetail(row.order_id)}><td>{row.item_id ? <a href={`https://www.ebay.com/itm/${row.item_id}`} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>{row.image_url ? <img className="sold-thumb" src={row.image_url} alt="" /> : <span className="sold-thumb placeholder"><Icon name="bag" /></span>}</a> : row.image_url ? <img className="sold-thumb" src={row.image_url} alt="" /> : <span className="sold-thumb placeholder"><Icon name="bag" /></span>}</td><td>{row.ebay_account_name}</td><td><StatusBadge value={row.status} /></td><td><CopyValue value={row.order_id} /></td><td><CopyValue value={row.sku} /></td><td className="sold-title"><span>{row.product || '-'}</span></td><td>{row.condition || '-'}</td><td>{row.buyer_username || '-'}</td><td>{row.quantity || 0}</td><td>{money(row.item_price, row.currency)}</td><td>{money(row.shipping, row.currency)}</td><td>{money(row.total, row.currency)}</td><td>{dt(row.date_sold)}</td><td>{dt(row.date_paid)}</td><td><CopyValue value={row.item_id} /></td><td><button className="icon-button offer-action-icon offer-action-edit" type="button" title="Edit order" aria-label="Edit order" onClick={(event) => openEdit(row, event)}><Icon name="edit" /></button></td></tr>)}</tbody></table></div> : <div className="empty-state">No sold items match these filters.</div>}
+          {loading ? <div className="empty-state">Loading sold items...</div> : data.items.length ? <div className="table-scroll sold-table-scroll"><table className="users-table sold-table"><thead><tr>{['Copy', 'Image', 'Account', 'Status', 'Order ID', 'SKU', 'Product', 'Condition', 'Buyer', 'Quantity', 'Item price', 'Shipping', 'Total', 'Date sold', 'Date paid', 'Item ID', 'Actions'].map((head) => <th key={head}>{head}</th>)}</tr></thead><tbody>{data.items.map((row) => <tr key={row.id} onClick={() => openDetail(row.order_id)}><td className="sold-copy-cell"><div className="sold-copy-actions"><span className={`copy-state-dot ${row.is_copied ? 'copied' : 'fresh'}`} title={row.is_copied ? `Copied${row.copied_at ? ` ${dt(row.copied_at)}` : ''}` : 'Not copied'} /><button className="icon-button sold-copy-button" type="button" title={soldReferenceText(row)} aria-label="Copy sold reference" onClick={(event) => copySoldReference(row, event)}><Icon name="copy" /></button>{copiedToastId === row.id ? <span className="sold-copied-label">Copied</span> : null}</div></td><td>{row.item_id ? <a href={`https://www.ebay.com/itm/${row.item_id}`} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>{row.image_url ? <img className="sold-thumb" src={row.image_url} alt="" /> : <span className="sold-thumb placeholder"><Icon name="bag" /></span>}</a> : row.image_url ? <img className="sold-thumb" src={row.image_url} alt="" /> : <span className="sold-thumb placeholder"><Icon name="bag" /></span>}</td><td>{row.ebay_account_name}</td><td><StatusBadge value={row.status} /></td><td><CopyValue value={row.order_id} /></td><td><CopyValue value={row.sku} /></td><td className="sold-title"><span>{row.product || '-'}</span></td><td>{row.condition || '-'}</td><td>{row.buyer_username || '-'}</td><td>{row.quantity || 0}</td><td>{money(row.item_price, row.currency)}</td><td>{money(row.shipping, row.currency)}</td><td>{money(row.total, row.currency)}</td><td>{dt(row.date_sold)}</td><td>{dt(row.date_paid)}</td><td><CopyValue value={row.item_id} /></td><td><button className="icon-button offer-action-icon offer-action-edit" type="button" title="Edit order" aria-label="Edit order" onClick={(event) => openEdit(row, event)}><Icon name="edit" /></button></td></tr>)}</tbody></table></div> : <div className="empty-state">No sold items match these filters.</div>}
           <div className="pagination-bar"><span>Showing {data.items.length} of {data.total || 0}</span><div><button className="pagination-button" type="button" disabled={filters.page <= 1} onClick={() => setFilters((f) => ({ ...f, page: f.page - 1 }))}>Prev</button><button className="pagination-button" type="button" disabled={filters.page * filters.page_size >= (data.total || 0)} onClick={() => setFilters((f) => ({ ...f, page: f.page + 1 }))}>Next</button><select value={filters.page_size} onChange={(event) => setFilters((f) => ({ ...f, page: 1, page_size: Number(event.target.value) }))}><option>25</option><option>50</option><option>100</option></select></div></div>
         </section>
       </main>
@@ -215,3 +259,4 @@ export default function SoldPosting({ currentUser, onLogout }) {
     </AppLayout>
   )
 }
+

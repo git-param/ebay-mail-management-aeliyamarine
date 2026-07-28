@@ -109,6 +109,8 @@ class SoldPostingLineItem(Base):
     currency: Mapped[str | None] = mapped_column(String(10), nullable=True)
     ship_by_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     image_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    copied_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    copy_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     raw_payload_json: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC), nullable=False)

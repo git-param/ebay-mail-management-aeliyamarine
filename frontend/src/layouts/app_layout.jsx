@@ -124,6 +124,7 @@ export function Icon({ name }) {
     disable: <path d="M4.5 4.5 15.5 15.5M17 10a7 7 0 0 1-10.8 5.9M3 10A7 7 0 0 1 13.8 4.1" />,
     activate: <path d="m4 10 4 4 8-8" />,
     close: <path d="M5 5l10 10M15 5 5 15" />,
+    copy: <path d="M7 7h8v10H7V7Zm-2 6H4V3h8v1" />,
     menu: <path d="M3 5h14M3 10h14M3 15h14" />,
     bell: <path d="M6 15h8l-1-2V9a4 4 0 0 0-8 0v4l-1 2h2Zm3 2h2" />,
     message: <path d="M4 5h12v8H7l-3 3V5Zm3 3h6M7 10h4" />,

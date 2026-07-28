@@ -8260,7 +8260,7 @@ a .sold-thumb:hover {
 
 .sold-table {
   table-layout: fixed;
-  min-width: 1670px;
+  min-width: 1760px;
 }
 
 .sold-table thead th {
@@ -8298,78 +8298,136 @@ a .sold-thumb:hover {
   white-space: nowrap;
 }
 
+.sold-copy-cell {
+  overflow: visible;
+}
+
+.sold-copy-actions {
+  align-items: center;
+  display: inline-flex;
+  gap: 8px;
+  overflow: visible;
+}
+
+.copy-state-dot {
+  border-radius: 999px;
+  display: inline-flex;
+  flex: 0 0 auto;
+  height: 9px;
+  width: 9px;
+}
+
+.copy-state-dot.fresh {
+  background: #16a34a;
+  box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.14);
+}
+
+.copy-state-dot.copied {
+  background: #dc2626;
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.14);
+}
+
+.sold-copy-button {
+  background: #ffffff;
+  border: 1px solid #c9d8ea;
+  color: #174066;
+  height: 32px;
+  width: 32px;
+}
+
+.sold-copy-button:hover {
+  background: #eef7ff;
+  border-color: #75a8d8;
+}
+
+.sold-copied-label {
+  background: #fff1f2;
+  border: 1px solid #fecdd3;
+  border-radius: 999px;
+  color: #be123c;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 3px 7px;
+}
+
 .sold-table th:nth-child(1),
 .sold-table td:nth-child(1) {
-  width: 64px;
+  overflow: visible;
+  width: 92px;
 }
 
 .sold-table th:nth-child(2),
 .sold-table td:nth-child(2) {
-  width: 96px;
+  width: 64px;
 }
 
 .sold-table th:nth-child(3),
 .sold-table td:nth-child(3) {
-  width: 128px;
+  width: 96px;
 }
 
 .sold-table th:nth-child(4),
 .sold-table td:nth-child(4) {
-  width: 132px;
+  width: 128px;
 }
 
 .sold-table th:nth-child(5),
 .sold-table td:nth-child(5) {
-  width: 112px;
+  width: 132px;
 }
 
 .sold-table th:nth-child(6),
 .sold-table td:nth-child(6) {
-  width: 420px;
-}
-
-.sold-table td:nth-child(6) {
-  white-space: normal;
+  width: 112px;
 }
 
 .sold-table th:nth-child(7),
 .sold-table td:nth-child(7) {
-  width: 132px;
+  width: 420px;
+}
+
+.sold-table td:nth-child(7) {
+  white-space: normal;
 }
 
 .sold-table th:nth-child(8),
 .sold-table td:nth-child(8) {
-  width: 120px;
+  width: 132px;
 }
 
 .sold-table th:nth-child(9),
 .sold-table td:nth-child(9) {
-  width: 88px;
+  width: 120px;
 }
 
 .sold-table th:nth-child(10),
-.sold-table td:nth-child(10),
+.sold-table td:nth-child(10) {
+  width: 88px;
+}
+
 .sold-table th:nth-child(11),
 .sold-table td:nth-child(11),
 .sold-table th:nth-child(12),
-.sold-table td:nth-child(12) {
+.sold-table td:nth-child(12),
+.sold-table th:nth-child(13),
+.sold-table td:nth-child(13) {
   width: 112px;
 }
 
-.sold-table th:nth-child(13),
-.sold-table td:nth-child(13),
 .sold-table th:nth-child(14),
-.sold-table td:nth-child(14) {
-  width: 156px;
-}
-
+.sold-table td:nth-child(14),
 .sold-table th:nth-child(15),
 .sold-table td:nth-child(15) {
-  width: 136px;
+  width: 156px;
 }
 
 .sold-table th:nth-child(16),
 .sold-table td:nth-child(16) {
+  width: 136px;
+}
+
+.sold-table th:nth-child(17),
+.sold-table td:nth-child(17) {
   width: 80px;
 }
 

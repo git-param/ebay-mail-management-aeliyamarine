@@ -32,6 +32,9 @@ class SoldPostingRow(BaseModel):
     order_payment_status: str | None = None
     order_fulfillment_status: str | None = None
     image_url: str | None = None
+    is_copied: bool = False
+    copied_at: datetime | None = None
+    copy_count: int = 0
     seller_hub_url: str | None = None
 
 
@@ -73,6 +76,8 @@ class SoldPostingLineItemResponse(BaseModel):
     currency: str | None = None
     ship_by_date: datetime | None = None
     image_url: str | None = None
+    copied_at: datetime | None = None
+    copy_count: int = 0
 
     class Config:
         from_attributes = True
