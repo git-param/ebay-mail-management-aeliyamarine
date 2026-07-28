@@ -7689,6 +7689,23 @@ html[data-theme='dark'] .message-bubble.inbound {
   margin: 4px 0;
 }
 
+.conversation-detail .offer-seller-message-row {
+  width: 100%;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.conversation-detail .offer-seller-message-bubble {
+  max-width: min(560px, 72%);
+  padding: 13px 16px;
+  border-radius: 14px;
+  background: #f5f5f5;
+  color: #111827;
+  font-size: 14px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
 .conversation-detail .offer-chat-row {
   width: 100%;
   max-width: none;
@@ -7822,6 +7839,10 @@ html[data-theme='dark'] .message-bubble.inbound {
     max-width: calc(100vw - 92px);
     flex-wrap: wrap;
     padding: 14px 16px;
+  }
+
+  .conversation-detail .offer-seller-message-bubble {
+    max-width: calc(100vw - 92px);
   }
 }
 /* Offer Management */
@@ -8067,12 +8088,63 @@ html[data-theme='dark'] .message-bubble.inbound {
   }
 }
 .sold-posting-page {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(244, 247, 251, 0.92)),
+    #f4f7fb;
   max-width: none;
   width: 100%;
 }
 
+.sold-posting-page .page-header {
+  align-items: center;
+  margin-bottom: 16px;
+  padding: 18px 20px;
+  border: 1px solid #dbe6f3;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 18px 44px rgba(15, 23, 42, 0.08);
+}
+
+.sold-posting-page .page-header h1 {
+  color: #0f172a;
+  font-size: 30px;
+}
+
+.sold-posting-page .page-header p {
+  color: #52637a;
+  font-size: 14px;
+  font-weight: 750;
+}
+
+.sold-posting-page .stats-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.sold-posting-page .stat-card {
+  border: 1px solid #dbe6f3;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #ffffff, #f8fbff);
+  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.06);
+}
+
+.sold-posting-page .stat-card p {
+  color: #64748b;
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+.sold-posting-page .stat-card strong {
+  color: #0f172a;
+}
+
 .sold-filter-bar {
   align-items: end;
+  border: 1px solid #dbe6f3;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 16px 42px rgba(15, 23, 42, 0.07);
   display: grid;
   grid-template-columns: repeat(6, minmax(138px, 1fr));
   gap: 10px 12px;
@@ -8105,30 +8177,55 @@ html[data-theme='dark'] .message-bubble.inbound {
 
 .sold-filter-bar .field input,
 .sold-filter-bar .field select {
+  border-color: #d4e0ef;
   min-height: 46px;
   border-radius: 8px;
 }
 
 .sold-thumb {
   align-items: center;
-  background: var(--surface-muted);
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
+  background: #f8fafc;
+  border: 1px solid #dbe6f3;
+  border-radius: 10px;
   display: inline-flex;
-  height: 42px;
+  height: 48px;
   justify-content: center;
   object-fit: cover;
-  width: 42px;
+  transition: transform 160ms ease, box-shadow 160ms ease;
+  width: 48px;
+}
+
+a .sold-thumb:hover {
+  box-shadow: 0 10px 20px rgba(15, 23, 42, 0.16);
+  transform: translateY(-1px);
 }
 
 .sold-title {
-  max-width: 360px;
+  max-width: 420px;
   white-space: normal;
+}
+
+.sold-title span {
+  display: -webkit-box;
+  line-clamp: 2;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  color: #123a63;
+  font-size: 14px;
+  font-weight: 750;
+  line-height: 1.35;
+  max-height: 40px;
+  overflow: hidden;
+  text-decoration: none;
 }
 
 .sold-posting-page .table-card {
   display: grid;
   grid-template-rows: minmax(0, 1fr) auto;
+  border: 1px solid #dbe6f3;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 18px 48px rgba(15, 23, 42, 0.08);
   max-width: 100%;
   overflow: hidden;
 }
@@ -8151,13 +8248,13 @@ html[data-theme='dark'] .message-bubble.inbound {
 }
 
 .sold-table-scroll::-webkit-scrollbar-track {
-  background: #eef2f7;
+  background: #e6edf7;
   border-radius: 999px;
 }
 
 .sold-table-scroll::-webkit-scrollbar-thumb {
-  background: #94a3b8;
-  border: 3px solid #eef2f7;
+  background: #3b82c4;
+  border: 3px solid #e6edf7;
   border-radius: 999px;
 }
 
@@ -8167,14 +8264,36 @@ html[data-theme='dark'] .message-bubble.inbound {
 }
 
 .sold-table thead th {
+  background: #f8fbff;
+  border-bottom: 1px solid #dbe6f3;
+  color: #5b6f8a;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0;
   position: sticky;
   top: 0;
   z-index: 2;
 }
 
+.sold-table tbody tr {
+  background: #ffffff;
+  cursor: pointer;
+}
+
+.sold-table tbody tr:nth-child(even) {
+  background: #fbfdff;
+}
+
+.sold-table tbody tr:hover {
+  background: #f0f7ff;
+}
+
 .sold-table th,
 .sold-table td {
+  border-bottom: 1px solid #edf2f8;
+  color: #17324d;
   overflow: hidden;
+  padding-block: 12px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -8206,16 +8325,10 @@ html[data-theme='dark'] .message-bubble.inbound {
 
 .sold-table th:nth-child(6),
 .sold-table td:nth-child(6) {
-  width: 360px;
+  width: 420px;
 }
 
 .sold-table td:nth-child(6) {
-  display: -webkit-box;
-  line-clamp: 2;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  line-height: 1.35;
-  max-height: 42px;
   white-space: normal;
 }
 
@@ -8293,11 +8406,24 @@ html[data-theme='dark'] .message-bubble.inbound {
 .copy-chip {
   background: transparent;
   border: 0;
-  color: inherit;
+  color: #124f86;
   cursor: copy;
   font: inherit;
+  font-weight: 750;
   padding: 0;
   text-align: left;
+}
+
+.sold-posting-page .status-badge {
+  border-radius: 6px;
+  font-size: 11px;
+  min-height: 24px;
+  padding: 0 9px;
+}
+
+.sold-posting-page .pagination-bar {
+  background: #ffffff;
+  border-top: 1px solid #edf2f8;
 }
 
 .sold-detail-drawer {
