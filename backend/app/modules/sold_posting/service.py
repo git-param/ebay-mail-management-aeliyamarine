@@ -39,6 +39,7 @@ class SoldPostingService:
     MAX_RETRIES = 3
     INITIAL_WINDOW = timedelta(days=90)
     CURSOR_OVERLAP = timedelta(minutes=7)
+    EBAY_CLOCK_SAFETY_DELAY = timedelta(minutes=10)
 
     def __init__(self, db: Session):
         self.db = db
@@ -71,7 +72,9 @@ class SoldPostingService:
         state.error_message = None
         self.db.commit()
         result = AccountSyncResult(account.id, account.account_name or account.ebay_username, True)
-        synced_through = datetime.now(UTC)
+        # Keep the eBay filter upper bound safely behind the API server clock.
+        # eBay rejects ranges whose end timestamp is even slightly in the future.
+        synced_through = datetime.now(UTC) - self.EBAY_CLOCK_SAFETY_DELAY
         filter_value = self._filter_for_state(state, synced_through)
         offset = 0
         try:
@@ -153,12 +156,21 @@ class SoldPostingService:
             return response.payload
         raise RuntimeError('eBay fulfillment order request failed after retries')
 
-    def _filter_for_state(self, state, now: datetime) -> str:
+    def _filter_for_state(self, state, end: datetime) -> str:
+        end = end.astimezone(UTC)
+
         if state.initial_sync_completed and state.last_successful_sync_at:
             start = state.last_successful_sync_at.astimezone(UTC) - self.CURSOR_OVERLAP
-            return f'lastmodifieddate:[{self._ebay_datetime(start)}..{self._ebay_datetime(now)}]'
-        start = now - self.INITIAL_WINDOW
-        return f'creationdate:[{self._ebay_datetime(start)}..{self._ebay_datetime(now)}]'
+
+            # A stale cursor can be ahead of the safe API time after a clock
+            # correction or after the previous implementation stored "now".
+            if start >= end:
+                start = end - self.CURSOR_OVERLAP
+
+            return f'lastmodifieddate:[{self._ebay_datetime(start)}..{self._ebay_datetime(end)}]'
+
+        start = end - self.INITIAL_WINDOW
+        return f'creationdate:[{self._ebay_datetime(start)}..{self._ebay_datetime(end)}]'
 
     def _map_order(self, account: EbayAccount, payload: dict) -> tuple[dict, list[dict]]:
         pricing = payload.get('pricingSummary') or {}
