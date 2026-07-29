@@ -4,6 +4,24 @@ import { fetchSoldPostingDetail, fetchSoldPostingOptions, fetchSoldPostingOrders
 import { normalizeRole } from '../utils/roles'
 
 const emptyFilters = { page: 1, page_size: 50, sort_by: 'date_sold', sort_direction: 'desc' }
+const periodOptions = [
+  ['90', 'Last 90 days'],
+  ['60', 'Last 60 days'],
+  ['30', 'Last 30 days'],
+  ['today', 'Today'],
+  ['yesterday', 'Yesterday'],
+  ['week', 'This week'],
+  ['month', 'This month'],
+  ['year', 'This year'],
+  ['all', 'All time'],
+]
+const searchOptions = [
+  ['buyer_username', 'Buyer username'],
+  ['sku', 'SKU'],
+  ['order_id', 'Order number'],
+  ['item_id', 'Item ID'],
+  ['search', 'Product / all'],
+]
 
 function money(value, currency) {
   if (value === null || value === undefined || value === '') return '-'
@@ -20,9 +38,60 @@ function StatusBadge({ value }) {
   return <span className={`status-badge status-${String(value || 'other').toLowerCase().replaceAll('_', '-')}`}>{String(value || 'OTHER').replaceAll('_', ' ')}</span>
 }
 
+function labelize(value) {
+  return String(value || '').replaceAll('_', ' ')
+}
+
+function isoDate(date) {
+  return date.toISOString().slice(0, 10)
+}
+
+function periodRange(period) {
+  const today = new Date()
+  const end = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+  const start = new Date(end)
+  if (period === 'all') return { date_sold_from: '', date_sold_to: '' }
+  if (period === 'today') return { date_sold_from: isoDate(start), date_sold_to: isoDate(end) }
+  if (period === 'yesterday') {
+    start.setDate(start.getDate() - 1)
+    return { date_sold_from: isoDate(start), date_sold_to: isoDate(start) }
+  }
+  if (period === 'week') start.setDate(start.getDate() - start.getDay())
+  else if (period === 'month') start.setDate(1)
+  else if (period === 'year') { start.setMonth(0); start.setDate(1) }
+  else start.setDate(start.getDate() - (Number(period) || 90) + 1)
+  return { date_sold_from: isoDate(start), date_sold_to: isoDate(end) }
+}
+
 function CopyValue({ value }) {
   if (!value) return <span>-</span>
   return <button className="copy-chip" type="button" title="Copy" onClick={(event) => { event.stopPropagation(); navigator.clipboard?.writeText(value) }}>{value}</button>
+}
+
+function FilterDropdown({ label, value, options, multiple = false, selected = [], onSelect, onToggle }) {
+  const [open, setOpen] = useState(false)
+  const summary = multiple ? (selected.length ? `${label}: ${selected.length} selected` : `${label}: All`) : `${label}: ${value}`
+  return (
+    <div className="sold-filter-dropdown">
+      <button className="sold-filter-trigger" type="button" onClick={() => setOpen((current) => !current)}>
+        <span>{summary}</span><Icon name="chevron" />
+      </button>
+      {open ? (
+        <div className="sold-filter-menu">
+          {options.map((option) => {
+            const optionValue = typeof option === 'string' ? option : option.value
+            const optionLabel = typeof option === 'string' ? labelize(option) : option.label
+            const checked = multiple ? selected.includes(optionValue) : value === optionLabel
+            return (
+              <button className={checked ? 'selected' : ''} type="button" key={optionValue} onClick={() => { multiple ? onToggle(optionValue) : onSelect(optionValue); if (!multiple) setOpen(false) }}>
+                <span>{optionLabel}</span>{checked ? <Icon name="activate" /> : null}
+              </button>
+            )
+          })}
+        </div>
+      ) : null}
+    </div>
+  )
 }
 
 function copyAccountName(name) {
@@ -119,7 +188,10 @@ function EditSoldPostingModal({ row, statuses, saving, error, onChange, onCancel
 
 export default function SoldPosting({ currentUser, onLogout }) {
   const isAdmin = normalizeRole(currentUser?.role) === 'ADMIN'
-  const [filters, setFilters] = useState(emptyFilters)
+  const [period, setPeriod] = useState('90')
+  const [searchBy, setSearchBy] = useState('buyer_username')
+  const [searchTerm, setSearchTerm] = useState('')
+  const [filters, setFilters] = useState({ ...emptyFilters, ...periodRange('90') })
   const [options, setOptions] = useState({ accounts: [], statuses: [] })
   const [data, setData] = useState({ items: [], total: 0, summary: {}, sync: {} })
   const [loading, setLoading] = useState(true)
@@ -150,8 +222,31 @@ export default function SoldPosting({ currentUser, onLogout }) {
   useEffect(() => { fetchSoldPostingOptions().then(setOptions).catch(() => setOptions({ accounts: [], statuses: [] })) }, [])
   useEffect(() => { const timer = window.setTimeout(() => load(filters), 300); return () => window.clearTimeout(timer) }, [filters, load])
 
-  function updateFilter(key, value) { setFilters((current) => ({ ...current, [key]: value, page: 1 })) }
-  function updateMulti(key, event) { updateFilter(key, Array.from(event.target.selectedOptions).map((option) => option.value)) }
+  function toggleMulti(key, value) {
+    setFilters((current) => {
+      const selected = current[key] || []
+      return { ...current, [key]: selected.includes(value) ? selected.filter((item) => item !== value) : [...selected, value], page: 1 }
+    })
+  }
+  function changePeriod(value) {
+    setPeriod(value)
+    setFilters((current) => ({ ...current, ...periodRange(value), page: 1 }))
+  }
+  function changeSearchBy(value) {
+    setSearchBy(value)
+    setSearchTerm('')
+    setFilters((current) => ({ ...current, buyer_username: '', sku: '', order_id: '', item_id: '', search: '', page: 1 }))
+  }
+  function updateSearchTerm(value) {
+    setSearchTerm(value)
+    setFilters((current) => ({ ...current, buyer_username: '', sku: '', order_id: '', item_id: '', search: '', [searchBy]: value, page: 1 }))
+  }
+  function resetFilters() {
+    setPeriod('90')
+    setSearchBy('buyer_username')
+    setSearchTerm('')
+    setFilters({ ...emptyFilters, ...periodRange('90') })
+  }
   async function openDetail(orderId) { setSelected(await fetchSoldPostingDetail(orderId)) }
   function openEdit(row, event) {
     event.stopPropagation()
@@ -235,19 +330,13 @@ export default function SoldPosting({ currentUser, onLogout }) {
         {partialError ? <p className="form-message error">{partialError}</p> : null}
         {syncResult && isAdmin ? <section className="offer-bulk-bar">{syncResult.results.map((item) => <span key={item.account_id}>{item.account_name}: {item.success ? `${item.orders_received} orders, ${item.pages_fetched} pages` : item.error_message}</span>)}</section> : null}
         <section className="stats-grid">{[['Orders', data.summary?.order_count], ['Sold Items', data.summary?.line_item_count], ['Awaiting Shipment', data.summary?.awaiting_shipment], ['Shipped', data.summary?.shipped]].map(([title, value]) => <article className="stat-card" key={title}><div><p>{title}</p><strong>{value || 0}</strong></div></article>)}</section>
-        <form className="analytics-filter-bar sold-filter-bar" onSubmit={(event) => event.preventDefault()}>
-          <label className="field"><span>Date sold from</span><input type="date" value={filters.date_sold_from || ''} onChange={(event) => updateFilter('date_sold_from', event.target.value)} /></label>
-          <label className="field"><span>Date sold to</span><input type="date" value={filters.date_sold_to || ''} onChange={(event) => updateFilter('date_sold_to', event.target.value)} /></label>
-          <label className="field"><span>Date paid from</span><input type="date" value={filters.date_paid_from || ''} onChange={(event) => updateFilter('date_paid_from', event.target.value)} /></label>
-          <label className="field"><span>Date paid to</span><input type="date" value={filters.date_paid_to || ''} onChange={(event) => updateFilter('date_paid_to', event.target.value)} /></label>
-          <label className="field"><span>SKU</span><input value={filters.sku || ''} onChange={(event) => updateFilter('sku', event.target.value)} /></label>
-          <label className="field"><span>Search</span><input type="search" value={filters.search || ''} onChange={(event) => updateFilter('search', event.target.value)} /></label>
-          <label className="field"><span>Order ID</span><input value={filters.order_id || ''} onChange={(event) => updateFilter('order_id', event.target.value)} /></label>
-          <label className="field"><span>Buyer</span><input value={filters.buyer_username || ''} onChange={(event) => updateFilter('buyer_username', event.target.value)} /></label>
-          <label className="field"><span>Item ID</span><input value={filters.item_id || ''} onChange={(event) => updateFilter('item_id', event.target.value)} /></label>
-          <label className="field"><span>eBay accounts</span><select multiple size="3" value={filters.account_ids || []} onChange={(event) => updateMulti('account_ids', event)}>{options.accounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}</select></label>
-          <label className="field"><span>Statuses</span><select multiple size="3" value={filters.statuses || []} onChange={(event) => updateMulti('statuses', event)}>{options.statuses.map((status) => <option key={status} value={status}>{status.replaceAll('_', ' ')}</option>)}</select></label>
-          <button className="secondary-button compact-action" type="button" onClick={() => setFilters(emptyFilters)}>Reset filters</button>
+        <form className="sold-filter-bar compact-sold-filter-bar" onSubmit={(event) => event.preventDefault()}>
+          <FilterDropdown label="Status" multiple selected={filters.statuses || []} options={(options.statuses || []).map((status) => ({ value: status, label: labelize(status) }))} onToggle={(value) => toggleMulti('statuses', value)} />
+          <FilterDropdown label="Account" multiple selected={filters.account_ids || []} options={(options.accounts || []).map((account) => ({ value: account.id, label: account.name }))} onToggle={(value) => toggleMulti('account_ids', value)} />
+          <FilterDropdown label="Period" value={(periodOptions.find(([value]) => value === period) || [period, period])[1]} options={periodOptions.map(([value, label]) => ({ value, label }))} onSelect={changePeriod} />
+          <FilterDropdown label="Search by" value={(searchOptions.find(([value]) => value === searchBy) || [searchBy, searchBy])[1]} options={searchOptions.map(([value, label]) => ({ value, label }))} onSelect={changeSearchBy} />
+          <div className="sold-search-box"><input type="search" placeholder="Search..." value={searchTerm} onChange={(event) => updateSearchTerm(event.target.value)} /><button type="button" aria-label="Search"><Icon name="search" /></button></div>
+          <button className="sold-reset-link" type="button" onClick={resetFilters}>Reset</button>
         </form>
         <section className="table-card">
           {loading ? <div className="empty-state">Loading sold items...</div> : data.items.length ? <div className="table-scroll sold-table-scroll"><table className="users-table sold-table"><thead><tr>{['Copy', 'Image', 'Account', 'Status', 'Order ID', 'SKU', 'Product', 'Condition', 'Buyer', 'Quantity', 'Item price', 'Shipping', 'Total', 'Date sold', 'Date paid', 'Item ID', 'Actions'].map((head) => <th key={head}>{head}</th>)}</tr></thead><tbody>{data.items.map((row) => <tr key={row.id} onClick={() => openDetail(row.order_id)}><td className="sold-copy-cell"><div className="sold-copy-actions"><span className={`copy-state-dot ${row.is_copied ? 'copied' : 'fresh'}`} title={row.is_copied ? `Copied${row.copied_at ? ` ${dt(row.copied_at)}` : ''}` : 'Not copied'} /><button className="icon-button sold-copy-button" type="button" title={soldReferenceText(row)} aria-label="Copy sold reference" onClick={(event) => copySoldReference(row, event)}><Icon name="copy" /></button>{copiedToastId === row.id ? <span className="sold-copied-label">Copied</span> : null}</div></td><td>{row.item_id ? <a href={`https://www.ebay.com/itm/${row.item_id}`} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>{row.image_url ? <img className="sold-thumb" src={row.image_url} alt="" /> : <span className="sold-thumb placeholder"><Icon name="bag" /></span>}</a> : row.image_url ? <img className="sold-thumb" src={row.image_url} alt="" /> : <span className="sold-thumb placeholder"><Icon name="bag" /></span>}</td><td>{row.ebay_account_name}</td><td><StatusBadge value={row.status} /></td><td><CopyValue value={row.order_id} /></td><td><CopyValue value={row.sku} /></td><td className="sold-title"><span>{row.product || '-'}</span></td><td>{row.condition || '-'}</td><td>{row.buyer_username || '-'}</td><td>{row.quantity || 0}</td><td>{money(row.item_price, row.currency)}</td><td>{money(row.shipping, row.currency)}</td><td>{money(row.total, row.currency)}</td><td>{dt(row.date_sold)}</td><td>{dt(row.date_paid)}</td><td><CopyValue value={row.item_id} /></td><td><button className="icon-button offer-action-icon offer-action-edit" type="button" title="Edit order" aria-label="Edit order" onClick={(event) => openEdit(row, event)}><Icon name="edit" /></button></td></tr>)}</tbody></table></div> : <div className="empty-state">No sold items match these filters.</div>}
