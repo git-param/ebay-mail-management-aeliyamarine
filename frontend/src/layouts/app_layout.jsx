@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import { normalizeRole } from '../utils/roles'
-import { fetchNotifications, markNotificationsRead } from '../services/notificationApi'
+import { deleteAllNotifications, deleteNotification, fetchNotifications, markNotificationsRead } from '../services/notificationApi'
 
 const NAV_ITEMS = [
   {
@@ -124,6 +124,8 @@ export function Icon({ name }) {
     disable: <path d="M4.5 4.5 15.5 15.5M17 10a7 7 0 0 1-10.8 5.9M3 10A7 7 0 0 1 13.8 4.1" />,
     activate: <path d="m4 10 4 4 8-8" />,
     close: <path d="M5 5l10 10M15 5 5 15" />,
+    copy: <path d="M7 7h8v10H7V7Zm-2 6H4V3h8v1" />,
+    chevron: <path d="m5 8 5 5 5-5" />,
     menu: <path d="M3 5h14M3 10h14M3 15h14" />,
     bell: <path d="M6 15h8l-1-2V9a4 4 0 0 0-8 0v4l-1 2h2Zm3 2h2" />,
     message: <path d="M4 5h12v8H7l-3 3V5Zm3 3h6M7 10h4" />,
@@ -158,6 +160,8 @@ function AppLayout({ activePage, children, currentUser, onLogout }) {
   const visibleItems = NAV_ITEMS.filter((item) => item.roles.includes(userRole))
   const displayName = currentUser?.full_name || currentUser?.fullName || currentUser?.email || 'User'
   const roleLabel = currentUser?.role || userRole
+  const notificationMenuRef = useRef(null)
+  const profileMenuRef = useRef(null)
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme
@@ -166,10 +170,28 @@ function AppLayout({ activePage, children, currentUser, onLogout }) {
 
   useEffect(() => {
     function closeOnEscape(event) {
-      if (event.key === 'Escape') setIsSidebarOpen(false)
+      if (event.key === 'Escape') {
+        setIsSidebarOpen(false)
+        setIsNotificationsOpen(false)
+        setIsProfileOpen(false)
+      }
     }
     window.addEventListener('keydown', closeOnEscape)
     return () => window.removeEventListener('keydown', closeOnEscape)
+  }, [])
+
+  useEffect(() => {
+    function closePopovers(event) {
+      if (notificationMenuRef.current && !notificationMenuRef.current.contains(event.target)) {
+        setIsNotificationsOpen(false)
+      }
+      if (profileMenuRef.current && !profileMenuRef.current.contains(event.target)) {
+        setIsProfileOpen(false)
+      }
+    }
+
+    document.addEventListener('mousedown', closePopovers)
+    return () => document.removeEventListener('mousedown', closePopovers)
   }, [])
 
   useEffect(() => {
@@ -199,6 +221,7 @@ function AppLayout({ activePage, children, currentUser, onLogout }) {
   async function toggleNotifications() {
     const nextOpen = !isNotificationsOpen
     setIsNotificationsOpen(nextOpen)
+    if (nextOpen) setIsProfileOpen(false)
     if (nextOpen && unreadCount) {
       try {
         await markNotificationsRead()
@@ -207,6 +230,31 @@ function AppLayout({ activePage, children, currentUser, onLogout }) {
       } catch {
         // Keep the menu usable even if marking read fails.
       }
+    }
+  }
+
+  async function removeNotification(notificationId, event) {
+    event.preventDefault()
+    event.stopPropagation()
+    try {
+      await deleteNotification(notificationId)
+      setNotifications((items) => items.filter((item) => item.id !== notificationId))
+      setUnreadCount((count) => {
+        const removed = notifications.find((item) => item.id === notificationId)
+        return removed && !removed.is_read ? Math.max(0, count - 1) : count
+      })
+    } catch {
+      // Leave the item visible if deletion fails.
+    }
+  }
+
+  async function clearNotifications() {
+    try {
+      await deleteAllNotifications()
+      setNotifications([])
+      setUnreadCount(0)
+    } catch {
+      // Keep notifications visible if deletion fails.
     }
   }
 
@@ -259,7 +307,7 @@ function AppLayout({ activePage, children, currentUser, onLogout }) {
             <Icon name={isSidebarOpen ? 'close' : 'menu'} />
           </button>
           <div className="top-actions">
-            <div className="notification-menu-wrap">
+            <div className="notification-menu-wrap" ref={notificationMenuRef}>
               <button
                 className={`icon-button notification-trigger ${unreadCount ? 'has-unread' : ''}`}
                 type="button"
@@ -277,20 +325,27 @@ function AppLayout({ activePage, children, currentUser, onLogout }) {
                       <strong>Notifications</strong>
                       <p>{unreadCount ? `${unreadCount} unread alert${unreadCount === 1 ? '' : 's'}` : 'All caught up'}</p>
                     </div>
+                    {notifications.length ? <button className="notification-clear-button" type="button" onClick={clearNotifications}>Clear all</button> : null}
                   </div>
                   {notifications.length ? (
                     notifications.map((notification) => (
                       <a
                         className={`notification-item ${notification.is_read ? '' : 'unread'}`}
-                        href={notification.resource_type === 'CONVERSATION' ? `/inbox` : '#'}
+                        href={notification.resource_type === 'CONVERSATION' && notification.resource_id ? `/inbox?conversation_id=${encodeURIComponent(notification.resource_id)}` : '#'}
                         key={notification.id}
+                        onClick={() => setIsNotificationsOpen(false)}
                       >
-                        <span>
-                          <span className="notification-pulse" aria-hidden="true" />
-                          {notification.title}
-                        </span>
-                        <p>{notification.body}</p>
-                        <time>{formatNotificationTime(notification.created_at || notification.createdAt)}</time>
+                        <div className="notification-item-content">
+                          <span>
+                            <span className="notification-pulse" aria-hidden="true" />
+                            {notification.title}
+                          </span>
+                          <p>{notification.body}</p>
+                          <time>{formatNotificationTime(notification.created_at || notification.createdAt)}</time>
+                        </div>
+                        <button className="notification-delete-button" type="button" aria-label="Delete notification" onClick={(event) => removeNotification(notification.id, event)}>
+                          <Icon name="close" />
+                        </button>
                       </a>
                     ))
                   ) : (
@@ -310,11 +365,14 @@ function AppLayout({ activePage, children, currentUser, onLogout }) {
             >
               <Icon name="moon" />
             </button>
-            <div className="profile-menu-wrap">
+            <div className="profile-menu-wrap" ref={profileMenuRef}>
               <button
                 className="profile-button"
                 type="button"
-                onClick={() => setIsProfileOpen((current) => !current)}
+                onClick={() => {
+                  setIsProfileOpen((current) => !current)
+                  setIsNotificationsOpen(false)
+                }}
                 aria-expanded={isProfileOpen}
               >
                 <span>{getInitials(displayName)}</span>

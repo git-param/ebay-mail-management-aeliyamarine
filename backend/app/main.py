@@ -1,8 +1,25 @@
+import asyncio
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.v1.router import api_router
 from app.core.config import get_settings
+from app.services.notification_cleanup import notification_cleanup_loop
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    cleanup_task = asyncio.create_task(notification_cleanup_loop())
+    try:
+        yield
+    finally:
+        cleanup_task.cancel()
+        try:
+            await cleanup_task
+        except asyncio.CancelledError:
+            pass
 
 
 def create_app() -> FastAPI:
@@ -11,6 +28,7 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title=settings.project_name,
         version=settings.api_version,
+        lifespan=lifespan,
     )
 
     app.add_middleware(

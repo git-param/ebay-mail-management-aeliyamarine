@@ -19,16 +19,27 @@ class Settings(BaseSettings):
 
     access_token_expire_minutes: int = Field(default=15, validation_alias='ACCESS_TOKEN_EXPIRE_MINUTES')
     refresh_token_expire_days: int = Field(default=30, validation_alias='REFRESH_TOKEN_EXPIRE_DAYS')
-    auth_cookie_secure: bool = Field(default=False, validation_alias='AUTH_COOKIE_SECURE')
-    auth_cookie_samesite: str = Field(default='lax', validation_alias='AUTH_COOKIE_SAMESITE')
+    auth_cookie_secure: bool = Field(
+        default=True,
+        validation_alias='AUTH_COOKIE_SECURE',
+    )
+
+    auth_cookie_samesite: str = Field(
+        default='lax',
+        validation_alias='AUTH_COOKIE_SAMESITE',
+    )
     password_reset_token_expire_minutes: int = Field(
         default=30,
         validation_alias='PASSWORD_RESET_TOKEN_EXPIRE_MINUTES',
     )
-    frontend_url: str = Field(default='http://localhost:5173', validation_alias='FRONTEND_URL')
+    frontend_url: str = Field(default='https://bulletin-savings-arbitrary-skirt.trycloudflare.com', validation_alias='FRONTEND_URL')
     public_backend_url: str = Field(default='', validation_alias='PUBLIC_BACKEND_URL')
     backend_cors_origins: str = Field(
-        default='http://localhost:5173,http://127.0.0.1:5173',
+        default=(
+        "http://localhost:5173,"
+        "http://127.0.0.1:5173,"
+        "https://bulletin-savings-arbitrary-skirt.trycloudflare.com"
+    ),
         validation_alias='BACKEND_CORS_ORIGINS',
     )
     smtp_host: str = Field(default='', validation_alias='SMTP_HOST')

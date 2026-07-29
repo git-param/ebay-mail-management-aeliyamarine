@@ -36,3 +36,10 @@ export function updateSoldPostingLineItem(lineItemRecordId, payload) {
     body: JSON.stringify(payload),
   })
 }
+
+export function markSoldPostingCopied(lineItemRecordId) {
+  return apiRequest(`/sold-posting/line-items/${encodeURIComponent(lineItemRecordId)}/copied`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  })
+}

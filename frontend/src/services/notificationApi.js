@@ -11,3 +11,11 @@ export function fetchNotifications() {
 export function markNotificationsRead() {
   return request('/notifications/read', { method: 'PATCH' })
 }
+
+export function deleteNotification(notificationId) {
+  return request(`/notifications/${encodeURIComponent(notificationId)}`, { method: 'DELETE' })
+}
+
+export function deleteAllNotifications() {
+  return request('/notifications', { method: 'DELETE' })
+}

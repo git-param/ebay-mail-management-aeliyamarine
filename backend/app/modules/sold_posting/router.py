@@ -83,6 +83,12 @@ def update_line_item(line_item_record_id: UUID, payload: SoldPostingEditRequest,
     return SoldPostingService(db).update_line_order_fields(line_item_record_id, payload)
 
 
+@router.post('/line-items/{line_item_record_id}/copied', response_model=SoldPostingRow)
+def mark_line_item_copied(line_item_record_id: UUID, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    _ = current_user
+    return SoldPostingService(db).mark_line_copied(line_item_record_id)
+
+
 @router.post('/sync', response_model=SoldPostingSyncResponse)
 def sync(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     service = SoldPostingService(db)

@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from app.models.notification import Notification
@@ -73,3 +73,14 @@ class NotificationService:
             item.is_read = True
             item.read_at = datetime.now(UTC)
         return len(items)
+
+    def delete_for_user(self, user_id: UUID, notification_id: UUID | None = None) -> int:
+        statement = delete(Notification).where(Notification.user_id == user_id)
+        if notification_id:
+            statement = statement.where(Notification.id == notification_id)
+        result = self.db.execute(statement)
+        return int(result.rowcount or 0)
+
+    def delete_older_than(self, cutoff: datetime) -> int:
+        result = self.db.execute(delete(Notification).where(Notification.created_at < cutoff))
+        return int(result.rowcount or 0)

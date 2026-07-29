@@ -307,6 +307,16 @@ def upgrade() -> None:
             sa.Text,
         ),
         sa.Column(
+            "copied_at",
+            sa.DateTime(timezone=True),
+        ),
+        sa.Column(
+            "copy_count",
+            sa.Integer,
+            server_default="0",
+            nullable=False,
+        ),
+        sa.Column(
             "raw_payload_json",
             postgresql.JSONB,
         ),
