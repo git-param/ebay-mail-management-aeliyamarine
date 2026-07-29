@@ -1,9 +1,12 @@
 from decimal import Decimal
+from datetime import UTC, datetime
+from uuid import UUID
 
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import select, text
 
 from app.models.app_config import AppConfigSetting
+from app.models.ebay_account import EbayAccount
 from app.modules.config_management.defaults import DEFAULT_CONFIGS
 
 
@@ -54,6 +57,62 @@ class ConfigService:
             return int(setting.value)
         except Exception:
             return default
+
+    def list_account_sync_states(self) -> list[EbayAccount]:
+        return list(self.db.scalars(select(EbayAccount).order_by(EbayAccount.account_name.asc())))
+
+    def update_account_sync_cursor(self, *, account_id: UUID | None, last_sync_at: datetime | None, apply_to_all: bool) -> dict:
+        statement = select(EbayAccount)
+        if not apply_to_all:
+            if not account_id:
+                raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='Select an eBay account or choose all accounts.')
+            statement = statement.where(EbayAccount.id == account_id)
+        accounts = list(self.db.scalars(statement))
+        if not accounts:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='No matching eBay accounts found.')
+
+        normalized = last_sync_at.astimezone(UTC) if last_sync_at else None
+        for account in accounts:
+            account.last_sync_at = normalized
+            account.last_order_sync_at = normalized
+            account.sync_status = 'MANUALLY_UPDATED'
+        self.db.commit()
+        return {'updated_count': len(accounts), 'last_sync_at': normalized}
+
+    def delete_conversation_data(self) -> dict:
+        tables = [
+            'audit_logs',
+            'conversation_category_history',
+            'conversation_assignments',
+            'notifications',
+            'offer_management_entry_history',
+            'offer_management_entries',
+            'conversation_product_contexts',
+            'conversation_notes',
+            'conversation_order_contexts',
+            'conversation_message_classifications',
+            'conversation_sla_history',
+            'conversation_status_history',
+            'conversation_participants',
+            'offers',
+            'returns',
+            'cancellations',
+            'order_line_items',
+            'message_attachments',
+            'messages',
+            'conversations',
+            'orders',
+        ]
+        deleted = {}
+        try:
+            for table in tables:
+                result = self.db.execute(text(f'DELETE FROM {table}'))
+                deleted[table] = int(result.rowcount or 0)
+            self.db.commit()
+            return {'deleted': deleted, 'total_deleted': sum(deleted.values())}
+        except Exception as exc:
+            self.db.rollback()
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f'Conversation cleanup failed: {exc}') from exc
 
     def _validate_value(self, setting: AppConfigSetting, value) -> str:
         text = str(value if value is not None else '').strip()

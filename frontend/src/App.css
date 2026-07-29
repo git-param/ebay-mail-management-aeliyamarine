@@ -4287,6 +4287,7 @@ html[data-theme='dark'] .sync-summary strong {
 }
 
 .notification-menu-header {
+  align-items: center;
   display: flex;
   justify-content: space-between;
   gap: 14px;
@@ -4302,9 +4303,23 @@ html[data-theme='dark'] .sync-summary strong {
   font-weight: 800;
 }
 
+.notification-clear-button {
+  background: transparent;
+  border: 0;
+  color: #0f4c81;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 900;
+  padding: 6px 0;
+  text-decoration: underline;
+  white-space: nowrap;
+}
+
 .notification-item {
+  align-items: start;
   display: grid;
-  gap: 5px;
+  gap: 10px;
+  grid-template-columns: minmax(0, 1fr) auto;
   padding: 13px 16px;
   border-bottom: 1px solid #eef2f7;
   color: #061426;
@@ -4317,11 +4332,16 @@ html[data-theme='dark'] .sync-summary strong {
 .notification-item:hover,
 .notification-item:focus-visible {
   background: #f8fbff;
-  padding-left: 20px;
   outline: none;
 }
 
-.notification-item > span {
+.notification-item-content {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.notification-item-content > span {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -4352,6 +4372,26 @@ html[data-theme='dark'] .sync-summary strong {
 .notification-item.unread .notification-pulse {
   background: #ef4444;
   box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.12);
+}
+
+.notification-delete-button {
+  align-items: center;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 999px;
+  color: #64748b;
+  cursor: pointer;
+  display: inline-flex;
+  height: 26px;
+  justify-content: center;
+  margin-top: 1px;
+  width: 26px;
+}
+
+.notification-delete-button:hover {
+  background: #fff1f2;
+  border-color: #fecdd3;
+  color: #dc2626;
 }
 
 .notification-empty {
@@ -4387,7 +4427,7 @@ html[data-theme='dark'] .notification-menu {
 }
 
 html[data-theme='dark'] .inbox-signal-card strong,
-html[data-theme='dark'] .notification-item > span {
+html[data-theme='dark'] .notification-item-content > span {
   color: #f8fafc;
 }
 
@@ -8059,6 +8099,43 @@ html[data-theme='dark'] .message-bubble.inbound {
   color: #64748b;
   font-weight: 500;
   line-height: 1.4;
+}
+
+.config-wide-field {
+  grid-column: 1 / -1;
+}
+
+.config-inline-actions {
+  align-items: end;
+  justify-content: flex-start;
+  margin: 0;
+}
+
+.config-account-list {
+  border-top: 1px solid #eef2f7;
+  display: grid;
+  gap: 8px;
+  margin-top: 16px;
+  padding-top: 14px;
+}
+
+.config-account-list p {
+  color: #475569;
+  font-size: 13px;
+  margin: 0;
+}
+
+.config-account-list strong {
+  color: #061426;
+  margin-right: 8px;
+}
+
+.config-danger-section {
+  border-color: #fecdd3;
+}
+
+.config-danger-section .config-section-header h2 {
+  color: #b91c1c;
 }
 
 .offer-entry-form .modal-actions {

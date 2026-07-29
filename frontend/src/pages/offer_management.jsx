@@ -147,7 +147,7 @@ function OfferForm({ entry, lookups, accounts, onCancel, onSaved }) {
   const field = (key, title, type = 'text') => (
     <label className="field">
       <span>{title}</span>
-      <input type={type} value={form[key] || ''} onChange={(event) => update(key, event.target.value)} />
+      <input type={type === 'number' ? 'text' : type} inputMode={type === 'number' ? 'decimal' : undefined} value={form[key] || ''} onChange={(event) => update(key, event.target.value)} />
     </label>
   )
 

@@ -173,6 +173,19 @@ def ensure_can_assign_conversation(current_user) -> None:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='Only support users can assign conversations')
 
 
+def create_assignment_notification(db: Session, *, conversation: Conversation, assignment, assigned_to: UUID, assigned_by_user) -> None:
+    assigner_name = assigned_by_user.full_name or assigned_by_user.email or 'another user'
+    NotificationService(db).create(
+        user_id=assigned_to,
+        title='Conversation assigned',
+        body=f'Conversation {conversation.subject or conversation.provider_conversation_id} was assigned to you by {assigner_name}.',
+        event_type='MESSAGE_ASSIGNMENT',
+        event_key=f'conversation-assigned:{assignment.id}',
+        resource_type='CONVERSATION',
+        resource_id=conversation.id,
+    )
+
+
 def ensure_can_manage_conversation(current_user) -> None:
     if not can_manage_operations(current_user):
         from fastapi import HTTPException, status
@@ -1188,15 +1201,7 @@ def assign_conversation(
         assigned_to=payload.assigned_to,
         assigned_by=current_user.id,
     )
-    NotificationService(db).create(
-        user_id=payload.assigned_to,
-        title='Conversation assigned',
-        body=f'Conversation {conversation.subject or conversation.provider_conversation_id} was assigned to you.',
-        event_type='MESSAGE_ASSIGNMENT',
-        event_key=f'conversation-assigned:{assignment.id}',
-        resource_type='CONVERSATION',
-        resource_id=conversation_id,
-    )
+    create_assignment_notification(db, conversation=conversation, assignment=assignment, assigned_to=payload.assigned_to, assigned_by_user=current_user)
     AuditService(db).log(
         action='CONVERSATION_ASSIGNED',
         user_id=current_user.id,
@@ -1361,18 +1366,20 @@ def bulk_update_conversations(
                     note='Bulk status update',
                 )
             if payload.assigned_to:
-                assignment_service.assign_conversation(
+                assignment = assignment_service.assign_conversation(
                     conversation_id=conversation_id,
                     assigned_to=payload.assigned_to,
                     assigned_by=current_user.id,
                 )
+                create_assignment_notification(db, conversation=conversation, assignment=assignment, assigned_to=payload.assigned_to, assigned_by_user=current_user)
                 assignment_count += 1
             for owner_id in owner_ids:
-                assignment_service.assign_conversation(
+                assignment = assignment_service.assign_conversation(
                     conversation_id=conversation_id,
                     assigned_to=owner_id,
                     assigned_by=current_user.id,
                 )
+                create_assignment_notification(db, conversation=conversation, assignment=assignment, assigned_to=owner_id, assigned_by_user=current_user)
                 assignment_count += 1
             updated_count += 1
         except Exception:

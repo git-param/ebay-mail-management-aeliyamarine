@@ -69,3 +69,24 @@ def mark_read(
     updated_count = NotificationService(db).mark_read(current_user.id, notification_id)
     db.commit()
     return {'updated_count': updated_count}
+
+
+@router.delete('')
+def delete_all_notifications(
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+) -> dict[str, int]:
+    deleted_count = NotificationService(db).delete_for_user(current_user.id)
+    db.commit()
+    return {'deleted_count': deleted_count}
+
+
+@router.delete('/{notification_id}')
+def delete_notification(
+    notification_id: UUID,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+) -> dict[str, int]:
+    deleted_count = NotificationService(db).delete_for_user(current_user.id, notification_id)
+    db.commit()
+    return {'deleted_count': deleted_count}
