@@ -110,6 +110,7 @@ class SoldPostingLineItem(Base):
     ship_by_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     image_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     copied_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    copied_by_user_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey('users.id'), nullable=True)
     copy_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     raw_payload_json: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False)
