@@ -54,6 +54,7 @@ class Settings(BaseSettings):
     ebay_runame: str = Field(default='', validation_alias='EBAY_RUNAME')
     ebay_environment: str = Field(default='SANDBOX', validation_alias='EBAY_ENVIRONMENT')
     ebay_marketplace_id: str = Field(default='EBAY_US', validation_alias='EBAY_MARKETPLACE_ID')
+    ebay_media_base_url: str = Field(default='', validation_alias='EBAY_MEDIA_BASE_URL')
     ebay_browse_max_retries: int = Field(default=3, ge=1, le=10, validation_alias='EBAY_BROWSE_MAX_RETRIES')
     ebay_browse_retry_base_seconds: float = Field(
         default=0.5,

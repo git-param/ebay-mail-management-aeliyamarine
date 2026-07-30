@@ -23,6 +23,7 @@ class EbayOAuthService:
             redirect_uri=self.settings.ebay_redirect_uri,
             runame=self.settings.ebay_runame,
             environment=self.settings.ebay_environment,
+            media_base_url=self.settings.ebay_media_base_url,
         )
 
     def create_authorization_url(self, account_id: UUID) -> tuple[str, str]:

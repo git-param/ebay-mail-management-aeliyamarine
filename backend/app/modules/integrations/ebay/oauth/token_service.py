@@ -23,6 +23,7 @@ class EbayTokenService:
             redirect_uri=self.settings.ebay_redirect_uri,
             runame=self.settings.ebay_runame,
             environment=self.settings.ebay_environment,
+            media_base_url=self.settings.ebay_media_base_url,
         )
 
     def store_tokens(self, account: EbayAccount, token_payload: EbayTokenPayload) -> EbayAccount:

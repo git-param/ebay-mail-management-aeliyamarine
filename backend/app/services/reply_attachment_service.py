@@ -447,6 +447,20 @@ class ReplyAttachmentService:
             A plain-English error string suitable for an HTTP 502 detail field.
         """
         if isinstance(payload, dict):
+            if payload.get('error_type') == 'transport_error':
+                errors = payload.get('errors')
+                message = None
+                if isinstance(errors, list) and errors and isinstance(errors[0], dict):
+                    value = errors[0].get('longMessage') or errors[0].get('message')
+                    if isinstance(value, str) and value.strip():
+                        message = value.strip()
+                if not message:
+                    message = 'Could not connect to eBay media upload service'
+                return (
+                    f'Could not upload attachment "{media_name}" because the app could not reach eBay. '
+                    f'{message}. Check internet/DNS/VPN/proxy settings, then try again. The reply was not sent.'
+                )
+
             errors = payload.get('errors')
             if isinstance(errors, list) and errors:
                 first = errors[0]

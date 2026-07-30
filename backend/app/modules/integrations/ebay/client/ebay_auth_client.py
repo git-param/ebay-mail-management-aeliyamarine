@@ -75,12 +75,14 @@ class EbayAuthClient:
         redirect_uri: str,
         runame: str,
         environment: str,
+        media_base_url: str = '',
     ):
         self.client_id = client_id
         self.client_secret = client_secret
         self.redirect_uri = redirect_uri
         self.runame = runame
         self.environment = environment.upper()
+        self.media_base_url = media_base_url.rstrip('/') if media_base_url else ''
         if not self.client_id or not self.client_secret or not self.oauth_redirect_uri:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -114,6 +116,12 @@ class EbayAuthClient:
         if self.environment == 'PRODUCTION':
             return 'https://api.ebay.com/commerce/message/v1/conversation'
         return 'https://api.sandbox.ebay.com/commerce/message/v1/conversation'
+
+    @property
+    def default_media_base_url(self) -> str:
+        if self.environment == 'PRODUCTION':
+            return 'https://apim.ebay.com/commerce/media/v1_beta'
+        return 'https://apim.sandbox.ebay.com/commerce/media/v1_beta'
 
     @property
     def fulfillment_order_url(self) -> str:
@@ -493,7 +501,7 @@ class EbayAuthClient:
         payload = {
             'conversationId': conversation_id,
             'conversationType': conversation_type,
-            'messageText': message_body,
+            'messageText': self._message_body_for_send(message_body, has_media=bool(message_media)),
         }
         if message_media:
             payload['messageMedia'] = message_media
@@ -571,6 +579,20 @@ class EbayAuthClient:
                 detail='Unable to reach eBay Message API',
             ) from exc
 
+    def _message_body_for_send(self, message_body: str, *, has_media: bool) -> str:
+        """
+        Preserve paragraph spacing when eBay renders messages with media.
+
+        eBay can collapse fully empty lines in attachment replies. A single
+        space on otherwise blank lines keeps the intended paragraph breaks
+        without changing visible text.
+        """
+        if not has_media:
+            return message_body
+
+        normalized = message_body.replace('\r\n', '\n').replace('\r', '\n')
+        return '\n'.join(line if line else ' ' for line in normalized.split('\n'))
+
     def _request_json_api_raw(
         self,
         access_token: str,
@@ -640,11 +662,7 @@ class EbayAuthClient:
         Upload an image to eBay Media API and return mediaUrl for MessageMedia.
         """
 
-        media_base_url = getattr(
-            self,
-            "media_base_url",
-            "https://apim.ebay.com/commerce/media/v1_beta",
-        )
+        media_base_url = self.media_base_url or self.default_media_base_url
 
         create_url = f"{media_base_url.rstrip('/')}/image/create_image_from_file"
 
@@ -743,10 +761,11 @@ class EbayAuthClient:
                 ok=False,
                 status_code=0,
                 payload={
+                    "error_type": "transport_error",
                     "errors": [
                         {
                             "message": str(exc),
-                            "longMessage": f"eBay media upload request failed: {exc}",
+                            "longMessage": f"Could not connect to eBay media upload service: {exc}",
                         }
                     ]
                 },

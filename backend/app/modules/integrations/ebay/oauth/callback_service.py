@@ -24,6 +24,7 @@ class EbayOAuthCallbackService:
             redirect_uri=self.settings.ebay_redirect_uri,
             runame=self.settings.ebay_runame,
             environment=self.settings.ebay_environment,
+            media_base_url=self.settings.ebay_media_base_url,
         )
 
     def handle_callback(self, *, code: str | None, state: str | None, error: str | None = None) -> EbayAccount:
