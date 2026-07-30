@@ -4,9 +4,6 @@ from fastapi import APIRouter, BackgroundTasks, Depends, status
 from sqlalchemy.orm import Session
 
 from app.api.dependencies import get_current_user, require_admin
-from app.api.v1.routes.conversations import (
-    visible_category_ids_for_user, visibility_user_id_for_user,
-)
 from app.db.session import SessionLocal, get_db
 from app.modules.integrations.ebay.services.ebay_best_offer_sync_service import EbayBestOfferSyncService
 from app.modules.integrations.ebay.services.ebay_negotiation_service import EbayNegotiationService
@@ -32,8 +29,6 @@ def _sync_buyer_offers(account_id: UUID) -> None:
 def _visible_conversation(conversation_id: UUID, db: Session, user):
     return ConversationService(db).get_conversation(
         conversation_id,
-        visible_category_ids=visible_category_ids_for_user(db, user),
-        visibility_user_id=visibility_user_id_for_user(user),
     )
 
 
