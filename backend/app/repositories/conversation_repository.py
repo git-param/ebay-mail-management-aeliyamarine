@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from sqlalchemy import and_, exists, func, or_, select
+from sqlalchemy import and_, func, select
 from sqlalchemy.orm import Session, joinedload, selectinload
 
 from app.models.category import Category
@@ -23,10 +23,8 @@ class ConversationRepository:
         provider_account_id: UUID | None = None,
         assigned_user_id: UUID | None = None,
         category_id: UUID | None = None,
-        visible_category_ids: set[UUID] | None = None,
-        visibility_user_id: UUID | None = None,
     ) -> list[Conversation]:
-        """List conversations filtered by search criteria and optional agent visibility."""
+        """List conversations filtered by search criteria."""
         statement = self._filtered_statement(
             search=search,
             status=status,
@@ -35,8 +33,6 @@ class ConversationRepository:
             provider_account_id=provider_account_id,
             assigned_user_id=assigned_user_id,
             category_id=category_id,
-            visible_category_ids=visible_category_ids,
-            visibility_user_id=visibility_user_id,
         ).options(
             selectinload(Conversation.assignments).joinedload(ConversationAssignment.assignee),
             selectinload(Conversation.assignments).joinedload(ConversationAssignment.assigner),
@@ -59,8 +55,6 @@ class ConversationRepository:
         provider_account_id: UUID | None = None,
         assigned_user_id: UUID | None = None,
         category_id: UUID | None = None,
-        visible_category_ids: set[UUID] | None = None,
-        visibility_user_id: UUID | None = None,
     ) -> int:
         """Count conversations with the same filters used by the list endpoint."""
         statement = self._filtered_statement(
@@ -71,18 +65,13 @@ class ConversationRepository:
             provider_account_id=provider_account_id,
             assigned_user_id=assigned_user_id,
             category_id=category_id,
-            visible_category_ids=visible_category_ids,
-            visibility_user_id=visibility_user_id,
         )
         return int(self.db.scalar(select(func.count()).select_from(statement.subquery())) or 0)
 
     def get_by_id(
         self,
         conversation_id: UUID,
-        visible_category_ids: set[UUID] | None = None,
-        visibility_user_id: UUID | None = None,
     ) -> Conversation | None:
-        """Fetch a conversation only when it matches the optional visibility scope."""
         statement = (
             select(Conversation)
             .options(
@@ -94,10 +83,6 @@ class ConversationRepository:
             )
             .where(Conversation.id == conversation_id)
         )
-        if visible_category_ids is not None and visibility_user_id is not None:
-            statement = statement.where(self._agent_visibility_filter(visible_category_ids, visibility_user_id))
-        elif visible_category_ids is not None:
-            statement = statement.where(Conversation.category_id.in_(visible_category_ids))
         return self.db.scalar(statement)
 
     def get_by_provider_id(self, provider: str, provider_conversation_id: str) -> Conversation | None:
@@ -141,10 +126,8 @@ class ConversationRepository:
         provider_account_id: UUID | None = None,
         assigned_user_id: UUID | None = None,
         category_id: UUID | None = None,
-        visible_category_ids: set[UUID] | None = None,
-        visibility_user_id: UUID | None = None,
     ):
-        """Build the base conversation query with optional agent visibility filtering."""
+        """Build the base conversation query."""
         statement = select(Conversation)
         if search:
             normalized_search = f'%{search.strip()}%'
@@ -184,23 +167,4 @@ class ConversationRepository:
             )
         if category_id:
             statement = statement.where(Conversation.category_id == category_id)
-        if visible_category_ids is not None and visibility_user_id is not None:
-            statement = statement.where(self._agent_visibility_filter(visible_category_ids, visibility_user_id))
-        elif visible_category_ids is not None:
-            statement = statement.where(Conversation.category_id.in_(visible_category_ids))
         return statement
-
-    def _agent_visibility_filter(self, visible_category_ids: set[UUID], user_id: UUID):
-        """Allow category-scoped inbox visibility plus explicit assignments."""
-        assigned_to_user = exists(
-            select(ConversationAssignment.id).where(
-                and_(
-                    ConversationAssignment.conversation_id == Conversation.id,
-                    ConversationAssignment.assigned_to == user_id,
-                    ConversationAssignment.unassigned_at.is_(None),
-                )
-            )
-        )
-        # A direct assignment remains visible even when its category is outside
-        # the agent's normal queue; explicit ownership takes precedence.
-        return or_(Conversation.category_id.in_(visible_category_ids), assigned_to_user)

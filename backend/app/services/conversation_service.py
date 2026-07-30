@@ -33,10 +33,8 @@ class ConversationService:
         provider_account_id: UUID | None = None,
         assigned_user_id: UUID | None = None,
         category_id: UUID | None = None,
-        visible_category_ids: set[UUID] | None = None,
-        visibility_user_id: UUID | None = None,
     ) -> list[Conversation]:
-        """Return conversations within the caller's optional visibility scope."""
+        """Return conversations matching the requested filters."""
         return self.repository.list(
             limit=limit,
             offset=offset,
@@ -47,8 +45,6 @@ class ConversationService:
             provider_account_id=provider_account_id,
             assigned_user_id=assigned_user_id,
             category_id=category_id,
-            visible_category_ids=visible_category_ids,
-            visibility_user_id=visibility_user_id,
         )
 
     def count_conversations(
@@ -61,8 +57,6 @@ class ConversationService:
         provider_account_id: UUID | None = None,
         assigned_user_id: UUID | None = None,
         category_id: UUID | None = None,
-        visible_category_ids: set[UUID] | None = None,
-        visibility_user_id: UUID | None = None,
     ) -> int:
         """Return the filtered conversation total for pagination and dashboards."""
         return self.repository.count(
@@ -73,21 +67,15 @@ class ConversationService:
             provider_account_id=provider_account_id,
             assigned_user_id=assigned_user_id,
             category_id=category_id,
-            visible_category_ids=visible_category_ids,
-            visibility_user_id=visibility_user_id,
         )
 
     def get_conversation(
         self,
         conversation_id: UUID,
-        visible_category_ids: set[UUID] | None = None,
-        visibility_user_id: UUID | None = None,
     ) -> Conversation:
-        """Return one conversation or hide it when the caller lacks visibility."""
+        """Return one conversation by ID."""
         conversation = self.repository.get_by_id(
             conversation_id,
-            visible_category_ids=visible_category_ids,
-            visibility_user_id=visibility_user_id,
         )
 
         if not conversation:

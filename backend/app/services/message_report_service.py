@@ -38,12 +38,18 @@ class MessageReportService:
             result.append({'id': classification.id, 'created_at': classification.created_at,
                 'conversation_id': conversation.id, 'conversation_message_id': message.id,
                 'provider_conversation_id': conversation.provider_conversation_id, 'buyer': conversation.buyer_identifier,
-                'seller': (account.store_name or account.account_name) if account else None,
+                'seller': self.seller_label(account),
                 'seller_account_id': classification.seller_account_id, 'user_id': user.id,
                 'agent': user.full_name, 'category': category.name, 'category_id': category.id,
                 'subcategory': subcategory.name if subcategory else None,
                 'subcategory_id': subcategory.id if subcategory else None, 'message_preview': message.body[:240]})
         return result, total
+
+    @staticmethod
+    def seller_label(account):
+        if not account:
+            return None
+        return account.account_name or account.store_name or account.ebay_username
 
     def report(self, filters, limit, offset, sort_by, sort_dir):
         visible, total = self.rows(filters, limit=limit, offset=offset, sort_by=sort_by, sort_dir=sort_dir)

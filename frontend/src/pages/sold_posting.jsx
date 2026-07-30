@@ -1,19 +1,20 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import AppLayout, { Icon } from '../layouts/app_layout'
 import { fetchSoldPostingDetail, fetchSoldPostingOptions, fetchSoldPostingOrders, markSoldPostingCopied, syncSoldPosting, updateSoldPostingLineItem } from '../services/soldPostingApi'
 import { normalizeRole } from '../utils/roles'
 
 const emptyFilters = { page: 1, page_size: 50, sort_by: 'date_sold', sort_direction: 'desc' }
 const periodOptions = [
+  ['all', 'All time'],
+  ['today', 'Today'],
+  ['yesterday', 'Yesterday'],
   ['90', 'Last 90 days'],
   ['60', 'Last 60 days'],
   ['30', 'Last 30 days'],
-  ['today', 'Today'],
-  ['yesterday', 'Yesterday'],
   ['week', 'This week'],
   ['month', 'This month'],
   ['year', 'This year'],
-  ['all', 'All time'],
+  ['custom', 'Custom'],
 ]
 const searchOptions = [
   ['buyer_username', 'Buyer username'],
@@ -51,6 +52,7 @@ function periodRange(period) {
   const end = new Date(today.getFullYear(), today.getMonth(), today.getDate())
   const start = new Date(end)
   if (period === 'all') return { date_sold_from: '', date_sold_to: '' }
+  if (period === 'custom') return {}
   if (period === 'today') return { date_sold_from: isoDate(start), date_sold_to: isoDate(end) }
   if (period === 'yesterday') {
     start.setDate(start.getDate() - 1)
@@ -70,9 +72,18 @@ function CopyValue({ value }) {
 
 function FilterDropdown({ label, value, options, multiple = false, selected = [], onSelect, onToggle }) {
   const [open, setOpen] = useState(false)
+  const dropdownRef = useRef(null)
   const summary = multiple ? (selected.length ? `${label}: ${selected.length} selected` : `${label}: All`) : `${label}: ${value}`
+  useEffect(() => {
+    if (!open) return undefined
+    function closeOnOutsideClick(event) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) setOpen(false)
+    }
+    document.addEventListener('mousedown', closeOnOutsideClick)
+    return () => document.removeEventListener('mousedown', closeOnOutsideClick)
+  }, [open])
   return (
-    <div className="sold-filter-dropdown">
+    <div className="sold-filter-dropdown" ref={dropdownRef}>
       <button className="sold-filter-trigger" type="button" onClick={() => setOpen((current) => !current)}>
         <span>{summary}</span><Icon name="chevron" />
       </button>
@@ -189,6 +200,7 @@ function EditSoldPostingModal({ row, statuses, saving, error, onChange, onCancel
 export default function SoldPosting({ currentUser, onLogout }) {
   const isAdmin = normalizeRole(currentUser?.role) === 'ADMIN'
   const [period, setPeriod] = useState('90')
+  const [customRange, setCustomRange] = useState({ date_sold_from: '', date_sold_to: '' })
   const [searchBy, setSearchBy] = useState('buyer_username')
   const [searchTerm, setSearchTerm] = useState('')
   const [filters, setFilters] = useState({ ...emptyFilters, ...periodRange('90') })
@@ -230,7 +242,20 @@ export default function SoldPosting({ currentUser, onLogout }) {
   }
   function changePeriod(value) {
     setPeriod(value)
+    if (value === 'custom') {
+      setCustomRange({
+        date_sold_from: filters.date_sold_from || '',
+        date_sold_to: filters.date_sold_to || '',
+      })
+      return
+    }
     setFilters((current) => ({ ...current, ...periodRange(value), page: 1 }))
+  }
+  function updateCustomRange(key, value) {
+    setCustomRange((current) => ({ ...current, [key]: value }))
+  }
+  function applyCustomRange() {
+    setFilters((current) => ({ ...current, ...customRange, page: 1 }))
   }
   function changeSearchBy(value) {
     setSearchBy(value)
@@ -243,6 +268,7 @@ export default function SoldPosting({ currentUser, onLogout }) {
   }
   function resetFilters() {
     setPeriod('90')
+    setCustomRange({ date_sold_from: '', date_sold_to: '' })
     setSearchBy('buyer_username')
     setSearchTerm('')
     setFilters({ ...emptyFilters, ...periodRange('90') })
@@ -334,6 +360,13 @@ export default function SoldPosting({ currentUser, onLogout }) {
           <FilterDropdown label="Status" multiple selected={filters.statuses || []} options={(options.statuses || []).map((status) => ({ value: status, label: labelize(status) }))} onToggle={(value) => toggleMulti('statuses', value)} />
           <FilterDropdown label="Account" multiple selected={filters.account_ids || []} options={(options.accounts || []).map((account) => ({ value: account.id, label: account.name }))} onToggle={(value) => toggleMulti('account_ids', value)} />
           <FilterDropdown label="Period" value={(periodOptions.find(([value]) => value === period) || [period, period])[1]} options={periodOptions.map(([value, label]) => ({ value, label }))} onSelect={changePeriod} />
+          {period === 'custom' ? (
+            <div className="sold-custom-period">
+              <label className="sold-date-filter"><span>From</span><input type="date" value={customRange.date_sold_from} onChange={(event) => updateCustomRange('date_sold_from', event.target.value)} /></label>
+              <label className="sold-date-filter"><span>To</span><input type="date" value={customRange.date_sold_to} onChange={(event) => updateCustomRange('date_sold_to', event.target.value)} /></label>
+              <button className="sold-custom-apply" type="button" onClick={applyCustomRange}>Apply</button>
+            </div>
+          ) : null}
           <FilterDropdown label="Search by" value={(searchOptions.find(([value]) => value === searchBy) || [searchBy, searchBy])[1]} options={searchOptions.map(([value, label]) => ({ value, label }))} onSelect={changeSearchBy} />
           <div className="sold-search-box"><input type="search" placeholder="Search..." value={searchTerm} onChange={(event) => updateSearchTerm(event.target.value)} /><button type="button" aria-label="Search"><Icon name="search" /></button></div>
           <button className="sold-reset-link" type="button" onClick={resetFilters}>Reset</button>
