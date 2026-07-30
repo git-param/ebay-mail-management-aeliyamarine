@@ -7018,7 +7018,7 @@ html[data-theme='dark'] .conversation-badge-category {
 .conversation-detail .message-bubble p {
   font-size: 13px;
   line-height: 1.34;
-  white-space: pre-line;
+  white-space: pre-wrap;
 }
 
 .conversation-detail .thread-panel > .reply-composer,
