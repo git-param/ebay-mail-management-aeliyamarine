@@ -1918,7 +1918,7 @@ function Dashboard({ currentUser, onLogout }) {
     }
   }
 
-  async function handleSendReply(body, files = [], messageTypeId) {
+  async function handleSendReply(body, files = [], messageTypeId, sendCopyToEmail = false) {
     if (!selectedConversationId) {
       return
     }
@@ -1926,8 +1926,8 @@ function Dashboard({ currentUser, onLogout }) {
     setActionError('')
     try {
       const response = files.length
-        ? await sendConversationReplyWithAttachments(selectedConversationId, body, files, messageTypeId)
-        : await sendConversationReply(selectedConversationId, body, messageTypeId)
+        ? await sendConversationReplyWithAttachments(selectedConversationId, body, files, messageTypeId, sendCopyToEmail)
+        : await sendConversationReply(selectedConversationId, body, messageTypeId, sendCopyToEmail)
       await refreshSelectedConversation()
       if (response.attachment_delivery_warning) {
         setActionError(response.attachment_delivery_warning)

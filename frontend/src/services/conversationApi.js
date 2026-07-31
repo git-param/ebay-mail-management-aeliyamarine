@@ -98,17 +98,18 @@ export function validateConversationReply(conversationId, body) {
   })
 }
 
-export function sendConversationReply(conversationId, body, messageTypeId) {
+export function sendConversationReply(conversationId, body, messageTypeId, sendCopyToEmail = false) {
   return request(`/conversations/${conversationId}/reply`, {
     method: 'POST',
-    body: JSON.stringify({ body, message_type_id: messageTypeId }),
+    body: JSON.stringify({ body, message_type_id: messageTypeId, send_copy_to_email: sendCopyToEmail }),
   })
 }
 
-export function sendConversationReplyWithAttachments(conversationId, body, files = [], messageTypeId) {
+export function sendConversationReplyWithAttachments(conversationId, body, files = [], messageTypeId, sendCopyToEmail = false) {
   const formData = new FormData()
   formData.set('body', body)
   formData.set('message_type_id', messageTypeId)
+  formData.set('send_copy_to_email', sendCopyToEmail ? 'true' : 'false')
   files.forEach((file) => formData.append('attachments', file))
   return apiFormRequest(`/conversations/${conversationId}/reply`, formData, getErrorMessage)
 }

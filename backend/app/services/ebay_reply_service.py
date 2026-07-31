@@ -83,6 +83,7 @@ class EbayReplyService:
         body: str,
         actor_id: UUID,
         message_type_id: UUID,
+        send_copy_to_email: bool = False,
         attachments: list[UploadFile] | None = None,
     ) -> Message:
         """
@@ -125,6 +126,7 @@ class EbayReplyService:
             )
 
         clean_attachments = [upload for upload in (attachments or []) if upload.filename]
+        send_copy_to_email = bool(send_copy_to_email)
 
         # --- 2. Validate attachment types/count before any I/O ---
         if clean_attachments:
@@ -168,7 +170,7 @@ class EbayReplyService:
             read_status=True,
             is_inbound=False,
             sent_at=datetime.now(UTC),
-            raw_payload={'actor_id': str(actor_id)},
+            raw_payload={'actor_id': str(actor_id), 'email_copy_requested': send_copy_to_email},
         )
         self.db.add(message)
         self.db.flush()
@@ -217,23 +219,34 @@ class EbayReplyService:
 
         # --- 7. Send the reply message to eBay ---
         logger.warning(
-            'Sending eBay reply: conversation_id=%s has_media=%s',
+            'Sending eBay reply: conversation_id=%s account_id=%s has_media=%s email_copy_requested=%s',
             conversation.id,
+            account.id,
             bool(message_media),
+            send_copy_to_email,
         )
 
-        response = self.token_service.client.send_conversation_message(
+        trading_context = self._trading_context(conversation)
+        response = self.token_service.client.send_trading_member_message(
             account.access_token,
-            conversation_id=conversation.provider_conversation_id,
-            message_body=body,
-            conversation_type=conversation.provider_conversation_type or 'FROM_MEMBERS',
+            call_name=trading_context['call_name'],
+            item_id=trading_context['item_id'],
+            recipient_id=trading_context['recipient_id'],
+            body=body,
+            subject=trading_context.get('subject'),
+            parent_message_id=trading_context.get('parent_message_id'),
+            email_copy_to_sender=send_copy_to_email,
+            correlation_id=str(message.id),
             message_media=message_media or None,
         )
 
         logger.warning(
-            'eBay reply send response: conversation_id=%s ok=%s payload=%s',
+            'eBay reply send response: conversation_id=%s account_id=%s call_name=%s ok=%s email_copy_requested=%s payload=%s',
             conversation.id,
+            account.id,
+            trading_context['call_name'],
             response.ok,
+            send_copy_to_email,
             response.payload,
         )
 
@@ -257,6 +270,8 @@ class EbayReplyService:
         message.raw_payload = {
             **(response.payload if isinstance(response.payload, dict) else {'response': response.payload}),
             'actor_id': str(actor_id),
+            'email_copy_requested': send_copy_to_email,
+            'ebay_call_name': trading_context['call_name'],
         }
 
         conversation.last_message_at = message.sent_at
@@ -277,6 +292,12 @@ class EbayReplyService:
             entity_type='CONVERSATION',
             entity_id=conversation.id,
             category='MESSAGE_MANAGEMENT',
+            metadata={
+                'message_id': str(message.id),
+                'ebay_account_id': str(account.id),
+                'ebay_call_name': trading_context['call_name'],
+                'email_copy_requested': send_copy_to_email,
+            },
         )
         AuditService(self.db).log(
             action='REPLY_CATEGORIZED', user_id=actor_id, entity_type='MESSAGE', entity_id=message.id,
@@ -345,6 +366,44 @@ class EbayReplyService:
             return None
         value = payload.get('messageId') or payload.get('id')
         return value.strip() if isinstance(value, str) and value.strip() else None
+
+    def _trading_context(self, conversation) -> dict:
+        recipient_id = (conversation.buyer_identifier or '').strip()
+        if not recipient_id:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Cannot send reply because the buyer username is unavailable.')
+
+        order_mapping = getattr(conversation, 'order_mapping', None)
+        if order_mapping and (order_mapping.ebay_item_id or order_mapping.listing_id or conversation.reference_id):
+            return {
+                'call_name': 'AddMemberMessageAAQToPartner',
+                'item_id': order_mapping.ebay_item_id or order_mapping.listing_id or conversation.reference_id,
+                'recipient_id': recipient_id,
+                'subject': conversation.subject or 'Message from seller',
+            }
+        linked_order = getattr(conversation, 'linked_order', None)
+        linked_line_item = next(iter(getattr(linked_order, 'line_items', []) or []), None) if linked_order else None
+        linked_item_id = getattr(linked_line_item, 'item_id', None) or getattr(linked_line_item, 'listing_id', None)
+        if linked_item_id:
+            return {
+                'call_name': 'AddMemberMessageAAQToPartner',
+                'item_id': linked_item_id,
+                'recipient_id': recipient_id,
+                'subject': conversation.subject or 'Message from seller',
+            }
+
+        item_id = conversation.reference_id if (conversation.reference_type or '').upper() == 'LISTING' else None
+        parent_message = next((message for message in sorted(conversation.messages, key=lambda row: row.sent_at, reverse=True) if message.is_inbound and message.provider_message_id), None)
+        if item_id and parent_message:
+            return {
+                'call_name': 'AddMemberMessageRTQ',
+                'item_id': item_id,
+                'recipient_id': recipient_id,
+                'parent_message_id': parent_message.provider_message_id,
+            }
+
+        if item_id and not parent_message:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Cannot send reply because the original eBay parent message is unavailable.')
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Cannot send reply because the eBay item or order context is unavailable for this message type.')
 
     def _reply_error_detail(self, payload: object) -> str:
         """
