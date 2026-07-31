@@ -92,7 +92,8 @@ export default function DailyTaskEntry({ currentUser, onLogout }) {
 
   function updateItem(key, patch) {
     setEntry((current) => {
-      const nextItems = current.score_items.map((item) => item.key === key ? { ...item, ...patch, source: patch.source || item.source } : item)
+      const nextItems = current.score_items.map((item) => item.key === key ? 
+      { ...item, ...patch, source: patch.source || item.source } : item)
       return { ...current, score_items: current.error_level === 'MAJOR' ? nextItems.map((item) => ({ ...item, value: 0 })) : nextItems }
     })
   }
@@ -120,15 +121,20 @@ export default function DailyTaskEntry({ currentUser, onLogout }) {
     if (!selectedUserId) { setError('Select a user before saving.'); return }
     if (entry.error_level !== 'NO_ERROR' && !entry.error_remark.trim()) { setError('Error Remark is required for Minor or Major errors.'); return }
     setSaving(true); setError(''); setMessage('')
-    try {
+    try 
+    {
       const payload = { ...entry, user_id: selectedUserId, entry_date: entryDate, final_score_percent: calculate(entry.score_items, entry.sla_score, entry.error_level) }
       const saved = await savePmsEntry(payload)
       setEntry(saved)
       setMessage('Daily entry saved.')
       await loadHistory(filters)
-    } catch (caught) {
+    } 
+    catch (caught) 
+    {
       setError(caught.message)
-    } finally {
+    } 
+    finally 
+    {
       setSaving(false)
     }
   }
@@ -157,14 +163,17 @@ export default function DailyTaskEntry({ currentUser, onLogout }) {
                 {(entry.score_items || []).map((item) => (
                   <div className="pms-dynamic-row" key={item.key}>
                     <div><strong>{item.label}</strong><small>{sourceLabel(item.source)}</small></div>
-                    <select value={item.status} disabled={entry.error_level === 'MAJOR'} onChange={(event) => updateItem(item.key, { status: event.target.value, source: 'MANUAL' })}><option value="NOT_ENTERED">Not Entered</option><option value="ENTERED">Entered</option><option value="NOT_APPLICABLE">Not Applicable</option></select>
+                    <select value={item.status} disabled={entry.error_level === 'MAJOR'} onChange={(event) => updateItem(item.key, { status: event.target.value, source: 'MANUAL' })}>
+                      <option value="NOT_ENTERED">Not Entered</option>
+                      <option value="ENTERED">Entered</option>
+                    </select>
                     <span>/{item.max_score}</span>
-                    <input type="number" min="0" max={item.max_score} disabled={entry.error_level === 'MAJOR' || item.status === 'NOT_APPLICABLE'} value={entry.error_level === 'MAJOR' ? 0 : item.value} onChange={(event) => updateItem(item.key, { value: number(event.target.value), status: 'ENTERED', source: 'MANUAL' })} />
+                    <input type="text" min="0" max={item.max_score} disabled={entry.error_level === 'MAJOR' || item.status === 'NOT_APPLICABLE'} value={entry.error_level === 'MAJOR' ? 0 : item.value} onChange={(event) => updateItem(item.key, { value: number(event.target.value), status: 'ENTERED', source: 'MANUAL' })} />
                   </div>
                 ))}
                 <div className="pms-dynamic-row">
                   <div><strong>SLA Score</strong><small>Fetched</small></div><span /><span>/20</span>
-                  <input type="number" min="0" max="20" disabled={entry.error_level === 'MAJOR'} value={entry.error_level === 'MAJOR' ? 0 : entry.sla_score} onChange={(event) => updateEntry('sla_score', number(event.target.value))} />
+                  <input type="text" min="0" max="20" disabled={entry.error_level === 'MAJOR'} value={entry.error_level === 'MAJOR' ? 0 : entry.sla_score} onChange={(event) => updateEntry('sla_score', number(event.target.value))} />
                 </div>
                 <label className="pms-task-row final"><span>Final Score %</span><button type="button" onClick={autoSum}>Auto Sum</button><input type="number" min="0" max="100" value={entry.final_score_percent} onChange={(event) => updateEntry('final_score_percent', number(event.target.value))} /></label>
               </section>
