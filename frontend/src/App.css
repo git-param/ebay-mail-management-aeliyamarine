@@ -6071,7 +6071,7 @@ html[data-theme='dark'] .secondary-button {
   bottom: 0;
   z-index: 2;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
   align-items: center;
   gap: 10px;
   margin: 4px -4px -4px;
@@ -6085,6 +6085,29 @@ html[data-theme='dark'] .secondary-button {
   color: var(--saas-muted);
   font-size: 12px;
   font-weight: 820;
+}
+
+.email-copy-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: max-content;
+  color: var(--saas-text);
+  font-size: 12px;
+  font-weight: 820;
+  cursor: pointer;
+}
+
+.email-copy-checkbox input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--saas-primary);
+  cursor: pointer;
+}
+
+.email-copy-checkbox:has(input:disabled) {
+  cursor: not-allowed;
+  opacity: 0.65;
 }
 
 .reply-draft-message {

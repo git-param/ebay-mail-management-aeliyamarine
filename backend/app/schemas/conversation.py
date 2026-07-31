@@ -110,6 +110,7 @@ class ReplyValidationResponse(BaseModel):
 
 class ReplyConversationRequest(BaseModel):
     body: str = Field(min_length=1, max_length=2000)
+    send_copy_to_email: bool = False
 
 
 class ConversationDetailResponse(ConversationSummaryResponse):

@@ -3,6 +3,7 @@ import json
 import logging
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
+from uuid import uuid4
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode, urljoin
 from urllib.request import Request, urlopen
@@ -512,6 +513,110 @@ class EbayAuthClient:
             payload=payload,
         )
 
+    def send_trading_member_message(
+        self,
+        access_token: str,
+        *,
+        call_name: str,
+        item_id: str,
+        recipient_id: str,
+        body: str,
+        subject: str | None = None,
+        parent_message_id: str | None = None,
+        email_copy_to_sender: bool = False,
+        correlation_id: str | None = None,
+        message_media: list[dict] | None = None,
+    ) -> EbayRawApiResponse:
+        """Send a buyer/seller message through Trading API with EmailCopyToSender."""
+        root = ET.Element(f'{call_name}Request', {'xmlns': 'urn:ebay:apis:eBLBaseComponents'})
+        if item_id:
+            ET.SubElement(root, 'ItemID').text = item_id
+        member_message = ET.SubElement(root, 'MemberMessage')
+        ET.SubElement(member_message, 'Body').text = body
+        ET.SubElement(member_message, 'EmailCopyToSender').text = 'true' if email_copy_to_sender else 'false'
+        if call_name == 'AddMemberMessageAAQToPartner':
+            ET.SubElement(member_message, 'QuestionType').text = 'CustomizedSubject'
+            ET.SubElement(member_message, 'RecipientID').text = recipient_id
+            ET.SubElement(member_message, 'Subject').text = subject or 'Message from seller'
+        elif call_name == 'AddMemberMessageRTQ':
+            if parent_message_id:
+                ET.SubElement(member_message, 'ParentMessageID').text = parent_message_id
+            ET.SubElement(member_message, 'RecipientID').text = recipient_id
+        else:
+            raise ValueError(f'Unsupported Trading message call: {call_name}')
+        for media in message_media or []:
+            media_node = ET.SubElement(member_message, 'MessageMedia')
+            media_name = self._non_empty_string(media.get('mediaName') or media.get('media_name') or media.get('name'))
+            media_url = self._non_empty_string(media.get('mediaUrl') or media.get('media_url') or media.get('url'))
+            if media_name:
+                ET.SubElement(media_node, 'MediaName').text = media_name
+            if media_url:
+                ET.SubElement(media_node, 'MediaURL').text = media_url
+        ET.SubElement(root, 'MessageID').text = correlation_id or str(uuid4())
+        xml_body = b'<?xml version="1.0" encoding="utf-8"?>' + ET.tostring(root, encoding='utf-8')
+        return self._request_trading_api_raw(access_token, call_name=call_name, xml_body=xml_body)
+
+    def _request_trading_api_raw(self, access_token: str, *, call_name: str, xml_body: bytes) -> EbayRawApiResponse:
+        headers = {
+            'X-EBAY-API-CALL-NAME': call_name,
+            'X-EBAY-API-SITEID': '0',
+            'X-EBAY-API-COMPATIBILITY-LEVEL': '1455',
+            'X-EBAY-API-IAF-TOKEN': access_token,
+            'Content-Type': 'text/xml',
+        }
+        request = Request(self.trading_url, data=xml_body, headers=headers, method='POST')
+        safe_headers = self._sanitize_headers(headers)
+        logger.warning('Calling eBay Trading API call=%s headers=%s email_copy_supported=true', call_name, safe_headers)
+        try:
+            with urlopen(request, timeout=30) as response:
+                xml_response = response.read().decode('utf-8')
+                payload = self._trading_message_xml(xml_response)
+                return EbayRawApiResponse(
+                    response.status,
+                    payload,
+                    payload.get('ack') in {'Success', 'Warning'},
+                    self.trading_url,
+                    safe_headers,
+                    dict(response.headers.items()),
+                )
+        except HTTPError as exc:
+            xml_response = exc.read().decode('utf-8', errors='replace')
+            return EbayRawApiResponse(
+                exc.code,
+                self._trading_message_xml(xml_response),
+                False,
+                self.trading_url,
+                safe_headers,
+            )
+        except (URLError, TimeoutError) as exc:
+            logger.warning('eBay Trading API network error call=%s error=%s', call_name, exc)
+            return EbayRawApiResponse(
+                500,
+                {'ack': 'Failure', 'errors': [{'message': str(exc), 'longMessage': str(exc)}]},
+                False,
+                self.trading_url,
+                safe_headers,
+            )
+
+    def _trading_message_xml(self, xml: str) -> dict:
+        try:
+            root = ET.fromstring(xml)
+        except ET.ParseError:
+            return {'ack': 'Failure', 'errors': [{'message': 'Invalid XML response'}]}
+        ns = {'e': 'urn:ebay:apis:eBLBaseComponents'}
+        errors = []
+        for error in root.findall('.//e:Errors', ns):
+            errors.append({
+                'message': error.findtext('./e:ShortMessage', default='', namespaces=ns),
+                'longMessage': error.findtext('./e:LongMessage', default='', namespaces=ns),
+                'code': error.findtext('./e:ErrorCode', default='', namespaces=ns),
+            })
+        return {
+            'ack': root.findtext('./e:Ack', default='', namespaces=ns),
+            'messageId': root.findtext('.//e:MessageID', default='', namespaces=ns),
+            'errors': errors,
+        }
+
     def _request_message_api_raw(
         self,
         access_token: str,
@@ -777,6 +882,8 @@ class EbayAuthClient:
         if 'Authorization' in sanitized_headers:
             scheme = sanitized_headers['Authorization'].split(' ', 1)[0]
             sanitized_headers['Authorization'] = f'{scheme} ***'
+        if 'X-EBAY-API-IAF-TOKEN' in sanitized_headers:
+            sanitized_headers['X-EBAY-API-IAF-TOKEN'] = '***'
         return sanitized_headers
 
 

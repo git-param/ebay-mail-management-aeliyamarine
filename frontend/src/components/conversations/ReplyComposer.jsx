@@ -25,6 +25,7 @@ export default function ReplyComposer({ conversationId, suggestedMessageTypeId, 
   const [isValidating, setIsValidating] = useState(false)
   const [categoryId, setCategoryId] = useState('')
   const [subtypeId, setSubtypeId] = useState('')
+  const [sendCopyToEmail, setSendCopyToEmail] = useState(false)
   const category = messageTypes.find((item) => item.id === categoryId)
   const selectedTypeId = category?.children?.length ? subtypeId : categoryId
 
@@ -57,6 +58,7 @@ export default function ReplyComposer({ conversationId, suggestedMessageTypeId, 
 
   async function submitReply(event) {
     event.preventDefault()
+    if (isSubmitting || isValidating) return
     const trimmedBody = body.trim()
     if (!trimmedBody || !conversationId || !selectedTypeId) {
       if (!selectedTypeId) setViolations(['Message type is required.'])
@@ -71,9 +73,10 @@ export default function ReplyComposer({ conversationId, suggestedMessageTypeId, 
         setViolations(validation.violations || ['Reply violates eBay messaging policy.'])
         return
       }
-      await onSendReply(trimmedBody, files, selectedTypeId)
+      await onSendReply(trimmedBody, files, selectedTypeId, sendCopyToEmail)
       setBody('')
       setFiles([])
+      setSendCopyToEmail(false)
       setDraftMessage('')
       setFileInputKey((current) => current + 1)
       setCategoryId('')
@@ -171,6 +174,10 @@ export default function ReplyComposer({ conversationId, suggestedMessageTypeId, 
           <label htmlFor={`reply-attachments-${conversationId}`} title="Attach files" aria-label="Attach files"><Icon name="paperclip" /></label>
           <small>{files.length ? `${files.length} attached` : 'Attach'} Â· {body.length}/2000</small>
         </div>
+        <label className="email-copy-checkbox" htmlFor={`reply-email-copy-${conversationId}`}>
+          <input id={`reply-email-copy-${conversationId}`} type="checkbox" checked={sendCopyToEmail} disabled={isSubmitting || isValidating} onChange={(event) => setSendCopyToEmail(event.target.checked)} />
+          <span>Send a copy to my email</span>
+        </label>
         <button className="secondary-button compact" type="button" onClick={saveDraft} disabled={!body.trim() && !files.length}>
           Save Draft
         </button>
