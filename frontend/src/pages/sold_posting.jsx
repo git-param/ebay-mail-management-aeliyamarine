@@ -203,7 +203,7 @@ export default function SoldPosting({ currentUser, onLogout }) {
   const [customRange, setCustomRange] = useState({ date_sold_from: '', date_sold_to: '' })
   const [searchBy, setSearchBy] = useState('buyer_username')
   const [searchTerm, setSearchTerm] = useState('')
-  const [filters, setFilters] = useState({ ...emptyFilters, ...periodRange('90') })
+  const [filters, setFilters] = useState({ ...emptyFilters, ...periodRange('90'), statuses: ['AWAITING_SHIPMENT'] })
   const [options, setOptions] = useState({ accounts: [], statuses: [] })
   const [data, setData] = useState({ items: [], total: 0, summary: {}, sync: {} })
   const [loading, setLoading] = useState(true)
@@ -271,7 +271,7 @@ export default function SoldPosting({ currentUser, onLogout }) {
     setCustomRange({ date_sold_from: '', date_sold_to: '' })
     setSearchBy('buyer_username')
     setSearchTerm('')
-    setFilters({ ...emptyFilters, ...periodRange('90') })
+    setFilters({ ...emptyFilters, ...periodRange('90'), statuses: ['AWAITING_SHIPMENT'] })
   }
   async function openDetail(orderId) { setSelected(await fetchSoldPostingDetail(orderId)) }
   function openEdit(row, event) {
