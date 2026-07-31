@@ -34,6 +34,7 @@ class SoldPostingRow(BaseModel):
     image_url: str | None = None
     is_copied: bool = False
     copied_at: datetime | None = None
+    copied_by_user_id: UUID | None = None
     copy_count: int = 0
     seller_hub_url: str | None = None
 
@@ -77,6 +78,7 @@ class SoldPostingLineItemResponse(BaseModel):
     ship_by_date: datetime | None = None
     image_url: str | None = None
     copied_at: datetime | None = None
+    copied_by_user_id: UUID | None = None
     copy_count: int = 0
 
     class Config:

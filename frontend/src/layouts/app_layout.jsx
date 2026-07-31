@@ -59,6 +59,12 @@ const NAV_ITEMS = [
     roles: ['ADMIN', 'OPS_MANAGER', 'AGENT'],
   },
   {
+    label: 'Daily Task Entry',
+    path: '/daily-task-entry',
+    icon: 'audit',
+    roles: ['ADMIN', 'OPS_MANAGER', 'AGENT'],
+  },
+  {
     label: 'Search Across Platforms',
     path: '/search-across-platforms',
     icon: 'search',

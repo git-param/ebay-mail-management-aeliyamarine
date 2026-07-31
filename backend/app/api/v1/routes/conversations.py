@@ -1,6 +1,6 @@
 from html.parser import HTMLParser
 from multiprocessing import context
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 from uuid import UUID
 
 import requests
@@ -53,6 +53,7 @@ from app.services.notification_service import NotificationService
 from app.services.offer_consistency_service import OfferConsistencyService
 from app.services.order_context_service import OrderContextService
 from app.services.reply_attachment_service import ReplyAttachmentService
+from app.services.sla_service import SLAService
 from app.services.translation_service import TranslationService
 from app import db
 
@@ -205,6 +206,7 @@ def serialize_conversation(
     Not Read status, and Replied status without persisting duplicate columns.
     """
     assignments = [serialize_assignment(assignment) for assignment in conversation.assignments]
+    sla_snapshot = conversation_sla_snapshot(conversation)
     return ConversationDetailResponse(
         id=conversation.id,
         provider=conversation.provider,
@@ -223,7 +225,11 @@ def serialize_conversation(
         calculated_status=calculated_conversation_status(conversation),
         is_not_read=is_not_read_conversation(conversation),
         is_replied=is_replied_conversation(conversation),
-        response_due_at=response_due_at(conversation),
+        response_due_at=sla_snapshot["response_due_at"],
+        sla_status=sla_snapshot["sla_status"],
+        sla_response_seconds=sla_snapshot["sla_response_seconds"],
+        sla_elapsed_seconds=sla_snapshot["sla_elapsed_seconds"],
+        sla_met=sla_snapshot["sla_met"],
         status=conversation.status,
         category_id=conversation.category_id,
         category_manually_selected=conversation.category_manually_selected,
@@ -268,6 +274,7 @@ def serialize_conversation_summary(
     Conversation status indicators are calculated from message history so the
     UI reflects the latest buyer/agent/system activity automatically.
     """
+    sla_snapshot = conversation_sla_snapshot(conversation)
     return ConversationSummaryResponse(
         id=conversation.id,
         provider=conversation.provider,
@@ -286,7 +293,11 @@ def serialize_conversation_summary(
         calculated_status=calculated_conversation_status(conversation),
         is_not_read=is_not_read_conversation(conversation),
         is_replied=is_replied_conversation(conversation),
-        response_due_at=response_due_at(conversation),
+        response_due_at=sla_snapshot["response_due_at"],
+        sla_status=sla_snapshot["sla_status"],
+        sla_response_seconds=sla_snapshot["sla_response_seconds"],
+        sla_elapsed_seconds=sla_snapshot["sla_elapsed_seconds"],
+        sla_met=sla_snapshot["sla_met"],
         status=conversation.status,
         category_id=conversation.category_id,
         category_manually_selected=conversation.category_manually_selected,
@@ -781,6 +792,95 @@ def latest_message_preview(conversation: Conversation, limit: int = 180) -> str 
     return f'{preview[: limit - 3]}...'
 
 
+def conversation_sla_snapshot(conversation: Conversation) -> dict:
+    cycles = sorted(conversation.sla_history, key=lambda row: row.cycle_number or 0)
+    active = next((cycle for cycle in reversed(cycles) if cycle.replied_time is None), None)
+    completed = next((cycle for cycle in reversed(cycles) if cycle.replied_time is not None), None)
+    service = SLAService(None)
+    target_seconds = service.target_seconds_for(conversation)
+    message_pair = latest_message_sla_pair(conversation)
+    if active:
+        active_reply = message_pair[1] if message_pair and message_pair[1] and message_pair[1].sent_at > active.buyer_message_time else None
+        if active_reply:
+            duration = service.business_seconds_between(active.buyer_message_time, active_reply.sent_at)
+            return {
+                "response_due_at": None,
+                "sla_status": "MET" if duration <= target_seconds else "BREACHED",
+                "sla_response_seconds": duration,
+                "sla_elapsed_seconds": None,
+                "sla_met": duration <= target_seconds,
+            }
+        elapsed = service.business_seconds_between(active.buyer_message_time, datetime.now(UTC))
+        return {
+            "response_due_at": service.due_at(active.buyer_message_time, target_seconds),
+            "sla_status": "OVERDUE" if elapsed > target_seconds else "PENDING",
+            "sla_response_seconds": None,
+            "sla_elapsed_seconds": elapsed,
+            "sla_met": None,
+        }
+    if message_pair and message_pair[1] and (not completed or message_pair[0].sent_at > completed.buyer_message_time):
+        duration = service.business_seconds_between(message_pair[0].sent_at, message_pair[1].sent_at)
+        return {
+            "response_due_at": None,
+            "sla_status": "MET" if duration <= target_seconds else "BREACHED",
+            "sla_response_seconds": duration,
+            "sla_elapsed_seconds": None,
+            "sla_met": duration <= target_seconds,
+        }
+    if message_pair and message_pair[1] is None and (not completed or message_pair[0].sent_at > completed.replied_time):
+        elapsed = service.business_seconds_between(message_pair[0].sent_at, datetime.now(UTC))
+        return {
+            "response_due_at": service.due_at(message_pair[0].sent_at, target_seconds),
+            "sla_status": "OVERDUE" if elapsed > target_seconds else "PENDING",
+            "sla_response_seconds": None,
+            "sla_elapsed_seconds": elapsed,
+            "sla_met": None,
+        }
+    if completed:
+        duration = completed.response_duration_seconds
+        status = None
+        if completed.sla_met is True:
+            status = "MET"
+        elif completed.sla_met is False:
+            status = "BREACHED"
+        return {
+            "response_due_at": None,
+            "sla_status": status,
+            "sla_response_seconds": duration,
+            "sla_elapsed_seconds": None,
+            "sla_met": completed.sla_met,
+        }
+    return {
+        "response_due_at": None,
+        "sla_status": None,
+        "sla_response_seconds": None,
+        "sla_elapsed_seconds": None,
+        "sla_met": None,
+    }
+
+
+def is_seller_reply_message(message: Message) -> bool:
+    return message.sender_type.value == 'AGENT' or not message.is_inbound
+
+
+def latest_message_sla_pair(conversation: Conversation) -> tuple[Message, Message | None] | None:
+    """Return the latest buyer SLA cycle and the first seller reply after it."""
+    buyer_message = None
+    reply_message = None
+    for message in sorted(conversation.messages, key=lambda row: row.sent_at):
+        if is_seller_reply_message(message):
+            if buyer_message and reply_message is None:
+                reply_message = message
+            continue
+        if message.is_inbound:
+            if buyer_message is None or reply_message is not None:
+                buyer_message = message
+                reply_message = None
+    if buyer_message:
+        return buyer_message, reply_message
+    return None
+
+
 def response_due_at(conversation: Conversation):
     """
     Calculate the response deadline for a conversation.
@@ -801,7 +901,7 @@ def response_due_at(conversation: Conversation):
         return None
 
     sla_hours = conversation.category.sla_hours if conversation.category else 24
-    return conversation.last_message_at + timedelta(hours=sla_hours)
+    return SLAService(None).due_at(conversation.last_message_at, int(sla_hours * 3600))
 
 
 def latest_message_for(conversation: Conversation) -> Message | None:
@@ -929,11 +1029,15 @@ def list_conversations(
     ebay_account_id: UUID | None = Query(default=None),
     assigned_user_id: UUID | None = Query(default=None),
     category_id: UUID | None = Query(default=None),
+    date_from: date | None = Query(default=None),
+    date_to: date | None = Query(default=None),
     db: Session = Depends(get_db),
     current_user=Depends(require_conversation_access),
 ) -> ConversationPageResponse:
     """Return the conversation inbox with optional operational filters."""
     service = ConversationService(db)
+    start_at = datetime.combine(date_from, time.min, tzinfo=UTC) if date_from else None
+    end_at = datetime.combine(date_to + timedelta(days=1), time.min, tzinfo=UTC) if date_to else None
     conversations = service.list_conversations(
         limit=limit,
         offset=offset,
@@ -944,6 +1048,8 @@ def list_conversations(
         provider_account_id=ebay_account_id,
         assigned_user_id=assigned_user_id,
         category_id=category_id,
+        date_from=start_at,
+        date_to=end_at,
     )
     seller_accounts = get_seller_account_map(db, conversations)
     return ConversationPageResponse(
@@ -959,6 +1065,8 @@ def list_conversations(
             provider_account_id=ebay_account_id,
             assigned_user_id=assigned_user_id,
             category_id=category_id,
+            date_from=start_at,
+            date_to=end_at,
         ),
         limit=limit,
         offset=offset,

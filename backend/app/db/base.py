@@ -39,6 +39,7 @@ from app.models import (
     OfferStatus,
 )
 from app.modules.offer_management.models import OfferManagementEntry, OfferManagementEntryHistory
+from app.modules.pms.models import PMSDailyTaskEntry, PMSDailyTaskEntryHistory
 from app.modules.sold_posting.models import SoldPostingLineItem, SoldPostingOrder, SoldPostingSyncState
 
 __all__ = [
@@ -82,6 +83,8 @@ __all__ = [
     'OfferStatus',
     'OfferManagementEntry',
     'OfferManagementEntryHistory',
+    'PMSDailyTaskEntry',
+    'PMSDailyTaskEntryHistory',
     'SoldPostingOrder',
     'SoldPostingLineItem',
     'SoldPostingSyncState',

@@ -253,14 +253,16 @@ class SoldPostingService:
         self.db.refresh(line)
         return self._row(line, order, order.account)
 
-    def mark_line_copied(self, line_item_record_id: UUID) -> dict:
+    def mark_line_copied(self, line_item_record_id: UUID, user_id: UUID | None = None) -> dict:
         row = self.repo.get_line_with_order(line_item_record_id)
         if not row:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sold Posting line item not found")
 
         line, order = row
         now = datetime.now(UTC)
-        line.copied_at = now
+        if line.copied_at is None:
+            line.copied_at = now
+            line.copied_by_user_id = user_id
         line.copy_count = (line.copy_count or 0) + 1
         line.updated_at = now
         self.db.commit()
@@ -458,6 +460,7 @@ class SoldPostingService:
             "image_url": line.image_url,
             "is_copied": line.copied_at is not None,
             "copied_at": line.copied_at,
+            "copied_by_user_id": line.copied_by_user_id,
             "copy_count": line.copy_count or 0,
             "seller_hub_url": f"https://www.ebay.com/sh/ord/details?orderid={order.order_id}",
         }

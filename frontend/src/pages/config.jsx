@@ -6,6 +6,7 @@ import { deleteConversationData, fetchAccountSyncStates, fetchConfigSettings, up
 const SECTION_LABELS = {
   offer: 'Offer Section',
   api: 'API Section',
+  pms: 'PMS Section',
 }
 
 export default function Config({ currentUser, onLogout }) {
