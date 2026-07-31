@@ -1,3 +1,4 @@
+from datetime import datetime
 from uuid import UUID
 import logging
 
@@ -33,6 +34,8 @@ class ConversationService:
         provider_account_id: UUID | None = None,
         assigned_user_id: UUID | None = None,
         category_id: UUID | None = None,
+        date_from: datetime | None = None,
+        date_to: datetime | None = None,
     ) -> list[Conversation]:
         """Return conversations matching the requested filters."""
         return self.repository.list(
@@ -45,6 +48,8 @@ class ConversationService:
             provider_account_id=provider_account_id,
             assigned_user_id=assigned_user_id,
             category_id=category_id,
+            date_from=date_from,
+            date_to=date_to,
         )
 
     def count_conversations(
@@ -57,6 +62,8 @@ class ConversationService:
         provider_account_id: UUID | None = None,
         assigned_user_id: UUID | None = None,
         category_id: UUID | None = None,
+        date_from: datetime | None = None,
+        date_to: datetime | None = None,
     ) -> int:
         """Return the filtered conversation total for pagination and dashboards."""
         return self.repository.count(
@@ -67,6 +74,8 @@ class ConversationService:
             provider_account_id=provider_account_id,
             assigned_user_id=assigned_user_id,
             category_id=category_id,
+            date_from=date_from,
+            date_to=date_to,
         )
 
     def get_conversation(

@@ -28,6 +28,18 @@ const STATUSES = ['OPEN', 'PENDING', 'RESOLVED', 'CLOSED']
 const LIST_WIDTH_KEY = 'inboxListPanelWidth'
 const DETAILS_WIDTH_KEY = 'inboxDetailsPanelWidth'
 const SHOW_MESSAGE_ATTACHMENTS = true
+const PERIOD_OPTIONS = [
+  ['all', 'All time'],
+  ['today', 'Today'],
+  ['yesterday', 'Yesterday'],
+  ['90', 'Last 90 days'],
+  ['60', 'Last 60 days'],
+  ['30', 'Last 30 days'],
+  ['week', 'This week'],
+  ['month', 'This month'],
+  ['year', 'This year'],
+  ['custom', 'Custom'],
+]
 
 function getStoredNumber(key, fallback) {
   const value = Number(localStorage.getItem(key))
@@ -40,6 +52,28 @@ function getConversationIdFromUrl() {
 
 function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max)
+}
+
+function isoDate(date) {
+  return date.toISOString().slice(0, 10)
+}
+
+function periodRange(period) {
+  const today = new Date()
+  const end = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+  const start = new Date(end)
+  if (period === 'all') return { date_from: '', date_to: '' }
+  if (period === 'custom') return {}
+  if (period === 'today') return { date_from: isoDate(start), date_to: isoDate(end) }
+  if (period === 'yesterday') {
+    start.setDate(start.getDate() - 1)
+    return { date_from: isoDate(start), date_to: isoDate(start) }
+  }
+  if (period === 'week') start.setDate(start.getDate() - start.getDay())
+  else if (period === 'month') start.setDate(1)
+  else if (period === 'year') { start.setMonth(0); start.setDate(1) }
+  else start.setDate(start.getDate() - (Number(period) || 90) + 1)
+  return { date_from: isoDate(start), date_to: isoDate(end) }
 }
 
 function formatDate(value) {
@@ -97,6 +131,49 @@ function deadlineTone(value) {
     return 'warning'
   }
   return 'good'
+}
+
+function formatSlaDuration(seconds) {
+  const totalMinutes = Math.max(0, Math.round(Number(seconds || 0) / 60))
+  const hours = Math.floor(totalMinutes / 60)
+  const minutes = totalMinutes % 60
+  if (hours && minutes) {
+    return `${hours}h ${String(minutes).padStart(2, '0')}m`
+  }
+  if (hours) {
+    return `${hours}h`
+  }
+  return `${minutes}m`
+}
+
+function slaTone(conversation) {
+  if (conversation.sla_response_seconds != null) {
+    return conversation.sla_met === false ? 'danger' : 'good'
+  }
+  if (conversation.sla_elapsed_seconds != null) {
+    return conversation.sla_status === 'OVERDUE' ? 'danger' : 'warning'
+  }
+  return 'neutral'
+}
+
+function slaLabel(conversation) {
+  if (conversation.sla_response_seconds != null) {
+    return formatSlaDuration(conversation.sla_response_seconds)
+  }
+  if (conversation.sla_elapsed_seconds != null) {
+    return formatSlaDuration(conversation.sla_elapsed_seconds)
+  }
+  return 'No SLA'
+}
+
+function slaCaption(conversation) {
+  if (conversation.sla_response_seconds != null) {
+    return 'Responded in'
+  }
+  if (conversation.sla_elapsed_seconds != null) {
+    return 'Pending'
+  }
+  return 'SLA'
 }
 
 function normalizeUser(user) {
@@ -265,7 +342,6 @@ function FilterSelect({ label, value, onChange, children }) {
 function ConversationRow({ conversation, isSelected, isBulkSelected, onSelect, onToggleBulk }) {
   const title = conversation.subject || conversation.reference_id || 'Customer message'
   const categoryColor = conversation.category?.color
-  const deadline = formatRelativeDeadline(conversation.response_due_at)
   const displayStatus = conversation.calculated_status || conversation.status
   const direction = conversation.last_message_direction || 'System'
 
@@ -331,9 +407,12 @@ function ConversationRow({ conversation, isSelected, isBulkSelected, onSelect, o
         <Icon name="message" />
         {conversation.message_count || 0}
       </span>
-      <span className={`ticket-deadline ticket-deadline-${deadlineTone(conversation.response_due_at)}`}>
-        <strong>{deadline}</strong>
-        <small>Respond by</small>
+      <span className={`ticket-deadline ticket-deadline-${slaTone(conversation)}`}>
+        <strong>
+          {conversation.sla_response_seconds != null ? <Icon name="activate" /> : null}
+          {slaLabel(conversation)}
+        </strong>
+        <small>{slaCaption(conversation)}</small>
       </span>
       <time className="ticket-last">{formatDate(conversation.last_message_at || conversation.updated_at)}</time>
     </div>
@@ -458,6 +537,13 @@ function FiltersDrawer({
   const assignmentUsers = isAgent
     ? users.filter((user) => user.id === currentUser?.id)
     : users
+  const selectedPeriod = filters.period || 'all'
+  const customPeriod = selectedPeriod === 'custom'
+
+  function changePeriod(value) {
+    const range = value === 'custom' ? {} : periodRange(value)
+    onFilterChange({ period: value, ...range })
+  }
 
   function submitSearch(event) {
     event.preventDefault()
@@ -507,10 +593,26 @@ function FiltersDrawer({
             ))}
           </FilterSelect>
 
-          <FilterSelect label="Provider" value={filters.provider} onChange={(value) => onFilterChange('provider', value)}>
-            <option value="">All providers</option>
-            <option value="ebay">eBay</option>
+          <FilterSelect label="Period" value={selectedPeriod} onChange={changePeriod}>
+            {PERIOD_OPTIONS.map(([value, label]) => (
+              <option value={value} key={value}>
+                {label}
+              </option>
+            ))}
           </FilterSelect>
+
+          {customPeriod ? (
+            <>
+              <label className="field">
+                <span>From</span>
+                <input type="date" value={filters.date_from || ''} onChange={(event) => onFilterChange('date_from', event.target.value)} />
+              </label>
+              <label className="field">
+                <span>To</span>
+                <input type="date" value={filters.date_to || ''} onChange={(event) => onFilterChange('date_to', event.target.value)} />
+              </label>
+            </>
+          ) : null}
 
           <FilterSelect
             label="Conversation type"
@@ -1414,7 +1516,8 @@ function Dashboard({ currentUser, onLogout }) {
   const [filters, setFilters] = useState({
     search: '',
     status: '',
-    provider: 'EBAY',
+    period: 'all',
+    ...periodRange('all'),
     conversation_type: '',
     ebay_account_id: '',
     assigned_user_id: '',
@@ -1466,10 +1569,11 @@ function Dashboard({ currentUser, onLogout }) {
     setListError('')
 
     try {
+      const { period, ...requestFilters } = filters
       const response = await fetchConversations({
         limit: pageSize,
         offset,
-        ...filters,
+        ...requestFilters,
       })
       console.log('Conversations response:', response) // Add this
       setConversations(response.items || [])
@@ -1603,7 +1707,12 @@ function Dashboard({ currentUser, onLogout }) {
   const visibleConversation = detail || selectedConversation
 
   const bulkSelectedCount = bulkSelectedIds.size
-  const activeFilterCount = Object.entries(filters).filter(([key, value]) => key !== 'provider' && Boolean(value)).length
+  const activeFilterCount = useMemo(() => {
+    const excluded = new Set(['period', 'date_from', 'date_to'])
+    let count = Object.entries(filters).filter(([key, value]) => !excluded.has(key) && Boolean(value)).length
+    if ((filters.period || 'all') !== 'all') count += 1
+    return count
+  }, [filters])
 
   function beginListResize(event) {
     event.preventDefault()
@@ -1678,7 +1787,9 @@ function Dashboard({ currentUser, onLogout }) {
   }
 
   function changeFilter(key, value) {
-    setFilters((current) => ({ ...current, [key]: value }))
+    setFilters((current) => (
+      typeof key === 'object' ? { ...current, ...key } : { ...current, [key]: value }
+    ))
     setPage(0)
     setSelectedConversationId('')
     setMobilePane('list')
@@ -1688,7 +1799,8 @@ function Dashboard({ currentUser, onLogout }) {
     setFilters({
       search: '',
       status: '',
-      provider: 'ebay',
+      period: 'all',
+      ...periodRange('all'),
       conversation_type: '',
       ebay_account_id: '',
       assigned_user_id: '',

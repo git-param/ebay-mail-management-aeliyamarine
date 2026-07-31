@@ -431,11 +431,19 @@
 }
 
 .ticket-deadline strong {
+  align-items: center;
+  display: inline-flex;
+  gap: 4px;
   width: fit-content;
   padding: 5px 10px;
   border-radius: 999px;
   font-size: 12px;
   font-weight: 900;
+}
+
+.ticket-deadline strong .ui-icon {
+  width: 13px;
+  height: 13px;
 }
 
 .ticket-deadline small {
@@ -8806,6 +8814,52 @@ a .sold-thumb:hover {
   font-weight: 800;
 }
 
+.pms-dynamic-row {
+  display: grid;
+  grid-template-columns: minmax(150px, 1fr) 138px auto 70px;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid #eaf0f7;
+}
+
+.pms-dynamic-row > div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.pms-dynamic-row strong {
+  overflow: hidden;
+  color: #0f172a;
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pms-dynamic-row small,
+.pms-dynamic-row span {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.pms-dynamic-row select,
+.pms-dynamic-row input {
+  min-width: 0;
+  height: 34px;
+  border: 1px solid #dbe6f3;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #0f172a;
+  font-size: 13px;
+}
+
+.pms-dynamic-row input {
+  text-align: center;
+  font-weight: 800;
+}
+
 .pms-task-row.final {
   margin-top: 8px;
   padding-top: 10px;
@@ -8935,5 +8989,9 @@ a .sold-thumb:hover {
 
   .pms-history-card .users-table {
     min-width: 560px;
+  }
+
+  .pms-dynamic-row {
+    grid-template-columns: 1fr;
   }
 }

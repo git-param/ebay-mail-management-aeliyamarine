@@ -21,5 +21,6 @@ DEFAULT_CONFIGS = [
     {'section': 'pms', 'config_key': 'pms.limit.purchase_sheet', 'label': 'PMS purchase sheet score limit', 'value': '10', 'value_type': 'integer', 'description': 'Maximum daily PMS score for purchase sheet work.'},
     {'section': 'pms', 'config_key': 'pms.limit.booking', 'label': 'PMS booking score limit', 'value': '10', 'value_type': 'integer', 'description': 'Maximum daily PMS score for booking work.'},
     {'section': 'pms', 'config_key': 'pms.limit.other_general_work', 'label': 'PMS other general work score limit', 'value': '10', 'value_type': 'integer', 'description': 'Maximum daily PMS score for other general work.'},
+    {'section': 'pms', 'config_key': 'pms.limit.message_type_default', 'label': 'PMS message type score limit', 'value': '10', 'value_type': 'integer', 'description': 'Default maximum score for each dynamic message type field.'},
 ]
 

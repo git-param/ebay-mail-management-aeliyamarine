@@ -1,6 +1,7 @@
+from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import and_, func, select
+from sqlalchemy import and_, exists, func, or_, select
 from sqlalchemy.orm import Session, joinedload, selectinload
 
 from app.models.category import Category
@@ -23,6 +24,8 @@ class ConversationRepository:
         provider_account_id: UUID | None = None,
         assigned_user_id: UUID | None = None,
         category_id: UUID | None = None,
+        date_from: datetime | None = None,
+        date_to: datetime | None = None,
     ) -> list[Conversation]:
         """List conversations filtered by search criteria."""
         statement = self._filtered_statement(
@@ -33,6 +36,8 @@ class ConversationRepository:
             provider_account_id=provider_account_id,
             assigned_user_id=assigned_user_id,
             category_id=category_id,
+            date_from=date_from,
+            date_to=date_to,
         ).options(
             selectinload(Conversation.assignments).joinedload(ConversationAssignment.assignee),
             selectinload(Conversation.assignments).joinedload(ConversationAssignment.assigner),
@@ -55,6 +60,8 @@ class ConversationRepository:
         provider_account_id: UUID | None = None,
         assigned_user_id: UUID | None = None,
         category_id: UUID | None = None,
+        date_from: datetime | None = None,
+        date_to: datetime | None = None,
     ) -> int:
         """Count conversations with the same filters used by the list endpoint."""
         statement = self._filtered_statement(
@@ -65,6 +72,8 @@ class ConversationRepository:
             provider_account_id=provider_account_id,
             assigned_user_id=assigned_user_id,
             category_id=category_id,
+            date_from=date_from,
+            date_to=date_to,
         )
         return int(self.db.scalar(select(func.count()).select_from(statement.subquery())) or 0)
 
@@ -126,6 +135,8 @@ class ConversationRepository:
         provider_account_id: UUID | None = None,
         assigned_user_id: UUID | None = None,
         category_id: UUID | None = None,
+        date_from: datetime | None = None,
+        date_to: datetime | None = None,
     ):
         """Build the base conversation query."""
         statement = select(Conversation)
@@ -167,4 +178,8 @@ class ConversationRepository:
             )
         if category_id:
             statement = statement.where(Conversation.category_id == category_id)
+        if date_from:
+            statement = statement.where(Conversation.last_message_at >= date_from)
+        if date_to:
+            statement = statement.where(Conversation.last_message_at < date_to)
         return statement

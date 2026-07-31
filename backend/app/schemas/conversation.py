@@ -48,6 +48,10 @@ class ConversationSummaryResponse(BaseModel):
     is_not_read: bool = False
     is_replied: bool = False
     response_due_at: datetime | None = None
+    sla_status: str | None = None
+    sla_response_seconds: int | None = None
+    sla_elapsed_seconds: int | None = None
+    sla_met: bool | None = None
     status: ConversationStatus
     category_id: UUID | None
     category_manually_selected: bool = False
