@@ -55,25 +55,54 @@ function clamp(value, min, max) {
 }
 
 function isoDate(date) {
-  return date.toISOString().slice(0, 10)
+  // Format the browser's LOCAL calendar date. Using toISOString() here can
+  // shift local midnight to the previous UTC date in Asia/Kolkata.
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+function addOneDayToIsoDate(value) {
+  if (!value) return value
+  const [year, month, day] = value.split('-').map(Number)
+  if (!year || !month || !day) return value
+  const date = new Date(year, month - 1, day)
+  date.setDate(date.getDate() + 1)
+  return isoDate(date)
 }
 
 function periodRange(period) {
-  const today = new Date()
-  const end = new Date(today.getFullYear(), today.getMonth(), today.getDate())
-  const start = new Date(end)
+  const now = new Date()
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const tomorrowStart = new Date(todayStart)
+  tomorrowStart.setDate(tomorrowStart.getDate() + 1)
+
   if (period === 'all') return { date_from: '', date_to: '' }
   if (period === 'custom') return {}
-  if (period === 'today') return { date_from: isoDate(start), date_to: isoDate(end) }
-  if (period === 'yesterday') {
-    start.setDate(start.getDate() - 1)
-    return { date_from: isoDate(start), date_to: isoDate(start) }
+
+  // Backend/repository uses an exclusive upper bound: sent_at < date_to.
+  if (period === 'today') {
+    return { date_from: isoDate(todayStart), date_to: isoDate(tomorrowStart) }
   }
+
+  if (period === 'yesterday') {
+    const yesterdayStart = new Date(todayStart)
+    yesterdayStart.setDate(yesterdayStart.getDate() - 1)
+    return { date_from: isoDate(yesterdayStart), date_to: isoDate(todayStart) }
+  }
+
+  const start = new Date(todayStart)
   if (period === 'week') start.setDate(start.getDate() - start.getDay())
   else if (period === 'month') start.setDate(1)
-  else if (period === 'year') { start.setMonth(0); start.setDate(1) }
-  else start.setDate(start.getDate() - (Number(period) || 90) + 1)
-  return { date_from: isoDate(start), date_to: isoDate(end) }
+  else if (period === 'year') {
+    start.setMonth(0)
+    start.setDate(1)
+  } else {
+    start.setDate(start.getDate() - (Number(period) || 90) + 1)
+  }
+
+  return { date_from: isoDate(start), date_to: isoDate(tomorrowStart) }
 }
 
 function formatDate(value) {
@@ -1570,6 +1599,13 @@ function Dashboard({ currentUser, onLogout }) {
 
     try {
       const { period, ...requestFilters } = filters
+
+      // The custom "To" date is inclusive in the UI, while the repository
+      // uses an exclusive upper bound. Convert 2026-08-03 to 2026-08-04.
+      if (period === 'custom' && requestFilters.date_to) {
+        requestFilters.date_to = addOneDayToIsoDate(requestFilters.date_to)
+      }
+
       const response = await fetchConversations({
         limit: pageSize,
         offset,
