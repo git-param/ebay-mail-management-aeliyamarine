@@ -12,6 +12,7 @@ from app.models.user import User
 from app.modules.pms.models import PMSDailyTaskEntry, PMSDailyTaskEntryHistory, PMSDayType, PMSErrorLevel, PMSFeedbackStatus
 from app.modules.pms.schemas import PMSDailyEntryCreate, PMSDailyEntryResponse, PMSScoreItem, PMSTaskLimits
 from app.modules.sold_posting.models import SoldPostingLineItem
+from app.modules.task_management.models import Subtask, SubtaskSourceType, TaskCategory, TaskStatus, UserSubtaskAssignment
 
 
 class PMSService:
@@ -130,12 +131,7 @@ class PMSService:
     def _auto_entry(self, user_id: UUID, entry_date: date):
         start = datetime.combine(entry_date, time.min, tzinfo=UTC)
         end = start + timedelta(days=1)
-        items = self._message_type_items(user_id, start, end)
-        limits = self.limits()
-        sold_count = int(self.db.scalar(select(func.count()).select_from(SoldPostingLineItem).where(SoldPostingLineItem.copied_by_user_id == user_id, SoldPostingLineItem.copied_at >= start, SoldPostingLineItem.copied_at < end)) or 0)
-        items.append(self._item('sold_posting', 'Sold Posting', min(sold_count, limits.sold_posting), limits.sold_posting, 'AUTO'))
-        items.append(self._item('quality', 'Quality', 0, limits.message_type_default, 'MANUAL', status='NOT_ENTERED'))
-        items.append(self._item('purchase_sheet', 'Purchase Sheet', 0, limits.purchase_sheet, 'MANUAL', status='NOT_ENTERED'))
+        items = self._assigned_task_items(user_id, entry_date, start, end)
         sla_score = self._sla_score(user_id, start, end)
         return PMSDailyTaskEntry(
             user_id=user_id,
@@ -150,18 +146,66 @@ class PMSService:
             sla_remarks='NA',
         )
 
-    def _message_type_items(self, user_id: UUID, start: datetime, end: datetime) -> list[dict]:
-        limit = self.limits().message_type_default
-        types = list(self.db.scalars(select(MessageType).where(MessageType.is_deleted.is_(False), MessageType.is_active.is_(True)).order_by(MessageType.display_order, MessageType.name)))
-        counts = {
-            message_type_id: count
-            for message_type_id, count in self.db.execute(
-            select(MessageClassification.message_type_id, func.count())
-            .where(MessageClassification.user_id == user_id, MessageClassification.created_at >= start, MessageClassification.created_at < end)
-            .group_by(MessageClassification.message_type_id)
+    def _assigned_task_items(self, user_id: UUID, entry_date: date, start: datetime, end: datetime) -> list[dict]:
+        assignments = list(self.db.scalars(
+            select(UserSubtaskAssignment)
+            .join(UserSubtaskAssignment.subtask)
+            .join(Subtask.category)
+            .where(
+                UserSubtaskAssignment.user_id == user_id,
+                UserSubtaskAssignment.status == TaskStatus.ACTIVE,
+                UserSubtaskAssignment.effective_from <= entry_date,
+                ((UserSubtaskAssignment.effective_to.is_(None)) | (UserSubtaskAssignment.effective_to >= entry_date)),
+                Subtask.status == TaskStatus.ACTIVE,
+                TaskCategory.status == TaskStatus.ACTIVE,
             )
-        }
-        return [self._item(f'message_type:{item.id}', item.name, min(int(counts.get(item.id, 0)), limit), limit, 'AUTO', message_type_id=item.id) for item in types]
+            .order_by(UserSubtaskAssignment.display_order, Subtask.display_order, Subtask.name)
+        ))
+        return [self._assignment_item(assignment, user_id, start, end) for assignment in assignments]
+
+    def _assignment_item(self, assignment: UserSubtaskAssignment, user_id: UUID, start: datetime, end: datetime) -> dict:
+        subtask = assignment.subtask
+        max_score = max(1, round(float(assignment.quality_weight or 0)))
+        label = f'{subtask.category.name} - {subtask.name}' if subtask.category else subtask.name
+        source = 'AUTO' if assignment.auto_fetch_enabled and subtask.supports_automatic_fetch else 'MANUAL'
+        value = 0
+        status_value = 'NOT_ENTERED'
+        if source == 'AUTO':
+            value = self._automatic_count(subtask, user_id, start, end)
+            status_value = 'ENTERED' if value > 0 else 'NOT_APPLICABLE'
+        return self._item(
+            f'assignment:{assignment.id}',
+            label,
+            min(value, max_score),
+            max_score,
+            source,
+            status=status_value,
+            message_type_id=subtask.source_reference_id if subtask.source_type == SubtaskSourceType.MESSAGE_CATEGORY else None,
+        )
+
+    def _automatic_count(self, subtask: Subtask, user_id: UUID, start: datetime, end: datetime) -> int:
+        if subtask.source_type == SubtaskSourceType.MESSAGE_CATEGORY and subtask.source_reference_id:
+            return int(self.db.scalar(
+                select(func.count())
+                .select_from(MessageClassification)
+                .where(
+                    MessageClassification.user_id == user_id,
+                    MessageClassification.message_type_id == subtask.source_reference_id,
+                    MessageClassification.created_at >= start,
+                    MessageClassification.created_at < end,
+                )
+            ) or 0)
+        if subtask.source_type == SubtaskSourceType.SOLD_POSTING:
+            return int(self.db.scalar(
+                select(func.count())
+                .select_from(SoldPostingLineItem)
+                .where(
+                    SoldPostingLineItem.copied_by_user_id == user_id,
+                    SoldPostingLineItem.copied_at >= start,
+                    SoldPostingLineItem.copied_at < end,
+                )
+            ) or 0)
+        return 0
 
     def _sla_score(self, user_id: UUID, start: datetime, end: datetime) -> int:
         rows = list(self.db.scalars(select(ConversationSLAHistory).where(ConversationSLAHistory.replied_by == user_id, ConversationSLAHistory.replied_time >= start, ConversationSLAHistory.replied_time < end)))
