@@ -9,30 +9,17 @@ from app.api.dependencies import is_admin
 from app.models.conversation import ConversationSLAHistory
 from app.models.message_type import MessageClassification, MessageType
 from app.models.user import User
-from app.modules.config_management.service import ConfigService
 from app.modules.pms.models import PMSDailyTaskEntry, PMSDailyTaskEntryHistory, PMSDayType, PMSErrorLevel, PMSFeedbackStatus
 from app.modules.pms.schemas import PMSDailyEntryCreate, PMSDailyEntryResponse, PMSScoreItem, PMSTaskLimits
 from app.modules.sold_posting.models import SoldPostingLineItem
 
 
-LIMIT_KEYS = {
-    'sold_posting': 'pms.limit.sold_posting',
-    'purchase_sheet': 'pms.limit.purchase_sheet',
-    'message_type_default': 'pms.limit.message_type_default',
-}
-
-
 class PMSService:
     def __init__(self, db: Session):
         self.db = db
-        self.config = ConfigService(db)
 
     def limits(self) -> PMSTaskLimits:
-        defaults = PMSTaskLimits()
-        values = defaults.model_dump()
-        for name, key in LIMIT_KEYS.items():
-            values[name] = self.config.get_int(key, getattr(defaults, name))
-        return PMSTaskLimits(**values)
+        return PMSTaskLimits()
 
     def draft(self, current_user, entry_date: date, user_id: UUID | None = None):
         self._require_admin(current_user)

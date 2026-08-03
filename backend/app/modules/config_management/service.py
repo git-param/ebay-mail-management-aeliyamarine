@@ -23,7 +23,11 @@ class ConfigService:
 
     def list_settings(self) -> list[AppConfigSetting]:
         self.ensure_defaults()
-        return list(self.db.scalars(select(AppConfigSetting).order_by(AppConfigSetting.section, AppConfigSetting.label)))
+        return list(self.db.scalars(
+            select(AppConfigSetting)
+            .where(AppConfigSetting.section != 'pms')
+            .order_by(AppConfigSetting.section, AppConfigSetting.label)
+        ))
 
     def update_settings(self, settings: list[dict], user) -> list[AppConfigSetting]:
         self.ensure_defaults()

@@ -178,8 +178,16 @@ class ConversationRepository:
             )
         if category_id:
             statement = statement.where(Conversation.category_id == category_id)
-        if date_from:
-            statement = statement.where(Conversation.last_message_at >= date_from)
-        if date_to:
-            statement = statement.where(Conversation.last_message_at < date_to)
+        if date_from or date_to:
+            first_message_at = (
+                select(func.min(Message.sent_at))
+                .where(Message.conversation_id == Conversation.id)
+                .correlate(Conversation)
+                .scalar_subquery()
+            )
+            first_activity_at = func.coalesce(first_message_at, Conversation.external_created_at, Conversation.created_at)
+            if date_from:
+                statement = statement.where(first_activity_at >= date_from)
+            if date_to:
+                statement = statement.where(first_activity_at < date_to)
         return statement
