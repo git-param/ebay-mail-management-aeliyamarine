@@ -29,6 +29,7 @@ from app.models.ebay_best_offer_listing_sync_state import EbayBestOfferListingSy
 from app.modules.offer_management.models import OfferManagementEntry, OfferManagementEntryHistory
 from app.modules.pms.models import PMSDailyTaskEntry, PMSDailyTaskEntryHistory
 from app.modules.sold_posting.models import SoldPostingLineItem, SoldPostingOrder, SoldPostingSyncState
+from app.modules.task_management.models import TaskCategory, Subtask, UserSubtaskAssignment
 
 __all__ = [
     'AuditLog',
@@ -75,4 +76,7 @@ __all__ = [
     'SoldPostingOrder',
     'SoldPostingLineItem',
     'SoldPostingSyncState',
+    'TaskCategory',
+    'Subtask',
+    'UserSubtaskAssignment',
 ]

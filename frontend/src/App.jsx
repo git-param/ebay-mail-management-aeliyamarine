@@ -18,6 +18,7 @@ import MessageReports from './pages/message_reports'
 import OfferManagement from './pages/offer_management'
 import SoldPosting from './pages/sold_posting'
 import DailyTaskEntry from './pages/daily_task_entry'
+import TaskManagement from './pages/task_management'
 import { logoutUser } from './services/authApi'
 import { clearStoredSession } from './services/http'
 import { normalizeRole } from './utils/roles'
@@ -102,6 +103,11 @@ const PROTECTED_ROUTES = [
     path: '/daily-task-entry',
     component: DailyTaskEntry,
     allowedRoles: ['ADMIN', 'OPS_MANAGER', 'AGENT'],
+  },
+  {
+    path: '/task-management',
+    component: TaskManagement,
+    allowedRoles: ['ADMIN'],
   },
   {
     path: '/search-across-platforms',

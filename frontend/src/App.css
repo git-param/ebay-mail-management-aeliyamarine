@@ -9046,8 +9046,138 @@ a .sold-thumb:hover {
     min-width: 560px;
   }
 
-  .pms-dynamic-row {
+.pms-dynamic-row {
     grid-template-columns: 1fr;
+  }
+}
+
+.task-management-grid {
+  display: grid;
+  grid-template-columns: minmax(320px, 0.85fr) minmax(520px, 1.15fr);
+  gap: 16px;
+  align-items: start;
+  margin-top: 16px;
+}
+
+.task-management-grid > .task-assignment-panel {
+  grid-column: 1 / -1;
+}
+
+.task-category-list {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.task-category-list button {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid #dce4f4;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 10px 12px;
+  color: #172033;
+  text-align: left;
+  cursor: pointer;
+}
+
+.task-category-list button.selected {
+  border-color: #7c5cff;
+  background: #f3f0ff;
+}
+
+.task-category-list span {
+  display: grid;
+  gap: 2px;
+}
+
+.task-category-list small,
+.weight-warning,
+.weight-ok,
+.weight-error {
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.weight-ok { color: #047857; }
+.weight-warning { color: #b45309; }
+.weight-error { color: #b91c1c; }
+
+.task-subtask-form,
+.task-assignment-panel .management-form,
+.task-list-panel .management-form {
+  margin-top: 16px;
+}
+
+.task-management-page .table-card {
+  overflow: hidden;
+}
+
+.task-management-page .management-form {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+.task-management-page .pms-form-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  align-items: end;
+}
+
+.task-management-page .management-form h3,
+.task-management-page .management-form .primary-button {
+  grid-column: 1 / -1;
+}
+
+.task-management-page .field,
+.task-management-page .checkbox-field {
+  min-width: 0;
+}
+
+.task-management-page .field input,
+.task-management-page .field select,
+.task-management-page .field textarea {
+  width: 100%;
+}
+
+.task-management-page textarea {
+  min-height: 58px;
+}
+
+.task-management-page .field-help {
+  margin: -4px 0 0;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.task-assignment-panel .pms-card-header {
+  align-items: center;
+  gap: 12px;
+}
+
+.task-assignment-panel .pms-card-header span {
+  white-space: nowrap;
+}
+
+.task-assignment-table th:nth-child(3),
+.task-assignment-table td:nth-child(3),
+.task-assignment-table th:nth-child(5),
+.task-assignment-table td:nth-child(5) {
+  width: 140px;
+}
+
+@media (max-width: 980px) {
+  .task-management-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .task-management-grid > .task-assignment-panel {
+    grid-column: auto;
   }
 }
 

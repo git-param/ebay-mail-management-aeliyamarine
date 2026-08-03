@@ -65,6 +65,12 @@ const NAV_ITEMS = [
     roles: ['ADMIN', 'OPS_MANAGER', 'AGENT'],
   },
   {
+    label: 'Task Management',
+    path: '/task-management',
+    icon: 'settings',
+    roles: ['ADMIN'],
+  },
+  {
     label: 'Search Across Platforms',
     path: '/search-across-platforms',
     icon: 'search',
