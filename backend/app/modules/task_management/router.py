@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from app.api.dependencies import require_admin
 from app.db.session import get_db
 from app.modules.task_management.models import Subtask, TaskCategory, UserSubtaskAssignment
-from app.modules.task_management.schemas import AssignmentPayload, AssignmentResponse, TaskCategoryPayload, TaskCategoryResponse, SubtaskPayload, SubtaskResponse, UserAssignmentSummary
+from app.modules.task_management.schemas import AssignmentPayload, AssignmentResponse, TaskAssignmentPayload, TaskCategoryPayload, TaskCategoryResponse, SubtaskPayload, SubtaskResponse, UserAssignmentSummary
 from app.modules.task_management.service import TaskManagementService
 
 
@@ -63,6 +63,7 @@ def serialize_assignment(assignment: UserSubtaskAssignment) -> AssignmentRespons
         status=assignment.status.value,
         subtask_name=subtask.name if subtask else None,
         category_name=subtask.category.name if subtask and subtask.category else None,
+        task_category_id=subtask.task_category_id if subtask else None,
         source_type=subtask.source_type.value if subtask else None,
         created_at=assignment.created_at,
         updated_at=assignment.updated_at,
@@ -114,3 +115,15 @@ def create_assignment(payload: AssignmentPayload, db: Session = Depends(get_db),
 @router.patch('/assignments/{assignment_id}', response_model=AssignmentResponse)
 def update_assignment(assignment_id: UUID, payload: AssignmentPayload, db: Session = Depends(get_db), current_user=Depends(require_admin)):
     return serialize_assignment(TaskManagementService(db).save_assignment(payload, current_user, assignment_id))
+
+
+@router.post('/task-assignments', response_model=UserAssignmentSummary)
+def create_task_assignment(payload: TaskAssignmentPayload, db: Session = Depends(get_db), current_user=Depends(require_admin)):
+    """Assign every subtask under one task/category to a single agent in one action."""
+    service = TaskManagementService(db)
+    service.save_task_assignment(payload, current_user)
+    return UserAssignmentSummary(
+        user_id=payload.user_id,
+        total_active_weight=service.active_weight_total(payload.user_id),
+        assignments=[serialize_assignment(item) for item in service.list_assignments(payload.user_id)],
+    )
