@@ -19,10 +19,6 @@ export const saveSubtask = (payload, id = '') => apiRequest(`/task-management/su
   body: JSON.stringify(payload),
 })
 export const fetchUserTaskAssignments = (userId) => apiRequest(`/task-management/assignments${qs({ user_id: userId })}`)
-export const saveTaskCategoryAssignment = (payload) => apiRequest('/task-management/category-assignments', {
-  method: 'POST',
-  body: JSON.stringify(payload),
-})
 export const saveUserTaskAssignment = (payload, id = '') => apiRequest(`/task-management/assignments${id ? `/${id}` : ''}`, {
   method: id ? 'PATCH' : 'POST',
   body: JSON.stringify(payload),

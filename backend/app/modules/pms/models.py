@@ -39,6 +39,9 @@ class PMSDailyTaskEntry(Base):
     user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey('users.id'), nullable=False)
     entry_date: Mapped[date] = mapped_column(Date, nullable=False)
     day_type: Mapped[PMSDayType] = mapped_column(Enum(PMSDayType, name='pms_day_type'), nullable=False, default=PMSDayType.WORKING_DAY)
+    # Legacy fixed-column scores. No longer populated by the service (score_items is the
+    # source of truth) but retained on the model/table for backward compatibility with any
+    # other consumers that may still read these columns directly.
     sold_posting_score: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     m2m_vip_followups_score: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     tracking_sheet_score: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
@@ -50,6 +53,7 @@ class PMSDailyTaskEntry(Base):
     score_items: Mapped[list[dict] | None] = mapped_column(JSONB, nullable=True)
     error_level: Mapped[PMSErrorLevel] = mapped_column(Enum(PMSErrorLevel, name='pms_error_level'), nullable=False, default=PMSErrorLevel.NO_ERROR)
     error_remark: Mapped[str | None] = mapped_column(Text, nullable=True)
+    remarks: Mapped[str | None] = mapped_column(Text, nullable=True)
     feedback_status: Mapped[PMSFeedbackStatus] = mapped_column(Enum(PMSFeedbackStatus, name='pms_feedback_status'), nullable=False, default=PMSFeedbackStatus.GIVEN)
     particulars_error_note: Mapped[str | None] = mapped_column(Text, nullable=True)
     sla_remarks: Mapped[str | None] = mapped_column(Text, nullable=True)

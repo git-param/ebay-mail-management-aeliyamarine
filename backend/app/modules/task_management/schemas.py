@@ -39,22 +39,11 @@ class AssignmentPayload(BaseModel):
     status: str = 'ACTIVE'
 
 
-class CategoryAssignmentPayload(BaseModel):
-    user_id: UUID
-    task_category_id: UUID
-    effective_from: date
-    effective_to: date | None = None
-    auto_fetch_enabled: bool = True
-    target_type: str = 'ANY_ACTIVITY'
-    target_value: int | None = Field(default=None, ge=0)
-    display_order: int = 0
-    status: str = 'ACTIVE'
-
-
 class AssignmentResponse(AssignmentPayload):
     id: UUID
     subtask_name: str | None = None
     category_name: str | None = None
+    source_type: str | None = None
     created_at: datetime
     updated_at: datetime
 
