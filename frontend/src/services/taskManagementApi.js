@@ -23,3 +23,7 @@ export const saveUserTaskAssignment = (payload, id = '') => apiRequest(`/task-ma
   method: id ? 'PATCH' : 'POST',
   body: JSON.stringify(payload),
 })
+export const saveTaskAssignment = (payload) => apiRequest('/task-management/task-assignments', {
+  method: 'POST',
+  body: JSON.stringify(payload),
+})

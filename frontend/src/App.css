@@ -9228,3 +9228,274 @@ a .sold-thumb:hover {
   position: static;
   bottom: auto;
 }
+
+
+/* ===================================================================
+   Task Management: task-level (whole-task) assignment UI
+   =================================================================== */
+
+.task-assignment-subheading {
+  margin: 18px 0 10px;
+  color: #0f172a;
+  font-size: 13px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.task-picker-list {
+  display: grid;
+  gap: 8px;
+}
+
+.task-picker-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid #dce4f4;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 12px 14px;
+  color: #172033;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 140ms ease, background 140ms ease;
+}
+
+.task-picker-item:hover {
+  border-color: #7c5cff;
+  background: #f8f7ff;
+}
+
+.task-picker-item span {
+  display: grid;
+  gap: 2px;
+}
+
+.task-picker-item small {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.assigned-task-group {
+  margin-bottom: 14px;
+  border: 1px solid #e5edf7;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.assigned-task-group-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  background: #f7fbff;
+  border-bottom: 1px solid #e5edf7;
+}
+
+.assigned-task-group-header strong {
+  color: #0f172a;
+  font-size: 14px;
+}
+
+.task-weight-field {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 120px;
+  align-items: center;
+  gap: 12px;
+}
+
+.task-weight-field span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.task-weight-field small {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.task-weight-field input {
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid #bfd0e6;
+  border-radius: 8px;
+  text-align: center;
+  font-weight: 800;
+}
+
+/* Override legacy 6-column width rule: the grouped assignment table now has
+   5 columns (Subtask, Source, Weight, Dates, Status) instead of the old
+   (Task, Subtask, Source, Weight, Dates, Status) + edit-button layout. */
+.task-assignment-table th:nth-child(3),
+.task-assignment-table td:nth-child(3) {
+  width: 100px;
+}
+
+.task-assignment-table th:nth-child(5),
+.task-assignment-table td:nth-child(5) {
+  width: 110px;
+}
+
+.assigned-task-group .task-assignment-table {
+  border: 0;
+}
+
+/* ===================================================================
+   Daily Task Entry: full-width multi-agent workflow layout
+   =================================================================== */
+
+.pms-daily-entry-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+
+.pms-load-card,
+.pms-history-card {
+  width: 100%;
+  max-width: none;
+}
+
+.pms-load-controls {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)) auto;
+  gap: 12px;
+  align-items: end;
+  margin-bottom: 8px;
+}
+
+.pms-load-controls .primary-button {
+  min-height: 52px;
+}
+
+.pms-bulk-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin: 14px 0;
+  padding: 12px 14px;
+  border: 1px solid #e5edf7;
+  border-radius: 8px;
+  background: #f7fbff;
+}
+
+.pms-bulk-actions-spacer {
+  flex: 1 1 auto;
+}
+
+.pms-agent-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
+  gap: 16px;
+  margin-top: 12px;
+}
+
+.pms-agent-card {
+  padding: 16px;
+}
+
+.pms-agent-card.locked {
+  border-color: #bcd8c7;
+  background: #f9fdfa;
+}
+
+.pms-agent-card-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 6px;
+  flex-wrap: wrap;
+}
+
+.pms-agent-card-header .checkbox-field {
+  min-height: 0;
+  padding-top: 0;
+}
+
+.pms-agent-card-header div h3 {
+  margin: 0;
+  color: #0f172a;
+  font-size: 15px;
+}
+
+.pms-agent-card-header div small {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.upload-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 26px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.upload-status.success {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.upload-status.error {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.unlock-button {
+  margin-left: auto;
+  border: 1px solid #f2bd22;
+  border-radius: 7px;
+  background: #fff9e6;
+  color: #92650a;
+  font-size: 12px;
+  font-weight: 900;
+  padding: 6px 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.unlock-button:hover {
+  background: #fef1c7;
+}
+
+.locked-help {
+  margin: 0 0 10px;
+  padding: 8px 10px;
+  border-radius: 7px;
+  background: #eef7f0;
+  color: #166534;
+}
+
+.pms-agent-card input:disabled,
+.pms-agent-card select:disabled,
+.pms-agent-card textarea:disabled {
+  background: #f1f5f9;
+  color: #64748b;
+  cursor: not-allowed;
+}
+
+@media (max-width: 900px) {
+  .pms-agent-cards {
+    grid-template-columns: 1fr;
+  }
+
+  .pms-load-controls {
+    grid-template-columns: 1fr;
+  }
+
+  .task-weight-field {
+    grid-template-columns: 1fr;
+  }
+}

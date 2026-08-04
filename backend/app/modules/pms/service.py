@@ -65,16 +65,36 @@ class PMSService:
                 existing_entry_id=existing.id if existing else None,
             ))
         return items
-
+    
     def _target_users(self, user_id: UUID | None) -> list[User]:
         if user_id:
             user = self.db.get(User, user_id)
-            if not user:
-                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='User not found')
-            return [user]
-        statement = select(User).where(User.is_active.is_(True)).order_by(User.full_name.asc())
-        return list(self.db.scalars(statement))
 
+            if not user:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="User not found",
+                )
+
+            if not self._is_agent(user):
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail="Daily Task Entry can only be loaded for Agent users",
+                )
+
+            return [user]
+
+        statement = (
+            select(User)
+            .where(
+                User.is_active.is_(True),
+                User.role.has(name="Support Agent"),
+            )
+            .order_by(User.full_name.asc())
+        )
+
+        return list(self.db.scalars(statement).all())
+    
     def _to_base_schema(self, entry: PMSDailyTaskEntry) -> dict:
         return {
             'entry_date': entry.entry_date,

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 
 import AppLayout, { Icon } from '../layouts/app_layout'
-import { fetchTaskCategories, fetchUserTaskAssignments, saveSubtask, saveTaskCategory, saveUserTaskAssignment } from '../services/taskManagementApi'
+import { fetchTaskCategories, fetchUserTaskAssignments, saveSubtask, saveTaskAssignment, saveTaskCategory } from '../services/taskManagementApi'
 import { fetchMessageTypes } from '../services/messageTypeApi'
 import { fetchUsers } from '../services/userApi'
 import { normalizeRole } from '../utils/roles'
@@ -26,8 +26,8 @@ function emptySubtask(categoryId = '', order = 0) {
   return { task_category_id: categoryId, name: '', description: '', status: 'ACTIVE', display_order: order, source_type: 'MANUAL', source_reference_id: '', source_configuration: null, count_method: '', completion_rule: '' }
 }
 
-function emptyAssignment(userId = '') {
-  return { user_id: userId, subtask_id: '', quality_weight: 0, effective_from: today(), effective_to: '', auto_fetch_enabled: true, target_type: 'ANY_ACTIVITY', target_value: '', display_order: 0, status: 'ACTIVE' }
+function emptyTaskAssignment(userId = '') {
+  return { user_id: userId, task_category_id: '', effective_from: today(), effective_to: '', auto_fetch_enabled: true, target_type: 'ANY_ACTIVITY', target_value: '', status: 'ACTIVE' }
 }
 
 function labelize(value) {
@@ -51,10 +51,11 @@ export default function TaskManagement({ currentUser, onLogout }) {
   const [subtaskForm, setSubtaskForm] = useState(emptySubtask())
   const [selectedUserId, setSelectedUserId] = useState('')
   const [assignmentData, setAssignmentData] = useState({ total_active_weight: 0, assignments: [] })
-  const [assignmentForm, setAssignmentForm] = useState(emptyAssignment())
+  const [taskAssignmentForm, setTaskAssignmentForm] = useState(emptyTaskAssignment())
+  const [subtaskWeights, setSubtaskWeights] = useState({})
   const [editingCategoryId, setEditingCategoryId] = useState('')
   const [editingSubtaskId, setEditingSubtaskId] = useState('')
-  const [editingAssignmentId, setEditingAssignmentId] = useState('')
+  const [assigningTaskId, setAssigningTaskId] = useState('')
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
   const selectedCategory = categories.find((item) => item.id === selectedCategoryId)
@@ -62,8 +63,20 @@ export default function TaskManagement({ currentUser, onLogout }) {
   const agentUsers = users.filter((user) => normalizeRole(user.role) === 'AGENT' && user.is_active !== false)
   const displayWeight = (value) => Number(value || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })
 
-  const allSubtasks = useMemo(() => categories.flatMap((category) => (category.subtasks || []).map((subtask) => ({ ...subtask, category_name: category.name }))), [categories])
-  const assignableSubtasks = useMemo(() => allSubtasks.filter((subtask) => subtask.status === 'ACTIVE'), [allSubtasks])
+  const assignmentCategory = categories.find((item) => item.id === taskAssignmentForm.task_category_id)
+  const assignableSubtasksForForm = useMemo(() => (assignmentCategory?.subtasks || []).filter((subtask) => subtask.status === 'ACTIVE'), [assignmentCategory])
+  const assignedSubtaskIdsForUser = useMemo(() => new Set((assignmentData.assignments || []).map((item) => item.subtask_id)), [assignmentData])
+
+  // Group this agent's existing assignments by task/category for a compact summary view
+  const assignmentsByCategory = useMemo(() => {
+    const groups = new Map()
+    for (const assignment of assignmentData.assignments || []) {
+      const key = assignment.category_name || 'Unassigned'
+      if (!groups.has(key)) groups.set(key, [])
+      groups.get(key).push(assignment)
+    }
+    return Array.from(groups.entries())
+  }, [assignmentData])
 
   async function load() {
     try {
@@ -130,27 +143,60 @@ export default function TaskManagement({ currentUser, onLogout }) {
     }
   }
 
-  async function submitAssignment(event) {
+  async function submitTaskAssignment(event) {
     event.preventDefault()
     try {
       setError('')
       setMessage('')
-      const payload = {
-        ...assignmentForm,
-        user_id: assignmentForm.user_id || selectedUserId,
-        quality_weight: Number(assignmentForm.quality_weight) || 0,
-        target_value: assignmentForm.target_value === '' ? null : Number(assignmentForm.target_value),
-        display_order: Number(assignmentForm.display_order) || 0,
-        effective_to: assignmentForm.effective_to || null,
+      if (!taskAssignmentForm.task_category_id) {
+        setError('Select a task to assign.')
+        return
       }
-      await saveUserTaskAssignment(payload, editingAssignmentId)
-      setAssignmentForm(emptyAssignment(selectedUserId))
-      setEditingAssignmentId('')
-      setMessage('Task assignment saved.')
-      await loadAssignments(selectedUserId)
+      if (!assignableSubtasksForForm.length) {
+        setError('This task has no active subtasks to assign.')
+        return
+      }
+      const subtaskWeightList = assignableSubtasksForForm.map((subtask) => ({
+        subtask_id: subtask.id,
+        quality_weight: Number(subtaskWeights[subtask.id]) || 0,
+      }))
+      const payload = {
+        user_id: taskAssignmentForm.user_id || selectedUserId,
+        task_category_id: taskAssignmentForm.task_category_id,
+        subtask_weights: subtaskWeightList,
+        effective_from: taskAssignmentForm.effective_from,
+        effective_to: taskAssignmentForm.effective_to || null,
+        auto_fetch_enabled: taskAssignmentForm.auto_fetch_enabled,
+        target_type: taskAssignmentForm.target_type,
+        target_value: taskAssignmentForm.target_value === '' ? null : Number(taskAssignmentForm.target_value),
+        status: taskAssignmentForm.status,
+      }
+      setAssignmentData(await saveTaskAssignment(payload))
+      setTaskAssignmentForm(emptyTaskAssignment(selectedUserId))
+      setSubtaskWeights({})
+      setAssigningTaskId('')
+      setMessage(`Task "${assignmentCategory?.name}" assigned to agent with ${assignableSubtasksForForm.length} subtask${assignableSubtasksForForm.length === 1 ? '' : 's'}.`)
     } catch (caught) {
       setError(caught.message)
     }
+  }
+
+  function startTaskAssignment(categoryId) {
+    setAssigningTaskId(categoryId)
+    setTaskAssignmentForm({ ...emptyTaskAssignment(selectedUserId), task_category_id: categoryId })
+    const category = categories.find((item) => item.id === categoryId)
+    const initialWeights = {}
+    for (const subtask of (category?.subtasks || [])) {
+      const existing = (assignmentData.assignments || []).find((item) => item.subtask_id === subtask.id)
+      initialWeights[subtask.id] = existing ? existing.quality_weight : 0
+    }
+    setSubtaskWeights(initialWeights)
+  }
+
+  function cancelTaskAssignment() {
+    setAssigningTaskId('')
+    setTaskAssignmentForm(emptyTaskAssignment(selectedUserId))
+    setSubtaskWeights({})
   }
 
   function editCategory(category) {
@@ -165,25 +211,9 @@ export default function TaskManagement({ currentUser, onLogout }) {
     setSubtaskForm({ ...subtask, source_reference_id: subtask.source_reference_id || '', source_configuration: subtask.source_configuration || null, count_method: subtask.count_method || '', completion_rule: subtask.completion_rule || '' })
   }
 
-  function editAssignment(assignment) {
-    setEditingAssignmentId(assignment.id)
-    setAssignmentForm({
-      user_id: selectedUserId,
-      subtask_id: assignment.subtask_id,
-      quality_weight: assignment.quality_weight || 0,
-      effective_from: assignment.effective_from,
-      effective_to: assignment.effective_to || '',
-      auto_fetch_enabled: assignment.auto_fetch_enabled,
-      target_type: assignment.target_type,
-      target_value: assignment.target_value ?? '',
-      display_order: assignment.display_order || 0,
-      status: assignment.status,
-    })
-  }
-
-  function cancelAssignmentEdit() {
-    setEditingAssignmentId('')
-    setAssignmentForm(emptyAssignment(selectedUserId))
+  function editCategoryAssignments(categoryAssignments) {
+    const categoryId = categoryAssignments[0]?.task_category_id
+    if (categoryId) startTaskAssignment(categoryId)
   }
 
   return (
@@ -241,20 +271,65 @@ export default function TaskManagement({ currentUser, onLogout }) {
 
           <section className="table-card task-assignment-panel">
             <div className="pms-card-header"><h2>Agent Task Assignments</h2><span className={assignmentData.total_active_weight === 100 ? 'weight-ok' : assignmentData.total_active_weight > 100 ? 'weight-error' : 'weight-warning'}>Quality Weight Total: {displayWeight(assignmentData.total_active_weight)}/100</span></div>
-            <label className="field"><span>Agent</span><select value={selectedUserId} onChange={(event) => { setSelectedUserId(event.target.value); cancelAssignmentEdit(); setAssignmentForm(emptyAssignment(event.target.value)); loadAssignments(event.target.value) }}><option value="">Select agent</option>{agentUsers.map((user) => <option key={user.id} value={user.id}>{user.full_name} - {user.email}</option>)}</select></label>
-            <div className="table-scroll"><table className="users-table task-assignment-table"><thead><tr><th>Task</th><th>Subtask</th><th>Source</th><th>Weight</th><th>Dates</th><th>Status</th><th></th></tr></thead><tbody>{(assignmentData.assignments || []).map((assignment) => <tr key={assignment.id}><td>{assignment.category_name}</td><td>{assignment.subtask_name}</td><td>{sourceLabel(assignment.source_type)}</td><td>{displayWeight(assignment.quality_weight)}</td><td>{assignment.effective_from}{assignment.effective_to ? ` to ${assignment.effective_to}` : ''}</td><td>{labelize(assignment.status)}</td><td><button className="icon-button" type="button" onClick={() => editAssignment(assignment)}><Icon name="edit" /></button></td></tr>)}</tbody></table></div>
-            <form className="management-form" onSubmit={submitAssignment}>
-              <h3>{editingAssignmentId ? 'Edit Assignment' : 'Assign Subtask'}</h3>
-              <label className="field"><span>Subtask</span><select value={assignmentForm.subtask_id} onChange={(event) => setAssignmentForm((current) => ({ ...current, subtask_id: event.target.value }))} required><option value="">Select subtask</option>{assignableSubtasks.map((subtask) => <option key={subtask.id} value={subtask.id}>{subtask.category_name} - {subtask.name} ({sourceLabel(subtask.source_type)})</option>)}</select></label>
-              <div className="pms-form-row"><label className="field"><span>Weight / Max Score</span><input type="number" min="0" max="100" step="0.01" value={assignmentForm.quality_weight} onChange={(event) => setAssignmentForm((current) => ({ ...current, quality_weight: event.target.value }))} required /></label><label className="field"><span>Status</span><select value={assignmentForm.status} onChange={(event) => setAssignmentForm((current) => ({ ...current, status: event.target.value }))}>{STATUSES.map((item) => <option key={item}>{item}</option>)}</select></label></div>
-              <div className="pms-form-row"><label className="field"><span>Effective From</span><input type="date" value={assignmentForm.effective_from} onChange={(event) => setAssignmentForm((current) => ({ ...current, effective_from: event.target.value }))} required /></label><label className="field"><span>Effective To</span><input type="date" value={assignmentForm.effective_to || ''} onChange={(event) => setAssignmentForm((current) => ({ ...current, effective_to: event.target.value }))} /></label></div>
-              <div className="pms-form-row"><label className="field"><span>Target Rule</span><select value={assignmentForm.target_type} onChange={(event) => setAssignmentForm((current) => ({ ...current, target_type: event.target.value }))}>{TARGET_TYPES.map((item) => <option key={item}>{item}</option>)}</select></label><label className="field"><span>Target Value</span><input type="number" min="0" value={assignmentForm.target_value ?? ''} onChange={(event) => setAssignmentForm((current) => ({ ...current, target_value: event.target.value }))} /></label></div>
-              <label className="checkbox-field"><input type="checkbox" checked={assignmentForm.auto_fetch_enabled} onChange={(event) => setAssignmentForm((current) => ({ ...current, auto_fetch_enabled: event.target.checked }))} /> Auto fetch enabled</label>
-              <div className="pms-form-row">
-                <button className="primary-button compact-action" type="submit" disabled={!selectedUserId}>{editingAssignmentId ? 'Save Assignment' : 'Add Assignment'}</button>
-                {editingAssignmentId ? <button className="secondary-button compact-action" type="button" onClick={cancelAssignmentEdit}>Cancel</button> : null}
-              </div>
-            </form>
+            <label className="field"><span>Agent</span><select value={selectedUserId} onChange={(event) => { setSelectedUserId(event.target.value); cancelTaskAssignment(); loadAssignments(event.target.value) }}><option value="">Select agent</option>{agentUsers.map((user) => <option key={user.id} value={user.id}>{user.full_name} - {user.email}</option>)}</select></label>
+
+            {selectedUserId ? (
+              <>
+                <h3 className="task-assignment-subheading">Assigned Tasks</h3>
+                {assignmentsByCategory.length === 0 ? <p className="field-help">No tasks assigned to this agent yet.</p> : null}
+                {assignmentsByCategory.map(([categoryName, categoryAssignments]) => (
+                  <div className="assigned-task-group" key={categoryName}>
+                    <div className="assigned-task-group-header">
+                      <strong>{categoryName}</strong>
+                      <button className="secondary-button compact-action" type="button" onClick={() => editCategoryAssignments(categoryAssignments)}>Edit Weights</button>
+                    </div>
+                    <div className="table-scroll"><table className="users-table task-assignment-table"><thead><tr><th>Subtask</th><th>Source</th><th>Weight</th><th>Dates</th><th>Status</th></tr></thead><tbody>{categoryAssignments.map((assignment) => <tr key={assignment.id}><td>{assignment.subtask_name}</td><td>{sourceLabel(assignment.source_type)}</td><td>{displayWeight(assignment.quality_weight)}</td><td>{assignment.effective_from}{assignment.effective_to ? ` to ${assignment.effective_to}` : ''}</td><td>{labelize(assignment.status)}</td></tr>)}</tbody></table></div>
+                  </div>
+                ))}
+
+                <h3 className="task-assignment-subheading">{assigningTaskId ? 'Assign Task' : 'Assign a New Task'}</h3>
+                {!assigningTaskId ? (
+                  <div className="task-picker-list">
+                    {categories.filter((category) => category.status === 'ACTIVE').map((category) => (
+                      <button className="task-picker-item" type="button" key={category.id} onClick={() => startTaskAssignment(category.id)}>
+                        <span><strong>{category.name}</strong><small>{(category.subtasks || []).filter((subtask) => subtask.status === 'ACTIVE').length} active subtasks</small></span>
+                        <Icon name="chevron" />
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <form className="management-form" onSubmit={submitTaskAssignment}>
+                    <p className="field-help">Assigning <strong>{assignmentCategory?.name}</strong> gives this agent every active subtask below. Set each subtask's weight / max score.</p>
+                    {assignableSubtasksForForm.map((subtask) => (
+                      <label className="field task-weight-field" key={subtask.id}>
+                        <span>{subtask.name} <small>({sourceLabel(subtask.source_type)}){assignedSubtaskIdsForUser.has(subtask.id) ? ' \u00b7 already assigned' : ''}</small></span>
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          step="0.01"
+                          value={subtaskWeights[subtask.id] ?? 0}
+                          onChange={(event) => setSubtaskWeights((current) => ({ ...current, [subtask.id]: event.target.value }))}
+                        />
+                      </label>
+                    ))}
+                    <div className="pms-form-row">
+                      <label className="field"><span>Effective From</span><input type="date" value={taskAssignmentForm.effective_from} onChange={(event) => setTaskAssignmentForm((current) => ({ ...current, effective_from: event.target.value }))} required /></label>
+                      <label className="field"><span>Effective To</span><input type="date" value={taskAssignmentForm.effective_to || ''} onChange={(event) => setTaskAssignmentForm((current) => ({ ...current, effective_to: event.target.value }))} /></label>
+                    </div>
+                    <div className="pms-form-row">
+                      <label className="field"><span>Target Rule</span><select value={taskAssignmentForm.target_type} onChange={(event) => setTaskAssignmentForm((current) => ({ ...current, target_type: event.target.value }))}>{TARGET_TYPES.map((item) => <option key={item}>{item}</option>)}</select></label>
+                      <label className="field"><span>Status</span><select value={taskAssignmentForm.status} onChange={(event) => setTaskAssignmentForm((current) => ({ ...current, status: event.target.value }))}>{STATUSES.map((item) => <option key={item}>{item}</option>)}</select></label>
+                    </div>
+                    <label className="checkbox-field"><input type="checkbox" checked={taskAssignmentForm.auto_fetch_enabled} onChange={(event) => setTaskAssignmentForm((current) => ({ ...current, auto_fetch_enabled: event.target.checked }))} /> Auto fetch enabled for automatic subtasks</label>
+                    <div className="pms-form-row">
+                      <button className="primary-button compact-action" type="submit">Assign Task to Agent</button>
+                      <button className="secondary-button compact-action" type="button" onClick={cancelTaskAssignment}>Cancel</button>
+                    </div>
+                  </form>
+                )}
+              </>
+            ) : <p className="field-help">Select an agent to view or assign their tasks.</p>}
           </section>
         </section>
       </main>

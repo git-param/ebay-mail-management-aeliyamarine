@@ -38,7 +38,7 @@ function makeRow(loadedItem) {
     userName: loadedItem.user.full_name || loadedItem.user.email,
     userEmail: loadedItem.user.email,
     existingEntryId: loadedItem.existing_entry_id,
-    selected: true,
+    selected: !loadedItem.existing_entry_id,
     entry_date: entry.entry_date,
     day_type: entry.day_type,
     score_items: entry.score_items || [],
@@ -50,7 +50,9 @@ function makeRow(loadedItem) {
     particulars_error_note: entry.particulars_error_note || '',
     sla_remarks: entry.sla_remarks || '',
     final_score_percent: entry.final_score_percent || 0,
-    status: 'idle', // idle | success | error
+    // Already-saved entries (existing_entry_id present) load locked/read-only.
+    // Admin must click Unlock to Edit to change and re-upload.
+    status: loadedItem.existing_entry_id ? 'success' : 'idle', // idle | success | error
     statusMessage: '',
     // snapshot kept so we can restore suggested scores if Major is toggled off again
     _preErrorItems: entry.score_items || [],
@@ -85,8 +87,11 @@ function AgentCard({ row, onChange }) {
   const totalTaskEarned = (row.score_items || []).filter((item) => item.status !== 'NOT_APPLICABLE').reduce((sum, item) => sum + number(item.value), 0)
   const totalTaskMax = (row.score_items || []).filter((item) => item.status !== 'NOT_APPLICABLE').reduce((sum, item) => sum + number(item.max_score), 0)
   const isMajor = row.error_level === 'MAJOR'
+  const isLocked = row.status === 'success'
+  const isDisabled = isLocked || isMajor
 
   function patch(fields) {
+    if (isLocked) return
     onChange(row.userId, (current) => {
       const next = { ...current, ...fields }
       next.final_score_percent = calculate(next.score_items, next.sla_score, next.error_level)
@@ -95,6 +100,7 @@ function AgentCard({ row, onChange }) {
   }
 
   function updateItem(key, patchFields) {
+    if (isLocked) return
     onChange(row.userId, (current) => {
       const nextItems = current.score_items.map((item) => item.key === key ? { ...item, ...patchFields, source: patchFields.value !== undefined ? 'MANUAL' : item.source } : item)
       const next = { ...current, score_items: nextItems }
@@ -104,6 +110,7 @@ function AgentCard({ row, onChange }) {
   }
 
   function updateErrorLevel(value) {
+    if (isLocked) return
     onChange(row.userId, (current) => {
       if (value === 'MAJOR') {
         const zeroedItems = current.score_items.map((item) => ({ ...item, value: 0 }))
@@ -132,13 +139,15 @@ function AgentCard({ row, onChange }) {
   }
 
   return (
-    <section className="table-card pms-agent-card">
+    <section className={`table-card pms-agent-card${isLocked ? ' locked' : ''}`}>
       <div className="pms-card-header pms-agent-card-header">
-        <label className="checkbox-field"><input type="checkbox" checked={row.selected} onChange={(event) => patch({ selected: event.target.checked })} /></label>
+        <label className="checkbox-field"><input type="checkbox" checked={row.selected} onChange={(event) => onChange(row.userId, (current) => ({ ...current, selected: event.target.checked }))} /></label>
         <div><h3>{row.userName}</h3><small>{row.userEmail}</small></div>
-        {row.status === 'success' ? <span className="upload-status success">Uploaded</span> : null}
+        {isLocked ? <span className="upload-status success">Uploaded &amp; Locked</span> : null}
         {row.status === 'error' ? <span className="upload-status error">{row.statusMessage || 'Failed'}</span> : null}
+        {isLocked ? <button className="unlock-button" type="button" onClick={() => onChange(row.userId, (current) => ({ ...current, status: 'idle', statusMessage: '' }))}>Unlock to Edit</button> : null}
       </div>
+      {isLocked ? <p className="field-help locked-help">This entry has been uploaded and is locked from editing. Click "Unlock to Edit" to make changes and re-upload.</p> : null}
 
       <section className="pms-task-box">
         {(row.score_items || []).length === 0 ? <p className="field-help">No subtasks assigned to this agent.</p> : null}
@@ -153,7 +162,7 @@ function AgentCard({ row, onChange }) {
               type="number"
               min="0"
               max={item.max_score}
-              disabled={isMajor || item.status === 'NOT_APPLICABLE'}
+              disabled={isDisabled || item.status === 'NOT_APPLICABLE'}
               value={isMajor ? 0 : item.value}
               onChange={(event) => updateItem(item.key, { value: clamp(event.target.value, item.max_score), status: 'ENTERED' })}
             />
@@ -162,7 +171,7 @@ function AgentCard({ row, onChange }) {
         <div className="pms-dynamic-row">
           <div><strong>SLA Score</strong><small>Manual</small></div>
           <span>/{SLA_MAX}</span>
-          <input type="number" min="0" max={SLA_MAX} disabled={isMajor} value={isMajor ? 0 : row.sla_score} onChange={(event) => patch({ sla_score: clamp(event.target.value, SLA_MAX) })} />
+          <input type="number" min="0" max={SLA_MAX} disabled={isDisabled} value={isMajor ? 0 : row.sla_score} onChange={(event) => patch({ sla_score: clamp(event.target.value, SLA_MAX) })} />
         </div>
         <div className="pms-task-row final">
           <span>Task Total</span><strong>{isMajor ? 0 : totalTaskEarned}/{totalTaskMax}</strong>
@@ -171,14 +180,14 @@ function AgentCard({ row, onChange }) {
       </section>
 
       <div className="pms-form-row">
-        <label className="field"><span>Day Type</span><select value={row.day_type} onChange={(event) => patch({ day_type: event.target.value })}>{DAY_TYPES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
-        <label className="field"><span>Error</span><select value={row.error_level} onChange={(event) => updateErrorLevel(event.target.value)}>{ERROR_LEVELS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
-        <label className="field"><span>Feedback</span><select value={row.feedback_status} onChange={(event) => patch({ feedback_status: event.target.value })}>{FEEDBACK.map((item) => <option key={item}>{item}</option>)}</select></label>
+        <label className="field"><span>Day Type</span><select disabled={isLocked} value={row.day_type} onChange={(event) => patch({ day_type: event.target.value })}>{DAY_TYPES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+        <label className="field"><span>Error</span><select disabled={isLocked} value={row.error_level} onChange={(event) => updateErrorLevel(event.target.value)}>{ERROR_LEVELS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+        <label className="field"><span>Feedback</span><select disabled={isLocked} value={row.feedback_status} onChange={(event) => patch({ feedback_status: event.target.value })}>{FEEDBACK.map((item) => <option key={item}>{item}</option>)}</select></label>
       </div>
-      {row.error_level !== 'NO_ERROR' ? <label className="field"><span>Error Remarks (required)</span><textarea required value={row.error_remark} onChange={(event) => patch({ error_remark: event.target.value })} /></label> : null}
-      <label className="field"><span>Remarks</span><textarea value={row.remarks} onChange={(event) => patch({ remarks: event.target.value })} placeholder="General feedback or notes for this agent and date" /></label>
-      <label className="field"><span>Particulars / Error Note</span><textarea value={row.particulars_error_note} onChange={(event) => patch({ particulars_error_note: event.target.value })} /></label>
-      <label className="field"><span>SLA Remarks</span><textarea value={row.sla_remarks} onChange={(event) => patch({ sla_remarks: event.target.value })} /></label>
+      {row.error_level !== 'NO_ERROR' ? <label className="field"><span>Error Remarks (required)</span><textarea disabled={isLocked} required value={row.error_remark} onChange={(event) => patch({ error_remark: event.target.value })} /></label> : null}
+      <label className="field"><span>Remarks</span><textarea disabled={isLocked} value={row.remarks} onChange={(event) => patch({ remarks: event.target.value })} placeholder="General feedback or notes for this agent and date" /></label>
+      <label className="field"><span>Particulars / Error Note</span><textarea disabled={isLocked} value={row.particulars_error_note} onChange={(event) => patch({ particulars_error_note: event.target.value })} /></label>
+      <label className="field"><span>SLA Remarks</span><textarea disabled={isLocked} value={row.sla_remarks} onChange={(event) => patch({ sla_remarks: event.target.value })} /></label>
     </section>
   )
 }
@@ -197,7 +206,9 @@ export default function DailyTaskEntry({ currentUser, onLogout }) {
   const [selected, setSelected] = useState(null)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
-  const selectedCount = useMemo(() => rows.filter((row) => row.selected).length, [rows])
+  const eligibleRows = useMemo(() => rows.filter((row) => row.status !== 'success'), [rows])
+  const selectedCount = useMemo(() => eligibleRows.filter((row) => row.selected).length, [eligibleRows])
+  const lockedCount = rows.length - eligibleRows.length
 
   async function loadHistory(next = filters) {
     try {
@@ -233,13 +244,14 @@ export default function DailyTaskEntry({ currentUser, onLogout }) {
   }
 
   function selectAll(value) {
-    setRows((current) => current.map((row) => ({ ...row, selected: value })))
+    setRows((current) => current.map((row) => (row.status === 'success' ? row : { ...row, selected: value })))
   }
 
   async function upload(scope) {
-    const targets = scope === 'selected' ? rows.filter((row) => row.selected) : rows
+    const eligible = rows.filter((row) => row.status !== 'success')
+    const targets = scope === 'selected' ? eligible.filter((row) => row.selected) : eligible
     if (!targets.length) {
-      setError('No agent rows to upload.')
+      setError(rows.length && !eligible.length ? 'All loaded entries are already uploaded and locked.' : 'No agent rows to upload.')
       return
     }
     const missingRemark = targets.find((row) => row.error_level !== 'NO_ERROR' && !row.error_remark.trim())
@@ -295,11 +307,12 @@ export default function DailyTaskEntry({ currentUser, onLogout }) {
         <div className="page-header"><div><h1>Daily Task Entry</h1><p>{isAdmin ? 'Load, review and upload PMS entries for the team' : 'View your Daily Entry scores and history'}</p></div></div>
         {error ? <p className="form-message error">{error}</p> : null}
         {message ? <p className="form-message success">{message}</p> : null}
-        <section className="pms-layout">
+        <section className="pms-daily-entry-layout">
           {isAdmin ? (
             <section className="table-card pms-load-card">
               <div className="pms-card-header"><h2>Load Daily Entries</h2></div>
-              <div className="pms-form-row">
+              <p className="field-help">Only Agent-role users are loaded here. Operations Managers and Admins are not included.</p>
+              <div className="pms-form-row pms-load-controls">
                 <label className="field"><span>Date</span><input type="date" value={entryDate} onChange={(event) => setEntryDate(event.target.value)} /></label>
                 <label className="field"><span>Agent (optional)</span><select value={agentFilter} onChange={(event) => setAgentFilter(event.target.value)}><option value="">All Agents</option>{users.map((user) => <option value={user.id} key={user.id}>{user.full_name || user.email}</option>)}</select></label>
                 <button className="primary-button compact-action" type="button" onClick={loadDailyEntries} disabled={loading}>{loading ? 'Loading...' : 'Load Daily Entries'}</button>
@@ -307,12 +320,13 @@ export default function DailyTaskEntry({ currentUser, onLogout }) {
 
               {loaded ? (
                 <>
-                  <div className="pms-form-row pms-bulk-actions">
+                  <div className="pms-bulk-actions">
                     <button className="secondary-button compact-action" type="button" onClick={() => selectAll(true)}>Select All</button>
                     <button className="secondary-button compact-action" type="button" onClick={() => selectAll(false)}>Deselect All</button>
-                    <span className="field-help">{selectedCount} of {rows.length} selected</span>
+                    <span className="field-help">{selectedCount} of {eligibleRows.length} selected{lockedCount ? ` \u00b7 ${lockedCount} already uploaded` : ''}</span>
+                    <span className="pms-bulk-actions-spacer" />
                     <button className="primary-button compact-action" type="button" onClick={() => upload('selected')} disabled={uploading || !selectedCount}>{uploading ? 'Uploading...' : 'Upload Selected Entries'}</button>
-                    <button className="primary-button compact-action" type="button" onClick={() => upload('all')} disabled={uploading || !rows.length}>{uploading ? 'Uploading...' : 'Upload All Loaded Entries'}</button>
+                    <button className="primary-button compact-action" type="button" onClick={() => upload('all')} disabled={uploading || !eligibleRows.length}>{uploading ? 'Uploading...' : 'Upload All Loaded Entries'}</button>
                   </div>
                   {rows.length === 0 ? <p className="field-help">No active agents found for this selection.</p> : null}
                   <div className="pms-agent-cards">

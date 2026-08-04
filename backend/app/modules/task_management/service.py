@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.models.user import User
 from app.modules.task_management.models import AssignmentTargetType, Subtask, SubtaskSourceType, TaskCategory, TaskStatus, UserSubtaskAssignment
-from app.modules.task_management.schemas import AssignmentPayload, TaskCategoryPayload, SubtaskPayload
+from app.modules.task_management.schemas import AssignmentPayload, TaskAssignmentPayload, TaskCategoryPayload, SubtaskPayload
 from app.services.audit_service import AuditService
 
 
@@ -102,6 +102,57 @@ class TaskManagementService:
         self.db.commit()
         self.db.refresh(assignment)
         return assignment
+
+    def save_task_assignment(self, payload: TaskAssignmentPayload, actor: User) -> list[UserSubtaskAssignment]:
+        """Assign every subtask listed under one task/category to a single agent in one transaction."""
+        user = self.db.get(User, payload.user_id)
+        if not user:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='User not found')
+        category = self.db.get(TaskCategory, payload.task_category_id)
+        if not category:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Task category not found')
+        if payload.effective_to and payload.effective_to < payload.effective_from:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='Effective To cannot be before Effective From')
+
+        category_subtask_ids = {subtask.id for subtask in category.subtasks}
+        requested_ids = {entry.subtask_id for entry in payload.subtask_weights}
+        unknown_ids = requested_ids - category_subtask_ids
+        if unknown_ids:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='One or more subtasks do not belong to the selected task')
+
+        target_type = self._enum(AssignmentTargetType, payload.target_type, 'Invalid target type')
+        assignment_status = self._enum(TaskStatus, payload.status, 'Invalid assignment status')
+
+        results: list[UserSubtaskAssignment] = []
+        for entry in payload.subtask_weights:
+            assignment = self._existing_assignment(user.id, entry.subtask_id, payload.effective_from)
+            if not assignment:
+                assignment = UserSubtaskAssignment(created_by_user_id=actor.id)
+            assignment.user_id = user.id
+            assignment.subtask_id = entry.subtask_id
+            assignment.quality_weight = entry.quality_weight
+            assignment.effective_from = payload.effective_from
+            assignment.effective_to = payload.effective_to
+            assignment.auto_fetch_enabled = payload.auto_fetch_enabled
+            assignment.target_type = target_type
+            assignment.target_value = payload.target_value
+            assignment.status = assignment_status
+            assignment.updated_by_user_id = actor.id
+            self.db.add(assignment)
+            self.db.flush()
+            results.append(assignment)
+
+        self._validate_user_weight(user.id)
+        self._audit('TASK_ASSIGNED_BULK', actor, 'TASK_CATEGORY', category.id, {
+            'user_id': str(user.id),
+            'task_category_id': str(category.id),
+            'subtask_count': len(results),
+            'assignment_ids': [str(item.id) for item in results],
+        })
+        self.db.commit()
+        for item in results:
+            self.db.refresh(item)
+        return results
 
     def active_weight_total(self, user_id: UUID) -> float:
         total = self.db.scalar(select(func.coalesce(func.sum(UserSubtaskAssignment.quality_weight), 0)).where(

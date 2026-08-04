@@ -43,6 +43,7 @@ class AssignmentResponse(AssignmentPayload):
     id: UUID
     subtask_name: str | None = None
     category_name: str | None = None
+    task_category_id: UUID | None = None
     source_type: str | None = None
     created_at: datetime
     updated_at: datetime
@@ -75,3 +76,21 @@ class UserAssignmentSummary(BaseModel):
     user_id: UUID
     total_active_weight: float
     assignments: list[AssignmentResponse]
+
+
+class SubtaskWeightEntry(BaseModel):
+    subtask_id: UUID
+    quality_weight: float = Field(ge=0, le=100)
+
+
+class TaskAssignmentPayload(BaseModel):
+    """Assign every listed subtask under a single task/category to one user in one action."""
+    user_id: UUID
+    task_category_id: UUID
+    subtask_weights: list[SubtaskWeightEntry] = Field(min_length=1)
+    effective_from: date
+    effective_to: date | None = None
+    auto_fetch_enabled: bool = True
+    target_type: str = 'ANY_ACTIVITY'
+    target_value: int | None = Field(default=None, ge=0)
+    status: str = 'ACTIVE'
