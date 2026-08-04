@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from app.api.dependencies import require_admin
 from app.db.session import get_db
 from app.modules.task_management.models import Subtask, TaskCategory, UserSubtaskAssignment
-from app.modules.task_management.schemas import AssignmentPayload, AssignmentResponse, CategoryAssignmentPayload, TaskCategoryPayload, TaskCategoryResponse, SubtaskPayload, SubtaskResponse, UserAssignmentSummary
+from app.modules.task_management.schemas import AssignmentPayload, AssignmentResponse, TaskCategoryPayload, TaskCategoryResponse, SubtaskPayload, SubtaskResponse, UserAssignmentSummary
 from app.modules.task_management.service import TaskManagementService
 
 
@@ -63,6 +63,7 @@ def serialize_assignment(assignment: UserSubtaskAssignment) -> AssignmentRespons
         status=assignment.status.value,
         subtask_name=subtask.name if subtask else None,
         category_name=subtask.category.name if subtask and subtask.category else None,
+        source_type=subtask.source_type.value if subtask else None,
         created_at=assignment.created_at,
         updated_at=assignment.updated_at,
     )
@@ -102,17 +103,6 @@ def list_user_assignments(user_id: UUID, db: Session = Depends(get_db), current_
         user_id=user_id,
         total_active_weight=service.active_weight_total(user_id),
         assignments=[serialize_assignment(item) for item in service.list_assignments(user_id)],
-    )
-
-
-@router.post('/category-assignments', response_model=UserAssignmentSummary)
-def create_category_assignment(payload: CategoryAssignmentPayload, db: Session = Depends(get_db), current_user=Depends(require_admin)):
-    service = TaskManagementService(db)
-    service.save_category_assignment(payload, current_user)
-    return UserAssignmentSummary(
-        user_id=payload.user_id,
-        total_active_weight=service.active_weight_total(payload.user_id),
-        assignments=[serialize_assignment(item) for item in service.list_assignments(payload.user_id)],
     )
 
 

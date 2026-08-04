@@ -23,3 +23,14 @@ export function savePmsEntry(payload) {
     body: JSON.stringify(payload),
   })
 }
+
+export function loadPmsDailyEntries(params) {
+  return apiRequest(`/pms/daily-entries/load${qs(params)}`)
+}
+
+export function uploadPmsDailyEntries(entries) {
+  return apiRequest('/pms/daily-entries/upload', {
+    method: 'POST',
+    body: JSON.stringify({ entries }),
+  })
+}

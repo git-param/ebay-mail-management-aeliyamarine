@@ -6,7 +6,15 @@ from sqlalchemy.orm import Session
 
 from app.api.dependencies import get_current_user
 from app.db.session import get_db
-from app.modules.pms.schemas import PMSDailyEntryCreate, PMSDailyEntryResponse, PMSDraftResponse, PMSListResponse
+from app.modules.pms.schemas import (
+    PMSDailyEntryCreate,
+    PMSDailyEntryResponse,
+    PMSDraftResponse,
+    PMSListResponse,
+    PMSLoadResponse,
+    PMSUploadRequest,
+    PMSUploadResponse,
+)
 from app.modules.pms.service import PMSService
 
 
@@ -17,26 +25,21 @@ router = APIRouter()
 def draft(entry_date: date = Query(...), user_id: UUID | None = None, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     service = PMSService(db)
     entry, limits = service.draft(current_user, entry_date, user_id)
-    existing_id = entry.id
-    data = {
-        'entry_date': entry.entry_date,
-        'day_type': entry.day_type.value,
-        'sold_posting_score': entry.sold_posting_score or 0,
-        'm2m_vip_followups_score': entry.m2m_vip_followups_score or 0,
-        'tracking_sheet_score': entry.tracking_sheet_score or 0,
-        'purchase_sheet_score': entry.purchase_sheet_score or 0,
-        'booking_score': entry.booking_score or 0,
-        'other_general_work_score': entry.other_general_work_score or 0,
-        'final_score_percent': entry.final_score_percent or 0,
-        'sla_score': entry.sla_score or 0,
-        'score_items': entry.score_items or [],
-        'error_level': entry.error_level.value,
-        'error_remark': entry.error_remark,
-        'feedback_status': entry.feedback_status.value,
-        'particulars_error_note': entry.particulars_error_note,
-        'sla_remarks': entry.sla_remarks,
-    }
-    return {'entry': data, 'limits': limits, 'existing_entry_id': existing_id}
+    return {'entry': service._to_base_schema(entry), 'limits': limits, 'existing_entry_id': entry.id if entry.id else None}
+
+
+@router.get('/daily-entries/load', response_model=PMSLoadResponse)
+def load_daily_entries(entry_date: date = Query(...), user_id: UUID | None = None, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    service = PMSService(db)
+    items = service.load(current_user, entry_date, user_id)
+    return {'entry_date': entry_date, 'limits': service.limits(), 'items': items}
+
+
+@router.post('/daily-entries/upload', response_model=PMSUploadResponse)
+def upload_daily_entries(payload: PMSUploadRequest, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    service = PMSService(db)
+    results = service.upload(current_user, payload.entries)
+    return {'results': results}
 
 
 @router.post('/entries', response_model=PMSDailyEntryResponse)
