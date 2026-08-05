@@ -14,9 +14,15 @@ export const saveTaskCategory = (payload, id = '') => apiRequest(`/task-manageme
   method: id ? 'PATCH' : 'POST',
   body: JSON.stringify(payload),
 })
+export const deleteTaskCategory = (id) => apiRequest(`/task-management/categories/${id}`, {
+  method: 'DELETE',
+})
 export const saveSubtask = (payload, id = '') => apiRequest(`/task-management/subtasks${id ? `/${id}` : ''}`, {
   method: id ? 'PATCH' : 'POST',
   body: JSON.stringify(payload),
+})
+export const deleteSubtask = (id) => apiRequest(`/task-management/subtasks/${id}`, {
+  method: 'DELETE',
 })
 export const fetchUserTaskAssignments = (userId) => apiRequest(`/task-management/assignments${qs({ user_id: userId })}`)
 export const saveUserTaskAssignment = (payload, id = '') => apiRequest(`/task-management/assignments${id ? `/${id}` : ''}`, {

@@ -20,7 +20,6 @@ def serialize_subtask(subtask: Subtask) -> SubtaskResponse:
         name=subtask.name,
         description=subtask.description,
         status=subtask.status.value,
-        display_order=subtask.display_order,
         source_type=subtask.source_type.value,
         source_reference_id=subtask.source_reference_id,
         source_configuration=subtask.source_configuration,
@@ -40,7 +39,6 @@ def serialize_category(category: TaskCategory) -> TaskCategoryResponse:
         description=category.description,
         status=category.status.value,
         quality_weight=float(category.quality_weight or 0),
-        display_order=category.display_order,
         subtasks=[serialize_subtask(subtask) for subtask in category.subtasks],
         created_at=category.created_at,
         updated_at=category.updated_at,
@@ -57,9 +55,6 @@ def serialize_assignment(assignment: UserSubtaskAssignment) -> AssignmentRespons
         effective_from=assignment.effective_from,
         effective_to=assignment.effective_to,
         auto_fetch_enabled=assignment.auto_fetch_enabled,
-        target_type=assignment.target_type.value,
-        target_value=assignment.target_value,
-        display_order=assignment.display_order,
         status=assignment.status.value,
         subtask_name=subtask.name if subtask else None,
         category_name=subtask.category.name if subtask and subtask.category else None,
@@ -86,6 +81,12 @@ def update_category(category_id: UUID, payload: TaskCategoryPayload, db: Session
     return serialize_category(TaskManagementService(db).save_category(payload, current_user, category_id))
 
 
+@router.delete('/categories/{category_id}')
+def delete_category(category_id: UUID, db: Session = Depends(get_db), current_user=Depends(require_admin)):
+    TaskManagementService(db).delete_category(category_id, current_user)
+    return {'message': 'Task category deleted.'}
+
+
 @router.post('/subtasks', response_model=SubtaskResponse)
 def create_subtask(payload: SubtaskPayload, db: Session = Depends(get_db), current_user=Depends(require_admin)):
     return serialize_subtask(TaskManagementService(db).save_subtask(payload, current_user))
@@ -94,6 +95,12 @@ def create_subtask(payload: SubtaskPayload, db: Session = Depends(get_db), curre
 @router.patch('/subtasks/{subtask_id}', response_model=SubtaskResponse)
 def update_subtask(subtask_id: UUID, payload: SubtaskPayload, db: Session = Depends(get_db), current_user=Depends(require_admin)):
     return serialize_subtask(TaskManagementService(db).save_subtask(payload, current_user, subtask_id))
+
+
+@router.delete('/subtasks/{subtask_id}')
+def delete_subtask(subtask_id: UUID, db: Session = Depends(get_db), current_user=Depends(require_admin)):
+    TaskManagementService(db).delete_subtask(subtask_id, current_user)
+    return {'message': 'Subtask deleted.'}
 
 
 @router.get('/assignments', response_model=UserAssignmentSummary)

@@ -9,7 +9,6 @@ class TaskCategoryPayload(BaseModel):
     description: str | None = None
     status: str = 'ACTIVE'
     quality_weight: float = Field(default=0, ge=0, le=100)
-    display_order: int = 0
 
 
 class SubtaskPayload(BaseModel):
@@ -17,7 +16,6 @@ class SubtaskPayload(BaseModel):
     name: str = Field(min_length=1, max_length=160)
     description: str | None = None
     status: str = 'ACTIVE'
-    display_order: int = 0
     source_type: str = 'MANUAL'
     source_reference_id: UUID | None = None
     source_configuration: dict | None = None
@@ -33,14 +31,18 @@ class AssignmentPayload(BaseModel):
     effective_from: date
     effective_to: date | None = None
     auto_fetch_enabled: bool = True
-    target_type: str = 'ANY_ACTIVITY'
-    target_value: int | None = Field(default=None, ge=0)
-    display_order: int = 0
     status: str = 'ACTIVE'
 
 
-class AssignmentResponse(AssignmentPayload):
+class AssignmentResponse(BaseModel):
     id: UUID
+    user_id: UUID
+    subtask_id: UUID
+    quality_weight: float
+    effective_from: date
+    effective_to: date | None = None
+    auto_fetch_enabled: bool = True
+    status: str = 'ACTIVE'
     subtask_name: str | None = None
     category_name: str | None = None
     task_category_id: UUID | None = None
@@ -64,7 +66,7 @@ class SubtaskResponse(SubtaskPayload):
 
 class TaskCategoryResponse(TaskCategoryPayload):
     id: UUID
-    subtasks: list[SubtaskResponse] = []
+    subtasks: list[SubtaskResponse] = Field(default_factory=list)
     created_at: datetime
     updated_at: datetime
 
@@ -91,6 +93,4 @@ class TaskAssignmentPayload(BaseModel):
     effective_from: date
     effective_to: date | None = None
     auto_fetch_enabled: bool = True
-    target_type: str = 'ANY_ACTIVITY'
-    target_value: int | None = Field(default=None, ge=0)
     status: str = 'ACTIVE'
