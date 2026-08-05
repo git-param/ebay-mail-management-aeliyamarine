@@ -54,7 +54,6 @@ class PMSDailyTaskEntry(Base):
     error_level: Mapped[PMSErrorLevel] = mapped_column(Enum(PMSErrorLevel, name='pms_error_level'), nullable=False, default=PMSErrorLevel.NO_ERROR)
     error_remark: Mapped[str | None] = mapped_column(Text, nullable=True)
     remarks: Mapped[str | None] = mapped_column(Text, nullable=True)
-    feedback_status: Mapped[PMSFeedbackStatus] = mapped_column(Enum(PMSFeedbackStatus, name='pms_feedback_status'), nullable=False, default=PMSFeedbackStatus.GIVEN)
     particulars_error_note: Mapped[str | None] = mapped_column(Text, nullable=True)
     sla_remarks: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False)

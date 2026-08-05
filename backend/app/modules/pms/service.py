@@ -105,7 +105,6 @@ class PMSService:
             'error_level': entry.error_level.value,
             'error_remark': entry.error_remark,
             'remarks': entry.remarks,
-            'feedback_status': entry.feedback_status.value,
             'particulars_error_note': entry.particulars_error_note,
             'sla_remarks': entry.sla_remarks,
         }
@@ -169,7 +168,6 @@ class PMSService:
 
         try:
             day_type = PMSDayType(payload.day_type)
-            feedback_status = PMSFeedbackStatus(payload.feedback_status)
             error_level = PMSErrorLevel(payload.error_level)
         except ValueError as exc:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='Invalid PMS dropdown value') from exc
@@ -183,7 +181,6 @@ class PMSService:
             'error_level': error_level,
             'error_remark': payload.error_remark,
             'remarks': payload.remarks,
-            'feedback_status': feedback_status,
             'particulars_error_note': payload.particulars_error_note,
             'sla_remarks': payload.sla_remarks,
         }
@@ -229,7 +226,6 @@ class PMSService:
             error_level=entry.error_level.value,
             error_remark=entry.error_remark,
             remarks=entry.remarks,
-            feedback_status=entry.feedback_status.value,
             particulars_error_note=entry.particulars_error_note,
             sla_remarks=entry.sla_remarks,
             created_by_user_id=entry.created_by_user_id,
@@ -262,7 +258,6 @@ class PMSService:
             score_items=items,
             final_score_percent=0,
             sla_score=0,
-            feedback_status=PMSFeedbackStatus.GIVEN,
             error_level=PMSErrorLevel.NO_ERROR,
             remarks=None,
             particulars_error_note='NA',
