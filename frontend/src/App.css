@@ -9087,14 +9087,6 @@ a .sold-thumb:hover {
   line-height: 1.5;
 }
 
-.task-toolbar-actions 
-{
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  justify-content: center;
-}
-
 .task-selector-field {
   margin-top: 0;
 }
@@ -9161,6 +9153,11 @@ a .sold-thumb:hover {
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 12px;
   align-items: end;
+}
+
+.task-management-page .management-form h3,
+.task-management-page .management-form .primary-button {
+  grid-column: 1 / -1;
 }
 
 .task-management-page .field,
@@ -9283,6 +9280,14 @@ a .sold-thumb:hover {
     grid-template-columns: 1fr;
   }
 
+  .task-toolbar-actions {
+    justify-content: stretch;
+  }
+
+  .task-toolbar-actions > * {
+    flex: 1 1 100%;
+  }
+}
 
 /* Final conversation detail layout lock: only messages scroll between banner and composer. */
 .inbox-detail-panel .conversation-detail {
@@ -9472,6 +9477,10 @@ a .sold-thumb:hover {
   gap: 12px;
   align-items: end;
   margin-bottom: 8px;
+}
+
+.pms-load-controls .primary-button {
+  min-height: 52px;
 }
 
 .pms-bulk-actions {
