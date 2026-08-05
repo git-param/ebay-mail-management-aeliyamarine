@@ -29,7 +29,6 @@ class PMSDailyEntryBase(BaseModel):
     error_level: str = 'NO_ERROR'
     error_remark: str | None = None
     remarks: str | None = None
-    feedback_status: str = 'GIVEN'
     particulars_error_note: str | None = None
     sla_remarks: str | None = None
 

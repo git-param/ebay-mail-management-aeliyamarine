@@ -7,7 +7,6 @@ import { normalizeRole } from '../utils/roles'
 
 const DAY_TYPES = [['WORKING_DAY', 'Working Day'], ['HOLIDAY', 'Holiday'], ['SUNDAY', 'Sunday'], ['LEAVE', 'Leave']]
 const ERROR_LEVELS = [['NO_ERROR', 'None'], ['MINOR', 'Minor'], ['MAJOR', 'Major']]
-const FEEDBACK = ['GIVEN', 'PENDING']
 const SLA_MAX = 20
 const today = () => new Date().toISOString().slice(0, 10)
 
@@ -46,7 +45,6 @@ function makeRow(loadedItem) {
     error_level: entry.error_level,
     error_remark: entry.error_remark || '',
     remarks: entry.remarks || '',
-    feedback_status: entry.feedback_status,
     particulars_error_note: entry.particulars_error_note || '',
     sla_remarks: entry.sla_remarks || '',
     final_score_percent: entry.final_score_percent || 0,
@@ -71,7 +69,6 @@ function DetailModal({ entry, onClose }) {
           <p><span>SLA Score</span><strong>{entry.sla_score}/{SLA_MAX}</strong></p>
           <p><span>Final Score</span><strong>{entry.final_score_percent}%</strong></p>
           <p><span>Error</span><strong>{ERROR_LEVELS.find(([value]) => value === entry.error_level)?.[1] || entry.error_level}</strong></p>
-          <p><span>Feedback</span><strong>{entry.feedback_status}</strong></p>
         </div>
         {entry.error_remark ? <section className="drawer-section"><h3>Error Remark</h3><p>{entry.error_remark}</p></section> : null}
         {entry.remarks ? <section className="drawer-section"><h3>Remarks</h3><p>{entry.remarks}</p></section> : null}
@@ -182,12 +179,20 @@ function AgentCard({ row, onChange }) {
       <div className="pms-form-row">
         <label className="field"><span>Day Type</span><select disabled={isLocked} value={row.day_type} onChange={(event) => patch({ day_type: event.target.value })}>{DAY_TYPES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
         <label className="field"><span>Error</span><select disabled={isLocked} value={row.error_level} onChange={(event) => updateErrorLevel(event.target.value)}>{ERROR_LEVELS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
-        <label className="field"><span>Feedback</span><select disabled={isLocked} value={row.feedback_status} onChange={(event) => patch({ feedback_status: event.target.value })}>{FEEDBACK.map((item) => <option key={item}>{item}</option>)}</select></label>
       </div>
-      {row.error_level !== 'NO_ERROR' ? <label className="field"><span>Error Remarks (required)</span><textarea disabled={isLocked} required value={row.error_remark} onChange={(event) => patch({ error_remark: event.target.value })} /></label> : null}
-      <label className="field"><span>Remarks</span><textarea disabled={isLocked} value={row.remarks} onChange={(event) => patch({ remarks: event.target.value })} placeholder="General feedback or notes for this agent and date" /></label>
-      <label className="field"><span>Particulars / Error Note</span><textarea disabled={isLocked} value={row.particulars_error_note} onChange={(event) => patch({ particulars_error_note: event.target.value })} /></label>
-      <label className="field"><span>SLA Remarks</span><textarea disabled={isLocked} value={row.sla_remarks} onChange={(event) => patch({ sla_remarks: event.target.value })} /></label>
+      {row.error_level !== 'NO_ERROR' ? <label className="field">
+        <span>Error Remarks (required)</span>
+        <textarea disabled={isLocked} required value={row.error_remark} onChange={(event) => patch({ error_remark: event.target.value })} />
+      </label> : null}
+      <label className="field">
+        <span>Remarks</span><textarea disabled={isLocked} value={row.remarks} onChange={(event) => patch({ remarks: event.target.value })} placeholder="General feedback or notes for this agent and date" />
+      </label>
+      <label className="field">
+        <span>Particulars / Error Note</span><textarea disabled={isLocked} value={row.particulars_error_note} onChange={(event) => patch({ particulars_error_note: event.target.value })} />
+      </label>
+      <label className="field">
+        <span>SLA Remarks</span><textarea disabled={isLocked} value={row.sla_remarks} onChange={(event) => patch({ sla_remarks: event.target.value })} />
+      </label>
     </section>
   )
 }
@@ -272,7 +277,6 @@ export default function DailyTaskEntry({ currentUser, onLogout }) {
         error_level: row.error_level,
         error_remark: row.error_remark || null,
         remarks: row.remarks || null,
-        feedback_status: row.feedback_status,
         particulars_error_note: row.particulars_error_note || null,
         sla_remarks: row.sla_remarks || null,
         final_score_percent: row.final_score_percent,
@@ -314,7 +318,6 @@ export default function DailyTaskEntry({ currentUser, onLogout }) {
               <p className="field-help">Only Agent-role users are loaded here. Operations Managers and Admins are not included.</p>
               <div className="pms-form-row pms-load-controls">
                 <label className="field"><span>Date</span><input type="date" value={entryDate} onChange={(event) => setEntryDate(event.target.value)} /></label>
-                <label className="field"><span>Agent (optional)</span><select value={agentFilter} onChange={(event) => setAgentFilter(event.target.value)}><option value="">All Agents</option>{users.map((user) => <option value={user.id} key={user.id}>{user.full_name || user.email}</option>)}</select></label>
                 <button className="primary-button compact-action" type="button" onClick={loadDailyEntries} disabled={loading}>{loading ? 'Loading...' : 'Load Daily Entries'}</button>
               </div>
 
@@ -339,12 +342,38 @@ export default function DailyTaskEntry({ currentUser, onLogout }) {
           <section className="table-card pms-history-card">
             <div className="pms-card-header"><h2>{isAdmin ? 'Team PMS History' : 'My History'}</h2></div>
             <form className="pms-history-filters" onSubmit={applyFilters}>
-              <label className="field"><span>From</span><input type="date" value={filters.date_from} onChange={(event) => setFilters((current) => ({ ...current, date_from: event.target.value }))} /></label>
+              <label className="field">
+                <span>From</span>
+                <input type="date" value={filters.date_from} onChange={(event) => setFilters((current) => ({ ...current, date_from: event.target.value }))} />
+              </label>
               <label className="field"><span>To</span><input type="date" value={filters.date_to} onChange={(event) => setFilters((current) => ({ ...current, date_to: event.target.value }))} /></label>
               {isAdmin ? <label className="field"><span>User</span><select value={filters.user_id} onChange={(event) => setFilters((current) => ({ ...current, user_id: event.target.value }))}><option value="">All</option>{users.map((user) => <option key={user.id} value={user.id}>{user.full_name || user.email}</option>)}</select></label> : null}
               <button className="secondary-button compact-action" type="submit">Apply</button>
             </form>
-            <div className="table-scroll"><table className="users-table"><thead><tr><th>Date</th>{isAdmin ? <th>User</th> : null}<th>Day</th><th>Final</th><th>SLA</th><th>Error</th></tr></thead><tbody>{history.items.map((item) => <tr key={item.id} onClick={() => setSelected(item)}><td>{item.entry_date}</td>{isAdmin ? <td>{item.user_name}</td> : null}<td>{DAY_TYPES.find(([value]) => value === item.day_type)?.[1] || item.day_type}</td><td>{item.final_score_percent}%</td><td>{item.sla_score}/{SLA_MAX}</td><td>{ERROR_LEVELS.find(([value]) => value === item.error_level)?.[1] || item.error_level}</td></tr>)}</tbody></table></div>
+            <div className="table-scroll">
+              <table className="users-table">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    {isAdmin ? <th>User</th> : null}
+                    <th>Day</th>
+                    <th>Final</th>
+                    <th>SLA</th>
+                    <th>Error</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {history.items.map((item) => <tr key={item.id} onClick={() => setSelected(item)}>
+                    <td>{item.entry_date}</td>
+                    {isAdmin ? <td>{item.user_name}</td> : null}
+                    <td>{DAY_TYPES.find(([value]) => value === item.day_type)?.[1] || item.day_type}</td>
+                    <td>{item.final_score_percent}%</td>
+                    <td>{item.sla_score}/{SLA_MAX}</td>
+                    <td>{ERROR_LEVELS.find(([value]) => value === item.error_level)?.[1] || item.error_level}</td>
+                  </tr>)}
+                </tbody>
+              </table>
+            </div>
           </section>
         </section>
       </main>

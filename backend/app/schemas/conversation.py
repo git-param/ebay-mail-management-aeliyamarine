@@ -24,7 +24,6 @@ class EbayAccountBriefResponse(BaseModel):
     id: UUID
     account_name: str
     ebay_username: str
-    store_name: str | None = None
 
 
 class ConversationSummaryResponse(BaseModel):

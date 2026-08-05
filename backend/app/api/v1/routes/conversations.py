@@ -715,7 +715,6 @@ def serialize_ebay_account_brief(account: EbayAccount) -> EbayAccountBriefRespon
         id=account.id,
         account_name=account.account_name,
         ebay_username=account.ebay_username,
-        store_name=account.store_name,
     )
 
 

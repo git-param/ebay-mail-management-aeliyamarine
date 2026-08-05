@@ -227,7 +227,7 @@ function normalizeCategory(category) {
 function normalizeAccount(account) {
   return {
     id: account.id,
-    label: account.ebay_username || account.store_name || account.account_name || account.id,
+    label: account.ebay_username || account.account_name || account.id,
   }
 }
 
@@ -287,8 +287,6 @@ function getLastMessagePreview(conversation) {
 function sellerAccountLabel(conversation) {
   const sellerAccount = conversation.seller_account
   return (
-    sellerAccount?.store_name ||
-    sellerAccount?.ebay_username ||
     sellerAccount?.account_name ||
     conversation.provider_account_id ||
     'Unknown account'
@@ -404,8 +402,7 @@ function ConversationRow({ conversation, isSelected, isBulkSelected, onSelect, o
         </span>
       </span>
       <span className="ticket-seller-account">
-        <strong>{sellerAccountLabel(conversation)}</strong>
-        <small>{conversation.seller_account?.account_name || 'Seller account'}</small>
+        <center><strong>{sellerAccountLabel(conversation)}</strong></center>
       </span>
       <span className="ticket-message">
         <span className="conversation-preview">
@@ -2030,7 +2027,7 @@ function Dashboard({ currentUser, onLogout }) {
           <div className="conversation-table-head" aria-hidden="true">
             <span></span>
             <span>Username</span>
-            <span>Seller Account</span>
+            <center><span>Ebay Account</span></center>
             <span>Message</span>
             <span>Category</span>
             <span>Total Chats</span>
