@@ -1,9 +1,10 @@
 import { useState } from 'react'
 
-import { Icon } from '../../layouts/app_layout'
-import { validateConversationReply } from '../../services/conversationApi'
+import { Icon } from '../../../layouts/app_layout'
+import { validateConversationReply } from '../../../services/conversationApi'
 import MessageTypeSelector from './MessageTypeSelector'
 
+import './replyComposer.css'
 /**
  * Reply editor rendered below an open conversation thread.
  * Owns drafts, attachments, policy validation, and the editable Message Type

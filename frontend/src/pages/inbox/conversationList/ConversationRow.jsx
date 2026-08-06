@@ -143,30 +143,6 @@ function ConversationRow({
 
           {getLastMessagePreview(conversation)}
         </span>
-
-        <span className="conversation-tags">
-          <ConversationBadge tone={directionTone}>
-            Last: {direction}
-          </ConversationBadge>
-
-          <ConversationBadge
-            tone="category"
-            color={categoryColor}
-          >
-            {conversation.category?.name ||
-              'No category'}
-          </ConversationBadge>
-
-          <ConversationBadge>
-            {conversationTypeLabel(
-              conversation.provider_conversation_type,
-            )}
-          </ConversationBadge>
-
-          <ConversationBadge tone={statusTone}>
-            {displayStatus}
-          </ConversationBadge>
-        </span>
       </span>
 
       <span className="ticket-category">

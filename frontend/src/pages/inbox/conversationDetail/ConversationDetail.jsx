@@ -1,4 +1,4 @@
-import ReplyComposer from '../../../components/conversations/ReplyComposer'
+import ReplyComposer from './ReplyComposer'
 
 import { ConversationBadge } from '../conversationList/ConversationRow'
 import { EmptyPanel } from '../conversationList/ConversationList'

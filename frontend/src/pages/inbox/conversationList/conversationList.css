@@ -192,7 +192,11 @@
 
 .inbox-page .conversation-table-head {
   display: grid;
-  grid-template-columns: 70px 150px 160px minmax(280px, 2fr) 150px 80px 130px 120px;
+  /* Must stay in sync with .conversation-row's grid-template-columns below —
+     the header and each row share the same 8 columns (checkbox, customer,
+     seller, message, category, messages, SLA, last update) and will drift
+     out of alignment (as happened here) if only one side is edited. */
+  grid-template-columns: 46px minmax(280px, 2fr) 130px minmax(280px, 2fr) 150px 80px 130px 120px;
   flex: 0 0 auto;
   align-items: center;
   gap: 16px;
@@ -205,7 +209,6 @@
   font-weight: 900;
   letter-spacing: 0.03em;
   text-transform: uppercase;
-  overflow-y: auto;
 }
 
 
