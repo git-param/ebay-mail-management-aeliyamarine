@@ -1,0 +1,140 @@
+/* ==========================================================================
+   Templates management page — styles used by templates.jsx
+   Component-specific rules only.
+   Shared/base styles (buttons, form fields, cards, tables, modals, badges,
+   pagination, drawers, etc.) live in App.css — see that file first if a
+   class used here isn't defined in this file.
+   ========================================================================== */
+
+.template-filter-panel {
+  grid-template-columns: minmax(260px, 1fr) 220px auto;
+}
+
+.templates-table th,
+.templates-table td {
+  vertical-align: top;
+}
+
+.template-name-cell {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.template-name-cell strong {
+  color: #061426;
+}
+
+.template-avatar {
+  display: inline-grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #0e54b3, #14b8a6);
+  color: #ffffff;
+  box-shadow: 0 14px 28px rgba(14, 84, 179, 0.18);
+}
+
+.template-avatar.small {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  box-shadow: none;
+}
+
+.template-avatar .ui-icon {
+  width: 18px;
+  height: 18px;
+}
+
+.template-preview-cell {
+  max-width: 520px;
+  color: #475569;
+  line-height: 1.45;
+  white-space: pre-line;
+}
+
+.templates-table .template-preview-cell {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+}
+
+.template-form {
+  grid-template-columns: 1fr;
+}
+
+.template-form textarea {
+  min-height: 190px;
+}
+
+.template-toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid #dbe7f6;
+  border-radius: 10px;
+  background: #f8fbff;
+  color: #061426;
+  cursor: pointer;
+}
+
+.template-toggle input {
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  accent-color: #0e54b3;
+}
+
+.template-toggle span {
+  display: grid;
+  gap: 4px;
+}
+
+.template-toggle small {
+  color: #64748b;
+  font-weight: 700;
+}
+
+.template-drawer-profile {
+  align-items: flex-start;
+}
+
+.template-preview-body {
+  padding: 14px;
+  border: 1px solid #dbe7f6;
+  border-radius: 10px;
+  background: #f8fbff;
+  color: #334155;
+  line-height: 1.55;
+  white-space: pre-line;
+}
+
+html[data-theme="dark"] .template-name-cell strong,
+html[data-theme="dark"] .template-toggle strong {
+  color: #f8fafc;
+}
+
+html[data-theme="dark"] .template-preview-cell,
+html[data-theme="dark"] .template-toggle small,
+html[data-theme="dark"] .template-preview-body {
+  color: #94a3b8;
+}
+
+/* ---- Responsive breakpoints ---- */
+
+@media (max-width: 820px) {
+
+  .template-filter-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .template-preview-cell {
+    max-width: 100%;
+  }
+
+}

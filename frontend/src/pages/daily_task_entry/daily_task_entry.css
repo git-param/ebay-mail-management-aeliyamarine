@@ -1,0 +1,363 @@
+/* ==========================================================================
+   Daily Task Entry (PMS) page — styles used by daily_task_entry.jsx
+   Component-specific rules only.
+   Shared/base styles (buttons, form fields, cards, tables, modals, badges,
+   pagination, drawers, etc.) live in App.css — see that file first if a
+   class used here isn't defined in this file.
+   ========================================================================== */
+
+.pms-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.pms-card-header h2 {
+  margin: 0;
+  color: #0f172a;
+  font-size: 16px;
+}
+
+.pms-form-row,
+.pms-history-filters {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.pms-history-filters {
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  align-items: end;
+  margin-bottom: 12px;
+}
+
+.pms-history-filters .secondary-button {
+  min-height: 44px;
+}
+
+.pms-task-box {
+  display: grid;
+  gap: 8px;
+  margin: 14px 0;
+  padding: 14px;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.pms-task-box h3 {
+  margin: 0 0 4px;
+  color: #0f172a;
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+.pms-task-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto 66px;
+  gap: 10px;
+  align-items: center;
+  color: #0f172a;
+  font-size: 14px;
+}
+
+.pms-task-row small {
+  color: #475569;
+}
+
+.pms-task-row input {
+  height: 34px;
+  border: 1px solid #dbe6f3;
+  border-radius: 7px;
+  background: #ffffff;
+  text-align: center;
+  font-weight: 800;
+}
+
+.pms-dynamic-row {
+  display: grid;
+  grid-template-columns: minmax(150px, 1fr) 138px auto 70px;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid #eaf0f7;
+}
+
+.pms-dynamic-row > div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.pms-dynamic-row strong {
+  overflow: hidden;
+  color: #0f172a;
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pms-dynamic-row small,
+.pms-dynamic-row span {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.pms-dynamic-row select,
+.pms-dynamic-row input {
+  min-width: 0;
+  height: 34px;
+  border: 1px solid #dbe6f3;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #0f172a;
+  font-size: 13px;
+}
+
+.pms-dynamic-row input {
+  text-align: center;
+  font-weight: 800;
+}
+
+.pms-task-row.final {
+  margin-top: 8px;
+  padding-top: 10px;
+  border-top: 1px solid #e2e8f0;
+  font-weight: 900;
+}
+
+.pms-task-row.final button {
+  height: 32px;
+  border: 0;
+  border-radius: 7px;
+  background: #e8f7ee;
+  color: #166534;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.pms-history-card tbody tr {
+  cursor: pointer;
+}
+
+.pms-history-card .table-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.pms-history-card .users-table {
+  min-width: 0;
+  table-layout: fixed;
+}
+
+.pms-history-card .users-table th,
+.pms-history-card .users-table td {
+  padding: 13px 16px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pms-history-card .users-table th:nth-child(1),
+.pms-history-card .users-table td:nth-child(1) {
+  width: 128px;
+}
+
+.pms-history-card .users-table th:nth-child(3),
+.pms-history-card .users-table td:nth-child(3),
+.pms-history-card .users-table th:nth-child(4),
+.pms-history-card .users-table td:nth-child(4),
+.pms-history-card .users-table th:nth-child(5),
+.pms-history-card .users-table td:nth-child(5) {
+  width: 96px;
+}
+
+.pms-detail-modal {
+  width: min(640px, calc(100vw - 40px));
+}
+
+.pms-score-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.pms-score-grid p {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.pms-score-grid span {
+  color: #64748b;
+}
+
+.pms-daily-entry-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+
+.pms-load-card,
+.pms-history-card {
+  width: 100%;
+  max-width: none;
+}
+
+.pms-load-controls {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)) auto;
+  gap: 12px;
+  align-items: end;
+  margin-bottom: 8px;
+}
+
+.pms-load-controls .primary-button {
+  min-height: 52px;
+}
+
+.pms-bulk-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin: 14px 0;
+  padding: 12px 14px;
+  border: 1px solid #e5edf7;
+  border-radius: 8px;
+  background: #f7fbff;
+}
+
+.pms-bulk-actions-spacer {
+  flex: 1 1 auto;
+}
+
+.pms-agent-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
+  gap: 16px;
+  margin-top: 12px;
+}
+
+.pms-agent-card {
+  padding: 16px;
+}
+
+.pms-agent-card.locked {
+  border-color: #bcd8c7;
+  background: #f9fdfa;
+}
+
+.pms-agent-card-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 6px;
+  flex-wrap: wrap;
+}
+
+.pms-agent-card-header .checkbox-field {
+  min-height: 0;
+  padding-top: 0;
+}
+
+.pms-agent-card-header div h3 {
+  margin: 0;
+  color: #0f172a;
+  font-size: 15px;
+}
+
+.pms-agent-card-header div small {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.upload-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 26px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.upload-status.success {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.upload-status.error {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.unlock-button {
+  margin-left: auto;
+  border: 1px solid #f2bd22;
+  border-radius: 7px;
+  background: #fff9e6;
+  color: #92650a;
+  font-size: 12px;
+  font-weight: 900;
+  padding: 6px 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.unlock-button:hover {
+  background: #fef1c7;
+}
+
+.locked-help {
+  margin: 0 0 10px;
+  padding: 8px 10px;
+  border-radius: 7px;
+  background: #eef7f0;
+  color: #166534;
+}
+
+.pms-agent-card input:disabled,
+.pms-agent-card select:disabled,
+.pms-agent-card textarea:disabled {
+  background: #f1f5f9;
+  color: #64748b;
+  cursor: not-allowed;
+}
+
+/* ---- Responsive breakpoints ---- */
+
+@media (max-width: 720px) {
+
+  .pms-form-row,
+  .pms-history-filters,
+  .pms-score-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .pms-dynamic-row {
+    grid-template-columns: 1fr;
+  }
+
+}
+
+@media (max-width: 900px) {
+
+  .pms-agent-cards {
+    grid-template-columns: 1fr;
+  }
+
+  .pms-load-controls {
+    grid-template-columns: 1fr;
+  }
+
+}

@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import AppLayout, { Icon } from '../layouts/app_layout'
-import { fetchSoldPostingDetail, fetchSoldPostingOptions, fetchSoldPostingOrders, markSoldPostingCopied, syncSoldPosting, updateSoldPostingLineItem } from '../services/soldPostingApi'
-import { normalizeRole } from '../utils/roles'
+import AppLayout, { Icon } from '../../layouts/app_layout'
+import { fetchSoldPostingDetail, fetchSoldPostingOptions, fetchSoldPostingOrders, markSoldPostingCopied, syncSoldPosting, updateSoldPostingLineItem } from '../../services/soldPostingApi'
+import { normalizeRole } from '../../utils/roles'
+
+import './sold_posting.css'
 
 const emptyFilters = { page: 1, page_size: 50, sort_by: 'date_sold', sort_direction: 'desc' }
 const periodOptions = [

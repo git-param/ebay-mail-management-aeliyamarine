@@ -1,8 +1,8 @@
 import { useState } from 'react'
 
-import { LOGIN_TEXT } from '../constants/loginConstants'
-import { loginUser } from '../services/authApi'
-import { storeSessionUser } from '../services/http'
+import { LOGIN_TEXT } from '../../constants/loginConstants'
+import { loginUser } from '../../services/authApi'
+import { storeSessionUser } from '../../services/http'
 
 function Login() {
   const [error, setError] = useState('')

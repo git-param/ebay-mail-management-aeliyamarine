@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 
 import { normalizeRole } from '../utils/roles'
 import { deleteAllNotifications, deleteNotification, fetchNotifications, markNotificationsRead } from '../services/notificationApi'
+import './app_layout.css'
 
 const NAV_ITEMS = [
   {

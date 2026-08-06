@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
 
-import AppLayout from '../layouts/app_layout'
-import { exportAnalyticsDashboard, fetchAnalyticsDashboard } from '../services/analyticsApi'
-import { fetchCategories } from '../services/categoryApi'
-import { fetchUsers } from '../services/userApi'
+import AppLayout from '../../layouts/app_layout'
+import { exportAnalyticsDashboard, fetchAnalyticsDashboard } from '../../services/analyticsApi'
+import { fetchCategories } from '../../services/categoryApi'
+import { fetchUsers } from '../../services/userApi'
 
+import './analytics.css'
 function numericValue(value) {
   const numberValue = Number(value)
   return Number.isFinite(numberValue) ? numberValue : 0

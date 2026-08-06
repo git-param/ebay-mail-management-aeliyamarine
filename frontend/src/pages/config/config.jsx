@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 
-import AppLayout from '../layouts/app_layout'
-import { deleteConversationData, fetchAccountSyncStates, fetchConfigSettings, updateAccountSyncState, updateConfigSettings } from '../services/configApi'
+import AppLayout from '../../layouts/app_layout'
+import { deleteConversationData, fetchAccountSyncStates, fetchConfigSettings, updateAccountSyncState, updateConfigSettings } from '../../services/configApi'
 
 const SECTION_LABELS = {
   offer: 'Offer Section',

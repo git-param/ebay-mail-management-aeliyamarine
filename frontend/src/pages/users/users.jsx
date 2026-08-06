@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 
-import AppLayout, { Icon } from '../layouts/app_layout'
-import { fetchCategories, updateUserCategoryAssignments } from '../services/categoryApi'
+import AppLayout, { Icon } from '../../layouts/app_layout'
+import { fetchCategories, updateUserCategoryAssignments } from '../../services/categoryApi'
 import {
   activateUser,
   createUser,
@@ -10,7 +10,9 @@ import {
   fetchUsers,
   resetUserPassword,
   updateUser,
-} from '../services/userApi'
+} from '../../services/userApi'
+
+import './users.css'
 
 const ROLES = ['Admin', 'Operations Manager', 'Agent']
 const STATUSES = ['Active', 'Inactive']

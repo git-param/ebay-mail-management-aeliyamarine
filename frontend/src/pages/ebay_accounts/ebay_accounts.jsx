@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 
-import AppLayout, { Icon } from '../layouts/app_layout'
+import AppLayout, { Icon } from '../../layouts/app_layout'
 import {
   activateEbayAccount,
   connectEbayAccount,
@@ -14,8 +14,10 @@ import {
   syncEbayAccount,
   submitManualEbayCallback,
   updateEbayAccount,
-} from '../services/ebayAccountApi'
-import { normalizeRole } from '../utils/roles'
+} from '../../services/ebayAccountApi'
+import { normalizeRole } from '../../utils/roles'
+
+import './ebay_accounts.css'
 
 const ENVIRONMENTS = ['SANDBOX', 'PRODUCTION']
 const CONNECTION_STATUSES = ['CONNECTED', 'PENDING', 'DISCONNECTED', 'EXPIRED', 'FAILED']

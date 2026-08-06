@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 
-import AppLayout from '../layouts/app_layout'
-import { exportAuditLogs, fetchAuditLogs } from '../services/auditApi'
+import AppLayout from '../../layouts/app_layout'
+import { exportAuditLogs, fetchAuditLogs } from '../../services/auditApi'
 
 const PAGE_SIZE = 50
 const CATEGORIES = ['', 'AUTHENTICATION', 'ASSIGNMENT', 'EBAY', 'CATEGORY_MANAGEMENT', 'USER_MANAGEMENT', 'SYNC', 'NOTIFICATION', 'MESSAGE_MANAGEMENT']

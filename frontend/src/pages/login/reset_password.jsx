@@ -1,9 +1,12 @@
 import { useMemo, useState } from 'react'
 
-import { RESET_PASSWORD_TEXT } from '../constants/loginConstants'
-import { resetPassword } from '../services/authApi'
+import { RESET_PASSWORD_TEXT } from '../../constants/loginConstants'
+import { resetPassword } from '../../services/authApi'
 
-function ResetPassword() {
+import './reset_password.css'
+
+function ResetPassword() 
+{
   const token = useMemo(() => new URLSearchParams(window.location.search).get('token') || '', [])
   const [error, setError] = useState(token ? '' : RESET_PASSWORD_TEXT.missingTokenError)
   const [message, setMessage] = useState('')

@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 
-import AppLayout, { Icon } from '../layouts/app_layout'
-import { createTemplate, deleteTemplate, fetchTemplates, updateTemplate } from '../services/templateApi'
+import AppLayout, { Icon } from '../../layouts/app_layout'
+import { createTemplate, deleteTemplate, fetchTemplates, updateTemplate } from '../../services/templateApi'
+
+import './templates.css'
 
 const EMPTY_FORM = {
   title: '',

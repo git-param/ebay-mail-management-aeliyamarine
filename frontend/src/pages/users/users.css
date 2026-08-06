@@ -1,0 +1,38 @@
+/* ==========================================================================
+   Users management page — styles used by users.jsx
+   Component-specific rules only.
+   Shared/base styles (buttons, form fields, cards, tables, modals, badges,
+   pagination, drawers, etc.) live in App.css — see that file first if a
+   class used here isn't defined in this file.
+   ========================================================================== */
+
+.menu-reset .ui-icon {
+  color: #7c3aed;
+}
+
+.category-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.category-list span {
+  padding: 8px 10px;
+  border-radius: 999px;
+  background: rgba(14, 84, 179, 0.08);
+  color: #0a3f87;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.activity-list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding-left: 18px;
+  color: #45556c;
+}
+
+.activity-list li::marker {
+  color: #d21c2d;
+}
