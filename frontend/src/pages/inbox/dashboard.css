@@ -90,7 +90,7 @@
 }
 
 .list-only .inbox-list-panel {
-  width: min(1280px, calc(100% - 36px));
+  width: min(1580px, calc(100% - 36px));
   height: calc(100svh - 132px);
   margin: 4px auto 22px;
 }

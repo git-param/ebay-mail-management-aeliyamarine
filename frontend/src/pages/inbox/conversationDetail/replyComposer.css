@@ -1,0 +1,553 @@
+/* =========================================================
+   Reply Composer
+   Used by:
+   - ReplyComposer.jsx
+   - MessageTypeSelector.jsx
+   ========================================================= */
+
+.reply-composer {
+  width: 100%;
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid #dce4f0;
+  border-radius: 14px;
+  background: #ffffff;
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.05);
+  box-sizing: border-box;
+}
+
+/* =========================================================
+   Top toolbar: template, message type and subtype
+   ========================================================= */
+
+.reply-composer .composer-toolbar {
+  width: 100%;
+  min-width: 0;
+  margin-bottom: 14px;
+}
+
+.reply-composer .composer-controls {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(180px, 1fr));
+  gap: 12px;
+  align-items: end;
+}
+
+.reply-composer .composer-select-control {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 6px;
+  margin: 0;
+}
+
+.reply-composer .composer-select-control > span {
+  display: block;
+  color: #334155;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.reply-composer .composer-select-control select {
+  width: 100%;
+  min-width: 0;
+  height: 40px;
+  padding: 0 36px 0 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  outline: none;
+  background-color: #ffffff;
+  color: #172033;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: normal;
+  cursor: pointer;
+  box-sizing: border-box;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    background-color 0.2s ease;
+}
+
+.reply-composer .composer-select-control select:hover {
+  border-color: #94a3b8;
+}
+
+.reply-composer .composer-select-control select:focus {
+  border-color: #7c5ce5;
+  box-shadow: 0 0 0 3px rgba(124, 92, 229, 0.13);
+}
+
+.reply-composer .composer-select-control select:disabled {
+  cursor: not-allowed;
+  background-color: #f1f5f9;
+  color: #94a3b8;
+}
+
+.reply-composer .template-picker {
+  width: 100%;
+}
+
+/* =========================================================
+   Reply editor
+   ========================================================= */
+
+.reply-composer .composer-editor {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-width: 0;
+  gap: 7px;
+  margin: 0;
+}
+
+.reply-composer .composer-editor > span {
+  color: #1e293b;
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.3;
+}
+
+.reply-composer .composer-editor textarea {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  min-height: 112px;
+  max-height: 280px;
+  padding: 13px 14px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  outline: none;
+  resize: vertical;
+  background-color: #ffffff;
+  color: #172033;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.55;
+  box-sizing: border-box;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.reply-composer .composer-editor textarea::placeholder {
+  color: #94a3b8;
+  opacity: 1;
+}
+
+.reply-composer .composer-editor textarea:hover {
+  border-color: #94a3b8;
+}
+
+.reply-composer .composer-editor textarea:focus {
+  border-color: #7c5ce5;
+  box-shadow: 0 0 0 3px rgba(124, 92, 229, 0.13);
+}
+
+/* =========================================================
+   Selected attachments
+   ========================================================= */
+
+.reply-composer .reply-attachment-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  margin-top: 12px;
+}
+
+.reply-composer .reply-attachment-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  max-width: 100%;
+  min-width: 180px;
+  gap: 12px;
+  padding: 8px 9px 8px 11px;
+  border: 1px solid #d8e0ec;
+  border-radius: 9px;
+  background-color: #f8fafc;
+  color: #334155;
+  box-sizing: border-box;
+}
+
+.reply-composer .reply-attachment-chip > span {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 2px;
+}
+
+.reply-composer .reply-attachment-chip strong {
+  display: block;
+  overflow: hidden;
+  color: #263247;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reply-composer .reply-attachment-chip small {
+  color: #64748b;
+  font-size: 10px;
+  font-weight: 400;
+}
+
+.reply-composer .reply-attachment-chip button {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 25px;
+  height: 25px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background-color: transparent;
+  color: #64748b;
+  font-family: inherit;
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    color 0.2s ease,
+    background-color 0.2s ease;
+}
+
+.reply-composer .reply-attachment-chip button:hover {
+  background-color: #fee2e2;
+  color: #dc2626;
+}
+
+.reply-composer .reply-attachment-chip button:focus-visible {
+  outline: 2px solid #7c5ce5;
+  outline-offset: 2px;
+}
+
+/* =========================================================
+   Policy warnings and draft messages
+   ========================================================= */
+
+.reply-composer .reply-policy-warning,
+.reply-composer .reply-draft-message {
+  width: 100%;
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  box-sizing: border-box;
+}
+
+.reply-composer .reply-policy-warning {
+  border: 1px solid #fecaca;
+  background-color: #fef2f2;
+  color: #b42318;
+}
+
+.reply-composer .reply-draft-message {
+  border: 1px solid #bbf7d0;
+  background-color: #f0fdf4;
+  color: #15803d;
+}
+
+.reply-composer .reply-policy-warning p,
+.reply-composer .reply-draft-message p {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.reply-composer .reply-policy-warning p + p {
+  margin-top: 4px;
+}
+
+/* =========================================================
+   Bottom action row
+   ========================================================= */
+
+.reply-composer .reply-composer-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+  gap: 10px;
+  margin-top: 14px;
+  padding-top: 13px;
+  border-top: 1px solid #e8edf5;
+  box-sizing: border-box;
+}
+
+/* Attachment button */
+
+.reply-composer .composer-attachment-action {
+  display: flex;
+  flex: 1 1 220px;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+.reply-composer .composer-attachment-action input[type='file'] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.reply-composer .composer-attachment-action > label {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  margin: 0;
+  border: 1px solid #d6deea;
+  border-radius: 8px;
+  background-color: #f8fafc;
+  color: #475569;
+  cursor: pointer;
+  box-sizing: border-box;
+  transition:
+    border-color 0.2s ease,
+    color 0.2s ease,
+    background-color 0.2s ease,
+    transform 0.2s ease;
+}
+
+.reply-composer .composer-attachment-action > label:hover {
+  border-color: #a78bfa;
+  background-color: #f5f3ff;
+  color: #6d4fd4;
+  transform: translateY(-1px);
+}
+
+.reply-composer .composer-attachment-action > label:active {
+  transform: translateY(0);
+}
+
+.reply-composer .composer-attachment-action > label:focus-visible {
+  outline: 2px solid #7c5ce5;
+  outline-offset: 2px;
+}
+
+.reply-composer .composer-attachment-action svg {
+  width: 17px;
+  height: 17px;
+}
+
+.reply-composer .composer-attachment-action small {
+  overflow: hidden;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Email checkbox */
+
+.reply-composer .email-copy-checkbox {
+  display: inline-flex;
+  flex: 0 1 auto;
+  align-items: center;
+  gap: 7px;
+  margin: 0 4px 0 0;
+  color: #475569;
+  cursor: pointer;
+  user-select: none;
+}
+
+.reply-composer .email-copy-checkbox input {
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  accent-color: #7c5ce5;
+  cursor: pointer;
+}
+
+.reply-composer .email-copy-checkbox input:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.reply-composer .email-copy-checkbox span {
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+/* =========================================================
+   Composer buttons
+   Scoped to avoid changing buttons on other pages
+   ========================================================= */
+
+.reply-composer .secondary-button,
+.reply-composer .primary-button {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  padding: 8px 15px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  box-sizing: border-box;
+  transition:
+    transform 0.2s ease,
+    border-color 0.2s ease,
+    background-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.reply-composer .secondary-button {
+  border-color: #d6deea;
+  background-color: #ffffff;
+  color: #334155;
+}
+
+.reply-composer .secondary-button:hover:not(:disabled) {
+  border-color: #aeb9c9;
+  background-color: #f8fafc;
+  transform: translateY(-1px);
+}
+
+.reply-composer .primary-button {
+  border-color: #7c5ce5;
+  background: linear-gradient(135deg, #7f6df2 0%, #9b5de5 100%);
+  color: #ffffff;
+  box-shadow: 0 5px 12px rgba(124, 92, 229, 0.2);
+}
+
+.reply-composer .primary-button:hover:not(:disabled) {
+  border-color: #6d4fd4;
+  background: linear-gradient(135deg, #725eea 0%, #8f4edc 100%);
+  box-shadow: 0 7px 16px rgba(124, 92, 229, 0.27);
+  transform: translateY(-1px);
+}
+
+.reply-composer .secondary-button:active:not(:disabled),
+.reply-composer .primary-button:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.reply-composer .secondary-button:focus-visible,
+.reply-composer .primary-button:focus-visible {
+  outline: 3px solid rgba(124, 92, 229, 0.2);
+  outline-offset: 2px;
+}
+
+.reply-composer .secondary-button:disabled,
+.reply-composer .primary-button:disabled {
+  cursor: not-allowed;
+  box-shadow: none;
+  opacity: 0.55;
+  transform: none;
+}
+
+.reply-composer .compact {
+  min-height: 36px;
+}
+
+/* =========================================================
+   Responsive layout
+   ========================================================= */
+
+@media (max-width: 1100px) {
+  .reply-composer .composer-controls {
+    grid-template-columns: repeat(2, minmax(180px, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .reply-composer {
+    padding: 13px;
+    border-radius: 10px;
+  }
+
+  .reply-composer .composer-controls {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+  }
+
+  .reply-composer .composer-editor textarea {
+    min-height: 130px;
+  }
+
+  .reply-composer .reply-composer-actions {
+    align-items: stretch;
+  }
+
+  .reply-composer .composer-attachment-action {
+    flex: 1 1 100%;
+  }
+
+  .reply-composer .email-copy-checkbox {
+    flex: 1 1 100%;
+    min-height: 30px;
+  }
+
+  .reply-composer .secondary-button,
+  .reply-composer .primary-button {
+    flex: 1 1 calc(50% - 5px);
+  }
+}
+
+@media (max-width: 480px) {
+  .reply-composer {
+    padding: 11px;
+  }
+
+  .reply-composer .composer-editor textarea {
+    padding: 11px 12px;
+    font-size: 13px;
+  }
+
+  .reply-composer .reply-attachment-chip {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .reply-composer .secondary-button,
+  .reply-composer .primary-button {
+    flex-basis: 100%;
+    width: 100%;
+  }
+
+  .reply-composer .email-copy-checkbox span {
+    white-space: normal;
+  }
+}
+
+/* =========================================================
+   Reduced motion accessibility
+   ========================================================= */
+
+@media (prefers-reduced-motion: reduce) {
+  .reply-composer *,
+  .reply-composer *::before,
+  .reply-composer *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
