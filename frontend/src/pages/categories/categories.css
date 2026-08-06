@@ -1,0 +1,93 @@
+/* ==========================================================================
+   Categories management page — styles used by categories.jsx
+   Component-specific rules only.
+   Shared/base styles (buttons, form fields, cards, tables, modals, badges,
+   pagination, drawers, etc.) live in App.css — see that file first if a
+   class used here isn't defined in this file.
+   ========================================================================== */
+
+.category-filter-panel {
+  grid-template-columns: minmax(260px, 1fr) 220px auto;
+}
+
+.categories-table {
+  min-width: 1100px;
+}
+
+.description-cell {
+  max-width: 360px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.category-name-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.category-color {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  border: 2px solid #ffffff;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px rgba(100, 116, 139, 0.28);
+}
+
+.category-color.large {
+  width: 82px;
+  height: 82px;
+  border-radius: 18px;
+}
+
+.keyword-input-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+}
+
+.keyword-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.keyword-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  padding: 0 8px 0 12px;
+  border-radius: 999px;
+  background: #eef2ff;
+  color: #3730a3;
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.keyword-tag.read-only {
+  padding-right: 12px;
+}
+
+.keyword-tag button {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(55, 48, 163, 0.1);
+  color: #3730a3;
+  cursor: pointer;
+}
+
+.keyword-tag button:hover {
+  background: rgba(55, 48, 163, 0.18);
+}
+
+.keyword-tag .ui-icon {
+  width: 13px;
+  height: 13px;
+}

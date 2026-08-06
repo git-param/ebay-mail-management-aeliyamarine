@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 
-import AppLayout from '../layouts/app_layout'
-import { createMessageType, deleteMessageType, fetchMessageTypes, setMessageTypeStatus, updateMessageType } from '../services/messageTypeApi'
+import AppLayout from '../../layouts/app_layout'
+import { createMessageType, deleteMessageType, fetchMessageTypes, setMessageTypeStatus, updateMessageType } from '../../services/messageTypeApi'
 
 const EMPTY_FORM = { name: '', parent_id: '', description: '', keywords: '' }
 

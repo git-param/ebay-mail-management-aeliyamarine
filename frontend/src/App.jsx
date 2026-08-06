@@ -1,23 +1,22 @@
 import { useState } from 'react'
 
-import Categories from './pages/categories'
-import Analytics from './pages/analytics'
-import AuditLogs from './pages/audit_logs'
-import Config from './pages/config'
+import Categories from './pages/categories/categories'
+import Analytics from './pages/analytics/analytics'
+import AuditLogs from './pages/audit_logs/audit_logs'
+import Config from './pages/config/config'
 import Dashboard from './pages/inbox/Dashboard'
-import EbayAccounts from './pages/ebay_accounts'
-import ForgotPassword from './pages/forgot_password'
-import Login from './pages/login'
-import LoginSuccess from './pages/login_success'
-import ResetPassword from './pages/reset_password'
+import EbayAccounts from './pages/ebay_accounts/ebay_accounts'
+import ForgotPassword from './pages/login/forgot_password'
+import Login from './pages/login/login'
+import ResetPassword from './pages/login/reset_password'
 import SearchAcrossPlatformsPage from './pages/SearchAcrossPlatforms/SearchAcrossPlatformsPage'
-import Templates from './pages/templates'
-import Users from './pages/users'
-import MessageTypes from './pages/message_types'
-import MessageReports from './pages/message_reports'
+import Templates from './pages/templates/templates'
+import Users from './pages/users/users'
+import MessageTypes from './pages/message_reports/message_types'
+import MessageReports from './pages/message_reports/message_reports'
 import OfferManagement from './pages/offer_management/offer_management'
-import SoldPosting from './pages/sold_posting'
-import DailyTaskEntry from './pages/daily_task_entry'
+import SoldPosting from './pages/sold_posting/sold_posting'
+import DailyTaskEntry from './pages/daily_task_entry/daily_task_entry'
 import TaskManagement from './pages/task_management/task_management'
 import { logoutUser } from './services/authApi'
 import { clearStoredSession } from './services/http'
@@ -40,10 +39,6 @@ const PUBLIC_ROUTES = [
   {
     path: '/reset-password',
     component: ResetPassword,
-  },
-  {
-    path: '/login-success',
-    component: LoginSuccess,
   },
 ]
 

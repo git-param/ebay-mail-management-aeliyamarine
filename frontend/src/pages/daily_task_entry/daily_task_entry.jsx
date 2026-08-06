@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 
-import AppLayout from '../layouts/app_layout'
-import { fetchPmsEntries, loadPmsDailyEntries, uploadPmsDailyEntries } from '../services/pmsApi'
-import { fetchUsers } from '../services/userApi'
-import { normalizeRole } from '../utils/roles'
+import AppLayout from '../../layouts/app_layout'
+import { fetchPmsEntries, loadPmsDailyEntries, uploadPmsDailyEntries } from '../../services/pmsApi'
+import { fetchUsers } from '../../services/userApi'
+import { normalizeRole } from '../../utils/roles'
+
+import './daily_task_entry.css'
 
 const DAY_TYPES = [['WORKING_DAY', 'Working Day'], ['HOLIDAY', 'Holiday'], ['SUNDAY', 'Sunday'], ['LEAVE', 'Leave']]
 const ERROR_LEVELS = [['NO_ERROR', 'None'], ['MINOR', 'Minor'], ['MAJOR', 'Major']]

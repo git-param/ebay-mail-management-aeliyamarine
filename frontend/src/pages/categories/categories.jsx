@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 
-import AppLayout, { Icon } from '../layouts/app_layout'
+import AppLayout, { Icon } from '../../layouts/app_layout'
 import {
   activateCategory,
   createCategory,
@@ -9,8 +9,10 @@ import {
   fetchCategories,
   fetchCategory,
   updateCategory,
-} from '../services/categoryApi'
-import { normalizeRole } from '../utils/roles'
+} from '../../services/categoryApi'
+import { normalizeRole } from '../../utils/roles'
+
+import './categories.css'
 
 const EMPTY_FORM = {
   name: '',

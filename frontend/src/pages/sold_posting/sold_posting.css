@@ -1,0 +1,624 @@
+/* ==========================================================================
+   Sold Posting management page — styles used by sold_posting.jsx
+   Component-specific rules only.
+   Shared/base styles (buttons, form fields, cards, tables, modals, badges,
+   pagination, drawers, etc.) live in App.css — see that file first if a
+   class used here isn't defined in this file.
+   ========================================================================== */
+
+.inbox-signal-card.selected {
+  border-color: rgba(20, 184, 166, 0.32);
+  background: linear-gradient(180deg, #f0fdfa, #ffffff);
+}
+
+.pagination-button {
+  padding: 0 13px;
+}
+
+html[data-theme="dark"] :is(
+  input, select, textarea, .global-search input, .template-picker,
+  .pagination-button, .pagination-page, .composer-select-control,
+  .composer-attachment-action label, .attachment-dropzone, .reply-attachment-chip
+) {
+  border-color: var(--ui-border);
+  background: var(--ui-surface-soft);
+  color: var(--ui-text);
+}
+
+.sold-posting-page {
+  background:
+  linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(244, 247, 251, 0.92)),
+  #f4f7fb;
+  max-width: none;
+  padding: 18px;
+  width: 100%;
+}
+
+.sold-posting-page .page-header {
+  align-items: center;
+  margin-bottom: 10px;
+  padding: 12px 16px;
+  border: 1px solid #dbe6f3;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 18px 44px rgba(15, 23, 42, 0.08);
+}
+
+.sold-posting-page .page-header h1 {
+  color: #0f172a;
+  font-size: 24px;
+}
+
+.sold-posting-page .page-header p {
+  color: #52637a;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.sold-posting-page .stats-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.sold-posting-page .stat-card {
+  border: 1px solid #dbe6f3;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #ffffff, #f8fbff);
+  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.06);
+  min-height: 72px;
+  padding: 12px;
+}
+
+.sold-posting-page .stat-card p {
+  color: #64748b;
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+.sold-posting-page .stat-card strong {
+  color: #0f172a;
+}
+
+.sold-filter-bar {
+  align-items: center;
+  border: 1px solid #dbe6f3;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #ffffff, #f9fbff);
+  box-shadow: 0 16px 42px rgba(15, 23, 42, 0.07);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 10px;
+  overflow: visible;
+  padding: 12px;
+}
+
+.compact-sold-filter-bar {
+  min-height: 58px;
+}
+
+.sold-filter-dropdown {
+  position: relative;
+  z-index: 5;
+}
+
+.sold-filter-trigger {
+  align-items: center;
+  background: #ffffff;
+  border: 1px solid #bcc9d8;
+  border-radius: 8px;
+  color: #111827;
+  display: inline-flex;
+  font-size: 14px;
+  gap: 10px;
+  height: 44px;
+  justify-content: space-between;
+  min-width: 208px;
+  padding: 0 13px;
+}
+
+.sold-filter-trigger:hover,
+.sold-search-box:hover,
+.sold-date-filter:hover {
+  border-color: #8fa1b8;
+}
+
+.sold-filter-trigger:focus-visible,
+.sold-search-box:focus-within,
+.sold-date-filter:focus-within {
+  border-color: #6657e8;
+  box-shadow: 0 0 0 3px rgba(102, 87, 232, 0.14);
+  outline: 0;
+}
+
+.sold-filter-trigger span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sold-filter-menu {
+  background: #ffffff;
+  border: 1px solid #d8e1ec;
+  border-radius: 10px;
+  box-shadow: 0 18px 42px rgba(15, 23, 42, 0.18);
+  left: 0;
+  max-height: 310px;
+  min-width: 100%;
+  overflow-y: auto;
+  padding: 6px;
+  position: absolute;
+  top: calc(100% + 6px);
+  width: max-content;
+  z-index: 20;
+}
+
+.sold-filter-menu button {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  color: #111827;
+  display: flex;
+  font-size: 14px;
+  gap: 18px;
+  justify-content: space-between;
+  min-width: 190px;
+  padding: 10px 12px;
+  text-align: left;
+  width: 100%;
+}
+
+.sold-filter-menu button:hover,
+.sold-filter-menu button.selected {
+  background: #f3f7fb;
+}
+
+.sold-search-box {
+  align-items: center;
+  border: 1px solid #bcc9d8;
+  border-radius: 8px;
+  background: #ffffff;
+  display: inline-flex;
+  height: 44px;
+  overflow: hidden;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.sold-search-box input {
+  border: 0;
+  font-size: 14px;
+  height: 100%;
+  min-width: 260px;
+  outline: 0;
+  padding: 0 12px;
+}
+
+.sold-search-box button {
+  align-items: center;
+  background: #ffffff;
+  border: 0;
+  border-left: 1px solid #aebdcc;
+  color: #0f172a;
+  display: inline-flex;
+  height: 100%;
+  justify-content: center;
+  width: 44px;
+}
+
+.sold-custom-period {
+  align-items: center;
+  display: inline-flex;
+  gap: 8px;
+  min-height: 44px;
+  padding: 3px;
+  border: 1px solid #d9e2ee;
+  border-radius: 10px;
+  background: #eef4fb;
+}
+
+.sold-date-filter {
+  align-items: center;
+  display: inline-flex;
+  gap: 8px;
+  height: 38px;
+  padding: 0 8px 0 10px;
+  border: 1px solid #c4d0df;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #334155;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.sold-date-filter span {
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.sold-date-filter input {
+  width: 124px;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #0f172a;
+  font-size: 13px;
+  font-weight: 800;
+  outline: 0;
+}
+
+.sold-custom-apply {
+  height: 38px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 8px;
+  background: #6657e8;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 900;
+  cursor: pointer;
+  box-shadow: 0 8px 18px rgba(102, 87, 232, 0.22);
+}
+
+.sold-custom-apply:hover {
+  background: #5848d8;
+  transform: translateY(-1px);
+}
+
+.sold-reset-link {
+  background: transparent;
+  border: 0;
+  color: #0f172a;
+  font-size: 14px;
+  font-weight: 800;
+  text-decoration: underline;
+}
+
+.sold-thumb {
+  align-items: center;
+  background: #f8fafc;
+  border: 1px solid #dbe6f3;
+  border-radius: 10px;
+  display: inline-flex;
+  height: 40px;
+  justify-content: center;
+  object-fit: cover;
+  transition: transform 160ms ease, box-shadow 160ms ease;
+  width: 40px;
+}
+
+a .sold-thumb:hover {
+  box-shadow: 0 10px 20px rgba(15, 23, 42, 0.16);
+  transform: translateY(-1px);
+}
+
+.sold-title {
+  max-width: 420px;
+  white-space: normal;
+}
+
+.sold-title span {
+  display: -webkit-box;
+  line-clamp: 2;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  color: #123a63;
+  font-size: 13px;
+  font-weight: 750;
+  line-height: 1.35;
+  max-height: 36px;
+  overflow: hidden;
+  text-decoration: none;
+}
+
+.sold-posting-page .table-card {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  border: 1px solid #dbe6f3;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 18px 48px rgba(15, 23, 42, 0.08);
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.sold-posting-page .table-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: auto;
+}
+
+.sold-table-scroll {
+  max-height: calc(100svh - 300px);
+  min-height: 320px;
+  scrollbar-gutter: stable;
+}
+
+.sold-table-scroll::-webkit-scrollbar {
+  height: 14px;
+  width: 12px;
+}
+
+.sold-table-scroll::-webkit-scrollbar-track {
+  background: #e6edf7;
+  border-radius: 999px;
+}
+
+.sold-table-scroll::-webkit-scrollbar-thumb {
+  background: #3b82c4;
+  border: 3px solid #e6edf7;
+  border-radius: 999px;
+}
+
+.sold-table {
+  table-layout: fixed;
+  min-width: 1760px;
+}
+
+.sold-table thead th {
+  background: #f8fbff;
+  border-bottom: 1px solid #dbe6f3;
+  color: #5b6f8a;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+.sold-table tbody tr {
+  background: #ffffff;
+  cursor: pointer;
+}
+
+.sold-table tbody tr:nth-child(even) {
+  background: #fbfdff;
+}
+
+.sold-table tbody tr:hover {
+  background: #f0f7ff;
+}
+
+.sold-table th,
+.sold-table td {
+  border-bottom: 1px solid #edf2f8;
+  color: #17324d;
+  overflow: hidden;
+  font-size: 13px;
+  padding-block: 8px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sold-copy-cell {
+  overflow: visible;
+}
+
+.sold-copy-actions {
+  align-items: center;
+  display: inline-flex;
+  gap: 6px;
+  overflow: visible;
+}
+
+.copy-state-dot {
+  border-radius: 999px;
+  display: inline-flex;
+  flex: 0 0 auto;
+  height: 9px;
+  width: 9px;
+}
+
+.copy-state-dot.fresh {
+  background: #16a34a;
+  box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.14);
+}
+
+.copy-state-dot.copied {
+  background: #dc2626;
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.14);
+}
+
+.sold-copy-button {
+  background: #ffffff;
+  border: 1px solid #c9d8ea;
+  color: #174066;
+  height: 30px;
+  width: 30px;
+}
+
+.sold-copy-button:hover {
+  background: #eef7ff;
+  border-color: #75a8d8;
+}
+
+.sold-copied-label {
+  background: #fff1f2;
+  border: 1px solid #fecdd3;
+  border-radius: 999px;
+  color: #be123c;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 3px 7px;
+}
+
+.sold-table th:nth-child(1),
+.sold-table td:nth-child(1) {
+  overflow: visible;
+  width: 92px;
+}
+
+.sold-table th:nth-child(2),
+.sold-table td:nth-child(2) {
+  width: 64px;
+}
+
+.sold-table th:nth-child(3),
+.sold-table td:nth-child(3) {
+  width: 96px;
+}
+
+.sold-table th:nth-child(4),
+.sold-table td:nth-child(4) {
+  width: 128px;
+}
+
+.sold-table th:nth-child(5),
+.sold-table td:nth-child(5) {
+  width: 132px;
+}
+
+.sold-table th:nth-child(6),
+.sold-table td:nth-child(6) {
+  width: 112px;
+}
+
+.sold-table th:nth-child(7),
+.sold-table td:nth-child(7) {
+  width: 420px;
+}
+
+.sold-table td:nth-child(7) {
+  white-space: normal;
+}
+
+.sold-table th:nth-child(8),
+.sold-table td:nth-child(8) {
+  width: 132px;
+}
+
+.sold-table th:nth-child(9),
+.sold-table td:nth-child(9) {
+  width: 120px;
+}
+
+.sold-table th:nth-child(10),
+.sold-table td:nth-child(10) {
+  width: 88px;
+}
+
+.sold-table th:nth-child(11),
+.sold-table td:nth-child(11),
+.sold-table th:nth-child(12),
+.sold-table td:nth-child(12),
+.sold-table th:nth-child(13),
+.sold-table td:nth-child(13) {
+  width: 112px;
+}
+
+.sold-table th:nth-child(14),
+.sold-table td:nth-child(14),
+.sold-table th:nth-child(15),
+.sold-table td:nth-child(15) {
+  width: 156px;
+}
+
+.sold-table th:nth-child(16),
+.sold-table td:nth-child(16) {
+  width: 136px;
+}
+
+.sold-table th:nth-child(17),
+.sold-table td:nth-child(17) {
+  width: 80px;
+}
+
+.sold-edit-modal {
+  width: min(980px, calc(100vw - 48px));
+  max-height: calc(100vh - 48px);
+  overflow: hidden;
+  padding: 0;
+}
+
+.sold-edit-modal .modal-header {
+  margin: 0;
+  padding: 20px 24px 14px;
+  border-bottom: 1px solid #eef2fb;
+}
+
+.sold-edit-form {
+  display: grid;
+  gap: 18px;
+  max-height: calc(100vh - 132px);
+  overflow-y: auto;
+  padding: 20px 24px 0;
+}
+
+.sold-edit-form .modal-actions {
+  position: sticky;
+  bottom: 0;
+  margin: 0 -24px;
+  padding: 16px 24px;
+  border-top: 1px solid #eef2fb;
+  background: #ffffff;
+}
+
+.copy-chip {
+  background: transparent;
+  border: 0;
+  color: #124f86;
+  cursor: copy;
+  font: inherit;
+  font-weight: 750;
+  padding: 0;
+  text-align: left;
+}
+
+.sold-posting-page .status-badge {
+  border-radius: 6px;
+  font-size: 11px;
+  min-height: 24px;
+  padding: 0 9px;
+}
+
+.sold-posting-page .pagination-bar {
+  background: #ffffff;
+  border-top: 1px solid #edf2f8;
+}
+
+.sold-detail-drawer {
+  max-width: 560px;
+}
+
+/* ---- Responsive breakpoints ---- */
+
+@media (max-width: 1180px) {
+
+  .sold-filter-trigger {
+    min-width: 190px;
+  }
+
+  .sold-custom-period {
+    flex-wrap: wrap;
+  }
+
+}
+
+@media (max-width: 720px) {
+
+  .sold-filter-dropdown,
+  .sold-filter-trigger,
+  .sold-search-box,
+  .sold-search-box input,
+  .sold-custom-period {
+    width: 100%;
+  }
+
+  .sold-custom-period {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .sold-date-filter {
+    width: 100%;
+  }
+
+  .sold-date-filter input {
+    width: 100%;
+  }
+
+}

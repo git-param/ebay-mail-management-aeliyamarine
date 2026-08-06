@@ -1,7 +1,7 @@
 import { useState } from 'react'
 
-import { FORGOT_PASSWORD_TEXT } from '../constants/loginConstants'
-import { requestPasswordReset } from '../services/authApi'
+import { FORGOT_PASSWORD_TEXT } from '../../constants/loginConstants'
+import { requestPasswordReset } from '../../services/authApi'
 
 function ForgotPassword() {
   const [error, setError] = useState('')

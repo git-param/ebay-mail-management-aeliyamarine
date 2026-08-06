@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react'
 
-import AppLayout, { Icon } from '../layouts/app_layout'
-import { exportMessageReport, fetchMessageReport, fetchMessageTypeTree } from '../services/messageTypeApi'
-import { fetchUsers } from '../services/userApi'
-import { fetchEbayAccounts } from '../services/ebayAccountApi'
-import { normalizeRole } from '../utils/roles'
+import AppLayout, { Icon } from '../../layouts/app_layout'
+import { exportMessageReport, fetchMessageReport, fetchMessageTypeTree } from '../../services/messageTypeApi'
+import { fetchUsers } from '../../services/userApi'
+import { fetchEbayAccounts } from '../../services/ebayAccountApi'
+import { normalizeRole } from '../../utils/roles'
 
 export default function MessageReports({ currentUser, onLogout }) {
   const isAgent = normalizeRole(currentUser?.role) === 'AGENT'
