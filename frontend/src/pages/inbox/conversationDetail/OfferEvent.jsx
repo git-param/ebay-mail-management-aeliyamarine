@@ -8,6 +8,7 @@ import {
 function OfferEvent({
   offer,
   conversation,
+  showSellerMessage = true,
 }) {
   const direction = String(
     offer?.direction || '',
@@ -15,8 +16,8 @@ function OfferEvent({
 
   const offerType = String(
     offer?.offer_type ||
-    offer?.type ||
-    '',
+      offer?.type ||
+      '',
   ).toUpperCase()
 
   const status = String(
@@ -26,6 +27,12 @@ function OfferEvent({
   const isAccepted =
     status === 'ACCEPTED' ||
     offerType.includes('ACCEPTED')
+
+  const isExpired =
+    status === 'EXPIRED'
+
+  const isDeclined =
+    status === 'DECLINED'
 
   const isOutgoing =
     !isAccepted &&
@@ -42,13 +49,8 @@ function OfferEvent({
     ].includes(direction)
 
   const isNeutral =
-    !isOutgoing && !isIncoming
-
-  const isExpired =
-    status === 'EXPIRED'
-
-  const isDeclined =
-    status === 'DECLINED'
+    !isOutgoing &&
+    !isIncoming
 
   const buyerName =
     offer?.buyer_username ||
@@ -83,13 +85,28 @@ function OfferEvent({
           offer?.currency || 'USD',
         )
 
-  const sellerOfferMessage = isOutgoing
-    ? String(
-        offer?.raw_text ||
-        offer?.rawText ||
-        '',
-      ).trim()
-    : ''
+  /*
+   * Seller text belongs only to the actual active
+   * outgoing offer/counteroffer.
+   *
+   * Expired, declined and accepted status records
+   * must not repeat that seller message.
+   */
+  const shouldShowSellerMessage =
+    showSellerMessage &&
+    isOutgoing &&
+    !isExpired &&
+    !isDeclined &&
+    !isAccepted
+
+  const sellerOfferMessage =
+    shouldShowSellerMessage
+      ? String(
+          offer?.raw_text ||
+            offer?.rawText ||
+            '',
+        ).trim()
+      : ''
 
   const avatarLabel = String(
     buyerName || 'B',
@@ -99,12 +116,15 @@ function OfferEvent({
 
   const rowClassName = [
     'offer-chat-row',
+
     isOutgoing
       ? 'offer-chat-row-outgoing'
       : '',
+
     isIncoming
       ? 'offer-chat-row-incoming'
       : '',
+
     isNeutral
       ? 'offer-chat-row-neutral'
       : '',
@@ -114,15 +134,19 @@ function OfferEvent({
 
   const cardClassName = [
     'offer-chat-card',
+
     isOutgoing
       ? 'offer-chat-card-outgoing'
       : 'offer-chat-card-incoming',
+
     isAccepted
       ? 'offer-chat-card-accepted'
       : '',
+
     isExpired
       ? 'offer-chat-card-expired'
       : '',
+
     isDeclined
       ? 'offer-chat-card-declined'
       : '',
@@ -143,11 +167,15 @@ function OfferEvent({
       <div className={rowClassName}>
         {isIncoming ? (
           <div
-            className={`offer-avatar ${
+            className={[
+              'offer-avatar',
+
               isAccepted
                 ? 'offer-avatar-accepted'
-                : ''
-            }`}
+                : '',
+            ]
+              .filter(Boolean)
+              .join(' ')}
             aria-hidden="true"
           >
             {isAccepted ? (

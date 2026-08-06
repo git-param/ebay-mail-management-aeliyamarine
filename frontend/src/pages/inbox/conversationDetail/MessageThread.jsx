@@ -6,7 +6,9 @@ import {
   useState,
 } from 'react'
 
-import { translateMessage } from '../../../services/conversationApi'
+import {
+  translateMessage,
+} from '../../../services/conversationApi'
 import { EmptyPanel } from '../conversationList/ConversationList'
 import {
   SHOW_MESSAGE_ATTACHMENTS,
@@ -23,7 +25,8 @@ function resizeEbayMessageFrame(event) {
   const frame = event.currentTarget
   const documentElement =
     frame.contentDocument?.documentElement
-  const body = frame.contentDocument?.body
+  const body =
+    frame.contentDocument?.body
 
   if (!documentElement || !body) {
     return
@@ -72,11 +75,14 @@ function AttachmentList({
 
           return (
             <div
-              className={`attachment-card ${
+              className={[
+                'attachment-card',
                 imageAttachment
                   ? 'attachment-card-image'
-                  : ''
-              }`}
+                  : '',
+              ]
+                .filter(Boolean)
+                .join(' ')}
               key={attachmentKey}
             >
               {imageAttachment ? (
@@ -150,7 +156,9 @@ function MessageTranslation({
         className="translation-button"
         type="button"
         disabled={isTranslating}
-        onClick={() => onTranslate(message)}
+        onClick={() =>
+          onTranslate(message)
+        }
       >
         {isTranslating
           ? 'Translating…'
@@ -173,37 +181,342 @@ function MessageTranslation({
   )
 }
 
-function buildStructuredOffer(
+function getMessageTimestamp(message) {
+  return (
+    message?.sent_at ||
+    message?.created_date ||
+    message?.created_at ||
+    message?.updated_at ||
+    null
+  )
+}
+
+function getOfferTimestampValue(offer) {
+  return (
+    offer?.event_timestamp ||
+    offer?.event_time ||
+    offer?.occurred_at ||
+    offer?.offer_date ||
+    offer?.sent_at ||
+    offerTimestamp(offer) ||
+    offer?.created_at ||
+    offer?.created_date ||
+    offer?.updated_at ||
+    null
+  )
+}
+
+function getOfferMessageId(offer) {
+  return (
+    offer?.message_id ||
+    offer?.messageId ||
+    offer?.source_message_id ||
+    null
+  )
+}
+
+function getOfferUniqueKey(
+  offer,
+  sourceMessage = null,
+) {
+  const providerId =
+    offer?.provider_offer_id ||
+    offer?.offer_id ||
+    offer?.id
+
+  if (providerId) {
+    return `provider:${providerId}`
+  }
+
+  return [
+    'offer',
+    getOfferMessageId(offer) ||
+      sourceMessage?.id ||
+      'unlinked',
+    offer?.offer_type ||
+      offer?.type ||
+      '',
+    offer?.direction || '',
+    offer?.status || '',
+    offer?.offer_amount ??
+      offer?.amount ??
+      '',
+    getOfferTimestampValue(offer) ||
+      getMessageTimestamp(
+        sourceMessage,
+      ) ||
+      '',
+  ].join(':')
+}
+
+function normalizeOffer(
   offer,
   sourceMessage,
   conversation,
 ) {
   const timestamp =
-    offerTimestamp(offer) ||
-    sourceMessage?.sent_at ||
-    sourceMessage?.created_at ||
-    sourceMessage?.created_date
+    getOfferTimestampValue(offer) ||
+    getMessageTimestamp(
+      sourceMessage,
+    )
 
   return {
     ...offer,
 
+    id:
+      offer?.id ||
+      `offer-${getOfferUniqueKey(
+        offer,
+        sourceMessage,
+      )}`,
+
     message_id:
-      offer.message_id ||
-      offer.messageId ||
-      offer.source_message_id ||
-      sourceMessage?.id,
+      getOfferMessageId(offer) ||
+      sourceMessage?.id ||
+      null,
 
     created_at: timestamp,
 
     created_date:
-      offer.created_date ||
+      offer?.created_date ||
       timestamp,
 
     buyer_username:
-      offer.buyer_username ||
+      offer?.buyer_username ||
       conversation?.buyer_identifier ||
-      sourceMessage?.sender_identifier,
+      sourceMessage?.sender_identifier ||
+      'Buyer',
   }
+}
+
+function collectStructuredOffers(
+  messages,
+  offers,
+  conversation,
+) {
+  const collected = []
+  const seen = new Set()
+
+  function addOffer(
+    offer,
+    sourceMessage = null,
+  ) {
+    if (!offer) {
+      return
+    }
+
+    const uniqueKey =
+      getOfferUniqueKey(
+        offer,
+        sourceMessage,
+      )
+
+    if (seen.has(uniqueKey)) {
+      return
+    }
+
+    seen.add(uniqueKey)
+
+    collected.push(
+      normalizeOffer(
+        offer,
+        sourceMessage,
+        conversation,
+      ),
+    )
+  }
+
+  ;(offers || []).forEach(
+    (offer) => addOffer(offer),
+  )
+
+  ;(messages || []).forEach(
+    (message) => {
+      const messageOffers = [
+        ...(Array.isArray(
+          message.offers,
+        )
+          ? message.offers
+          : []),
+
+        ...(message.offer
+          ? [message.offer]
+          : []),
+
+        ...(message.structured_offer
+          ? [
+              message.structured_offer,
+            ]
+          : []),
+      ]
+
+      messageOffers.forEach(
+        (offer) =>
+          addOffer(
+            offer,
+            message,
+          ),
+      )
+    },
+  )
+
+  return collected
+}
+
+function isOfferNotificationMessage(
+  message,
+  structuredOffers,
+) {
+  if (
+    message?.is_offer_notification
+  ) {
+    return true
+  }
+
+  const messageId = message?.id
+
+  if (
+    messageId &&
+    structuredOffers.some(
+      (offer) =>
+        offer.message_id ===
+        messageId,
+    )
+  ) {
+    return true
+  }
+
+  const body = String(
+    message?.body ||
+      message?.message ||
+      message?.text ||
+      '',
+  ).toLowerCase()
+
+  const subject = String(
+    message?.subject || '',
+  ).toLowerCase()
+
+  const combined =
+    `${subject} ${body}`
+
+  const looksLikeOfferNotification =
+    combined.includes(
+      'sent an offer',
+    ) ||
+    combined.includes(
+      'sent a counteroffer',
+    ) ||
+    combined.includes(
+      'accepted an offer',
+    ) ||
+    combined.includes(
+      'offer accepted',
+    ) ||
+    combined.includes(
+      'offer declined',
+    ) ||
+    combined.includes(
+      'offer expired',
+    )
+
+  return (
+    looksLikeOfferNotification &&
+    structuredOffers.length > 0
+  )
+}
+
+function buildTimelineItems(
+  messages,
+  structuredOffers,
+) {
+  const timeline = []
+
+  messages.forEach(
+    (message, index) => {
+      if (
+        isOfferNotificationMessage(
+          message,
+          structuredOffers,
+        )
+      ) {
+        return
+      }
+
+      timeline.push({
+        key:
+          message.id ||
+          `message-${index}`,
+
+        type: 'message',
+        message,
+        timestamp:
+          getMessageTimestamp(
+            message,
+          ),
+        originalIndex: index,
+      })
+    },
+  )
+
+  structuredOffers.forEach(
+    (offer, index) => {
+      timeline.push({
+        key:
+          offer.provider_offer_id ||
+          offer.offer_id ||
+          offer.id ||
+          `offer-${index}`,
+
+        type: 'offer',
+        offer,
+        timestamp:
+          getOfferTimestampValue(
+            offer,
+          ),
+        originalIndex: index,
+      })
+    },
+  )
+
+  return timeline.sort(
+    (left, right) => {
+      const leftTime =
+        eventTimeValue(
+          left.timestamp,
+        )
+
+      const rightTime =
+        eventTimeValue(
+          right.timestamp,
+        )
+
+      if (
+        leftTime !== rightTime
+      ) {
+        return leftTime - rightTime
+      }
+
+      /*
+       * When an offer and message have exactly
+       * the same timestamp, show the message
+       * first and then the structured event.
+       */
+      if (
+        left.type !== right.type
+      ) {
+        return left.type ===
+          'message'
+          ? -1
+          : 1
+      }
+
+      return (
+        left.originalIndex -
+        right.originalIndex
+      )
+    },
+  )
 }
 
 function MessageThread({
@@ -231,13 +544,15 @@ function MessageThread({
       setTranslatingId(message.id)
 
       try {
-        const result = await translateMessage(
-          message.body,
-          'en',
-        )
+        const result =
+          await translateMessage(
+            message.body,
+            'en',
+          )
 
         setTranslations((current) => ({
           ...current,
+
           [message.id]: {
             text:
               result.translated_text ||
@@ -248,6 +563,7 @@ function MessageThread({
       } catch (error) {
         setTranslations((current) => ({
           ...current,
+
           [message.id]: {
             error:
               error.message ||
@@ -260,7 +576,8 @@ function MessageThread({
     }, [])
 
   useLayoutEffect(() => {
-    const thread = threadRef.current
+    const thread =
+      threadRef.current
 
     if (!thread) {
       return
@@ -274,115 +591,168 @@ function MessageThread({
     offers.length,
   ])
 
-  const offersByMessageId = useMemo(() => {
-    const groupedOffers = new Map()
+  /*
+   * Preserve the original dashboard logic:
+   *
+   * Offers linked to a message are rendered in place
+   * of that source message.
+   *
+   * They do not enter the independent offer timeline.
+   */
+  const offersByMessageId =
+    useMemo(() => {
+      const grouped = new Map()
 
-    if (
-      isSystemConversation ||
-      conversation
-        ?.provider_conversation_type ===
-        'FROM_EBAY'
-    ) {
-      return groupedOffers
-    }
-
-    offers.forEach((offer) => {
-      const messageId =
-        offer.message_id ||
-        offer.messageId ||
-        offer.source_message_id
-
-      if (!messageId) {
-        return
+      if (
+        isSystemConversation ||
+        conversation
+          ?.provider_conversation_type ===
+          'FROM_EBAY'
+      ) {
+        return grouped
       }
 
-      const currentOffers =
-        groupedOffers.get(messageId) || []
-
-      groupedOffers.set(messageId, [
-        ...currentOffers,
+      function addOffer(
+        messageId,
         offer,
-      ])
-    })
+      ) {
+        if (!messageId || !offer) {
+          return
+        }
 
-    return groupedOffers
-  }, [
-    offers,
-    conversation,
-    isSystemConversation,
-  ])
+        const current =
+          grouped.get(messageId) || []
 
-  const structuredOffers = useMemo(() => {
-    if (
-      isSystemConversation ||
-      conversation
-        ?.provider_conversation_type ===
-        'FROM_EBAY'
-    ) {
-      return []
-    }
-
-    const seen = new Set()
-    const normalizedOffers = []
-
-    function addOffer(
-      offer,
-      sourceMessage = null,
-    ) {
-      if (!offer) {
-        return
+        grouped.set(messageId, [
+          ...current,
+          offer,
+        ])
       }
 
-      const fallbackTimestamp =
-        offerTimestamp(offer) ||
-        sourceMessage?.sent_at ||
-        sourceMessage?.created_at ||
-        sourceMessage?.created_date ||
-        ''
-
-      const key = String(
-        offer.provider_offer_id ||
-          offer.id ||
-          `${
-            sourceMessage?.id || 'top'
-          }:${
-            offer.offer_amount ??
-            offer.amount ??
-            ''
-          }:${offer.status || ''}:${
-            offer.direction || ''
-          }:${fallbackTimestamp}`,
+      ;(offers || []).forEach(
+        (offer) => {
+          addOffer(
+            offer.message_id ||
+              offer.messageId ||
+              offer.source_message_id,
+            offer,
+          )
+        },
       )
 
-      if (seen.has(key)) {
-        return
+      return grouped
+    }, [
+      offers,
+      conversation,
+      isSystemConversation,
+    ])
+
+  /*
+   * Normalize and deduplicate all structured offers.
+   * This mirrors the original dashboard implementation.
+   */
+  const structuredOffers =
+    useMemo(() => {
+      if (
+        isSystemConversation ||
+        conversation
+          ?.provider_conversation_type ===
+          'FROM_EBAY'
+      ) {
+        return []
       }
 
-      seen.add(key)
+      const seen = new Set()
+      const items = []
 
-      normalizedOffers.push({
-        ...buildStructuredOffer(
-          offer,
-          sourceMessage,
-          conversation,
-        ),
-        id:
-          offer.id ||
-          `offer-${key}`,
-      })
-    }
+      function addOffer(
+        offer,
+        sourceMessage = null,
+      ) {
+        if (!offer) {
+          return
+        }
 
-    offers.forEach((offer) => {
-      addOffer(offer)
-    })
+        const key = String(
+          offer.provider_offer_id ||
+            offer.id ||
+            `${
+              sourceMessage?.id ||
+              'top'
+            }:${
+              offer.offer_amount ||
+              offer.amount
+            }:${
+              offer.status
+            }:${
+              offer.direction
+            }:${
+              offerTimestamp(
+                offer,
+              ) ||
+              sourceMessage
+                ?.sent_at ||
+              ''
+            }`,
+        )
 
-    return normalizedOffers
-  }, [
-    offers,
-    conversation,
-    isSystemConversation,
-  ])
+        if (seen.has(key)) {
+          return
+        }
 
+        seen.add(key)
+
+        const normalizedTimestamp =
+          offerTimestamp(offer) ||
+          sourceMessage?.sent_at ||
+          sourceMessage?.created_at ||
+          sourceMessage?.created_date
+
+        items.push({
+          ...offer,
+
+          id:
+            offer.id ||
+            `offer-${key}`,
+
+          message_id:
+            offer.message_id ||
+            offer.messageId ||
+            offer.source_message_id ||
+            sourceMessage?.id,
+
+          created_at:
+            normalizedTimestamp,
+
+          created_date:
+            offer.created_date ||
+            normalizedTimestamp,
+
+          buyer_username:
+            offer.buyer_username ||
+            conversation
+              ?.buyer_identifier ||
+            sourceMessage
+              ?.sender_identifier,
+        })
+      }
+
+      ;(offers || []).forEach(
+        (offer) =>
+          addOffer(offer),
+      )
+
+      return items
+    }, [
+      offers,
+      conversation,
+      isSystemConversation,
+    ])
+
+  /*
+   * Only offers that do not belong to a stored message
+   * are added independently to timelineItems.
+   */
   const unlinkedStructuredOffers =
     useMemo(() => {
       const messageIds = new Set(
@@ -403,62 +773,79 @@ function MessageThread({
       messages,
     ])
 
-  const timelineItems = useMemo(() => {
-    const items = [
-      ...messages.map(
-        (message, index) => ({
-          type: 'message',
-          message,
-          index,
-          timestamp:
-            message.sent_at ||
-            message.created_at ||
-            message.created_date,
-        }),
-      ),
+  /*
+   * Original timeline:
+   * - all messages
+   * - only unlinked structured offers
+   *
+   * Linked offer cards remain at their source
+   * message's position.
+   */
+  const timelineItems =
+    useMemo(() => {
+      const items = [
+        ...messages.map(
+          (message, index) => ({
+            type: 'message',
+            message,
+            index,
 
-      ...unlinkedStructuredOffers.map(
-        (offer, index) => ({
-          type: 'offer',
-          offer,
-          index,
-          timestamp:
-            offerTimestamp(offer),
-        }),
-      ),
-    ]
+            timestamp:
+              message.sent_at ||
+              message.created_at ||
+              message.created_date,
+          }),
+        ),
 
-    return items.sort(
-      (left, right) => {
-        const timeDifference =
-          eventTimeValue(
-            left.timestamp,
-          ) -
-          eventTimeValue(
-            right.timestamp,
+        ...unlinkedStructuredOffers.map(
+          (offer, index) => ({
+            type: 'offer',
+            offer,
+            index,
+
+            timestamp:
+              offerTimestamp(offer),
+          }),
+        ),
+      ]
+
+      return items.sort(
+        (left, right) => {
+          const difference =
+            eventTimeValue(
+              left.timestamp,
+            ) -
+            eventTimeValue(
+              right.timestamp,
+            )
+
+          if (difference !== 0) {
+            return difference
+          }
+
+          /*
+           * Preserve original tie behavior:
+           * offer before message when timestamps match.
+           */
+          if (
+            left.type !== right.type
+          ) {
+            return left.type ===
+              'offer'
+              ? -1
+              : 1
+          }
+
+          return (
+            left.index -
+            right.index
           )
-
-        if (timeDifference !== 0) {
-          return timeDifference
-        }
-
-        if (
-          left.type !== right.type
-        ) {
-          return left.type === 'offer'
-            ? -1
-            : 1
-        }
-
-        return (
-          left.index - right.index
-        )
-      },
-    )
-  }, [
-    messages,
-    unlinkedStructuredOffers,
-  ])
+        },
+      )
+    }, [
+      messages,
+      unlinkedStructuredOffers,
+    ])
 
   if (
     !messages.length &&
@@ -477,209 +864,340 @@ function MessageThread({
       className="message-thread"
       ref={threadRef}
     >
-      {timelineItems.map((item) => {
-        if (item.type === 'offer') {
-          const offer = item.offer
+      {timelineItems.map(
+        (item) => {
+          /*
+           * Independently stored offer with no matching
+           * message record.
+           */
+          if (
+            item.type === 'offer'
+          ) {
+            const offer =
+              item.offer
 
-          return (
-            <div
-              className="offer-message-slot"
-              key={`unlinked-offer-${
-                offer.provider_offer_id ||
-                offer.id ||
-                item.index
-              }`}
-            >
-              <OfferEvent
-                offer={offer}
-                conversation={conversation}
-              />
-            </div>
-          )
-        }
-
-        const {
-          message,
-          index,
-        } = item
-
-        const displayOffers =
-          offersByMessageId.get(
-            message.id,
-          ) || []
-
-        const isOfferNotification =
-          displayOffers.length > 0
-
-        const systemMessage =
-          isEbayNotificationMessage(
-            message,
-          )
-
-        const direction = systemMessage
-          ? 'system'
-          : message.is_inbound
-            ? 'inbound'
-            : 'outbound'
-
-        const sellerMessage =
-          direction === 'outbound'
-
-        if (
-          message.is_offer_notification &&
-          !displayOffers.length
-        ) {
-          return null
-        }
-
-        if (isOfferNotification) {
-          return (
-            <div
-              className="offer-message-slot"
-              key={message.id || index}
-            >
-              {displayOffers.map(
-                (
-                  offer,
-                  offerIndex,
-                ) => {
-                  const normalizedOffer =
-                    buildStructuredOffer(
-                      offer,
-                      message,
-                      conversation,
-                    )
-
-                  return (
-                    <OfferEvent
-                      offer={
-                        normalizedOffer
-                      }
-                      conversation={
-                        conversation
-                      }
-                      key={`offer-${
-                        offer.provider_offer_id ||
-                        offer.id ||
-                        message.id
-                      }-${offerIndex}`}
-                    />
-                  )
-                },
-              )}
-            </div>
-          )
-        }
-
-        const messageBody =
-          message.body ||
-          message.message ||
-          message.text ||
-          ''
-
-        const hasBody =
-          Boolean(messageBody)
-
-        const attachments =
-          message.attachments || []
-
-        const hasOnlyImageAttachments =
-          !hasBody &&
-          attachments.length > 0 &&
-          attachments.every(
-            isImageAttachment,
-          )
-
-        const bubbleClassName = [
-          'message-bubble',
-          direction,
-          hasOnlyImageAttachments
-            ? 'image-attachment-message'
-            : '',
-        ]
-          .filter(Boolean)
-          .join(' ')
-
-        return (
-          <article
-            className={bubbleClassName}
-            key={message.id || index}
-          >
-            <div className="message-meta">
-              <strong>
-                {direction === 'system'
-                  ? 'eBay notification'
-                  : sellerMessage
-                    ? 'You'
-                    : message.sender_identifier ||
-                      message.sender_type ||
-                      'Buyer'}
-              </strong>
-
-              <time>
-                {formatDate(
-                  message.sent_at ||
-                    message.created_date ||
-                    message.created_at,
-                )}
-              </time>
-            </div>
-
-            {hasOnlyImageAttachments ? null : isSystemConversation &&
-              isHtmlBody(
-                message.body,
-              ) ? (
-              <iframe
-                className="ebay-html-message"
-                title={`eBay message ${
-                  message.id || index
+            return (
+              <div
+                className="offer-message-slot"
+                key={`unlinked-offer-${
+                  offer
+                    .provider_offer_id ||
+                  offer.id ||
+                  item.index
                 }`}
-                srcDoc={message.body}
-                sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
-                scrolling="no"
-                onLoad={
-                  resizeEbayMessageFrame
-                }
-              />
-            ) : (
-              <p>{messageBody}</p>
-            )}
+              >
+                <OfferEvent
+                  offer={offer}
+                  conversation={
+                    conversation
+                  }
+                />
+              </div>
+            )
+          }
 
-            {direction === 'inbound' ? (
-              <MessageTranslation
-                message={message}
-                translation={
-                  translations[
+          const {
+            message,
+            index,
+          } = item
+
+          /*
+           * Look for structured offers linked to this
+           * exact message.
+           */
+          const messageOffers =
+            offersByMessageId.get(
+              message.id,
+            ) || []
+
+          /*
+          * A single source message can have multiple offer-state
+          * records. Keep the message's timeline position, but order
+          * those records using their true provider timestamps.
+          */
+          const displayOffers = [
+            ...messageOffers,
+          ].sort((left, right) => {
+            const leftTime =
+              eventTimeValue(
+                offerTimestamp(left),
+              )
+
+            const rightTime =
+              eventTimeValue(
+                offerTimestamp(right),
+              )
+
+            if (leftTime !== rightTime) {
+              return leftTime - rightTime
+            }
+
+            /*
+            * Stable logical order when the API timestamps
+            * are identical or unavailable.
+            */
+            const statusOrder = {
+              PENDING: 1,
+              ACCEPTED: 2,
+              DECLINED: 2,
+              EXPIRED: 3,
+            }
+
+            const leftStatus =
+              String(
+                left.status || 'PENDING',
+              ).toUpperCase()
+
+            const rightStatus =
+              String(
+                right.status || 'PENDING',
+              ).toUpperCase()
+
+            return (
+              (statusOrder[leftStatus] || 1) -
+              (statusOrder[rightStatus] || 1)
+            )
+          })
+
+          const isOfferNotification =
+            displayOffers.length > 0
+
+          const isSystem =
+            isEbayNotificationMessage(
+              message,
+            )
+
+          const direction =
+            isSystem
+              ? 'system'
+              : message.is_inbound
+                ? 'inbound'
+                : 'outbound'
+
+          const isSeller =
+            direction === 'outbound'
+
+          /*
+           * Backend marked this as an offer notification,
+           * but no structured offer was returned.
+           *
+           * Original code hides the raw notification.
+           */
+          if (
+            message
+              .is_offer_notification &&
+            !displayOffers.length
+          ) {
+            return null
+          }
+
+          /*
+           * Replace the raw message with one or more
+           * structured eBay-style offer cards.
+           *
+           * Most importantly, the source MESSAGE timestamp
+           * is used before the offer timestamp.
+           */
+          if (isOfferNotification) {
+            return (
+              <div
+                className="offer-message-slot"
+                key={
+                  message.id ||
+                  index
+                }
+              >
+                {displayOffers.map(
+                  (
+                    offer,
+                    offerIndex,
+                  ) => {
+                    const providerTimestamp =
+                      offerTimestamp(offer)
+
+                    const messageTimestamp =
+                      message.sent_at ||
+                      message.created_at ||
+                      message.created_date
+
+                    return (
+                      <OfferEvent
+                        offer={{
+                          ...offer,
+
+                          /*
+                          * Keep the real offer/provider timestamp.
+                          * Use the message timestamp only as fallback.
+                          */
+                          created_at:
+                            providerTimestamp ||
+                            messageTimestamp,
+
+                          created_date:
+                            providerTimestamp ||
+                            offer.created_date ||
+                            messageTimestamp,
+
+                          buyer_username:
+                            offer.buyer_username ||
+                            conversation
+                              ?.buyer_identifier ||
+                            message
+                              .sender_identifier,
+                        }}
+                        /*
+                        * Only one active outgoing event should render
+                        * the seller text. Status-only records should not.
+                        */
+                        showSellerMessage={
+                          offerIndex === 0 ||
+                          String(
+                            offer.status || '',
+                          ).toUpperCase() ===
+                            'PENDING'
+                        }
+                        key={`offer-${
+                          offer.provider_offer_id ||
+                          offer.id ||
+                          message.id
+                        }-${offerIndex}`}
+                        conversation={
+                          conversation
+                        }
+                      />
+                    )
+                  },
+                )}
+              </div>
+            )
+          }
+
+          const messageBody =
+            message.body ||
+            message.message ||
+            message.text ||
+            ''
+
+          const hasBody =
+            Boolean(messageBody)
+
+          const attachments =
+            message.attachments || []
+
+          const hasOnlyImageAttachments =
+            !hasBody &&
+            attachments.length > 0 &&
+            attachments.every(
+              isImageAttachment,
+            )
+
+          const bubbleClassName = [
+            'message-bubble',
+            direction,
+
+            hasOnlyImageAttachments
+              ? 'image-attachment-message'
+              : '',
+          ]
+            .filter(Boolean)
+            .join(' ')
+
+          return (
+            <article
+              className={
+                bubbleClassName
+              }
+              key={
+                message.id ||
+                index
+              }
+            >
+              <div className="message-meta">
+                <strong>
+                  {direction ===
+                  'system'
+                    ? 'eBay notification'
+                    : isSeller
+                      ? 'You'
+                      : message
+                          .sender_identifier ||
+                        message
+                          .sender_type ||
+                        'Buyer'}
+                </strong>
+
+                <time>
+                  {formatDate(
+                    message.sent_at ||
+                      message
+                        .created_date,
+                  )}
+                </time>
+              </div>
+
+              {hasOnlyImageAttachments ? null : isSystemConversation &&
+                isHtmlBody(
+                  message.body,
+                ) ? (
+                <iframe
+                  className="ebay-html-message"
+                  title={`eBay message ${
+                    message.id ||
+                    index
+                  }`}
+                  srcDoc={
+                    message.body
+                  }
+                  sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
+                  scrolling="no"
+                  onLoad={
+                    resizeEbayMessageFrame
+                  }
+                />
+              ) : (
+                <p>{messageBody}</p>
+              )}
+
+              {direction ===
+                'inbound' &&
+              message.body ? (
+                <MessageTranslation
+                  message={message}
+                  translation={
+                    translations[
+                      message.id
+                    ]
+                  }
+                  isTranslating={
+                    translatingId ===
                     message.id
-                  ]
-                }
-                isTranslating={
-                  translatingId ===
-                  message.id
-                }
-                onTranslate={
-                  translateBuyerMessage
+                  }
+                  onTranslate={
+                    translateBuyerMessage
+                  }
+                />
+              ) : null}
+
+              <AttachmentList
+                attachments={
+                  attachments
                 }
               />
-            ) : null}
 
-            <AttachmentList
-              attachments={attachments}
-            />
-
-            {message.read_status !==
-              undefined &&
-            message.read_status !==
-              null ? (
-              <span className="message-status">
-                {message.read_status
-                  ? '✓ Read'
-                  : '● Unread'}
-              </span>
-            ) : null}
-          </article>
-        )
-      })}
+              {message.read_status !==
+                undefined &&
+              message.read_status !==
+                null ? (
+                <span className="message-status">
+                  {message.read_status
+                    ? '✓ Read'
+                    : '● Unread'}
+                </span>
+              ) : null}
+            </article>
+          )
+        },
+      )}
     </div>
   )
 }
@@ -687,6 +1205,10 @@ function MessageThread({
 export {
   AttachmentList,
   MessageTranslation,
+  buildTimelineItems,
+  collectStructuredOffers,
+  getMessageTimestamp,
+  getOfferTimestampValue,
   resizeEbayMessageFrame,
 }
 
