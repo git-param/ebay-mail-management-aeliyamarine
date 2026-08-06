@@ -1,0 +1,547 @@
+/* frontend/src/pages/offer_management.css
+ *
+ * Page-specific layout and styling for Offer Management.
+ * Keep this file beside offer_management.jsx.
+ */
+
+.offer-management-page {
+  --offer-border: #dfe7f2;
+  --offer-surface: rgba(255, 255, 255, 0.94);
+  --offer-surface-soft: #f8fafc;
+  --offer-text: #10172e;
+  --offer-muted: #64748b;
+  --offer-primary: #6d5dfc;
+  --offer-danger: #dc2626;
+  --offer-success: #047857;
+  --offer-radius: 16px;
+  --offer-shadow: 0 18px 48px rgba(15, 23, 42, 0.08);
+
+  width: min(1440px, 100%);
+  min-width: 0;
+  overflow-x: hidden;
+}
+
+.offer-management-page,
+.offer-management-page *,
+.offer-entry-modal,
+.offer-entry-modal * ,
+.offer-preview-drawer,
+.offer-preview-drawer * {
+  box-sizing: border-box;
+}
+
+.offer-management-page .page-header {
+  align-items: center;
+}
+
+.offer-management-page .page-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.offer-management-page .stats-grid {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.offer-management-page .stat-card {
+  min-width: 0;
+  padding: 16px;
+}
+
+.offer-management-page .stat-card p {
+  line-height: 1.35;
+}
+
+.offer-management-page .stat-card strong {
+  font-size: clamp(24px, 2vw, 30px);
+}
+
+/* Filters */
+.offer-management-page .offer-filter-bar {
+  grid-template-columns: repeat(4, minmax(150px, 1fr));
+  gap: 12px;
+  align-items: end;
+  margin-bottom: 14px;
+  padding: 16px;
+  border: 1px solid var(--offer-border);
+  border-radius: var(--offer-radius);
+  background: var(--offer-surface);
+  box-shadow: var(--offer-shadow);
+}
+
+.offer-management-page .offer-filter-bar > * {
+  min-width: 0;
+}
+
+.offer-management-page .offer-filter-bar .field {
+  gap: 6px;
+}
+
+.offer-management-page .offer-filter-bar .field span {
+  color: var(--offer-muted);
+  font-size: 12px;
+}
+
+.offer-management-page .offer-filter-bar input,
+.offer-management-page .offer-filter-bar select {
+  min-width: 0;
+  min-height: 44px;
+}
+
+.offer-management-page .offer-filter-bar > .secondary-button {
+  min-height: 44px;
+}
+
+/* Bulk actions */
+.offer-management-page .offer-bulk-bar {
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  border: 1px solid var(--offer-border);
+  border-radius: 12px;
+  background: var(--offer-surface-soft);
+  color: var(--offer-muted);
+}
+
+.offer-management-page .offer-bulk-bar strong {
+  margin-right: auto;
+  color: var(--offer-text);
+}
+
+/* Main table */
+.offer-management-page .offer-table-card {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  border-radius: var(--offer-radius);
+}
+
+.offer-management-page .offer-table-scroll {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 6px;
+  overscroll-behavior-x: contain;
+  scrollbar-gutter: stable;
+  -webkit-overflow-scrolling: touch;
+}
+
+.offer-management-page .offer-table-scroll:focus-visible {
+  outline: 3px solid rgba(109, 93, 252, 0.18);
+  outline-offset: -3px;
+}
+
+.offer-management-page .offer-table-scroll::-webkit-scrollbar {
+  height: 12px;
+}
+
+.offer-management-page .offer-table-scroll::-webkit-scrollbar-track {
+  border-radius: 999px;
+  background: #eef2f7;
+}
+
+.offer-management-page .offer-table-scroll::-webkit-scrollbar-thumb {
+  border: 3px solid #eef2f7;
+  border-radius: 999px;
+  background: #9aa8bc;
+}
+
+.offer-management-page .offer-table-scroll::-webkit-scrollbar-thumb:hover {
+  background: #6d5dfc;
+}
+
+.offer-management-page .offer-table {
+  width: max-content;
+  min-width: 1840px;
+  max-width: none;
+  table-layout: auto;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.offer-management-page .offer-table th,
+.offer-management-page .offer-table td {
+  min-width: 110px;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.offer-management-page .offer-table th:first-child,
+.offer-management-page .offer-table td:first-child {
+  min-width: 52px;
+  width: 52px;
+}
+
+.offer-management-page .offer-table th:nth-child(8),
+.offer-management-page .offer-table td:nth-child(8) {
+  min-width: 280px;
+  max-width: 280px;
+}
+
+.offer-management-page .offer-table th:last-child,
+.offer-management-page .offer-table td:last-child {
+  min-width: 190px;
+}
+
+.offer-management-page .truncate-cell {
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.offer-management-page .offer-icon-actions,
+.offer-preview-drawer .offer-icon-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.offer-management-page .offer-action-icon,
+.offer-preview-drawer .offer-action-icon {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  border-radius: 9px;
+}
+
+.offer-management-page .offer-action-preview,
+.offer-preview-drawer .offer-action-preview {
+  color: #2563eb;
+  background: #eff6ff;
+}
+
+.offer-management-page .offer-action-edit,
+.offer-preview-drawer .offer-action-edit {
+  color: #b45309;
+  background: #fffbeb;
+}
+
+.offer-management-page .offer-action-delete,
+.offer-preview-drawer .offer-action-delete {
+  color: #dc2626;
+  background: #fef2f2;
+}
+
+.offer-management-page .offer-action-external,
+.offer-preview-drawer .offer-action-external {
+  color: #047857;
+  background: #ecfdf5;
+}
+
+.offer-management-page .offer-action-conversation,
+.offer-preview-drawer .offer-action-conversation {
+  color: #6d28d9;
+  background: #f5f3ff;
+}
+
+.offer-management-page .pagination-bar {
+  grid-template-columns: minmax(160px, 1fr) auto;
+}
+
+.offer-management-page .pagination-bar > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.offer-management-page .pagination-bar select {
+  min-height: 36px;
+  padding: 0 28px 0 10px;
+  border: 1px solid var(--offer-border);
+  border-radius: 10px;
+  background: #ffffff;
+  color: var(--offer-text);
+}
+
+/* Create/edit modal */
+.offer-entry-modal {
+  width: min(1180px, calc(100vw - 48px));
+  max-height: calc(100svh - 48px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 0;
+}
+
+.offer-entry-modal .modal-header {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 22px 24px 14px;
+  border-bottom: 1px solid var(--offer-border);
+}
+
+.offer-entry-modal .offer-entry-form {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 20px;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 20px 24px 0;
+}
+
+.offer-entry-modal .offer-entry-form > * {
+  min-width: 0;
+}
+
+.offer-entry-modal .offer-form-section {
+  display: grid;
+  grid-column: 1 / -1;
+  gap: 14px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--offer-border);
+}
+
+.offer-entry-modal .offer-form-section h3 {
+  margin: 0;
+  color: var(--offer-text);
+  font-size: 0.95rem;
+}
+
+.offer-entry-modal .form-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  align-items: start;
+  gap: 14px;
+}
+
+.offer-entry-modal .form-grid.two {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.offer-entry-modal .offer-form-section:first-child .form-grid.two {
+  grid-template-columns: minmax(280px, 1fr) auto;
+  align-items: end;
+}
+
+.offer-entry-modal .offer-form-section:first-child .secondary-button {
+  min-height: 52px;
+  padding-inline: 24px;
+}
+
+.offer-entry-modal .field.wide {
+  grid-column: span 2;
+}
+
+.offer-entry-modal .offer-entry-form .field {
+  min-width: 0;
+}
+
+.offer-entry-modal .offer-entry-form .field span {
+  min-height: 18px;
+  line-height: 1.25;
+}
+
+.offer-entry-modal .offer-entry-form .field input,
+.offer-entry-modal .offer-entry-form .field select,
+.offer-entry-modal .offer-entry-form .field textarea {
+  min-width: 0;
+}
+
+.offer-entry-modal .offer-entry-form .field textarea {
+  min-height: 74px;
+  padding: 14px 16px;
+}
+
+.offer-entry-modal .checkbox-field {
+  min-height: 52px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 24px;
+  color: var(--offer-text);
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.offer-entry-modal .checkbox-field input {
+  width: 17px;
+  height: 17px;
+  accent-color: var(--offer-primary);
+}
+
+.offer-entry-modal .offer-match-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.offer-entry-modal .offer-match-list button {
+  max-width: 100%;
+  min-height: 38px;
+  height: auto;
+  padding-block: 8px;
+  white-space: normal;
+  text-align: left;
+}
+
+.offer-entry-modal .offer-entry-form .modal-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  margin: 0 -24px;
+  padding: 16px 24px;
+  border-top: 1px solid var(--offer-border);
+  background: #ffffff;
+}
+
+/* Preview drawer */
+.offer-preview-drawer {
+  width: min(560px, 100vw);
+}
+
+.offer-preview-drawer .drawer-profile h3,
+.offer-preview-drawer .drawer-section p {
+  overflow-wrap: anywhere;
+}
+
+.offer-preview-drawer .offer-icon-actions {
+  justify-content: flex-end;
+  margin-top: 18px;
+}
+
+/* Dark theme */
+html[data-theme='dark'] .offer-management-page {
+  --offer-border: #2b3950;
+  --offer-surface: #111827;
+  --offer-surface-soft: #172033;
+  --offer-text: #eef2ff;
+  --offer-muted: #a7b3c7;
+}
+
+html[data-theme='dark'] .offer-management-page .offer-filter-bar,
+html[data-theme='dark'] .offer-management-page .offer-bulk-bar,
+html[data-theme='dark'] .offer-management-page .offer-table-card,
+html[data-theme='dark'] .offer-entry-modal,
+html[data-theme='dark'] .offer-preview-drawer {
+  border-color: var(--offer-border);
+  background: var(--offer-surface);
+  color: var(--offer-text);
+}
+
+html[data-theme='dark'] .offer-entry-modal .offer-entry-form .modal-actions,
+html[data-theme='dark'] .offer-management-page .pagination-bar,
+html[data-theme='dark'] .offer-management-page .pagination-bar select {
+  border-color: var(--offer-border);
+  background: #111827;
+  color: var(--offer-text);
+}
+
+html[data-theme='dark'] .offer-entry-modal .offer-form-section h3,
+html[data-theme='dark'] .offer-management-page .offer-bulk-bar strong {
+  color: var(--offer-text);
+}
+
+/* Responsive */
+@media (max-width: 1280px) {
+  .offer-management-page .stats-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .offer-management-page .offer-filter-bar {
+    grid-template-columns: repeat(3, minmax(150px, 1fr));
+  }
+}
+
+@media (max-width: 1180px) {
+  .offer-entry-modal .form-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .offer-management-page .offer-filter-bar {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .offer-entry-modal .form-grid,
+  .offer-entry-modal .form-grid.two,
+  .offer-entry-modal .offer-form-section:first-child .form-grid.two {
+    grid-template-columns: 1fr;
+  }
+
+  .offer-entry-modal .field.wide {
+    grid-column: auto;
+  }
+
+  .offer-entry-modal .offer-form-section:first-child .secondary-button {
+    width: 100%;
+  }
+}
+
+@media (max-width: 760px) {
+  .offer-management-page .page-header-actions {
+    width: 100%;
+  }
+
+  .offer-management-page .page-header-actions button {
+    flex: 1 1 180px;
+  }
+
+  .offer-management-page .stats-grid,
+  .offer-management-page .offer-filter-bar {
+    grid-template-columns: 1fr;
+  }
+
+  .offer-management-page .offer-bulk-bar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .offer-management-page .offer-bulk-bar strong {
+    margin-right: 0;
+  }
+
+  .offer-management-page .offer-bulk-bar button {
+    width: 100%;
+  }
+
+  .offer-management-page .pagination-bar {
+    grid-template-columns: 1fr;
+  }
+
+  .offer-management-page .pagination-bar > div {
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  .offer-entry-modal {
+    width: calc(100vw - 20px);
+    max-height: calc(100svh - 20px);
+  }
+
+  .offer-entry-modal .modal-header {
+    padding: 16px;
+  }
+
+  .offer-entry-modal .offer-entry-form {
+    padding: 16px 16px 0;
+  }
+
+  .offer-entry-modal .offer-entry-form .modal-actions {
+    margin-inline: -16px;
+    padding: 14px 16px;
+  }
+
+  .offer-entry-modal .offer-entry-form .modal-actions button {
+    width: 100%;
+  }
+
+  .offer-preview-drawer {
+    width: 100%;
+  }
+}

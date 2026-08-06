@@ -1,0 +1,522 @@
+/* frontend/src/pages/task_management.css
+ *
+ * Page-specific styles for Task Management.
+ * Keep this file beside task_management.jsx and import it from that component.
+ */
+
+.task-management-page {
+  --task-border: #dfe7f2;
+  --task-surface: rgba(255, 255, 255, 0.94);
+  --task-surface-soft: #f8faff;
+  --task-text: #10172e;
+  --task-muted: #64748b;
+  --task-primary: #6d5dfc;
+  --task-primary-soft: rgba(109, 93, 252, 0.1);
+  --task-danger: #dc2626;
+  --task-radius: 16px;
+  --task-shadow: 0 18px 48px rgba(15, 23, 42, 0.08);
+
+  min-width: 0;
+}
+
+.task-management-page,
+.task-management-page * {
+  box-sizing: border-box;
+}
+
+.task-management-grid {
+  display: grid;
+  grid-template-columns: minmax(320px, 0.82fr) minmax(0, 1.18fr);
+  align-items: start;
+  gap: 18px;
+  min-width: 0;
+}
+
+.task-management-grid > * {
+  min-width: 0;
+}
+
+.task-editor-panel,
+.task-subtask-panel,
+.task-assignment-panel {
+  min-width: 0;
+  overflow: hidden;
+  padding: 18px;
+  border: 1px solid var(--task-border);
+  border-radius: var(--task-radius);
+  background: var(--task-surface);
+  box-shadow: var(--task-shadow);
+}
+
+.task-assignment-panel {
+  grid-column: 1 / -1;
+  overflow: visible;
+}
+
+.pms-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  min-width: 0;
+  margin-bottom: 16px;
+}
+
+.pms-card-header > div {
+  min-width: 0;
+}
+
+.pms-card-header h2 {
+  margin: 0;
+  color: var(--task-text);
+  font-size: 18px;
+  line-height: 1.3;
+}
+
+.task-section-note {
+  margin: 5px 0 0;
+  color: var(--task-muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.task-toolbar-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.task-toolbar-actions .danger-button {
+  width: 42px;
+  min-width: 42px;
+  padding: 0;
+}
+
+.task-selector-field {
+  margin-bottom: 14px;
+}
+
+.task-management-form,
+.task-subtask-form,
+.task-assignment-form {
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--task-border);
+  border-radius: 14px;
+  background: linear-gradient(180deg, #fbfcff 0%, #f7f9ff 100%);
+}
+
+.task-management-form,
+.task-subtask-form {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+.task-management-form h3,
+.task-subtask-form h3,
+.task-assignment-form h3 {
+  margin: 0 0 2px;
+  color: var(--task-text);
+  font-size: 16px;
+}
+
+.task-management-form textarea,
+.task-subtask-form textarea {
+  min-height: 76px;
+}
+
+.pms-form-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  min-width: 0;
+}
+
+.pms-form-row > * {
+  min-width: 0;
+}
+
+.field-help {
+  margin: 0;
+  color: var(--task-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+/* Subtask table
+ * The scroll owner is deliberately page-specific. App.css currently makes the
+ * generic .table-scroll overflow visible for floating menus, so reusing it here
+ * would allow this table to escape its card.
+ */
+.task-table-scroll {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  margin: 0 0 16px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  border: 1px solid var(--task-border);
+  border-radius: 12px;
+  background: #ffffff;
+  overscroll-behavior-x: contain;
+  scrollbar-gutter: stable;
+  -webkit-overflow-scrolling: touch;
+}
+
+.task-table-scroll:focus-visible {
+  outline: 3px solid rgba(109, 93, 252, 0.18);
+  outline-offset: 2px;
+}
+
+.task-subtask-table {
+  width: 100%;
+  min-width: 720px;
+  table-layout: fixed;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.task-subtask-table th,
+.task-subtask-table td {
+  min-width: 0;
+  padding: 13px 14px;
+  vertical-align: middle;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.task-subtask-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #f5f7fc;
+  color: #65738a;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.task-subtask-table th:nth-child(1),
+.task-subtask-table td:nth-child(1) {
+  width: 28%;
+}
+
+.task-subtask-table th:nth-child(2),
+.task-subtask-table td:nth-child(2) {
+  width: 27%;
+}
+
+.task-subtask-table th:nth-child(3),
+.task-subtask-table td:nth-child(3) {
+  width: 14%;
+}
+
+.task-subtask-table th:nth-child(4),
+.task-subtask-table td:nth-child(4) {
+  width: 14%;
+  text-align: center;
+}
+
+.task-subtask-table th:nth-child(5),
+.task-subtask-table td:nth-child(5) {
+  width: 17%;
+  text-align: right;
+}
+
+.task-subtask-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.task-subtask-table td strong {
+  display: block;
+  color: var(--task-text);
+}
+
+.row-meta {
+  margin-top: 4px;
+  color: var(--task-muted);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.row-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 7px;
+  white-space: nowrap;
+}
+
+.row-actions .icon-button {
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+}
+
+.row-actions .danger-icon {
+  border-color: rgba(220, 38, 38, 0.2);
+  color: var(--task-danger);
+}
+
+.row-actions .danger-icon:hover {
+  border-color: rgba(220, 38, 38, 0.36);
+  background: #fff1f2;
+  color: #b91c1c;
+}
+
+/* Assignment area */
+.assignment-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin: 16px 0;
+}
+
+.assignment-summary-grid > div {
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid var(--task-border);
+  border-radius: 12px;
+  background: var(--task-surface-soft);
+}
+
+.assignment-summary-grid span,
+.assignment-summary-grid strong {
+  display: block;
+}
+
+.assignment-summary-grid span {
+  color: var(--task-muted);
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.assignment-summary-grid strong {
+  margin-top: 6px;
+  overflow-wrap: anywhere;
+  color: var(--task-text);
+  font-size: 16px;
+}
+
+.assigned-task-group {
+  min-width: 0;
+  margin-top: 14px;
+  overflow: hidden;
+  border: 1px solid var(--task-border);
+  border-radius: 12px;
+  background: #ffffff;
+}
+
+.assigned-task-group-header {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--task-border);
+  background: var(--task-surface-soft);
+  color: var(--task-text);
+}
+
+.assigned-task-group .table-scroll {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: visible;
+}
+
+.task-assignment-table {
+  min-width: 760px;
+}
+
+.task-assignment-subheading {
+  margin: 22px 0 12px;
+  color: var(--task-text);
+  font-size: 16px;
+}
+
+.task-picker-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 10px;
+}
+
+.task-picker-item {
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--task-border);
+  border-radius: 12px;
+  background: #ffffff;
+  color: var(--task-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.task-picker-item:hover,
+.task-picker-item:focus-visible {
+  border-color: rgba(109, 93, 252, 0.4);
+  background: var(--task-primary-soft);
+  outline: none;
+  transform: translateY(-1px);
+}
+
+.task-picker-item > span {
+  min-width: 0;
+}
+
+.task-picker-item strong,
+.task-picker-item small {
+  display: block;
+}
+
+.task-picker-item strong {
+  overflow-wrap: anywhere;
+}
+
+.task-picker-item small {
+  margin-top: 3px;
+  color: var(--task-muted);
+}
+
+.task-picker-item .ui-icon {
+  flex: 0 0 auto;
+}
+
+.task-assignment-form {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.task-assignment-form > .field-help,
+.task-assignment-form > .checkbox-field,
+.task-assignment-form > .pms-form-row {
+  grid-column: 1 / -1;
+}
+
+.task-weight-field span {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.task-weight-field small {
+  color: var(--task-muted);
+  font-weight: 700;
+}
+
+.checkbox-field {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--task-text);
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.checkbox-field input {
+  width: 17px;
+  height: 17px;
+  accent-color: var(--task-primary);
+}
+
+.weight-ok,
+.weight-warning,
+.weight-error {
+  flex: 0 0 auto;
+  padding: 7px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 850;
+  white-space: nowrap;
+}
+
+.weight-ok {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.weight-warning {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.weight-error {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+html[data-theme='dark'] .task-management-page {
+  --task-border: #2b3950;
+  --task-surface: #111827;
+  --task-surface-soft: #172033;
+  --task-text: #eef2ff;
+  --task-muted: #a7b3c7;
+}
+
+html[data-theme='dark'] .task-management-form,
+html[data-theme='dark'] .task-subtask-form,
+html[data-theme='dark'] .task-assignment-form,
+html[data-theme='dark'] .task-table-scroll,
+html[data-theme='dark'] .assigned-task-group,
+html[data-theme='dark'] .task-picker-item {
+  background: #111827;
+}
+
+html[data-theme='dark'] .task-subtask-table th,
+html[data-theme='dark'] .assigned-task-group-header {
+  background: #0d1422;
+}
+
+@media (max-width: 1180px) {
+  .task-management-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .task-assignment-panel {
+    grid-column: auto;
+  }
+}
+
+@media (max-width: 760px) {
+  .task-editor-panel,
+  .task-subtask-panel,
+  .task-assignment-panel {
+    padding: 14px;
+    border-radius: 14px;
+  }
+
+  .pms-card-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .task-toolbar-actions {
+    justify-content: flex-end;
+  }
+
+  .pms-form-row,
+  .assignment-summary-grid,
+  .task-assignment-form {
+    grid-template-columns: 1fr;
+  }
+
+  .task-assignment-form > * {
+    grid-column: auto;
+  }
+
+  .task-subtask-table {
+    min-width: 650px;
+  }
+
+  .weight-ok,
+  .weight-warning,
+  .weight-error {
+    width: fit-content;
+    white-space: normal;
+  }
+}

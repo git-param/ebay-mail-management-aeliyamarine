@@ -1,0 +1,347 @@
+/* frontend/src/pages/inbox/dashboard.css
+ *
+ * Root-level Inbox layout only.
+ *
+ * Component-specific styles belong in:
+ * - conversationList/conversationList.css
+ * - conversationDetail/conversationDetail.css
+ */
+
+.inbox-page {
+  --inbox-border: #d8e2ef;
+  --inbox-surface: #ffffff;
+  --inbox-surface-soft: #f8fbff;
+  --inbox-text: #0f172a;
+  --inbox-muted: #64748b;
+  --inbox-primary: #0e54b3;
+  --inbox-shadow:
+    0 20px 60px rgba(15, 23, 42, 0.12);
+
+  width: 100%;
+  min-width: 0;
+  height: calc(100svh - 92px);
+  display: grid;
+  align-items: stretch;
+  overflow: hidden;
+  padding: 18px;
+  box-sizing: border-box;
+  background:
+    radial-gradient(
+      circle at 12% 8%,
+      rgba(125, 211, 252, 0.52),
+      transparent 32%
+    ),
+    radial-gradient(
+      circle at 90% 14%,
+      rgba(251, 207, 232, 0.34),
+      transparent 28%
+    ),
+    linear-gradient(
+      135deg,
+      rgba(224, 242, 254, 0.84),
+      rgba(245, 247, 255, 0.78)
+    ),
+    #f6f8fb;
+}
+
+.inbox-page,
+.inbox-page * {
+  box-sizing: border-box;
+}
+
+.inbox-page.list-only {
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
+  overflow-y: auto;
+}
+
+.inbox-page.conversation-open {
+  grid-template-columns:
+    minmax(300px, var(--inbox-list-width, 420px))
+    8px
+    minmax(420px, 1fr);
+  padding: 12px;
+}
+
+.inbox-page.conversation-open.details-open {
+  grid-template-columns:
+    minmax(280px, var(--inbox-list-width, 380px))
+    8px
+    minmax(420px, 1fr)
+    8px
+    minmax(280px, var(--inbox-details-width, 340px));
+}
+
+.inbox-list-panel,
+.inbox-detail-panel,
+.side-detail-panel {
+  min-width: 0;
+  min-height: 0;
+  border: 1px solid var(--inbox-border);
+  background: var(--inbox-surface);
+  box-shadow: var(--inbox-shadow);
+}
+
+.inbox-list-panel {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 14px;
+}
+
+.list-only .inbox-list-panel {
+  width: min(1280px, calc(100% - 36px));
+  height: calc(100svh - 132px);
+  margin: 4px auto 22px;
+}
+
+.conversation-open .inbox-list-panel {
+  height: 100%;
+  border-radius: 14px 0 0 14px;
+}
+
+.inbox-detail-panel {
+  height: 100%;
+  display: grid;
+  min-height: 0;
+  overflow: hidden;
+  border-radius: 0 14px 14px 0;
+}
+
+.details-open .inbox-detail-panel {
+  border-radius: 0;
+}
+
+.side-detail-panel {
+  height: 100%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border-radius: 0 14px 14px 0;
+}
+
+.resize-handle {
+  position: relative;
+  z-index: 5;
+  width: 8px;
+  min-width: 8px;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.resize-handle::before {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 3px;
+  height: 64px;
+  border-radius: 999px;
+  background: #b8c5d8;
+  content: '';
+  opacity: 0.7;
+  transform: translate(-50%, -50%);
+  transition:
+    width 160ms ease,
+    background 160ms ease,
+    opacity 160ms ease;
+}
+
+.resize-handle:hover::before,
+.resize-handle:focus-visible::before {
+  width: 5px;
+  background: var(--inbox-primary);
+  opacity: 1;
+}
+
+.resize-handle:focus-visible {
+  outline: none;
+}
+
+.inbox-page.is-resizing,
+.inbox-page.is-resizing * {
+  cursor: col-resize !important;
+  user-select: none !important;
+}
+
+.thread-back-button {
+  min-height: 30px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--inbox-primary);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.thread-back-button:hover {
+  color: #0a3f87;
+}
+
+.thread-back-button:focus-visible {
+  border-radius: 4px;
+  outline: 3px solid rgba(14, 84, 179, 0.18);
+  outline-offset: 3px;
+}
+
+/*
+ * Hide list-only columns after a conversation opens.
+ * The detail view gives the list less horizontal space.
+ */
+.conversation-open .ticket-source,
+.conversation-open .ticket-category,
+.conversation-open .ticket-assignee,
+.conversation-open .ticket-count,
+.conversation-open .ticket-deadline,
+.conversation-open .ticket-last,
+.conversation-open .conversation-table-head {
+  display: none;
+}
+
+/* Dark theme */
+html[data-theme='dark'] .inbox-page {
+  --inbox-border: #2b3950;
+  --inbox-surface: #111827;
+  --inbox-surface-soft: #172033;
+  --inbox-text: #eef2ff;
+  --inbox-muted: #a7b3c7;
+  --inbox-shadow:
+    0 20px 60px rgba(0, 0, 0, 0.32);
+
+  background:
+    radial-gradient(
+      circle at 12% 8%,
+      rgba(30, 64, 175, 0.2),
+      transparent 34%
+    ),
+    radial-gradient(
+      circle at 90% 14%,
+      rgba(126, 34, 206, 0.14),
+      transparent 28%
+    ),
+    #0b1220;
+}
+
+html[data-theme='dark']
+  .inbox-list-panel,
+html[data-theme='dark']
+  .inbox-detail-panel,
+html[data-theme='dark']
+  .side-detail-panel {
+  border-color: var(--inbox-border);
+  background: var(--inbox-surface);
+}
+
+html[data-theme='dark']
+  .resize-handle::before {
+  background: #506078;
+}
+
+/* Tablet layout */
+@media (max-width: 1160px) {
+  .inbox-page.conversation-open {
+    grid-template-columns:
+      minmax(280px, var(--inbox-list-width, 340px))
+      8px
+      minmax(380px, 1fr);
+  }
+
+  .inbox-page.conversation-open.details-open {
+    grid-template-columns:
+      minmax(260px, var(--inbox-list-width, 310px))
+      8px
+      minmax(380px, 1fr)
+      8px
+      minmax(260px, var(--inbox-details-width, 300px));
+  }
+}
+
+/* Mobile pane navigation */
+@media (max-width: 820px) {
+  .inbox-page,
+  .inbox-page.list-only,
+  .inbox-page.conversation-open,
+  .inbox-page.conversation-open.details-open {
+    width: 100%;
+    height: auto;
+    min-height: calc(100svh - 228px);
+    display: block;
+    padding: 0;
+    overflow: visible;
+  }
+
+  .inbox-list-panel,
+  .inbox-detail-panel,
+  .side-detail-panel {
+    width: 100%;
+    height: auto;
+    min-height: calc(100svh - 228px);
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .list-only .inbox-list-panel {
+    width: 100%;
+    height: auto;
+    margin: 0;
+  }
+
+  .resize-handle {
+    display: none;
+  }
+
+  .inbox-page[data-mobile-pane='list']
+    .inbox-detail-panel,
+  .inbox-page[data-mobile-pane='list']
+    > .side-detail-panel {
+    display: none;
+  }
+
+  .inbox-page[data-mobile-pane='thread']
+    .inbox-list-panel,
+  .inbox-page[data-mobile-pane='thread']
+    > .side-detail-panel {
+    display: none;
+  }
+
+  .inbox-page[data-mobile-pane='details']
+    .inbox-list-panel,
+  .inbox-page[data-mobile-pane='details']
+    .thread-panel {
+    display: none;
+  }
+
+  .inbox-page[data-mobile-pane='details']
+    .inbox-detail-panel {
+    display: block;
+  }
+
+  .inbox-page[data-mobile-pane='details']
+    .conversation-detail {
+    min-height: calc(100svh - 228px);
+  }
+
+  .inbox-page[data-mobile-pane='details']
+    .side-detail-panel {
+    display: block;
+    min-height: calc(100svh - 228px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .inbox-page *,
+  .inbox-page *::before,
+  .inbox-page *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
