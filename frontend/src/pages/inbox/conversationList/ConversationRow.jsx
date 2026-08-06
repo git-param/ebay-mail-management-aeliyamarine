@@ -76,14 +76,7 @@ function ConversationRow({
   }
 
   return (
-    <div
-      className={`conversation-row ${isSelected ? 'active' : ''}`}
-      onClick={openConversation}
-      onKeyDown={handleKeyDown}
-      role="button"
-      tabIndex={0}
-      aria-current={isSelected ? 'true' : undefined}
-    >
+    <div className={['conversation-row', conversation.is_not_read ? 'conversation-row-unread' : 'conversation-row-read', isSelected ? 'active' : '', ] .filter(Boolean) .join(' ')} onClick={openConversation} onKeyDown={handleKeyDown} role="button" tabIndex={0} aria-current={isSelected ? 'true' : undefined} >
       <span
         className="ticket-select"
         onClick={stopRowSelection}
@@ -129,11 +122,11 @@ function ConversationRow({
       </span>
 
       <span className="ticket-seller-account">
-        <center>
-          <strong>
-            {sellerAccountLabel(conversation)}
-          </strong>
-        </center>
+        {conversation.is_not_read ? (
+          <strong>{sellerAccountLabel(conversation)}</strong>
+        ) : (
+          sellerAccountLabel(conversation)
+        )}
       </span>
 
       <span className="ticket-message">
