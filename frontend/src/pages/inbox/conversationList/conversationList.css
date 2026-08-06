@@ -165,18 +165,34 @@
   margin: 0;
 }
 
-.inbox-page .conversation-table-head {
+/* Scrollable conversation table area */
+.inbox-page .conversation-table-scroll {
   min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+/* Keep the column header visible while vertically scrolling */
+.inbox-page .conversation-table-head {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+}
+
+/*
+  The outer wrapper handles scrolling.
+  The list itself should not create a separate nested scrollbar.
+*/
+.inbox-page .conversation-list {
+  min-height: 0;
+  overflow: visible;
+}
+
+.inbox-page .conversation-table-head {
   display: grid;
-  grid-template-columns:
-    46px
-    minmax(280px, 2fr)
-    130px
-    minmax(280px, 2fr)
-    150px
-    80px
-    130px
-    120px;
+  grid-template-columns: 70px 150px 160px minmax(280px, 2fr) 150px 80px 130px 120px;
   flex: 0 0 auto;
   align-items: center;
   gap: 16px;
@@ -189,33 +205,15 @@
   font-weight: 900;
   letter-spacing: 0.03em;
   text-transform: uppercase;
-}
-
-.inbox-page .conversation-table-head::before {
-  content: '';
-}
-
-.inbox-page .conversation-list {
-  min-height: 0;
-  flex: 1 1 auto;
   overflow-y: auto;
-  overscroll-behavior: contain;
-  background: #ffffff;
 }
+
 
 .inbox-page .conversation-row {
   min-width: 0;
   min-height: 92px;
   display: grid;
-  grid-template-columns:
-    46px
-    minmax(280px, 2fr)
-    130px
-    minmax(280px, 2fr)
-    150px
-    80px
-    130px
-    120px;
+  grid-template-columns: 46px minmax(280px, 2fr) 130px minmax(280px, 2fr) 150px 80px 130px 120px;
   align-items: center;
   gap: 16px;
   padding: 14px 26px;
@@ -227,6 +225,35 @@
   transition:
     background 150ms ease,
     box-shadow 150ms ease;
+}
+
+/*
+  Conversation text weight rules:
+  - Read conversations use normal font weight.
+  - Unread conversations use bold font weight.
+*/
+.inbox-page .conversation-row-read,
+.inbox-page .conversation-row-read strong,
+.inbox-page .conversation-row-read small,
+.inbox-page .conversation-row-read time,
+.inbox-page .conversation-row-read .ticket-username,
+.inbox-page .conversation-row-read .ticket-username strong,
+.inbox-page .conversation-row-read .ticket-username small,
+.inbox-page .conversation-row-read .ticket-seller-account,
+.inbox-page .conversation-row-read .ticket-last {
+  font-weight: 400;
+}
+
+.inbox-page .conversation-row-unread,
+.inbox-page .conversation-row-unread strong,
+.inbox-page .conversation-row-unread small,
+.inbox-page .conversation-row-unread time,
+.inbox-page .conversation-row-unread .ticket-username,
+.inbox-page .conversation-row-unread .ticket-username strong,
+.inbox-page .conversation-row-unread .ticket-username small,
+.inbox-page .conversation-row-unread .ticket-seller-account,
+.inbox-page .conversation-row-unread .ticket-last {
+  font-weight: 700;
 }
 
 .inbox-page .conversation-row:hover,
@@ -314,7 +341,6 @@
   overflow: hidden;
   color: #111827;
   font-size: 13px;
-  font-weight: 900;
   text-overflow: ellipsis;
   white-space: nowrap;
 }

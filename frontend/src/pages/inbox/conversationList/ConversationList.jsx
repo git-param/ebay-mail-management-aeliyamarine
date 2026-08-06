@@ -167,59 +167,59 @@ function ConversationList({
         onClear={onClearBulkSelection}
       />
 
-      <div
-        className="conversation-table-head"
-        aria-hidden="true"
-      >
-        <span>Customer</span>
-        <span>Seller</span>
-        <span>Message</span>
-        <span>Category</span>
-        <span>Messages</span>
-        <span>SLA</span>
-        <span>Last Update</span>
-      </div>
+      <div className="conversation-table-scroll">
+        <div className="conversation-table-head" aria-hidden="true">
+          <span></span>
+          <span>Customer</span>
+          <span>Seller</span>
+          <span>Message</span>
+          <span>Category</span>
+          <span>Messages</span>
+          <span>SLA</span>
+          <span>Last Update</span>
+        </div>
 
-      <div className="conversation-list">
-        {isLoading &&
-        !conversations.length ? (
-          <EmptyPanel
-            title="Loading conversations..."
-            message="Please wait while the inbox is refreshed."
-          />
-        ) : null}
-
-        {!isLoading &&
-        !conversations.length ? (
-          <EmptyPanel
-            title="No conversations found"
-            message="Try changing your search or inbox filters."
-          />
-        ) : null}
-
-        {conversations.map(
-          (conversation) => (
-            <ConversationRow
-              conversation={conversation}
-              isSelected={
-                conversation.id ===
-                selectedConversationId
-              }
-              isBulkSelected={
-                selectedConversationIds?.has(
-                  conversation.id,
-                ) || false
-              }
-              onSelect={
-                onSelectConversation
-              }
-              onToggleBulk={
-                onToggleBulk
-              }
-              key={conversation.id}
+        <div className="conversation-list">
+          {isLoading &&
+          !conversations.length ? (
+            <EmptyPanel
+              title="Loading conversations..."
+              message="Please wait while the inbox is refreshed."
             />
-          ),
-        )}
+          ) : null}
+
+          {!isLoading &&
+          !conversations.length ? (
+            <EmptyPanel
+              title="No conversations found"
+              message="Try changing your search or inbox filters."
+            />
+          ) : null}
+
+          {conversations.map(
+            (conversation) => (
+              <ConversationRow
+                conversation={conversation}
+                isSelected={
+                  conversation.id ===
+                  selectedConversationId
+                }
+                isBulkSelected={
+                  selectedConversationIds?.has(
+                    conversation.id,
+                  ) || false
+                }
+                onSelect={
+                  onSelectConversation
+                }
+                onToggleBulk={
+                  onToggleBulk
+                }
+                key={conversation.id}
+              />
+            ),
+          )}
+        </div>
       </div>
 
       <InboxPagination

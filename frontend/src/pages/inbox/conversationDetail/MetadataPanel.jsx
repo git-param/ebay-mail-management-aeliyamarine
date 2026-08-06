@@ -90,46 +90,6 @@ function MetadataPanel({
             </MetadataValue>
           </dd>
         </div>
-
-        <div>
-          <dt>Unread</dt>
-
-          <dd>
-            {detail.is_not_read
-              ? 'Yes'
-              : 'No'}
-          </dd>
-        </div>
-
-        <div>
-          <dt>Created</dt>
-
-          <dd>
-            {formatDate(
-              detail.created_at,
-            )}
-          </dd>
-        </div>
-
-        <div>
-          <dt>Last Updated</dt>
-
-          <dd>
-            {formatDate(
-              detail.updated_at,
-            )}
-          </dd>
-        </div>
-
-        <div>
-          <dt>Last Message</dt>
-
-          <dd>
-            {formatDate(
-              detail.last_message_at,
-            )}
-          </dd>
-        </div>
       </dl>
     </section>
   )
