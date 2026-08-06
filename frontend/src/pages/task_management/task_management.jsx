@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 
-import AppLayout, { Icon } from '../layouts/app_layout'
-import { deleteSubtask, deleteTaskCategory, fetchTaskCategories, fetchUserTaskAssignments, saveSubtask, saveTaskAssignment, saveTaskCategory } from '../services/taskManagementApi'
-import { fetchMessageTypes } from '../services/messageTypeApi'
-import { fetchUsers } from '../services/userApi'
-import { normalizeRole } from '../utils/roles'
+import AppLayout, { Icon } from '../../layouts/app_layout'
+import { deleteSubtask, deleteTaskCategory, fetchTaskCategories, fetchUserTaskAssignments, saveSubtask, saveTaskAssignment, saveTaskCategory } from '../../services/taskManagementApi'
+import { fetchMessageTypes } from '../../services/messageTypeApi'
+import { fetchUsers } from '../../services/userApi'
+import { normalizeRole } from '../../utils/roles'
+
+import './task_management.css'
 
 const STATUSES = ['ACTIVE', 'INACTIVE', 'ARCHIVED']
 const SOURCE_TYPES = [
@@ -398,11 +400,12 @@ export default function TaskManagement({ currentUser, onLogout }) {
               </div>
             </div>
 
-            <div className="table-scroll">
+            <div className="task-table-scroll" role="region" aria-label="Subtasks table" tabIndex="0">
               <table className="users-table task-subtask-table">
                 <thead>
                   <tr>
                     <th>Name</th>
+                    <th>Source</th>
                     <th>Status</th>
                     <th>Assignments</th>
                     <th>Actions</th>
@@ -417,7 +420,7 @@ export default function TaskManagement({ currentUser, onLogout }) {
                       </td>
                       <td>
                         {sourceLabel(subtask.source_type)}
-                        {subtask.source_type === 'MESSAGE_TYPE' ? `  ${activeMessageTypes.find((item) => item.id === subtask.source_reference_id)?.name || 'Unknown'}` : ''}
+                        {subtask.source_type === 'MESSAGE_TYPE' ? ` · ${activeMessageTypes.find((item) => item.id === subtask.source_reference_id)?.name || 'Unknown'}` : ''}
                       </td>
                       <td>{labelize(subtask.status)}</td>
                       <td>{subtask.assignment_count}</td>
