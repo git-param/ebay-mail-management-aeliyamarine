@@ -167,28 +167,51 @@ function EditSoldPostingModal({ row, statuses, saving, error, onChange, onCancel
         </div>
         <div className="management-form sold-edit-form">
           {error ? <p className="form-message error">{error}</p> : null}
-          <section className="offer-form-section">
-            <h3>Order</h3>
-            <div className="form-grid">
-              <label className="field"><span>Status</span><select value={row.status || ''} onChange={(event) => onChange('status', event.target.value)}>{statuses.map((status) => <option key={status} value={status}>{status.replaceAll('_', ' ')}</option>)}</select></label>
-              {field('tracking_number', 'Tracking number')}
-              {field('shipping_carrier_code', 'Carrier')}
-              {field('shipping_service_code', 'Service')}
-              {field('ship_by_date', 'Ship by', 'datetime-local')}
-              {field('buyer_username', 'Buyer username')}
-              {field('order_payment_status', 'Payment status')}
-              {field('order_fulfillment_status', 'Fulfillment status')}
-            </div>
-          </section>
-          <section className="offer-form-section">
-            <h3>Line Item</h3>
-            <div className="form-grid">
-              {field('sku', 'SKU')}
-              {field('condition', 'Condition')}
-              {field('title', 'Product title')}
-              {field('quantity', 'Quantity', 'number')}
-            </div>
-          </section>
+          <div className="sold-edit-columns">
+
+            <section className="offer-form-section">
+              <h3>Order</h3>
+
+              <div className="sold-edit-field-list">
+                <label className="field">
+                  <span>Status</span>
+
+                  <select
+                    value={row.status || ''}
+                    onChange={(event) => onChange('status', event.target.value)}
+                  >
+                    {statuses.map((status) => (
+                      <option key={status} value={status}>
+                        {status.replaceAll('_', ' ')}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                {field('tracking_number', 'Tracking number')}
+                {field('shipping_carrier_code', 'Carrier')}
+                {field('shipping_service_code', 'Service')}
+                {field('ship_by_date', 'Ship by', 'datetime-local')}
+                {field('buyer_username', 'Buyer username')}
+              </div>
+            </section>
+
+
+            <section className="offer-form-section">
+              <h3>Line Item</h3>
+
+              <div className="sold-edit-field-list">
+                {field('sku', 'SKU')}
+                {field('condition', 'Condition')}
+                {field('title', 'Product title')}
+                {field('quantity', 'Quantity', 'number')}
+
+                {field('order_payment_status', 'Payment status')}
+                {field('order_fulfillment_status', 'Fulfillment status')}
+              </div>
+            </section>
+
+          </div>
           <div className="modal-actions">
             <button className="secondary-button" type="button" onClick={onCancel}>Cancel</button>
             <button className="primary-button" type="button" disabled={saving} onClick={onSave}>{saving ? 'Saving...' : 'Save Changes'}</button>
