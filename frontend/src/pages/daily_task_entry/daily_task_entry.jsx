@@ -166,7 +166,7 @@ function AgentCard({ row, onChange }) {
                 type="number"
                 min="0"
                 max={item.max_score}
-                disabled={isDisabled || item.status === 'NOT_APPLICABLE'}
+                disabled={isDisabled}
                 value={isMajor ? 0 : item.value}
                 onChange={(event) => updateItem(item.key, { value: clamp(event.target.value, item.max_score), status: 'ENTERED' })}
               />

@@ -290,9 +290,13 @@ class PMSService:
         activity_count = None
         status_value = 'NOT_ENTERED'
         if source == 'AUTO':
+            # Any qualifying activity at all earns full marks by default; the admin can
+            # still lower it manually. A zero-activity result is also left editable
+            # (not locked as NOT_APPLICABLE) so the admin can enter marks by hand if the
+            # automatic fetch is wrong, missing, or fails for some other reason.
             activity_count = self._automatic_count(subtask, user_id, start, end)
-            value = min(activity_count, max_score) if activity_count > 0 else 0
-            status_value = 'ENTERED' if activity_count > 0 else 'NOT_APPLICABLE'
+            value = max_score if activity_count > 0 else 0
+            status_value = 'ENTERED' if activity_count > 0 else 'NOT_ENTERED'
         return self._item(
             f'assignment:{assignment.id}',
             label,
