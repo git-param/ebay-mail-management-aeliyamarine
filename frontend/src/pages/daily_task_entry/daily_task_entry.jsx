@@ -138,63 +138,78 @@ function AgentCard({ row, onChange }) {
   }
 
   return (
-    <section className={`table-card pms-agent-card${isLocked ? ' locked' : ''}`}>
+    <section className={`table-card pms-agent-card${isLocked ? ' locked' : ''}${isMajor ? ' major-error' : ''}`}>
       <div className="pms-card-header pms-agent-card-header">
         <label className="checkbox-field"><input type="checkbox" checked={row.selected} onChange={(event) => onChange(row.userId, (current) => ({ ...current, selected: event.target.checked }))} /></label>
-        <div><h3>{row.userName}</h3><small>{row.userEmail}</small></div>
-        {isLocked ? <span className="upload-status success">Uploaded &amp; Locked</span> : null}
-        {row.status === 'error' ? <span className="upload-status error">{row.statusMessage || 'Failed'}</span> : null}
-        {isLocked ? <button className="unlock-button" type="button" onClick={() => onChange(row.userId, (current) => ({ ...current, status: 'idle', statusMessage: '' }))}>Unlock to Edit</button> : null}
+        <div className="pms-agent-identity"><h3>{row.userName}</h3><small>{row.userEmail}</small></div>
+        <div className="pms-agent-card-header-status">
+          {isLocked ? <span className="upload-status success">Uploaded &amp; Locked</span> : null}
+          {row.status === 'error' ? <span className="upload-status error">{row.statusMessage || 'Failed'}</span> : null}
+          {isLocked ? <button className="unlock-button" type="button" onClick={() => onChange(row.userId, (current) => ({ ...current, status: 'idle', statusMessage: '' }))}>Unlock to Edit</button> : null}
+        </div>
       </div>
       {isLocked ? <p className="field-help locked-help">This entry has been uploaded and is locked from editing. Click "Unlock to Edit" to make changes and re-upload.</p> : null}
 
       <section className="pms-task-box">
-        {(row.score_items || []).length === 0 ? <p className="field-help">No subtasks assigned to this agent.</p> : null}
+        <h3 className="pms-section-label">Tasks &amp; Scoring</h3>
+        {(row.score_items || []).length === 0 ? <p className="field-help pms-empty-state">No subtasks assigned to this agent.</p> : null}
         {(row.score_items || []).map((item) => (
-          <div className="pms-dynamic-row" key={item.key}>
-            <div>
+          <div className={`pms-dynamic-row${item.status === 'NOT_APPLICABLE' ? ' not-applicable' : ''}`} key={item.key}>
+            <div className="pms-dynamic-row-label">
               <strong>{item.label}</strong>
-              <small>{sourceLabel(item.source)}{item.source === 'AUTO' ? ` \u00b7 Activity: ${item.activity_count ?? 0}` : ''}</small>
+              <span className={`source-badge ${item.source === 'AUTO' ? 'source-auto' : 'source-manual'}`}>
+                {sourceLabel(item.source)}{item.source === 'AUTO' ? ` \u00b7 ${item.activity_count ?? 0} handled` : ''}
+              </span>
             </div>
-            <span>/{item.max_score}</span>
-            <input
-              type="number"
-              min="0"
-              max={item.max_score}
-              disabled={isDisabled || item.status === 'NOT_APPLICABLE'}
-              value={isMajor ? 0 : item.value}
-              onChange={(event) => updateItem(item.key, { value: clamp(event.target.value, item.max_score), status: 'ENTERED' })}
-            />
+            <div className="pms-dynamic-row-score">
+              <input
+                type="number"
+                min="0"
+                max={item.max_score}
+                disabled={isDisabled || item.status === 'NOT_APPLICABLE'}
+                value={isMajor ? 0 : item.value}
+                onChange={(event) => updateItem(item.key, { value: clamp(event.target.value, item.max_score), status: 'ENTERED' })}
+              />
+              <span className="pms-score-max">/ {item.max_score}</span>
+            </div>
           </div>
         ))}
-        <div className="pms-dynamic-row">
-          <div><strong>SLA Score</strong><small>Manual</small></div>
-          <span>/{SLA_MAX}</span>
-          <input type="number" min="0" max={SLA_MAX} disabled={isDisabled} value={isMajor ? 0 : row.sla_score} onChange={(event) => patch({ sla_score: clamp(event.target.value, SLA_MAX) })} />
+        <div className="pms-dynamic-row pms-sla-row">
+          <div className="pms-dynamic-row-label">
+            <strong>SLA Score</strong>
+            <span className="source-badge source-manual">Manual</span>
+          </div>
+          <div className="pms-dynamic-row-score">
+            <input type="number" min="0" max={SLA_MAX} disabled={isDisabled} value={isMajor ? 0 : row.sla_score} onChange={(event) => patch({ sla_score: clamp(event.target.value, SLA_MAX) })} />
+            <span className="pms-score-max">/ {SLA_MAX}</span>
+          </div>
         </div>
         <div className="pms-task-row final">
-          <span>Task Total</span><strong>{isMajor ? 0 : totalTaskEarned}/{totalTaskMax}</strong>
-          <span>Final Score</span><strong>{row.final_score_percent}%</strong>
+          <div className="pms-final-metric"><span>Task Total</span><strong>{isMajor ? 0 : totalTaskEarned}/{totalTaskMax}</strong></div>
+          <div className="pms-final-metric pms-final-score"><span>Final Score</span><strong>{row.final_score_percent}%</strong></div>
         </div>
       </section>
 
-      <div className="pms-form-row">
-        <label className="field"><span>Day Type</span><select disabled={isLocked} value={row.day_type} onChange={(event) => patch({ day_type: event.target.value })}>{DAY_TYPES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
-        <label className="field"><span>Error</span><select disabled={isLocked} value={row.error_level} onChange={(event) => updateErrorLevel(event.target.value)}>{ERROR_LEVELS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
-      </div>
-      {row.error_level !== 'NO_ERROR' ? <label className="field">
-        <span>Error Remarks (required)</span>
-        <textarea disabled={isLocked} required value={row.error_remark} onChange={(event) => patch({ error_remark: event.target.value })} />
-      </label> : null}
-      <label className="field">
-        <span>Remarks</span><textarea disabled={isLocked} value={row.remarks} onChange={(event) => patch({ remarks: event.target.value })} placeholder="General feedback or notes for this agent and date" />
-      </label>
-      <label className="field">
-        <span>Particulars / Error Note</span><textarea disabled={isLocked} value={row.particulars_error_note} onChange={(event) => patch({ particulars_error_note: event.target.value })} />
-      </label>
-      <label className="field">
-        <span>SLA Remarks</span><textarea disabled={isLocked} value={row.sla_remarks} onChange={(event) => patch({ sla_remarks: event.target.value })} />
-      </label>
+      <section className="pms-details-box">
+        <h3 className="pms-section-label">Day Details</h3>
+        <div className="pms-form-row">
+          <label className="field"><span>Day Type</span><select disabled={isLocked} value={row.day_type} onChange={(event) => patch({ day_type: event.target.value })}>{DAY_TYPES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+          <label className="field"><span>Error</span><select disabled={isLocked} value={row.error_level} onChange={(event) => updateErrorLevel(event.target.value)}>{ERROR_LEVELS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+        </div>
+        {row.error_level !== 'NO_ERROR' ? <label className="field">
+          <span>Error Remarks (required)</span>
+          <textarea disabled={isLocked} required value={row.error_remark} onChange={(event) => patch({ error_remark: event.target.value })} />
+        </label> : null}
+        <label className="field">
+          <span>Remarks</span><textarea disabled={isLocked} value={row.remarks} onChange={(event) => patch({ remarks: event.target.value })} placeholder="General feedback or notes for this agent and date" />
+        </label>
+        <label className="field">
+          <span>Particulars / Error Note</span><textarea disabled={isLocked} value={row.particulars_error_note} onChange={(event) => patch({ particulars_error_note: event.target.value })} />
+        </label>
+        <label className="field">
+          <span>SLA Remarks</span><textarea disabled={isLocked} value={row.sla_remarks} onChange={(event) => patch({ sla_remarks: event.target.value })} />
+        </label>
+      </section>
     </section>
   )
 }
@@ -326,14 +341,17 @@ export default function DailyTaskEntry({ currentUser, onLogout }) {
               {loaded ? (
                 <>
                   <div className="pms-bulk-actions">
-                    <button className="secondary-button compact-action" type="button" onClick={() => selectAll(true)}>Select All</button>
-                    <button className="secondary-button compact-action" type="button" onClick={() => selectAll(false)}>Deselect All</button>
-                    <span className="field-help">{selectedCount} of {eligibleRows.length} selected{lockedCount ? ` \u00b7 ${lockedCount} already uploaded` : ''}</span>
-                    <span className="pms-bulk-actions-spacer" />
-                    <button className="primary-button compact-action" type="button" onClick={() => upload('selected')} disabled={uploading || !selectedCount}>{uploading ? 'Uploading...' : 'Upload Selected Entries'}</button>
-                    <button className="primary-button compact-action" type="button" onClick={() => upload('all')} disabled={uploading || !eligibleRows.length}>{uploading ? 'Uploading...' : 'Upload All Loaded Entries'}</button>
+                    <div className="pms-bulk-actions-select">
+                      <button className="secondary-button compact-action" type="button" onClick={() => selectAll(true)}>Select All</button>
+                      <button className="secondary-button compact-action" type="button" onClick={() => selectAll(false)}>Deselect All</button>
+                      <span className="field-help pms-select-count">{selectedCount} of {eligibleRows.length} selected{lockedCount ? ` \u00b7 ${lockedCount} already uploaded` : ''}</span>
+                    </div>
+                    <div className="pms-bulk-actions-upload">
+                      <button className="primary-button compact-action" type="button" onClick={() => upload('selected')} disabled={uploading || !selectedCount}>{uploading ? 'Uploading...' : 'Upload Selected'}</button>
+                      <button className="primary-button compact-action" type="button" onClick={() => upload('all')} disabled={uploading || !eligibleRows.length}>{uploading ? 'Uploading...' : 'Upload All'}</button>
+                    </div>
                   </div>
-                  {rows.length === 0 ? <p className="field-help">No active agents found for this selection.</p> : null}
+                  {rows.length === 0 ? <p className="field-help pms-empty-state">No active agents found for this selection.</p> : null}
                   <div className="pms-agent-cards">
                     {rows.map((row) => <AgentCard key={row.userId} row={row} onChange={updateRow} />)}
                   </div>
