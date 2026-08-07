@@ -936,6 +936,106 @@ export default function OfferManagement({ currentUser, onLogout }) {
           </div>
         </section>
       </main>
+
+      {/* CREATE OFFER */}
+      {showCreate ? (
+        <OfferForm
+          entry={null}
+          lookups={lookups}
+          accounts={accounts}
+          onCancel={() => setShowCreate(false)}
+          onSaved={afterSave}
+        />
+      ) : null}
+
+      {/* EDIT OFFER */}
+      {modalEntry ? (
+        <OfferForm
+          entry={modalEntry}
+          lookups={lookups}
+          accounts={accounts}
+          onCancel={() => setModalEntry(null)}
+          onSaved={afterSave}
+        />
+      ) : null}
+
+      {/* PREVIEW OFFER */}
+      {selected ? (
+        <PreviewDrawer
+          entry={selected}
+          history={history}
+          canDelete={canDelete}
+          onClose={() => {
+            setSelected(null)
+            setHistory([])
+          }}
+          onEdit={() => {
+            setModalEntry(selected)
+            setSelected(null)
+          }}
+          onDelete={(entry) => {
+            setSelected(null)
+            setDeleteTarget(entry)
+          }}
+        />
+      ) : null}
+
+      {/* DELETE CONFIRMATION */}
+      {deleteTarget ? (
+        <div className="modal-backdrop" role="presentation">
+          <section
+            className="modal-panel"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-offer-title"
+          >
+            <div className="modal-header">
+              <h2 id="delete-offer-title">
+                Delete Offer Entry
+              </h2>
+
+              <button
+                className="icon-button"
+                type="button"
+                onClick={() => setDeleteTarget(null)}
+              >
+                <Icon name="close" />
+              </button>
+            </div>
+
+            <div className="management-form">
+              <p>
+                Are you sure you want to delete offer entry
+                {deleteTarget.entry_number
+                  ? ` #${deleteTarget.entry_number}`
+                  : ''}
+                ?
+              </p>
+
+              <p>This action cannot be undone.</p>
+
+              <div className="modal-actions">
+                <button
+                  className="secondary-button"
+                  type="button"
+                  onClick={() => setDeleteTarget(null)}
+                >
+                  Cancel
+                </button>
+
+                <button
+                  className="primary-button"
+                  type="button"
+                  onClick={confirmDelete}
+                >
+                  Delete Entry
+                </button>
+              </div>
+            </div>
+          </section>
+        </div>
+      ) : null}
+
     </AppLayout>
   )
 }
