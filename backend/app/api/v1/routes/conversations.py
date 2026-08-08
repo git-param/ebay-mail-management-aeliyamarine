@@ -229,8 +229,8 @@ def serialize_conversation(
         sla_status=sla_snapshot["sla_status"],
         sla_response_seconds=sla_snapshot["sla_response_seconds"],
         sla_elapsed_seconds=sla_snapshot["sla_elapsed_seconds"],
-        sla_remaining_seconds=sla_snapshot["sla_remaining_seconds"],
-        sla_overdue_seconds=sla_snapshot["sla_overdue_seconds"],
+        sla_remaining_seconds=sla_snapshot.get("sla_remaining_seconds"),
+        sla_overdue_seconds=sla_snapshot.get("sla_overdue_seconds"),
         sla_met=sla_snapshot["sla_met"],
         status=conversation.status,
         category_id=conversation.category_id,
@@ -299,8 +299,8 @@ def serialize_conversation_summary(
         sla_status=sla_snapshot["sla_status"],
         sla_response_seconds=sla_snapshot["sla_response_seconds"],
         sla_elapsed_seconds=sla_snapshot["sla_elapsed_seconds"],
-        sla_remaining_seconds=sla_snapshot["sla_remaining_seconds"],
-        sla_overdue_seconds=sla_snapshot["sla_overdue_seconds"],
+        sla_remaining_seconds=sla_snapshot.get("sla_remaining_seconds"),
+        sla_overdue_seconds=sla_snapshot.get("sla_overdue_seconds"),
         sla_met=sla_snapshot["sla_met"],
         status=conversation.status,
         category_id=conversation.category_id,
@@ -836,6 +836,13 @@ def conversation_sla_snapshot(conversation: Conversation) -> dict:
             "sla_status": "MET" if duration <= target_seconds else "BREACHED",
             "sla_response_seconds": duration,
             "sla_elapsed_seconds": None,
+
+            # This SLA cycle has already received a seller reply, therefore
+            # active-only timing values must be empty. Keeping every snapshot
+            # branch structurally identical also prevents serializer KeyErrors.
+            "sla_remaining_seconds": None,
+            "sla_overdue_seconds": None,
+
             "sla_met": duration <= target_seconds,
         }
     if message_pair and message_pair[1] is None and (not completed or message_pair[0].sent_at > completed.replied_time):
