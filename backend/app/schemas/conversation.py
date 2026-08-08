@@ -50,6 +50,8 @@ class ConversationSummaryResponse(BaseModel):
     sla_status: str | None = None
     sla_response_seconds: int | None = None
     sla_elapsed_seconds: int | None = None
+    sla_remaining_seconds: int | None = None
+    sla_overdue_seconds: int | None = None
     sla_met: bool | None = None
     status: ConversationStatus
     category_id: UUID | None
@@ -62,7 +64,6 @@ class ConversationSummaryResponse(BaseModel):
     updated_at: datetime
     current_assignment: 'ConversationAssignmentResponse | None' = None
     seller_account: EbayAccountBriefResponse | None = None
-
 
 class MessageResponse(BaseModel):
     """API representation of a conversation message."""

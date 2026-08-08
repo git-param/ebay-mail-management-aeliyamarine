@@ -35,7 +35,9 @@ function ConversationList({
   isBulkAssigning,
   search,
   activeFilterCount = 0,
+  nearDueActive = false,
   onSearch,
+  onToggleNearDue,
   onRefresh,
   onOpenFilters,
   onSelectConversation,
@@ -86,6 +88,23 @@ function ConversationList({
         </div>
 
         <div className="inbox-header-actions">
+          <button
+            className={`secondary-button compact-action near-due-button${nearDueActive ? ' active' : ''}`}
+            type="button"
+            onClick={() => {
+              if (onToggleNearDue) {
+                onToggleNearDue()
+              }
+            }}
+            disabled={isLoading}
+            aria-pressed={nearDueActive}
+            title="Show conversations with 2 hours or less of SLA time remaining"
+          >
+            <Icon name="clock" />
+            <span>Near Due SLA</span>
+            <span className="near-due-window">2h</span>
+          </button>
+
           <button
             className="secondary-button compact-action"
             type="button"

@@ -37,6 +37,7 @@ class ConversationRepository:
         category_id: UUID | None = None,
         date_from: datetime | None = None,
         date_to: datetime | None = None,
+        conversation_ids: list[UUID] | None = None,
     ) -> list[Conversation]:
         """
         List conversations matching inbox filters.
@@ -55,6 +56,7 @@ class ConversationRepository:
                 category_id=category_id,
                 date_from=date_from,
                 date_to=date_to,
+                conversation_ids=conversation_ids,
             )
             .options(
                 selectinload(
@@ -132,6 +134,49 @@ class ConversationRepository:
             )
             or 0
         )
+
+    def list_sla_candidates(
+        self,
+        *,
+        search: str | None = None,
+        status: ConversationStatus | None = None,
+        provider: str | None = None,
+        conversation_type: str | None = None,
+        provider_account_id: UUID | None = None,
+        assigned_user_id: UUID | None = None,
+        category_id: UUID | None = None,
+        date_from: datetime | None = None,
+        date_to: datetime | None = None,
+    ) -> list[Conversation]:
+        """
+        Load only the relationships required to evaluate a Near Due SLA filter.
+
+        This avoids loading complete message/attachment histories for every
+        inbox conversation before the two-hour SLA warning window is applied.
+        """
+        statement = (
+            self._filtered_statement(
+                search=search,
+                status=status,
+                provider=provider,
+                conversation_type=conversation_type,
+                provider_account_id=provider_account_id,
+                assigned_user_id=assigned_user_id,
+                category_id=category_id,
+                date_from=date_from,
+                date_to=date_to,
+            )
+            .options(
+                # Actual message chronology is required to confirm that the
+                # latest buyer SLA cycle is still unanswered. Loading only
+                # SLA history can include stale active cycles after a reply.
+                selectinload(Conversation.messages),
+                selectinload(Conversation.sla_history),
+                joinedload(Conversation.category),
+            )
+        )
+
+        return list(self.db.scalars(statement))
 
     def get_by_id(
         self,
@@ -260,9 +305,15 @@ class ConversationRepository:
         category_id: UUID | None = None,
         date_from: datetime | None = None,
         date_to: datetime | None = None,
+        conversation_ids: list[UUID] | None = None,
     ):
         """Build the reusable base conversation query."""
         statement = select(Conversation)
+
+        if conversation_ids is not None:
+            statement = statement.where(
+                Conversation.id.in_(conversation_ids)
+            )
 
         if search:
             normalized_search = (

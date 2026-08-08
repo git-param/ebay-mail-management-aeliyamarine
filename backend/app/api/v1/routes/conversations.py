@@ -229,6 +229,8 @@ def serialize_conversation(
         sla_status=sla_snapshot["sla_status"],
         sla_response_seconds=sla_snapshot["sla_response_seconds"],
         sla_elapsed_seconds=sla_snapshot["sla_elapsed_seconds"],
+        sla_remaining_seconds=sla_snapshot["sla_remaining_seconds"],
+        sla_overdue_seconds=sla_snapshot["sla_overdue_seconds"],
         sla_met=sla_snapshot["sla_met"],
         status=conversation.status,
         category_id=conversation.category_id,
@@ -297,6 +299,8 @@ def serialize_conversation_summary(
         sla_status=sla_snapshot["sla_status"],
         sla_response_seconds=sla_snapshot["sla_response_seconds"],
         sla_elapsed_seconds=sla_snapshot["sla_elapsed_seconds"],
+        sla_remaining_seconds=sla_snapshot["sla_remaining_seconds"],
+        sla_overdue_seconds=sla_snapshot["sla_overdue_seconds"],
         sla_met=sla_snapshot["sla_met"],
         status=conversation.status,
         category_id=conversation.category_id,
@@ -807,32 +811,46 @@ def conversation_sla_snapshot(conversation: Conversation) -> dict:
                 "sla_status": "MET" if duration <= target_seconds else "BREACHED",
                 "sla_response_seconds": duration,
                 "sla_elapsed_seconds": None,
+                "sla_remaining_seconds": None,
+                "sla_overdue_seconds": None,
                 "sla_met": duration <= target_seconds,
             }
         elapsed = service.business_seconds_between(active.buyer_message_time, datetime.now(UTC))
+        remaining = max(0, target_seconds - elapsed)
+        overdue = max(0, elapsed - target_seconds)
         return {
             "response_due_at": service.due_at(active.buyer_message_time, target_seconds),
-            "sla_status": "OVERDUE" if elapsed > target_seconds else "PENDING",
+            "sla_status": "OVERDUE" if overdue > 0 else "PENDING",
             "sla_response_seconds": None,
             "sla_elapsed_seconds": elapsed,
+            # Remaining/overdue values are both BUSINESS SLA seconds.
+            # They therefore respect office hours and Sunday exclusion.
+            "sla_remaining_seconds": remaining,
+            "sla_overdue_seconds": overdue,
             "sla_met": None,
         }
-    if message_pair and message_pair[1] and (not completed or message_pair[0].sent_at > completed.buyer_message_time):
-        duration = service.business_seconds_between(message_pair[0].sent_at, message_pair[1].sent_at)
+    if message_pair and message_pair[1] and ( not completed or message_pair[0].sent_at > completed.buyer_message_time ):
+        duration = service.business_seconds_between(message_pair[0].sent_at, message_pair[1].sent_at,)
         return {
             "response_due_at": None,
-            "sla_status": "MET" if duration <= target_seconds else "BREACHED",
+            "sla_status": ( "MET" if duration <= target_seconds else "BREACHED"),
             "sla_response_seconds": duration,
             "sla_elapsed_seconds": None,
+            "sla_remaining_seconds": None,
+            "sla_overdue_seconds": None,
             "sla_met": duration <= target_seconds,
         }
     if message_pair and message_pair[1] is None and (not completed or message_pair[0].sent_at > completed.replied_time):
         elapsed = service.business_seconds_between(message_pair[0].sent_at, datetime.now(UTC))
+        remaining = max(0, target_seconds - elapsed)
+        overdue = max(0, elapsed - target_seconds)
         return {
             "response_due_at": service.due_at(message_pair[0].sent_at, target_seconds),
-            "sla_status": "OVERDUE" if elapsed > target_seconds else "PENDING",
+            "sla_status": "OVERDUE" if overdue > 0 else "PENDING",
             "sla_response_seconds": None,
             "sla_elapsed_seconds": elapsed,
+            "sla_remaining_seconds": remaining,
+            "sla_overdue_seconds": overdue,
             "sla_met": None,
         }
     if completed:
@@ -847,6 +865,8 @@ def conversation_sla_snapshot(conversation: Conversation) -> dict:
             "sla_status": status,
             "sla_response_seconds": duration,
             "sla_elapsed_seconds": None,
+            "sla_remaining_seconds": None,
+            "sla_overdue_seconds": None,
             "sla_met": completed.sla_met,
         }
     return {
@@ -854,6 +874,8 @@ def conversation_sla_snapshot(conversation: Conversation) -> dict:
         "sla_status": None,
         "sla_response_seconds": None,
         "sla_elapsed_seconds": None,
+        "sla_remaining_seconds": None,
+        "sla_overdue_seconds": None,
         "sla_met": None,
     }
 

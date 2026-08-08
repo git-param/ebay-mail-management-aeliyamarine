@@ -290,50 +290,110 @@ export function formatSlaDuration(seconds) {
  * @returns {'neutral'|'danger'|'warning'|'good'}
  */
 export function slaTone(conversation) {
+  // Completed SLA remains historical: green if met, red if breached.
   if (conversation?.sla_response_seconds != null) {
-    return conversation.sla_met === false ? 'danger' : 'good'
+    return conversation.sla_met === false
+      ? 'danger'
+      : 'good'
   }
 
-  if (conversation?.sla_elapsed_seconds != null) {
-    return conversation.sla_status === 'OVERDUE'
-      ? 'danger'
-      : 'warning'
+  // An unanswered conversation that is already overdue is always red.
+  if (
+    conversation?.sla_status === 'OVERDUE' ||
+    Number(conversation?.sla_overdue_seconds || 0) > 0
+  ) {
+    return 'danger'
+  }
+
+  if (conversation?.sla_remaining_seconds != null) {
+    const remaining = Math.max(
+      0,
+      Number(conversation.sla_remaining_seconds),
+    )
+
+    const elapsed = Math.max(
+      0,
+      Number(conversation.sla_elapsed_seconds || 0),
+    )
+
+    // For an active SLA:
+    // target = business time already used + business time still remaining.
+    // Using a percentage makes the colors work correctly for every category
+    // SLA instead of hardcoding only a 24-hour SLA.
+    const target = elapsed + remaining
+
+    if (target <= 0) {
+      return 'neutral'
+    }
+
+    const remainingRatio = remaining / target
+
+    // Example for a 24-hour SLA:
+    // 20h remaining -> green
+    // 15h remaining -> yellow
+    // 9h remaining  -> orange
+    // 4h remaining  -> red
+    if (remainingRatio >= 0.75) {
+      return 'good'
+    }
+
+    if (remainingRatio >= 0.50) {
+      return 'warning'
+    }
+
+    if (remainingRatio >= 0.25) {
+      return 'urgent'
+    }
+
+    return 'danger'
   }
 
   return 'neutral'
 }
 
-/**
- * Returns the main SLA duration label.
- *
- * @param {object} conversation
- * @returns {string}
- */
 export function slaLabel(conversation) {
+  // Seller already replied: keep showing how long the response took.
   if (conversation?.sla_response_seconds != null) {
-    return formatSlaDuration(conversation.sla_response_seconds)
+    return formatSlaDuration(
+      conversation.sla_response_seconds,
+    )
   }
 
-  if (conversation?.sla_elapsed_seconds != null) {
-    return formatSlaDuration(conversation.sla_elapsed_seconds)
+  // Seller has not replied and SLA is breached:
+  // show how long it has been overdue instead of showing 0m.
+  if (
+    conversation?.sla_status === 'OVERDUE' ||
+    Number(conversation?.sla_overdue_seconds || 0) > 0
+  ) {
+    return formatSlaDuration(
+      conversation.sla_overdue_seconds,
+    )
+  }
+
+  // Seller has not replied yet: show remaining business SLA time.
+  if (conversation?.sla_remaining_seconds != null) {
+    return formatSlaDuration(
+      conversation.sla_remaining_seconds,
+    )
   }
 
   return 'No SLA'
 }
 
-/**
- * Returns the supporting SLA caption.
- *
- * @param {object} conversation
- * @returns {string}
- */
 export function slaCaption(conversation) {
   if (conversation?.sla_response_seconds != null) {
     return 'Responded in'
   }
 
-  if (conversation?.sla_elapsed_seconds != null) {
-    return 'Pending'
+  if (
+    conversation?.sla_status === 'OVERDUE' ||
+    Number(conversation?.sla_overdue_seconds || 0) > 0
+  ) {
+    return 'Overdue by'
+  }
+
+  if (conversation?.sla_remaining_seconds != null) {
+    return 'Time remaining'
   }
 
   return 'SLA'

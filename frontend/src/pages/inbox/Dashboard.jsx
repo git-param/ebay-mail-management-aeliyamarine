@@ -56,6 +56,7 @@ const EMPTY_FILTERS = {
   ebay_account_id: '',
   assigned_user_id: '',
   category_id: '',
+  sla_due_within_hours: '',
 }
 
 function Dashboard({
@@ -215,6 +216,9 @@ function Dashboard({
         'period',
         'date_from',
         'date_to',
+        // Near Due SLA has its own visible toggle, so do not duplicate it
+        // inside the generic Filters count badge.
+        'sla_due_within_hours',
       ])
 
       let count = Object.entries(
@@ -718,6 +722,18 @@ function Dashboard({
     setMobilePane('list')
   }
 
+  function toggleNearDueSla() {
+    const isActive =
+      Number(
+        filters.sla_due_within_hours,
+      ) === 2
+
+    changeFilter(
+      'sla_due_within_hours',
+      isActive ? '' : 2,
+    )
+  }
+
   async function refreshSelectedConversation() {
     await Promise.all([
       loadConversations(),
@@ -1027,11 +1043,19 @@ function Dashboard({
           activeFilterCount={
             activeFilterCount
           }
+          nearDueActive={
+            Number(
+              filters.sla_due_within_hours,
+            ) === 2
+          }
           onSearch={(searchValue) =>
             changeFilter(
               'search',
               searchValue.trim(),
             )
+          }
+          onToggleNearDue={
+            toggleNearDueSla
           }
           onRefresh={
             loadConversations
