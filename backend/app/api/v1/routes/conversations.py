@@ -829,15 +829,13 @@ def conversation_sla_snapshot(conversation: Conversation) -> dict:
             "sla_overdue_seconds": overdue,
             "sla_met": None,
         }
-    if message_pair and message_pair[1] and ( not completed or message_pair[0].sent_at > completed.buyer_message_time ):
-        duration = service.business_seconds_between(message_pair[0].sent_at, message_pair[1].sent_at,)
+    if message_pair and message_pair[1] and (not completed or message_pair[0].sent_at > completed.buyer_message_time):
+        duration = service.business_seconds_between(message_pair[0].sent_at, message_pair[1].sent_at)
         return {
             "response_due_at": None,
-            "sla_status": ( "MET" if duration <= target_seconds else "BREACHED"),
+            "sla_status": "MET" if duration <= target_seconds else "BREACHED",
             "sla_response_seconds": duration,
             "sla_elapsed_seconds": None,
-            "sla_remaining_seconds": None,
-            "sla_overdue_seconds": None,
             "sla_met": duration <= target_seconds,
         }
     if message_pair and message_pair[1] is None and (not completed or message_pair[0].sent_at > completed.replied_time):
@@ -1052,6 +1050,12 @@ def list_conversations(
     category_id: UUID | None = Query(default=None),
     date_from: date | None = Query(default=None),
     date_to: date | None = Query(default=None),
+    sla_due_within_hours: int | None = Query(
+        default=None,
+        ge=1,
+        le=24,
+        description='Only return unanswered SLA conversations due within this many business hours, including overdue conversations',
+    ),
     db: Session = Depends(get_db),
     current_user=Depends(require_conversation_access),
 ) -> ConversationPageResponse:
@@ -1071,6 +1075,7 @@ def list_conversations(
         category_id=category_id,
         date_from=start_at,
         date_to=end_at,
+        sla_due_within_hours=sla_due_within_hours,
     )
     seller_accounts = get_seller_account_map(db, conversations)
     return ConversationPageResponse(
@@ -1088,6 +1093,7 @@ def list_conversations(
             category_id=category_id,
             date_from=start_at,
             date_to=end_at,
+            sla_due_within_hours=sla_due_within_hours,
         ),
         limit=limit,
         offset=offset,
