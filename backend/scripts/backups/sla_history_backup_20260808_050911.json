@@ -1,0 +1,13 @@
+[
+  {
+    "id": "35d6f40c-4a6d-48ac-a279-93668cd65f1b",
+    "conversation_id": "2006e975-5d3e-460b-8957-a8d4bf2afc73",
+    "cycle_number": 1,
+    "buyer_message_time": "2026-07-28T15:44:25+00:00",
+    "replied_time": "2026-07-29T06:11:23+00:00",
+    "replied_by": null,
+    "response_duration_seconds": 7883,
+    "sla_met": true,
+    "created_at": "2026-07-29T14:24:40.891827+05:30"
+  }
+]
