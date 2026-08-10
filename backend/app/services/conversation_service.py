@@ -157,6 +157,14 @@ class ConversationService:
         - first seller reply closes that cycle;
         - a later buyer message starts a new cycle.
         """
+        visible_statuses = {
+            ConversationStatus.OPEN,
+            ConversationStatus.PENDING,
+        }
+
+        if status is not None and status not in visible_statuses:
+            return []
+
         candidates = self.repository.list_sla_candidates(
             search=search,
             status=status,
@@ -178,6 +186,9 @@ class ConversationService:
         matching_ids: list[UUID] = []
 
         for conversation in candidates:
+            if conversation.status not in visible_statuses:
+                continue
+
             buyer_message = None
             reply_message = None
 
