@@ -6,6 +6,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session, joinedload
 
 from app.api.dependencies import is_admin
+from app.models.conversation import ConversationSLAHistory
 from app.models.message_type import MessageClassification, MessageType
 from app.models.user import User
 from app.modules.offer_management.models import OfferManagementEntry
@@ -96,11 +97,15 @@ class PMSService:
         return list(self.db.scalars(statement).all())
     
     def _to_base_schema(self, entry: PMSDailyTaskEntry) -> dict:
+        sla_metadata = getattr(entry, 'sla_metadata', {}) or {}
         return {
             'entry_date': entry.entry_date,
             'day_type': entry.day_type.value,
             'final_score_percent': entry.final_score_percent or 0,
             'sla_score': entry.sla_score or 0,
+            'sla_met_count': sla_metadata.get('met_count'),
+            'sla_total_count': sla_metadata.get('total_count'),
+            'sla_auto_fetched': bool(sla_metadata.get('auto_fetched')),
             'score_items': entry.score_items or [],
             'error_level': entry.error_level.value,
             'error_remark': entry.error_remark,
@@ -251,18 +256,22 @@ class PMSService:
         start = datetime.combine(entry_date, time.min, tzinfo=UTC)
         end = start + timedelta(days=1)
         items = self._assigned_task_items(user_id, entry_date, start, end)
-        return PMSDailyTaskEntry(
+        sla_met_count, sla_total_count = self._sla_counts(user_id, start, end)
+        sla_score = round((sla_met_count / sla_total_count) * self.SLA_MAX) if sla_total_count else 0
+        entry = PMSDailyTaskEntry(
             user_id=user_id,
             entry_date=entry_date,
             day_type=PMSDayType.WORKING_DAY,
             score_items=items,
-            final_score_percent=0,
-            sla_score=0,
+            final_score_percent=self.calculate_final(items, sla_score, PMSErrorLevel.NO_ERROR.value),
+            sla_score=sla_score,
             error_level=PMSErrorLevel.NO_ERROR,
             remarks=None,
             particulars_error_note='NA',
-            sla_remarks='NA',
+            sla_remarks=f'AUTO FETCHED \u00b7 {sla_met_count}/{sla_total_count} UNDER SLA',
         )
+        entry.sla_metadata = {'auto_fetched': True, 'met_count': sla_met_count, 'total_count': sla_total_count}
+        return entry
 
     def _assigned_task_items(self, user_id: UUID, entry_date: date, start: datetime, end: datetime) -> list[dict]:
         assignments = list(self.db.scalars(
@@ -341,6 +350,31 @@ class PMSService:
                 )
             ) or 0)
         return 0
+
+    def _sla_counts(self, user_id: UUID, start: datetime, end: datetime) -> tuple[int, int]:
+        # Reuse completed SLA history cycles; repeated buyer messages before one
+        # reply already roll into a single cycle in SLAService.
+        total = int(self.db.scalar(
+            select(func.count())
+            .select_from(ConversationSLAHistory)
+            .where(
+                ConversationSLAHistory.replied_by == user_id,
+                ConversationSLAHistory.replied_time >= start,
+                ConversationSLAHistory.replied_time < end,
+                ConversationSLAHistory.sla_met.is_not(None),
+            )
+        ) or 0)
+        met = int(self.db.scalar(
+            select(func.count())
+            .select_from(ConversationSLAHistory)
+            .where(
+                ConversationSLAHistory.replied_by == user_id,
+                ConversationSLAHistory.replied_time >= start,
+                ConversationSLAHistory.replied_time < end,
+                ConversationSLAHistory.sla_met.is_(True),
+            )
+        ) or 0)
+        return met, total
 
     def _item(self, key: str, label: str, value: int, max_score: int, source: str, *, status: str | None = None, activity_count: int | None = None, message_type_id: UUID | None = None, subtask_id: UUID | None = None) -> dict:
         return {

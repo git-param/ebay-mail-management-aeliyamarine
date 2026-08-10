@@ -44,6 +44,9 @@ function makeRow(loadedItem) {
     day_type: entry.day_type,
     score_items: entry.score_items || [],
     sla_score: entry.sla_score || 0,
+    sla_met_count: entry.sla_met_count,
+    sla_total_count: entry.sla_total_count,
+    sla_auto_fetched: entry.sla_auto_fetched || false,
     error_level: entry.error_level,
     error_remark: entry.error_remark || '',
     remarks: entry.remarks || '',
@@ -177,10 +180,12 @@ function AgentCard({ row, onChange }) {
         <div className="pms-dynamic-row pms-sla-row">
           <div className="pms-dynamic-row-label">
             <strong>SLA Score</strong>
-            <span className="source-badge source-manual">Manual</span>
+            <span className={`source-badge ${row.sla_auto_fetched ? 'source-auto' : 'source-manual'}`}>
+              {row.sla_auto_fetched ? `AUTO FETCHED \u00b7 ${row.sla_met_count ?? 0}/${row.sla_total_count ?? 0} UNDER SLA` : 'Manual'}
+            </span>
           </div>
           <div className="pms-dynamic-row-score">
-            <input type="number" min="0" max={SLA_MAX} disabled={isDisabled} value={isMajor ? 0 : row.sla_score} onChange={(event) => patch({ sla_score: clamp(event.target.value, SLA_MAX) })} />
+            <input type="number" min="0" max={SLA_MAX} disabled={isDisabled} value={isMajor ? 0 : row.sla_score} onChange={(event) => patch({ sla_score: clamp(event.target.value, SLA_MAX), sla_auto_fetched: false })} />
             <span className="pms-score-max">/ {SLA_MAX}</span>
           </div>
         </div>

@@ -25,6 +25,9 @@ class PMSDailyEntryBase(BaseModel):
     day_type: str = 'WORKING_DAY'
     final_score_percent: int = Field(default=0, ge=0)
     sla_score: int = Field(default=0, ge=0, le=20)
+    sla_met_count: int | None = None
+    sla_total_count: int | None = None
+    sla_auto_fetched: bool = False
     score_items: list[PMSScoreItem] = Field(default_factory=list)
     error_level: str = 'NO_ERROR'
     error_remark: str | None = None
