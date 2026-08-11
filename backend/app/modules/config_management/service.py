@@ -9,6 +9,8 @@ from app.models.app_config import AppConfigSetting
 from app.models.ebay_account import EbayAccount
 from app.modules.config_management.defaults import DEFAULT_CONFIGS
 
+DEPRECATED_CONFIG_KEYS = {'api.ebay_daily_api_limit'}
+
 
 class ConfigService:
     def __init__(self, db):
@@ -26,6 +28,7 @@ class ConfigService:
         return list(self.db.scalars(
             select(AppConfigSetting)
             .where(AppConfigSetting.section != 'pms')
+            .where(AppConfigSetting.config_key.not_in(DEPRECATED_CONFIG_KEYS))
             .order_by(AppConfigSetting.section, AppConfigSetting.label)
         ))
 

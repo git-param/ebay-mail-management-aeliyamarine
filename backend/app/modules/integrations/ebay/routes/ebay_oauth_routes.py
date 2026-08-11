@@ -17,6 +17,7 @@ from app.modules.integrations.ebay.oauth.token_service import EbayTokenService
 from app.modules.integrations.ebay.schemas.oauth_schemas import (
     EbayConnectRequest,
     EbayConnectResponse,
+    EbayApiUsageListResponse,
     EbayManualCallbackRequest,
     EbayApiUsageResponse,
     EbayOAuthCallbackResponse,
@@ -158,18 +159,19 @@ def test_ebay_connection(
 def serialize_api_usage(usage: EbayApiUsageSummary) -> EbayApiUsageResponse:
     return EbayApiUsageResponse(
         usage_date=usage.usage_date.isoformat(),
+        api_name=usage.api_name,
         call_count=usage.call_count,
         daily_limit=usage.daily_limit,
         remaining=usage.remaining,
     )
 
 
-@router.get('/api-usage', response_model=EbayApiUsageResponse)
+@router.get('/api-usage', response_model=EbayApiUsageListResponse)
 def get_ebay_api_usage(
     db: Session = Depends(get_db),
     current_user=Depends(require_ebay_sync_access),
-) -> EbayApiUsageResponse:
-    return serialize_api_usage(EbayApiUsageService(db).get_today_usage())
+) -> EbayApiUsageListResponse:
+    return EbayApiUsageListResponse(items=[serialize_api_usage(usage) for usage in EbayApiUsageService(db).get_today_usage_all()])
 
 
 def serialize_sync_result(
@@ -215,10 +217,10 @@ def sync_all_ebay_accounts(
     current_user=Depends(require_ebay_sync_access),
 ) -> EbaySyncAllResponse:
     results = EbaySyncService(db).sync_all_connected_accounts()
-    usage = EbayApiUsageService(db).get_today_usage()
+    usage = EbayApiUsageService(db).get_today_usage_all()
     return EbaySyncAllResponse(
         results=[serialize_sync_result(result) for result in results],
-        api_usage=serialize_api_usage(usage),
+        api_usage=EbayApiUsageListResponse(items=[serialize_api_usage(item) for item in usage]),
     )
 
 

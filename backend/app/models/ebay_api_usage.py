@@ -1,7 +1,7 @@
 import uuid
 from datetime import UTC, date, datetime
 
-from sqlalchemy import Date, DateTime, Integer, UniqueConstraint
+from sqlalchemy import Date, DateTime, Integer, String, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -10,10 +10,11 @@ from app.db.base_class import Base
 
 class EbayApiUsage(Base):
     __tablename__ = 'ebay_api_usage'
-    __table_args__ = (UniqueConstraint('usage_date', name='uq_ebay_api_usage_date'),)
+    __table_args__ = (UniqueConstraint('usage_date', 'api_name', name='uq_ebay_api_usage_date_api_name'),)
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     usage_date: Mapped[date] = mapped_column(Date, nullable=False)
+    api_name: Mapped[str] = mapped_column(String(80), nullable=False, default='commerce')
     call_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     daily_limit: Mapped[int] = mapped_column(Integer, nullable=False, default=100)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))

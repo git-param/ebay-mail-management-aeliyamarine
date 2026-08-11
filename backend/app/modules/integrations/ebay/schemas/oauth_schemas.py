@@ -45,9 +45,14 @@ class EbayTestConnectionResponse(BaseModel):
 
 class EbayApiUsageResponse(BaseModel):
     usage_date: str
+    api_name: str
     call_count: int
     daily_limit: int
     remaining: int
+
+
+class EbayApiUsageListResponse(BaseModel):
+    items: list[EbayApiUsageResponse]
 
 
 class EbaySyncResultResponse(BaseModel):
@@ -71,4 +76,4 @@ class EbaySyncResultResponse(BaseModel):
 
 class EbaySyncAllResponse(BaseModel):
     results: list[EbaySyncResultResponse]
-    api_usage: EbayApiUsageResponse
+    api_usage: EbayApiUsageListResponse

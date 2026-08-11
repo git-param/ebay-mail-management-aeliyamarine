@@ -164,7 +164,7 @@ class EbayOrderSyncService:
         refreshed = False
         for attempt in range(1, self.MAX_RETRIES + 1):
             if track_api_usage:
-                self.api_usage_service.reserve_calls(1)
+                self.api_usage_service.reserve_calls(1, EbayApiUsageService.FULFILLMENT)
             page = self.provider.fetch_page(
                 account.access_token,
                 limit=self.PAGE_SIZE,

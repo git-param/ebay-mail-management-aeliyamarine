@@ -9,11 +9,27 @@ DEFAULT_CONFIGS = [
     },
     {
         'section': 'api',
-        'config_key': 'api.ebay_daily_api_limit',
-        'label': 'eBay daily API limit',
+        'config_key': 'api.ebay_commerce_daily_limit',
+        'label': 'eBay Commerce API daily limit',
         'value': '100',
         'value_type': 'integer',
-        'description': 'Maximum eBay API calls allowed per day.',
+        'description': 'Maximum eBay Commerce API calls allowed per day.',
+    },
+    {
+        'section': 'api',
+        'config_key': 'api.ebay_fulfillment_daily_limit',
+        'label': 'eBay Fulfillment API daily limit',
+        'value': '100',
+        'value_type': 'integer',
+        'description': 'Maximum eBay Fulfillment API calls allowed per day.',
+    },
+    {
+        'section': 'api',
+        'config_key': 'api.ebay_bestseller_daily_limit',
+        'label': 'eBay Bestseller API daily limit',
+        'value': '100',
+        'value_type': 'integer',
+        'description': 'Maximum eBay Bestseller API calls allowed per day.',
     },
 ]
 

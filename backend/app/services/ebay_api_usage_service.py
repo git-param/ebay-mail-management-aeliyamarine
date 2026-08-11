@@ -6,7 +6,6 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.core.config import get_settings
 from app.models.ebay_api_usage import EbayApiUsage
 from app.modules.config_management.service import ConfigService
 
@@ -14,6 +13,7 @@ from app.modules.config_management.service import ConfigService
 @dataclass(frozen=True)
 class EbayApiUsageSummary:
     usage_date: date
+    api_name: str
     call_count: int
     daily_limit: int
 
@@ -23,31 +23,42 @@ class EbayApiUsageSummary:
 
 
 class EbayApiUsageService:
+    COMMERCE = 'commerce'
+    FULFILLMENT = 'fulfillment'
+    BESTSELLER = 'bestseller'
+    API_NAMES = (COMMERCE, FULFILLMENT, BESTSELLER)
+    DEFAULT_DAILY_LIMIT = 100
+
     def __init__(self, db: Session):
         self.db = db
-        self.settings = get_settings()
 
-    def _daily_limit(self) -> int:
-        return ConfigService(self.db).get_int('api.ebay_daily_api_limit', self.settings.ebay_daily_api_limit)
+    def _daily_limit(self, api_name: str) -> int:
+        config_key = f'api.ebay_{api_name}_daily_limit'
+        return ConfigService(self.db).get_int(config_key, self.DEFAULT_DAILY_LIMIT)
 
-    def get_today_usage(self) -> EbayApiUsageSummary:
-        usage = self._get_or_create_usage_row(self._today())
+    def get_today_usage(self, api_name: str = COMMERCE) -> EbayApiUsageSummary:
+        usage = self._get_or_create_usage_row(self._today(), self._normalize_api_name(api_name))
         self.db.commit()
         self.db.refresh(usage)
         return self._to_summary(usage)
 
-    def reserve_calls(self, call_count: int) -> EbayApiUsageSummary:
-        if call_count <= 0:
-            return self.get_today_usage()
+    def get_today_usage_all(self) -> list[EbayApiUsageSummary]:
+        summaries = [self.get_today_usage(api_name) for api_name in self.API_NAMES]
+        return summaries
 
-        usage = self._get_or_create_usage_row(self._today(), lock=True)
+    def reserve_calls(self, call_count: int, api_name: str = COMMERCE) -> EbayApiUsageSummary:
+        if call_count <= 0:
+            return self.get_today_usage(api_name)
+
+        api_name = self._normalize_api_name(api_name)
+        usage = self._get_or_create_usage_row(self._today(), api_name, lock=True)
         next_count = usage.call_count + call_count
         remaining = max(usage.daily_limit - usage.call_count, 0)
         if next_count > usage.daily_limit:
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                 detail=(
-                    f'eBay daily API limit reached. '
+                    f'eBay {api_name} daily API limit reached. '
                     f'{remaining} of {usage.daily_limit} calls remaining today.'
                 ),
             )
@@ -58,8 +69,8 @@ class EbayApiUsageService:
         self.db.refresh(usage)
         return self._to_summary(usage)
 
-    def _get_or_create_usage_row(self, usage_date: date, *, lock: bool = False) -> EbayApiUsage:
-        statement = select(EbayApiUsage).where(EbayApiUsage.usage_date == usage_date)
+    def _get_or_create_usage_row(self, usage_date: date, api_name: str, *, lock: bool = False) -> EbayApiUsage:
+        statement = select(EbayApiUsage).where(EbayApiUsage.usage_date == usage_date, EbayApiUsage.api_name == api_name)
         if lock:
             statement = statement.with_for_update()
 
@@ -70,8 +81,9 @@ class EbayApiUsageService:
 
         usage = EbayApiUsage(
             usage_date=usage_date,
+            api_name=api_name,
             call_count=0,
-            daily_limit=self._daily_limit(),
+            daily_limit=self._daily_limit(api_name),
         )
         self.db.add(usage)
         try:
@@ -80,7 +92,7 @@ class EbayApiUsageService:
             return usage
         except IntegrityError:
             self.db.rollback()
-            statement = select(EbayApiUsage).where(EbayApiUsage.usage_date == usage_date)
+            statement = select(EbayApiUsage).where(EbayApiUsage.usage_date == usage_date, EbayApiUsage.api_name == api_name)
             if lock:
                 statement = statement.with_for_update()
             existing_usage = self.db.scalar(statement)
@@ -90,7 +102,7 @@ class EbayApiUsageService:
             raise
 
     def _sync_daily_limit(self, usage: EbayApiUsage) -> None:
-        daily_limit = self._daily_limit()
+        daily_limit = self._daily_limit(usage.api_name)
         if usage.daily_limit == daily_limit:
             return
 
@@ -100,9 +112,18 @@ class EbayApiUsageService:
     def _to_summary(self, usage: EbayApiUsage) -> EbayApiUsageSummary:
         return EbayApiUsageSummary(
             usage_date=usage.usage_date,
+            api_name=usage.api_name,
             call_count=usage.call_count,
             daily_limit=usage.daily_limit,
         )
 
     def _today(self) -> date:
         return datetime.now(UTC).date()
+
+    def _normalize_api_name(self, api_name: str) -> str:
+        normalized = str(api_name or self.COMMERCE).strip().lower()
+        if normalized == 'best_offer':
+            return self.BESTSELLER
+        if normalized not in self.API_NAMES:
+            return self.COMMERCE
+        return normalized

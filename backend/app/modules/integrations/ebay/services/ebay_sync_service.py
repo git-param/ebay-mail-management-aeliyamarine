@@ -67,13 +67,9 @@ class EbaySyncService:
         account_id: UUID,
         *,
         max_conversations: int | None = None,
-        reserve_api_usage: bool = True,
     ) -> EbaySyncResult:
         account = self._get_syncable_account(account_id)
         updated_since = account.last_sync_at
-        
-        if reserve_api_usage:
-            self.api_usage_service.reserve_calls(1)
 
         sync_log = self._start_sync_log(account, max_conversations, updated_since)
         counters = self._initialize_counters()
@@ -579,8 +575,7 @@ class EbaySyncService:
             .order_by(EbayAccount.created_at.asc())
         )
         accounts = list(self.db.scalars(statement))
-        self.api_usage_service.reserve_calls(len(accounts))
-        return [self.sync_account(account.id, reserve_api_usage=False) for account in accounts]
+        return [self.sync_account(account.id) for account in accounts]
 
     def _iter_conversation_summaries(
         self,
@@ -691,6 +686,7 @@ class EbaySyncService:
         limit: int,
         offset: int,
     ):
+        self.api_usage_service.reserve_calls(1, EbayApiUsageService.COMMERCE)
         response = self.token_service.client.get_conversations_raw(
             account.access_token,
             conversation_type=conversation_type,
@@ -701,6 +697,7 @@ class EbaySyncService:
             return response
 
         account = self._refresh_account_after_unauthorized(account)
+        self.api_usage_service.reserve_calls(1, EbayApiUsageService.COMMERCE)
         return self.token_service.client.get_conversations_raw(
             account.access_token,
             conversation_type=conversation_type,
@@ -717,6 +714,7 @@ class EbaySyncService:
         limit: int,
         offset: int,
     ):
+        self.api_usage_service.reserve_calls(1, EbayApiUsageService.COMMERCE)
         response = self.token_service.client.get_conversation_raw(
             account.access_token,
             conversation_id=conversation_id,
@@ -728,6 +726,7 @@ class EbaySyncService:
             return response
 
         account = self._refresh_account_after_unauthorized(account)
+        self.api_usage_service.reserve_calls(1, EbayApiUsageService.COMMERCE)
         return self.token_service.client.get_conversation_raw(
             account.access_token,
             conversation_id=conversation_id,

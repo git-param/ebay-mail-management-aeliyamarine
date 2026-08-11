@@ -2,10 +2,16 @@ import { useEffect, useMemo, useState } from 'react'
 
 import AppLayout from '../../layouts/app_layout'
 import { deleteConversationData, fetchAccountSyncStates, fetchConfigSettings, updateAccountSyncState, updateConfigSettings } from '../../services/configApi'
+import './config.css'
 
 const SECTION_LABELS = {
-  offer: 'Offer Section',
-  api: 'API Section',
+  api: 'API Limits',
+  offer: 'Offer Rules',
+}
+
+const SECTION_DESCRIPTIONS = {
+  api: 'Daily caps for each eBay API family. These limits are enforced independently.',
+  offer: 'Thresholds used by offer management workflows.',
 }
 
 export default function Config({ currentUser, onLogout }) {
@@ -113,7 +119,10 @@ export default function Config({ currentUser, onLogout }) {
           {Object.entries(grouped).map(([section, items]) => (
             <section className="table-card config-section" key={section}>
               <div className="config-section-header">
-                <h2>{SECTION_LABELS[section] || `${section} Section`}</h2>
+                <div>
+                  <h2>{SECTION_LABELS[section] || `${section} Settings`}</h2>
+                  {SECTION_DESCRIPTIONS[section] ? <p>{SECTION_DESCRIPTIONS[section]}</p> : null}
+                </div>
               </div>
               <div className="config-grid">
                 {items.map((setting) => (
@@ -133,16 +142,19 @@ export default function Config({ currentUser, onLogout }) {
               </div>
             </section>
           ))}
-          <div className="modal-actions">
+          <div className="modal-actions config-save-actions">
             <button className="primary-button" type="submit" disabled={isSaving}>{isSaving ? 'Saving...' : 'Save Config'}</button>
           </div>
         </form>
         <section className="table-card config-section">
           <div className="config-section-header">
-            <h2>Account Sync Controls</h2>
+            <div>
+              <h2>Account Sync Controls</h2>
+              <p>Adjust sync cursors when an account needs a broader or narrower refresh.</p>
+            </div>
           </div>
-          <form className="config-grid" onSubmit={saveSyncCursor}>
-            <label className="checkbox-field config-wide-field"><input type="checkbox" checked={syncForm.apply_to_all} onChange={(event) => setSyncForm((current) => ({ ...current, apply_to_all: event.target.checked }))} /> Apply to all eBay accounts</label>
+          <form className="config-grid config-sync-grid" onSubmit={saveSyncCursor}>
+            <label className="checkbox-field config-wide-field config-toggle-field"><input type="checkbox" checked={syncForm.apply_to_all} onChange={(event) => setSyncForm((current) => ({ ...current, apply_to_all: event.target.checked }))} /> Apply to all eBay accounts</label>
             <label className="field config-field">
               <span>eBay account</span>
               <select value={syncForm.account_id} disabled={syncForm.apply_to_all} onChange={(event) => setSyncForm((current) => ({ ...current, account_id: event.target.value }))}>
@@ -161,12 +173,21 @@ export default function Config({ currentUser, onLogout }) {
             </div>
           </form>
           <div className="config-account-list">
-            {accounts.map((account) => <p key={account.id}><strong>{account.account_name || account.ebay_username}</strong> Last sync: {account.last_sync_at ? new Date(account.last_sync_at).toLocaleString() : 'Not synced'} Order sync: {account.last_order_sync_at ? new Date(account.last_order_sync_at).toLocaleString() : 'Not synced'}</p>)}
+            {accounts.map((account) => (
+              <article className="config-account-item" key={account.id}>
+                <strong>{account.account_name || account.ebay_username}</strong>
+                <span>Conversation: {account.last_sync_at ? new Date(account.last_sync_at).toLocaleString() : 'Not synced'}</span>
+                <span>Order: {account.last_order_sync_at ? new Date(account.last_order_sync_at).toLocaleString() : 'Not synced'}</span>
+              </article>
+            ))}
           </div>
         </section>
         <section className="table-card config-section config-danger-section">
           <div className="config-section-header">
-            <h2>Danger Zone</h2>
+            <div>
+              <h2>Danger Zone</h2>
+              <p>Destructive maintenance actions for admins.</p>
+            </div>
           </div>
           <p className="confirm-message">Delete all conversations, messages, assignments, notifications, offers, offer-management entries, audit logs, and synced order records from the database. eBay accounts, users, roles, categories, templates, config, and Sold Posting records are kept.</p>
           <label className="field config-field">
