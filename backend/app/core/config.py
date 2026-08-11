@@ -32,13 +32,12 @@ class Settings(BaseSettings):
         default=30,
         validation_alias='PASSWORD_RESET_TOKEN_EXPIRE_MINUTES',
     )
-    frontend_url: str = Field(default='https://bulletin-savings-arbitrary-skirt.trycloudflare.com', validation_alias='FRONTEND_URL')
+    frontend_url: str = Field(default='http://localhost:5173 ', validation_alias='FRONTEND_URL')
     public_backend_url: str = Field(default='', validation_alias='PUBLIC_BACKEND_URL')
     backend_cors_origins: str = Field(
         default=(
         "http://localhost:5173,"
         "http://127.0.0.1:5173,"
-        "https://bulletin-savings-arbitrary-skirt.trycloudflare.com"
     ),
         validation_alias='BACKEND_CORS_ORIGINS',
     )
@@ -61,11 +60,6 @@ class Settings(BaseSettings):
         ge=0,
         le=60,
         validation_alias='EBAY_BROWSE_RETRY_BASE_SECONDS',
-    )
-
-    ebay_daily_api_limit: int = Field(
-        default=100,
-        validation_alias='EBAY_DAILY_API_LIMIT',
     )
     reply_attachment_max_bytes: int = Field(default=5 * 1024 * 1024, validation_alias='REPLY_ATTACHMENT_MAX_BYTES')
     reply_attachment_upload_dir: str = Field(default='uploads/reply_attachments', validation_alias='REPLY_ATTACHMENT_UPLOAD_DIR')
@@ -94,13 +88,6 @@ class Settings(BaseSettings):
         if normalized_value not in {'SANDBOX', 'PRODUCTION'}:
             raise ValueError('EBAY_ENVIRONMENT must be SANDBOX or PRODUCTION')
         return normalized_value
-
-    @field_validator('ebay_daily_api_limit')
-    @classmethod
-    def validate_ebay_daily_api_limit(cls, value: int) -> int:
-        if value < 1:
-            raise ValueError('EBAY_DAILY_API_LIMIT must be at least 1')
-        return value
 
     @field_validator('auth_cookie_samesite')
     @classmethod

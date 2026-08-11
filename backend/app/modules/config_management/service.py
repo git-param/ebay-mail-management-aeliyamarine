@@ -9,6 +9,8 @@ from app.models.app_config import AppConfigSetting
 from app.models.ebay_account import EbayAccount
 from app.modules.config_management.defaults import DEFAULT_CONFIGS
 
+HIDDEN_CONFIG_KEYS = {'api.ebay_daily_api_limit', 'api.ebay_auto_sync_enabled'}
+
 
 class ConfigService:
     def __init__(self, db):
@@ -26,6 +28,7 @@ class ConfigService:
         return list(self.db.scalars(
             select(AppConfigSetting)
             .where(AppConfigSetting.section != 'pms')
+            .where(AppConfigSetting.config_key.not_in(HIDDEN_CONFIG_KEYS))
             .order_by(AppConfigSetting.section, AppConfigSetting.label)
         ))
 
@@ -61,6 +64,24 @@ class ConfigService:
             return int(setting.value)
         except Exception:
             return default
+
+    def get_bool(self, key: str, default: bool = False) -> bool:
+        self.ensure_defaults()
+        setting = self.db.scalar(select(AppConfigSetting).where(AppConfigSetting.config_key == key))
+        if not setting:
+            return default
+        return str(setting.value).strip().lower() in {'1', 'true', 'yes', 'on'}
+
+    def set_value(self, key: str, value: str, user=None) -> AppConfigSetting:
+        self.ensure_defaults()
+        setting = self.db.scalar(select(AppConfigSetting).where(AppConfigSetting.config_key == key))
+        if not setting:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Configuration setting not found.')
+        setting.value = str(value)
+        setting.updated_by_user_id = getattr(user, 'id', None)
+        self.db.commit()
+        self.db.refresh(setting)
+        return setting
 
     def list_account_sync_states(self) -> list[EbayAccount]:
         return list(self.db.scalars(select(EbayAccount).order_by(EbayAccount.account_name.asc())))
@@ -132,4 +153,6 @@ class ConfigService:
             if parsed < 0:
                 raise ValueError
             return str(parsed)
+        if setting.value_type == 'boolean':
+            return 'true' if text.lower() in {'1', 'true', 'yes', 'on'} else 'false'
         return text

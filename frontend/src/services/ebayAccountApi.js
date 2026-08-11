@@ -78,6 +78,17 @@ export function fetchEbayApiUsage() {
   return request('/integrations/ebay/api-usage')
 }
 
+export function fetchEbayAutoSyncStatus() {
+  return request('/integrations/ebay/auto-sync')
+}
+
+export function updateEbayAutoSyncStatus(enabled) {
+  return request('/integrations/ebay/auto-sync', {
+    method: 'PATCH',
+    body: JSON.stringify({ enabled }),
+  })
+}
+
 export function syncEbayAccount(accountId) {
   return request(`/integrations/ebay/sync/${accountId}`, {
     method: 'POST',

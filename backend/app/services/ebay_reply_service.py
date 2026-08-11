@@ -226,25 +226,34 @@ class EbayReplyService:
             send_copy_to_email,
         )
 
-        trading_context = self._trading_context(conversation)
-        response = self.token_service.client.send_trading_member_message(
-            account.access_token,
-            call_name=trading_context['call_name'],
-            item_id=trading_context['item_id'],
-            recipient_id=trading_context['recipient_id'],
-            body=body,
-            subject=trading_context.get('subject'),
-            parent_message_id=trading_context.get('parent_message_id'),
-            email_copy_to_sender=send_copy_to_email,
-            correlation_id=str(message.id),
-            message_media=message_media or None,
-        )
+        send_context = self._send_context(conversation)
+        if send_context['transport'] == 'trading':
+            response = self.token_service.client.send_trading_member_message(
+                account.access_token,
+                call_name=send_context['call_name'],
+                item_id=send_context['item_id'],
+                recipient_id=send_context['recipient_id'],
+                body=body,
+                subject=send_context.get('subject'),
+                parent_message_id=send_context.get('parent_message_id'),
+                email_copy_to_sender=send_copy_to_email,
+                correlation_id=str(message.id),
+                message_media=message_media or None,
+            )
+        else:
+            response = self.token_service.client.send_conversation_message(
+                account.access_token,
+                conversation_id=send_context['conversation_id'],
+                conversation_type=send_context['conversation_type'],
+                message_body=body,
+                message_media=message_media or None,
+            )
 
         logger.warning(
             'eBay reply send response: conversation_id=%s account_id=%s call_name=%s ok=%s email_copy_requested=%s payload=%s',
             conversation.id,
             account.id,
-            trading_context['call_name'],
+            send_context['call_name'],
             response.ok,
             send_copy_to_email,
             response.payload,
@@ -271,7 +280,7 @@ class EbayReplyService:
             **(response.payload if isinstance(response.payload, dict) else {'response': response.payload}),
             'actor_id': str(actor_id),
             'email_copy_requested': send_copy_to_email,
-            'ebay_call_name': trading_context['call_name'],
+            'ebay_call_name': send_context['call_name'],
         }
 
         conversation.last_message_at = message.sent_at
@@ -295,7 +304,7 @@ class EbayReplyService:
             metadata={
                 'message_id': str(message.id),
                 'ebay_account_id': str(account.id),
-                'ebay_call_name': trading_context['call_name'],
+                'ebay_call_name': send_context['call_name'],
                 'email_copy_requested': send_copy_to_email,
             },
         )
@@ -367,7 +376,7 @@ class EbayReplyService:
         value = payload.get('messageId') or payload.get('id')
         return value.strip() if isinstance(value, str) and value.strip() else None
 
-    def _trading_context(self, conversation) -> dict:
+    def _send_context(self, conversation) -> dict:
         recipient_id = (conversation.buyer_identifier or '').strip()
         if not recipient_id:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Cannot send reply because the buyer username is unavailable.')
@@ -375,6 +384,7 @@ class EbayReplyService:
         order_mapping = getattr(conversation, 'order_mapping', None)
         if order_mapping and (order_mapping.ebay_item_id or order_mapping.listing_id or conversation.reference_id):
             return {
+                'transport': 'trading',
                 'call_name': 'AddMemberMessageAAQToPartner',
                 'item_id': order_mapping.ebay_item_id or order_mapping.listing_id or conversation.reference_id,
                 'recipient_id': recipient_id,
@@ -385,6 +395,7 @@ class EbayReplyService:
         linked_item_id = getattr(linked_line_item, 'item_id', None) or getattr(linked_line_item, 'listing_id', None)
         if linked_item_id:
             return {
+                'transport': 'trading',
                 'call_name': 'AddMemberMessageAAQToPartner',
                 'item_id': linked_item_id,
                 'recipient_id': recipient_id,
@@ -395,15 +406,23 @@ class EbayReplyService:
         parent_message = next((message for message in sorted(conversation.messages, key=lambda row: row.sent_at, reverse=True) if message.is_inbound and message.provider_message_id), None)
         if item_id and parent_message:
             return {
+                'transport': 'trading',
                 'call_name': 'AddMemberMessageRTQ',
                 'item_id': item_id,
                 'recipient_id': recipient_id,
                 'parent_message_id': parent_message.provider_message_id,
             }
 
-        if item_id and not parent_message:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Cannot send reply because the original eBay parent message is unavailable.')
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Cannot send reply because the eBay item or order context is unavailable for this message type.')
+        provider_conversation_id = (conversation.provider_conversation_id or '').strip()
+        if provider_conversation_id:
+            return {
+                'transport': 'conversation',
+                'call_name': 'send_conversation_message',
+                'conversation_id': provider_conversation_id,
+                'conversation_type': conversation.provider_conversation_type or 'FROM_MEMBERS',
+            }
+
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Cannot send reply because the eBay conversation id is unavailable.')
 
     def _reply_error_detail(self, payload: object) -> str:
         """

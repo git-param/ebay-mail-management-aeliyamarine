@@ -45,9 +45,25 @@ class EbayTestConnectionResponse(BaseModel):
 
 class EbayApiUsageResponse(BaseModel):
     usage_date: str
+    api_name: str
     call_count: int
     daily_limit: int
     remaining: int
+
+
+class EbayApiUsageListResponse(BaseModel):
+    items: list[EbayApiUsageResponse]
+
+
+class EbayAutoSyncStatusResponse(BaseModel):
+    enabled: bool
+    interval_hours: int
+    latest_sync_at: datetime | None = None
+    next_run_at: datetime | None = None
+
+
+class EbayAutoSyncToggleRequest(BaseModel):
+    enabled: bool
 
 
 class EbaySyncResultResponse(BaseModel):
@@ -71,4 +87,4 @@ class EbaySyncResultResponse(BaseModel):
 
 class EbaySyncAllResponse(BaseModel):
     results: list[EbaySyncResultResponse]
-    api_usage: EbayApiUsageResponse
+    api_usage: EbayApiUsageListResponse

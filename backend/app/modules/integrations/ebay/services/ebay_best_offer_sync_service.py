@@ -203,7 +203,7 @@ class EbayBestOfferSyncService:
         sync_operation_id: str,
         request_number: int,
     ) -> dict:
-        self.api_usage.reserve_calls(1)
+        self.api_usage.reserve_calls(1, EbayApiUsageService.BESTSELLER)
         retry_count = 0
         started_at = perf_counter()
         response = self.tokens.client.get_best_offers_raw(
@@ -214,7 +214,7 @@ class EbayBestOfferSyncService:
         )
         if response.status_code == 401:
             account = self.tokens.refresh_access_token(account.id)
-            self.api_usage.reserve_calls(1)
+            self.api_usage.reserve_calls(1, EbayApiUsageService.BESTSELLER)
             retry_count += 1
             response = self.tokens.client.get_best_offers_raw(
                 account.access_token,
@@ -478,7 +478,7 @@ class EbayBestOfferSyncService:
         """
         try:
             # Get the offer details from eBay to check for seller responses
-            self.api_usage.reserve_calls(1)
+            self.api_usage.reserve_calls(1, EbayApiUsageService.BESTSELLER)
             response = self.tokens.client.get_offer_details_raw(
                 account.access_token,
                 offer_id=offer.provider_offer_id
@@ -486,7 +486,7 @@ class EbayBestOfferSyncService:
             
             if response.status_code == 401:
                 account = self.tokens.refresh_access_token(account.id)
-                self.api_usage.reserve_calls(1)
+                self.api_usage.reserve_calls(1, EbayApiUsageService.BESTSELLER)
                 response = self.tokens.client.get_offer_details_raw(
                     account.access_token,
                     offer_id=offer.provider_offer_id
