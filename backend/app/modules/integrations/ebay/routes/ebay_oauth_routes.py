@@ -1,16 +1,17 @@
 import logging
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from urllib.parse import quote
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import JSONResponse, RedirectResponse
 from sqlalchemy.orm import Session
+from sqlalchemy import func, select
 
 from app.api.dependencies import get_current_user
 from app.core.config import get_settings
 from app.db.session import get_db
-from app.models.ebay_account import EbayAccount
+from app.models.ebay_account import EbayAccount, EbayConnectionStatus
 from app.modules.integrations.ebay.oauth.callback_service import EbayOAuthCallbackService
 from app.modules.integrations.ebay.oauth.oauth_service import EbayOAuthService
 from app.modules.integrations.ebay.oauth.token_service import EbayTokenService
@@ -18,6 +19,8 @@ from app.modules.integrations.ebay.schemas.oauth_schemas import (
     EbayConnectRequest,
     EbayConnectResponse,
     EbayApiUsageListResponse,
+    EbayAutoSyncStatusResponse,
+    EbayAutoSyncToggleRequest,
     EbayManualCallbackRequest,
     EbayApiUsageResponse,
     EbayOAuthCallbackResponse,
@@ -27,6 +30,8 @@ from app.modules.integrations.ebay.schemas.oauth_schemas import (
     EbayTestConnectionResponse,
 )
 from app.modules.integrations.ebay.services.ebay_sync_service import EbaySyncResult, EbaySyncService
+from app.modules.config_management.service import ConfigService
+from app.services.ebay_auto_sync_service import AUTO_SYNC_ENABLED_KEY, AUTO_SYNC_INTERVAL_KEY
 from app.services.audit_service import AuditService
 from app.services.ebay_api_usage_service import EbayApiUsageService, EbayApiUsageSummary
 
@@ -172,6 +177,53 @@ def get_ebay_api_usage(
     current_user=Depends(require_ebay_sync_access),
 ) -> EbayApiUsageListResponse:
     return EbayApiUsageListResponse(items=[serialize_api_usage(usage) for usage in EbayApiUsageService(db).get_today_usage_all()])
+
+
+def auto_sync_status(db: Session) -> EbayAutoSyncStatusResponse:
+    config = ConfigService(db)
+    enabled = config.get_bool(AUTO_SYNC_ENABLED_KEY, False)
+    interval_hours = max(config.get_int(AUTO_SYNC_INTERVAL_KEY, 6), 1)
+    latest_sync_at = db.scalar(
+        select(func.max(EbayAccount.last_sync_at))
+        .where(EbayAccount.connection_status == EbayConnectionStatus.CONNECTED)
+        .where(EbayAccount.is_active.is_(True))
+    )
+    if latest_sync_at and latest_sync_at.tzinfo is None:
+        latest_sync_at = latest_sync_at.replace(tzinfo=UTC)
+    next_run_at = latest_sync_at + timedelta(hours=interval_hours) if latest_sync_at else None
+    return EbayAutoSyncStatusResponse(
+        enabled=enabled,
+        interval_hours=interval_hours,
+        latest_sync_at=latest_sync_at,
+        next_run_at=next_run_at,
+    )
+
+
+@router.get('/auto-sync', response_model=EbayAutoSyncStatusResponse)
+def get_ebay_auto_sync_status(
+    db: Session = Depends(get_db),
+    current_user=Depends(require_ebay_sync_access),
+) -> EbayAutoSyncStatusResponse:
+    _ = current_user
+    return auto_sync_status(db)
+
+
+@router.patch('/auto-sync', response_model=EbayAutoSyncStatusResponse)
+def set_ebay_auto_sync_status(
+    payload: EbayAutoSyncToggleRequest,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_ebay_sync_access),
+) -> EbayAutoSyncStatusResponse:
+    ConfigService(db).set_value(AUTO_SYNC_ENABLED_KEY, 'true' if payload.enabled else 'false', current_user)
+    AuditService(db).log(
+        action='EBAY_AUTO_SYNC_ENABLED' if payload.enabled else 'EBAY_AUTO_SYNC_DISABLED',
+        user_id=current_user.id,
+        entity_type='EBAY_AUTO_SYNC',
+        category='SYNC',
+        metadata={'enabled': payload.enabled},
+    )
+    db.commit()
+    return auto_sync_status(db)
 
 
 def serialize_sync_result(

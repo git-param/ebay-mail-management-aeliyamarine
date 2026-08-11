@@ -31,5 +31,21 @@ DEFAULT_CONFIGS = [
         'value_type': 'integer',
         'description': 'Maximum eBay Bestseller API calls allowed per day.',
     },
+    {
+        'section': 'api',
+        'config_key': 'api.ebay_auto_sync_interval_hours',
+        'label': 'eBay auto sync interval',
+        'value': '6',
+        'value_type': 'integer',
+        'description': 'Hours to wait after the latest eBay sync before auto sync runs again.',
+    },
+    {
+        'section': 'api',
+        'config_key': 'api.ebay_auto_sync_enabled',
+        'label': 'eBay auto sync enabled',
+        'value': 'false',
+        'value_type': 'boolean',
+        'description': 'Controlled from the eBay Accounts page.',
+        'is_editable': False,
+    },
 ]
-

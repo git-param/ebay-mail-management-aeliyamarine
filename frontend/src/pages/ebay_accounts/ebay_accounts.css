@@ -20,6 +20,19 @@
   color: #061426;
 }
 
+.auto-sync-active {
+  border-color: #bbf7d0;
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.auto-sync-status {
+  align-self: center;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 850;
+}
+
 .api-usage-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -225,6 +238,12 @@ html[data-theme="dark"] .sync-summary {
 
 html[data-theme="dark"] .sync-summary strong {
   color: #f8fafc;
+}
+
+html[data-theme="dark"] .auto-sync-active {
+  border-color: #14532d;
+  background: #052e1a;
+  color: #86efac;
 }
 
 html[data-theme="dark"] .api-usage-card {

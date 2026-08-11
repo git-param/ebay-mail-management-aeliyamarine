@@ -62,6 +62,8 @@ class EbayTokenService:
             logger.warning('eBay access token refresh succeeded for account %s', account.id)
             return refreshed_account
         except HTTPException:
+            account.connection_status = EbayConnectionStatus.EXPIRED
+            self.db.commit()
             logger.warning('eBay access token refresh failed for account %s', account.id)
             raise
 

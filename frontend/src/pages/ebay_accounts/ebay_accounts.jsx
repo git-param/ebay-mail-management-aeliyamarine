@@ -7,6 +7,7 @@ import {
   createEbayAccount,
   deactivateEbayAccount,
   deleteEbayAccount,
+  fetchEbayAutoSyncStatus,
   fetchEbayApiUsage,
   fetchEbayAccount,
   fetchEbayAccounts,
@@ -14,6 +15,7 @@ import {
   syncEbayAccount,
   submitManualEbayCallback,
   updateEbayAccount,
+  updateEbayAutoSyncStatus,
 } from '../../services/ebayAccountApi'
 import { normalizeRole } from '../../utils/roles'
 
@@ -35,6 +37,13 @@ const EMPTY_API_USAGE = {
   callCount: 0,
   dailyLimit: 0,
   remaining: 0,
+}
+
+const EMPTY_AUTO_SYNC_STATUS = {
+  enabled: false,
+  intervalHours: 0,
+  latestSyncAt: '',
+  nextRunAt: '',
 }
 
 const API_USAGE_TYPES = [
@@ -128,6 +137,18 @@ function normalizeApiUsages(response) {
 
 function getApiUsage(apiUsages, apiName) {
   return apiUsages.find((usage) => usage.apiName === apiName) || { ...EMPTY_API_USAGE, apiName }
+}
+
+function normalizeAutoSyncStatus(status) {
+  if (!status) {
+    return EMPTY_AUTO_SYNC_STATUS
+  }
+  return {
+    enabled: Boolean(status.enabled),
+    intervalHours: Number(status.interval_hours) || 0,
+    latestSyncAt: status.latest_sync_at || '',
+    nextRunAt: status.next_run_at || '',
+  }
 }
 
 function formatElapsed(value) {
@@ -403,6 +424,8 @@ function EbayAccounts({ currentUser, onLogout }) {
   const [error, setError] = useState('')
   const [syncResults, setSyncResults] = useState([])
   const [apiUsages, setApiUsages] = useState(() => API_USAGE_TYPES.map((type) => ({ ...EMPTY_API_USAGE, apiName: type.key })))
+  const [autoSyncStatus, setAutoSyncStatus] = useState(EMPTY_AUTO_SYNC_STATUS)
+  const [isTogglingAutoSync, setIsTogglingAutoSync] = useState(false)
   const [connectingAccountId, setConnectingAccountId] = useState('')
   const [syncingAction, setSyncingAction] = useState('')
   const [manualAccountId, setManualAccountId] = useState('')
@@ -440,10 +463,24 @@ function EbayAccounts({ currentUser, onLogout }) {
     }
   }
 
+  async function loadAutoSyncStatus() {
+    if (!isAdmin) {
+      return
+    }
+
+    try {
+      const response = await fetchEbayAutoSyncStatus()
+      setAutoSyncStatus(normalizeAutoSyncStatus(response))
+    } catch (caughtError) {
+      setError(caughtError.message)
+    }
+  }
+
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     loadAccounts()
     loadApiUsage()
+    loadAutoSyncStatus()
   }, [])
 
   useEffect(() => {
@@ -461,6 +498,7 @@ function EbayAccounts({ currentUser, onLogout }) {
 
     loadAccounts()
     loadApiUsage()
+    loadAutoSyncStatus()
     window.history.replaceState({}, document.title, window.location.pathname)
   }, [])
 
@@ -704,6 +742,7 @@ function EbayAccounts({ currentUser, onLogout }) {
       showNotification('Sync completed successfully.')
       await loadAccounts()
       await loadApiUsage()
+      await loadAutoSyncStatus()
     } catch (caughtError) {
       if (caughtError.status === 429 || /api limit|daily api limit|limit reached/i.test(caughtError.message || '')) {
         showApiLimitReached()
@@ -751,6 +790,22 @@ function EbayAccounts({ currentUser, onLogout }) {
     }
 
     await runSync('all', syncAllEbayAccounts)
+  }
+
+  async function toggleAutoSync() {
+    setIsTogglingAutoSync(true)
+    setError('')
+
+    try {
+      const response = await updateEbayAutoSyncStatus(!autoSyncStatus.enabled)
+      const status = normalizeAutoSyncStatus(response)
+      setAutoSyncStatus(status)
+      showNotification(status.enabled ? 'Auto sync started.' : 'Auto sync stopped.')
+    } catch (caughtError) {
+      showError(caughtError)
+    } finally {
+      setIsTogglingAutoSync(false)
+    }
   }
 
   function resetFilters() {
@@ -806,6 +861,19 @@ function EbayAccounts({ currentUser, onLogout }) {
             >
               {syncingAction === 'all' ? 'Syncing...' : 'Sync All Connected'}
             </button>
+            <button
+              className={autoSyncStatus.enabled ? 'secondary-button auto-sync-active' : 'secondary-button'}
+              type="button"
+              disabled={isTogglingAutoSync}
+              onClick={toggleAutoSync}
+            >
+              {isTogglingAutoSync ? 'Updating...' : autoSyncStatus.enabled ? 'Stop Auto Sync' : 'Start Auto Sync'}
+            </button>
+            <span className="auto-sync-status">
+              {autoSyncStatus.enabled
+                ? `Every ${autoSyncStatus.intervalHours || '-'}h${autoSyncStatus.nextRunAt ? ` · next ${formatDate(autoSyncStatus.nextRunAt)}` : ''}`
+                : `Off${autoSyncStatus.intervalHours ? ` · interval ${autoSyncStatus.intervalHours}h` : ''}`}
+            </span>
           </section>
         ) : null}
 

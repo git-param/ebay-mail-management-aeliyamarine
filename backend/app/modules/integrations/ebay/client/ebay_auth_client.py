@@ -30,6 +30,7 @@ EBAY_LEGACY_REFRESH_SCOPES = [
     'https://api.ebay.com/oauth/api_scope/sell.inventory',
 ]
 EBAY_REFRESH_SCOPES = [
+    'https://api.ebay.com/oauth/api_scope/commerce.identity.readonly',
     *EBAY_LEGACY_REFRESH_SCOPES,
     'https://api.ebay.com/oauth/api_scope/sell.fulfillment',
 ]
@@ -259,16 +260,20 @@ class EbayAuthClient:
             # Tokens granted before order sync existed do not include sell.fulfillment.
             # Preserve message synchronization until the seller reconnects and consents.
             logger.warning('Expanded eBay token refresh failed; retrying legacy scopes')
+        try:
             return self._refresh_access_token_with_scopes(refresh_token, EBAY_LEGACY_REFRESH_SCOPES)
+        except HTTPException:
+            logger.warning('Legacy eBay token refresh failed; retrying without explicit scopes')
+            return self._refresh_access_token_with_scopes(refresh_token, None)
 
-    def _refresh_access_token_with_scopes(self, refresh_token: str, scopes: list[str]) -> EbayTokenPayload:
-        return self._request_tokens(
-            {
-                'grant_type': 'refresh_token',
-                'refresh_token': refresh_token,
-                'scope': ' '.join(scopes),
-            }
-        )
+    def _refresh_access_token_with_scopes(self, refresh_token: str, scopes: list[str] | None) -> EbayTokenPayload:
+        payload = {
+            'grant_type': 'refresh_token',
+            'refresh_token': refresh_token,
+        }
+        if scopes:
+            payload['scope'] = ' '.join(scopes)
+        return self._request_tokens(payload)
 
     def get_authenticated_seller_identity(self, access_token: str) -> EbaySellerIdentity:
         request = Request(
@@ -451,7 +456,7 @@ class EbayAuthClient:
 
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
-                detail="eBay OAuth token exchange failed",
+                detail=self._token_error_detail(error_body),
             ) from exc
 
         except (URLError, TimeoutError, json.JSONDecodeError) as exc:
@@ -474,6 +479,20 @@ class EbayAuthClient:
             expires_in=data.get('expires_in'),
             refresh_token_expires_in=data.get('refresh_token_expires_in'),
         )
+
+    def _token_error_detail(self, error_body: str) -> str:
+        if not error_body:
+            return 'eBay OAuth token exchange failed'
+        try:
+            payload = json.loads(error_body)
+        except json.JSONDecodeError:
+            return f'eBay OAuth token exchange failed: {error_body[:240]}'
+        if not isinstance(payload, dict):
+            return 'eBay OAuth token exchange failed'
+        message = payload.get('error_description') or payload.get('error')
+        if isinstance(message, str) and message.strip():
+            return f'eBay OAuth token exchange failed: {message.strip()}'
+        return 'eBay OAuth token exchange failed'
 
     def _non_empty_string(self, value: object) -> str | None:
         if isinstance(value, str) and value.strip():

@@ -55,6 +55,17 @@ class EbayApiUsageListResponse(BaseModel):
     items: list[EbayApiUsageResponse]
 
 
+class EbayAutoSyncStatusResponse(BaseModel):
+    enabled: bool
+    interval_hours: int
+    latest_sync_at: datetime | None = None
+    next_run_at: datetime | None = None
+
+
+class EbayAutoSyncToggleRequest(BaseModel):
+    enabled: bool
+
+
 class EbaySyncResultResponse(BaseModel):
     account_id: UUID
     ebay_username: str
