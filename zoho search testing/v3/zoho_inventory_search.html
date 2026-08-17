@@ -42,7 +42,14 @@ tbody tr:hover{background:#f8faff}
 .drawer-head h2{margin:0 0 5px}
 .drawer-head p{margin:0;color:#667085}
 .close{width:36px;height:36px;padding:0;font-size:20px}
+.tabs{display:flex;gap:8px;padding:12px 20px;border-bottom:1px solid #eaecf0;background:#fcfcfd}
+.tab-btn{background:#f2f4f7;color:#344054;padding:8px 12px}
+.tab-btn.active{background:#315efb;color:#fff}
 .drawer-body{padding:18px 20px 32px;overflow:auto}
+.raw-panel{display:none;padding:18px 20px 32px;overflow:auto;flex:1;background:#101828}
+.raw-panel.active{display:block}
+.drawer-body.hidden{display:none}
+.raw-json{margin:0;color:#d0d5dd;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere}
 .section{font-size:13px;text-transform:uppercase;color:#475467;margin:20px 0 8px}
 .section:first-child{margin-top:0}
 .grid{display:grid;grid-template-columns:190px 1fr;border-top:1px solid #eaecf0}
@@ -101,7 +108,16 @@ tbody tr:hover{background:#f8faff}
 <div><h2 id="title">Item details</h2><p id="skuLine"></p></div>
 <button id="closeBtn" class="ghost close">×</button>
 </div>
+
+<div class="tabs">
+<button id="detailsTabBtn" class="tab-btn active" type="button">Details</button>
+<button id="rawTabBtn" class="tab-btn" type="button">Raw Response</button>
+</div>
+
 <div id="drawerBody" class="drawer-body"></div>
+<div id="rawPanel" class="raw-panel">
+<pre id="rawJson" class="raw-json"></pre>
+</div>
 </aside>
 </div>
 
@@ -112,6 +128,7 @@ const rows=$("rows"),statusEl=$("status"),empty=$("empty");
 const searchInput=$("searchInput"),searchBtn=$("searchBtn"),exactBtn=$("exactBtn"),pageSize=$("pageSize");
 const prevBtn=$("prevBtn"),nextBtn=$("nextBtn"),clearBtn=$("clearBtn"),pageInfo=$("pageInfo");
 const overlay=$("overlay"),drawerBody=$("drawerBody"),title=$("title"),skuLine=$("skuLine"),closeBtn=$("closeBtn");
+const detailsTabBtn=$("detailsTabBtn"),rawTabBtn=$("rawTabBtn"),rawPanel=$("rawPanel"),rawJson=$("rawJson");
 
 function pick(o,...keys){for(const k of keys){if(o&&o[k]!==undefined&&o[k]!==null&&o[k]!=="")return o[k]}return null}
 function txt(v){return v===null||v===undefined||v===""?"—":String(v)}
@@ -226,6 +243,23 @@ function addSection(name,entries){
   drawerBody.append(h,g);
 }
 
+function showDetailsTab(){
+  detailsTabBtn.classList.add("active");
+  rawTabBtn.classList.remove("active");
+  drawerBody.classList.remove("hidden");
+  rawPanel.classList.remove("active");
+}
+
+function showRawTab(){
+  rawTabBtn.classList.add("active");
+  detailsTabBtn.classList.remove("active");
+  drawerBody.classList.add("hidden");
+  rawPanel.classList.add("active");
+}
+
+detailsTabBtn.addEventListener("click",showDetailsTab);
+rawTabBtn.addEventListener("click",showRawTab);
+
 function renderDetails(item){
   drawerBody.innerHTML="";
   title.textContent=txt(pick(item,"item_name","name"));
@@ -268,19 +302,27 @@ function renderDetails(item){
 
 async function openItem(sku){
   overlay.classList.add("open");
+  showDetailsTab();
   title.textContent="Loading…";
   skuLine.textContent=`SKU ${sku}`;
   drawerBody.innerHTML="";
+  rawJson.textContent="Loading raw response…";
 
   try{
     const r=await fetch(`/api/item?sku=${encodeURIComponent(sku)}`);
     const data=await r.json();
+
+    rawJson.textContent=JSON.stringify(data.raw ?? data, null, 2);
 
     if(!r.ok||!data.success)throw new Error(data.error||`HTTP ${r.status}`);
     renderDetails(data.item||{});
   }catch(e){
     title.textContent="Could not load item";
     drawerBody.textContent=e.message||"Unknown error";
+
+    if(!rawJson.textContent || rawJson.textContent==="Loading raw response…"){
+      rawJson.textContent=JSON.stringify({error:e.message||"Unknown error"}, null, 2);
+    }
   }
 }
 

@@ -7,7 +7,7 @@ from urllib.parse import parse_qs, quote, urlparse
 
 import requests
 
-APP_VERSION = "ZOHO-INVENTORY-SEARCH-v4"
+APP_VERSION = "ZOHO-INVENTORY-SEARCH-v5"
 BASE_URL = "https://apex.200.141.3.14.sslip.io"
 REQUEST_TIMEOUT = 30
 HOST = "127.0.0.1"
@@ -291,7 +291,12 @@ def lookup_item(sku: str) -> tuple[int, dict[str, Any]]:
         return 404, {"success": False, "error": f"No item found for SKU {sku}."}
 
     item = payload.get("item") if isinstance(payload, dict) else payload
-    return 200, {"success": True, "sku": sku, "item": item}
+    return 200, {
+        "success": True,
+        "sku": sku,
+        "item": item,
+        "raw": payload,
+    }
 
 
 class Handler(BaseHTTPRequestHandler):
