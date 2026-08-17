@@ -246,13 +246,13 @@
     <header class="header">
       <div>
         <h1>Zoho Inventory Browser</h1>
-        <p class="subtitle">Browse the paginated Zoho item list, then click any item for its full details.</p>
+        <p class="subtitle">Browse the paginated Zoho item list, or enter an exact SKU to open its full details.</p>
       </div>
     </header>
 
     <section class="panel">
       <div class="toolbar">
-        <input id="filterInput" type="search" placeholder="Filter this page by SKU, name, brand, MPN..." autocomplete="off">
+        <input id="skuInput" type="search" placeholder="Enter exact SKU to open details..." autocomplete="off">
         <button id="skuButton" class="secondary" type="button">Open exact SKU</button>
         <select id="pageSize" aria-label="Items per page">
           <option value="10">10 / page</option>
@@ -317,7 +317,7 @@
     const rows = document.getElementById("itemRows");
     const statusEl = document.getElementById("status");
     const emptyState = document.getElementById("emptyState");
-    const filterInput = document.getElementById("filterInput");
+    const skuInput = document.getElementById("skuInput");
     const skuButton = document.getElementById("skuButton");
     const pageSize = document.getElementById("pageSize");
     const prevButton = document.getElementById("prevButton");
@@ -352,25 +352,10 @@
     }
 
     function renderRows() {
-      const query = filterInput.value.trim().toLowerCase();
-
-      const filtered = state.items.filter(item => {
-        if (!query) return true;
-        const haystack = [
-          value(item, "sku"),
-          value(item, "item_name", "name"),
-          value(item, "brand"),
-          value(item, "mpn", "part_number"),
-          value(item, "condition")
-        ].filter(Boolean).join(" ").toLowerCase();
-
-        return haystack.includes(query);
-      });
-
       rows.innerHTML = "";
-      emptyState.hidden = filtered.length > 0;
+      emptyState.hidden = state.items.length > 0;
 
-      for (const item of filtered) {
+      for (const item of state.items) {
         const tr = document.createElement("tr");
         const cells = [
           itemSku(item),
@@ -437,7 +422,7 @@
         renderRows();
         updatePagination();
 
-        statusEl.textContent = `${state.items.length} item${state.items.length === 1 ? "" : "s"} loaded. Click any row for details.`;
+        statusEl.textContent = `${state.items.length} item${state.items.length === 1 ? "" : "s"} loaded on this page. Click any row for details.`;
       } catch (error) {
         state.items = [];
         renderRows();
@@ -558,18 +543,16 @@
       }
     }
 
-    filterInput.addEventListener("input", renderRows);
-
     skuButton.addEventListener("click", () => {
-      const sku = filterInput.value.trim();
+      const sku = skuInput.value.trim();
       if (!sku) {
-        filterInput.focus();
+        skuInput.focus();
         return;
       }
       openItem(sku);
     });
 
-    filterInput.addEventListener("keydown", event => {
+    skuInput.addEventListener("keydown", event => {
       if (event.key === "Enter") {
         event.preventDefault();
         skuButton.click();
@@ -579,13 +562,11 @@
     prevButton.addEventListener("click", () => {
       if (state.page <= 1) return;
       state.page -= 1;
-      filterInput.value = "";
       loadItems();
     });
 
     nextButton.addEventListener("click", () => {
       state.page += 1;
-      filterInput.value = "";
       loadItems();
     });
 
