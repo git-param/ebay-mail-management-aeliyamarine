@@ -1,0 +1,299 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Zoho Inventory Search</title>
+  <style>
+    :root {
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: #172033;
+      background: #f5f7fb;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: #f5f7fb;
+    }
+
+    .page {
+      width: min(1100px, calc(100% - 32px));
+      margin: 64px auto;
+    }
+
+    .header { margin-bottom: 24px; }
+    .header h1 { margin: 0 0 8px; font-size: clamp(28px, 4vw, 42px); }
+    .header p { margin: 0; color: #667085; }
+
+    .panel {
+      background: #fff;
+      border: 1px solid #e5e9f0;
+      border-radius: 16px;
+      padding: 20px;
+      box-shadow: 0 8px 30px rgba(16, 24, 40, 0.06);
+    }
+
+    .search-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 12px;
+    }
+
+    input {
+      width: 100%;
+      border: 1px solid #cfd6e4;
+      border-radius: 10px;
+      padding: 13px 14px;
+      font: inherit;
+      outline: none;
+    }
+
+    input:focus {
+      border-color: #315efb;
+      box-shadow: 0 0 0 3px rgba(49, 94, 251, 0.12);
+    }
+
+    button {
+      border: 0;
+      border-radius: 10px;
+      padding: 0 20px;
+      background: #315efb;
+      color: white;
+      font: inherit;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    button:disabled { opacity: .65; cursor: wait; }
+
+    #status {
+      min-height: 22px;
+      margin: 16px 2px 0;
+      color: #667085;
+    }
+
+    #status.error { color: #b42318; }
+
+    #result {
+      display: none;
+      margin-top: 20px;
+    }
+
+    .result-title {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: baseline;
+      margin-bottom: 12px;
+    }
+
+    .result-title h2 { margin: 0; font-size: 20px; }
+    .sku-badge {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      background: #eef2ff;
+      color: #2948c7;
+      padding: 5px 8px;
+      border-radius: 7px;
+      font-size: 13px;
+    }
+
+    .table-wrap { overflow-x: auto; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+
+    th, td {
+      border-bottom: 1px solid #edf0f5;
+      padding: 11px 10px;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      width: 230px;
+      color: #667085;
+      font-weight: 600;
+    }
+
+    td {
+      color: #172033;
+      overflow-wrap: anywhere;
+    }
+
+    details { margin-top: 18px; }
+    summary { cursor: pointer; color: #475467; font-weight: 600; }
+
+    pre {
+      margin: 12px 0 0;
+      padding: 14px;
+      border-radius: 10px;
+      background: #101828;
+      color: #e6edf7;
+      overflow: auto;
+      max-height: 420px;
+      font-size: 12px;
+    }
+
+    @media (max-width: 640px) {
+      .page { margin: 28px auto; }
+      .search-row { grid-template-columns: 1fr; }
+      button { padding: 13px 20px; }
+      th { width: 140px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header class="header">
+      <h1>Zoho Inventory Search</h1>
+      <p>Enter a SKU to load the item directly from the Zoho lookup service.</p>
+    </header>
+
+    <section class="panel">
+      <form id="searchForm" class="search-row">
+        <input
+          id="skuInput"
+          name="sku"
+          type="search"
+          placeholder="Enter SKU, e.g. 11201"
+          autocomplete="off"
+          autofocus
+          required
+        />
+        <button id="searchButton" type="submit">Search</button>
+      </form>
+
+      <div id="status" aria-live="polite"></div>
+
+      <div id="result">
+        <div class="result-title">
+          <h2>Item details</h2>
+          <span id="skuBadge" class="sku-badge"></span>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <tbody id="resultBody"></tbody>
+          </table>
+        </div>
+
+        <details>
+          <summary>Raw API response</summary>
+          <pre id="rawJson"></pre>
+        </details>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const form = document.getElementById("searchForm");
+    const input = document.getElementById("skuInput");
+    const button = document.getElementById("searchButton");
+    const status = document.getElementById("status");
+    const result = document.getElementById("result");
+    const resultBody = document.getElementById("resultBody");
+    const rawJson = document.getElementById("rawJson");
+    const skuBadge = document.getElementById("skuBadge");
+
+    function printable(value) {
+      if (value === null || value === undefined || value === "") return "—";
+      if (typeof value === "object") return JSON.stringify(value, null, 2);
+      return String(value);
+    }
+
+    function labelFor(key) {
+      return key
+        .replace(/_/g, " ")
+        .replace(/\b\w/g, letter => letter.toUpperCase());
+    }
+
+    function renderItem(item) {
+      resultBody.innerHTML = "";
+
+      if (!item || typeof item !== "object" || Array.isArray(item)) {
+        const row = document.createElement("tr");
+        const th = document.createElement("th");
+        const td = document.createElement("td");
+        th.textContent = "Result";
+        td.textContent = printable(item);
+        row.append(th, td);
+        resultBody.appendChild(row);
+        return;
+      }
+
+      // Put the most useful inventory fields first when they exist.
+      const preferredOrder = [
+        "sku",
+        "name",
+        "item_id",
+        "stock_on_hand",
+        "available_stock",
+        "actual_available_stock",
+        "committed_stock",
+        "rate",
+        "sales_rate",
+        "purchase_rate",
+        "brand",
+        "part_number",
+        "status"
+      ];
+
+      const keys = Object.keys(item);
+      const orderedKeys = [
+        ...preferredOrder.filter(key => keys.includes(key)),
+        ...keys.filter(key => !preferredOrder.includes(key))
+      ];
+
+      for (const key of orderedKeys) {
+        const row = document.createElement("tr");
+        const th = document.createElement("th");
+        const td = document.createElement("td");
+
+        th.textContent = labelFor(key);
+        td.textContent = printable(item[key]);
+
+        row.append(th, td);
+        resultBody.appendChild(row);
+      }
+    }
+
+    form.addEventListener("submit", async event => {
+      event.preventDefault();
+
+      const sku = input.value.trim();
+      if (!sku) return;
+
+      button.disabled = true;
+      status.className = "";
+      status.textContent = `Searching for ${sku}…`;
+      result.style.display = "none";
+
+      try {
+        const response = await fetch(`/api/search?sku=${encodeURIComponent(sku)}`);
+        const data = await response.json();
+
+        if (!response.ok || !data.success) {
+          throw new Error(data.error || `Search failed with HTTP ${response.status}`);
+        }
+
+        renderItem(data.item);
+        rawJson.textContent = JSON.stringify(data.raw, null, 2);
+        skuBadge.textContent = data.sku;
+        status.textContent = "Item loaded successfully.";
+        result.style.display = "block";
+      } catch (error) {
+        status.className = "error";
+        status.textContent = error.message || "Search failed.";
+      } finally {
+        button.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>
