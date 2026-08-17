@@ -1,0 +1,617 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Zoho Inventory Browser</title>
+  <style>
+    :root {
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: #172033;
+      background: #f5f7fb;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: #f5f7fb;
+    }
+
+    button, input, select { font: inherit; }
+
+    .page {
+      width: min(1280px, calc(100% - 32px));
+      margin: 34px auto 60px;
+    }
+
+    .header {
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 18px;
+      margin-bottom: 20px;
+    }
+
+    h1 { margin: 0 0 6px; font-size: 30px; }
+    .subtitle { margin: 0; color: #667085; }
+
+    .panel {
+      background: #fff;
+      border: 1px solid #e4e7ec;
+      border-radius: 14px;
+      box-shadow: 0 8px 24px rgba(16,24,40,.05);
+      overflow: hidden;
+    }
+
+    .toolbar {
+      display: grid;
+      grid-template-columns: minmax(220px, 1fr) auto auto;
+      gap: 10px;
+      padding: 16px;
+      border-bottom: 1px solid #eaecf0;
+    }
+
+    input, select {
+      border: 1px solid #d0d5dd;
+      border-radius: 9px;
+      padding: 10px 12px;
+      outline: none;
+      background: #fff;
+      color: #101828;
+    }
+
+    input:focus, select:focus {
+      border-color: #315efb;
+      box-shadow: 0 0 0 3px rgba(49,94,251,.11);
+    }
+
+    button {
+      border: 0;
+      border-radius: 9px;
+      padding: 10px 14px;
+      cursor: pointer;
+      font-weight: 700;
+    }
+
+    .primary { background: #315efb; color: white; }
+    .secondary { background: #eef2ff; color: #2948c7; }
+    .ghost { background: #f2f4f7; color: #344054; }
+
+    button:disabled {
+      opacity: .55;
+      cursor: not-allowed;
+    }
+
+    .status {
+      min-height: 24px;
+      padding: 10px 16px 0;
+      color: #667085;
+      font-size: 14px;
+    }
+
+    .status.error { color: #b42318; }
+
+    .table-wrap { overflow-x: auto; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+
+    th, td {
+      border-bottom: 1px solid #eaecf0;
+      padding: 11px 14px;
+      text-align: left;
+      white-space: nowrap;
+    }
+
+    th {
+      color: #667085;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: .035em;
+      background: #fcfcfd;
+    }
+
+    tbody tr { cursor: pointer; }
+    tbody tr:hover { background: #f8faff; }
+
+    .name-cell {
+      white-space: normal;
+      min-width: 300px;
+      font-weight: 650;
+    }
+
+    .sku {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      color: #2948c7;
+      font-weight: 700;
+    }
+
+    .muted { color: #98a2b3; }
+
+    .pagination {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      padding: 14px 16px;
+    }
+
+    .pagination-actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    .details-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(16,24,40,.38);
+      display: none;
+      align-items: stretch;
+      justify-content: flex-end;
+      z-index: 100;
+    }
+
+    .details-overlay.open { display: flex; }
+
+    .details-panel {
+      width: min(720px, 96vw);
+      height: 100%;
+      background: white;
+      box-shadow: -12px 0 30px rgba(16,24,40,.15);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .details-header {
+      padding: 18px 20px;
+      border-bottom: 1px solid #eaecf0;
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: start;
+    }
+
+    .details-header h2 { margin: 0 0 6px; font-size: 20px; }
+    .details-header p { margin: 0; color: #667085; }
+
+    .close {
+      background: #f2f4f7;
+      color: #344054;
+      width: 36px;
+      height: 36px;
+      padding: 0;
+      font-size: 20px;
+    }
+
+    .details-body {
+      overflow-y: auto;
+      padding: 18px 20px 32px;
+    }
+
+    .section-title {
+      margin: 20px 0 8px;
+      font-size: 13px;
+      color: #475467;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+    }
+
+    .section-title:first-child { margin-top: 0; }
+
+    .detail-grid {
+      display: grid;
+      grid-template-columns: 190px 1fr;
+      border-top: 1px solid #eaecf0;
+    }
+
+    .detail-label, .detail-value {
+      padding: 9px 8px;
+      border-bottom: 1px solid #eaecf0;
+      overflow-wrap: anywhere;
+    }
+
+    .detail-label {
+      color: #667085;
+      font-weight: 600;
+    }
+
+    .description {
+      white-space: pre-wrap;
+      line-height: 1.5;
+    }
+
+    a { color: #315efb; }
+
+    .empty {
+      padding: 42px 16px;
+      text-align: center;
+      color: #667085;
+    }
+
+    @media (max-width: 720px) {
+      .header { align-items: start; flex-direction: column; }
+      .toolbar { grid-template-columns: 1fr; }
+      .detail-grid { grid-template-columns: 1fr; }
+      .detail-label { border-bottom: 0; padding-bottom: 2px; }
+      .detail-value { padding-top: 2px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header class="header">
+      <div>
+        <h1>Zoho Inventory Browser</h1>
+        <p class="subtitle">Browse the paginated Zoho item list, then click any item for its full details.</p>
+      </div>
+    </header>
+
+    <section class="panel">
+      <div class="toolbar">
+        <input id="filterInput" type="search" placeholder="Filter this page by SKU, name, brand, MPN..." autocomplete="off">
+        <button id="skuButton" class="secondary" type="button">Open exact SKU</button>
+        <select id="pageSize" aria-label="Items per page">
+          <option value="10">10 / page</option>
+          <option value="25" selected>25 / page</option>
+          <option value="50">50 / page</option>
+          <option value="100">100 / page</option>
+        </select>
+      </div>
+
+      <div id="status" class="status">Loading Zoho items…</div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>SKU</th>
+              <th>Item name</th>
+              <th>Brand</th>
+              <th>Condition</th>
+              <th>Stock</th>
+              <th>Available</th>
+              <th>eBay USD</th>
+              <th>Updated</th>
+            </tr>
+          </thead>
+          <tbody id="itemRows"></tbody>
+        </table>
+        <div id="emptyState" class="empty" hidden>No items found on this page.</div>
+      </div>
+
+      <div class="pagination">
+        <div id="pageInfo">Page 1</div>
+        <div class="pagination-actions">
+          <button id="prevButton" class="ghost" type="button">Previous</button>
+          <button id="nextButton" class="ghost" type="button">Next</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div id="detailsOverlay" class="details-overlay">
+    <aside class="details-panel" role="dialog" aria-modal="true" aria-labelledby="detailsTitle">
+      <header class="details-header">
+        <div>
+          <h2 id="detailsTitle">Item details</h2>
+          <p id="detailsSku"></p>
+        </div>
+        <button id="closeDetails" class="close" type="button" aria-label="Close">×</button>
+      </header>
+      <div id="detailsBody" class="details-body"></div>
+    </aside>
+  </div>
+
+  <script>
+    const state = {
+      page: 1,
+      perPage: 25,
+      items: [],
+      pagination: {}
+    };
+
+    const rows = document.getElementById("itemRows");
+    const statusEl = document.getElementById("status");
+    const emptyState = document.getElementById("emptyState");
+    const filterInput = document.getElementById("filterInput");
+    const skuButton = document.getElementById("skuButton");
+    const pageSize = document.getElementById("pageSize");
+    const prevButton = document.getElementById("prevButton");
+    const nextButton = document.getElementById("nextButton");
+    const pageInfo = document.getElementById("pageInfo");
+    const detailsOverlay = document.getElementById("detailsOverlay");
+    const detailsBody = document.getElementById("detailsBody");
+    const detailsTitle = document.getElementById("detailsTitle");
+    const detailsSku = document.getElementById("detailsSku");
+    const closeDetails = document.getElementById("closeDetails");
+
+    function value(item, ...keys) {
+      for (const key of keys) {
+        if (item && item[key] !== undefined && item[key] !== null && item[key] !== "") {
+          return item[key];
+        }
+      }
+      return null;
+    }
+
+    function printable(v) {
+      if (v === null || v === undefined || v === "") return "—";
+      return String(v);
+    }
+
+    function itemSku(item) {
+      return printable(value(item, "sku", "SKU"));
+    }
+
+    function itemName(item) {
+      return printable(value(item, "item_name", "name", "itemName"));
+    }
+
+    function renderRows() {
+      const query = filterInput.value.trim().toLowerCase();
+
+      const filtered = state.items.filter(item => {
+        if (!query) return true;
+        const haystack = [
+          value(item, "sku"),
+          value(item, "item_name", "name"),
+          value(item, "brand"),
+          value(item, "mpn", "part_number"),
+          value(item, "condition")
+        ].filter(Boolean).join(" ").toLowerCase();
+
+        return haystack.includes(query);
+      });
+
+      rows.innerHTML = "";
+      emptyState.hidden = filtered.length > 0;
+
+      for (const item of filtered) {
+        const tr = document.createElement("tr");
+        const cells = [
+          itemSku(item),
+          itemName(item),
+          printable(value(item, "brand")),
+          printable(value(item, "condition")),
+          printable(value(item, "stock_on_hand")),
+          printable(value(item, "available_stock", "available_for_sale_stock")),
+          printable(value(item, "ebay_usd")),
+          printable(value(item, "last_updated", "zoho_updated_at"))
+        ];
+
+        cells.forEach((text, index) => {
+          const td = document.createElement("td");
+          td.textContent = text;
+          if (index === 0) td.className = "sku";
+          if (index === 1) td.className = "name-cell";
+          tr.appendChild(td);
+        });
+
+        tr.addEventListener("click", () => {
+          const sku = value(item, "sku");
+          if (sku) openItem(String(sku));
+        });
+
+        rows.appendChild(tr);
+      }
+    }
+
+    function updatePagination() {
+      const p = state.pagination || {};
+      const current = Number(p.page || state.page);
+      const totalPages = p.total_pages ? Number(p.total_pages) : null;
+      const total = p.total ?? null;
+
+      let text = `Page ${current}`;
+      if (totalPages) text += ` of ${totalPages}`;
+      if (total !== null) text += ` • ${total} items`;
+
+      pageInfo.textContent = text;
+      prevButton.disabled = current <= 1;
+      nextButton.disabled = p.has_more === false || state.items.length === 0;
+    }
+
+    async function loadItems() {
+      statusEl.className = "status";
+      statusEl.textContent = `Loading page ${state.page}…`;
+      rows.innerHTML = "";
+      emptyState.hidden = true;
+      prevButton.disabled = true;
+      nextButton.disabled = true;
+
+      try {
+        const response = await fetch(`/api/items?page=${state.page}&per_page=${state.perPage}`);
+        const data = await response.json();
+
+        if (!response.ok || !data.success) {
+          throw new Error(data.error || `Failed with HTTP ${response.status}`);
+        }
+
+        state.items = Array.isArray(data.items) ? data.items : [];
+        state.pagination = data.pagination || {};
+
+        renderRows();
+        updatePagination();
+
+        statusEl.textContent = `${state.items.length} item${state.items.length === 1 ? "" : "s"} loaded. Click any row for details.`;
+      } catch (error) {
+        state.items = [];
+        renderRows();
+        statusEl.className = "status error";
+        statusEl.textContent = error.message || "Could not load Zoho items.";
+        pageInfo.textContent = `Page ${state.page}`;
+      }
+    }
+
+    function addDetailRow(container, label, val, isLink = false, isDescription = false) {
+      if (val === null || val === undefined || val === "") return;
+
+      const labelEl = document.createElement("div");
+      labelEl.className = "detail-label";
+      labelEl.textContent = label;
+
+      const valueEl = document.createElement("div");
+      valueEl.className = "detail-value";
+      if (isDescription) valueEl.classList.add("description");
+
+      if (isLink) {
+        const a = document.createElement("a");
+        a.href = String(val);
+        a.target = "_blank";
+        a.rel = "noopener noreferrer";
+        a.textContent = String(val);
+        valueEl.appendChild(a);
+      } else {
+        valueEl.textContent = printable(val);
+      }
+
+      container.append(labelEl, valueEl);
+    }
+
+    function addSection(title, entries) {
+      const visible = entries.filter(entry => entry[1] !== null && entry[1] !== undefined && entry[1] !== "");
+      if (!visible.length) return;
+
+      const heading = document.createElement("h3");
+      heading.className = "section-title";
+      heading.textContent = title;
+
+      const grid = document.createElement("div");
+      grid.className = "detail-grid";
+
+      for (const [label, val, type] of visible) {
+        addDetailRow(grid, label, val, type === "link", type === "description");
+      }
+
+      detailsBody.append(heading, grid);
+    }
+
+    function renderDetails(item) {
+      detailsBody.innerHTML = "";
+      detailsTitle.textContent = itemName(item);
+      detailsSku.textContent = `SKU ${itemSku(item)}`;
+
+      addSection("Basic information", [
+        ["SKU", value(item, "sku")],
+        ["Item name", value(item, "item_name", "name")],
+        ["Brand", value(item, "brand")],
+        ["Manufacturer", value(item, "manufacturer")],
+        ["MPN", value(item, "mpn", "part_number")],
+        ["Condition", value(item, "condition")],
+        ["Status", value(item, "status")],
+        ["Zoho item ID", value(item, "zoho_item_id", "item_id")]
+      ]);
+
+      addSection("Inventory", [
+        ["Stock on hand", value(item, "stock_on_hand")],
+        ["Available stock", value(item, "available_stock")],
+        ["Available for sale", value(item, "available_for_sale_stock")],
+        ["Committed stock", value(item, "committed_stock")],
+        ["Reorder point", value(item, "reorder_point")]
+      ]);
+
+      addSection("Pricing", [
+        ["Sales rate", value(item, "sales_rate")],
+        ["Purchase rate", value(item, "purchase_rate")],
+        ["eBay USD", value(item, "ebay_usd")]
+      ]);
+
+      addSection("Listings", [
+        ["Listed on eBay", value(item, "listed_on_ebay")],
+        ["Listed on Blog", value(item, "listed_on_blog")],
+        ["Listed on Auto2mation", value(item, "listed_auto2mation")],
+        ["eBay link", value(item, "ebay_link"), "link"],
+        ["Blog link", value(item, "blog_link"), "link"]
+      ]);
+
+      addSection("Other", [
+        ["Weight", value(item, "weight_lbs")],
+        ["Weight unit", value(item, "weight_unit")],
+        ["Last updated", value(item, "last_updated", "zoho_updated_at")],
+        ["Description", value(item, "description"), "description"],
+        ["Remarks", value(item, "remarks"), "description"]
+      ]);
+    }
+
+    async function openItem(sku) {
+      detailsOverlay.classList.add("open");
+      detailsTitle.textContent = "Loading item…";
+      detailsSku.textContent = `SKU ${sku}`;
+      detailsBody.innerHTML = "";
+
+      try {
+        const response = await fetch(`/api/item?sku=${encodeURIComponent(sku)}`);
+        const data = await response.json();
+
+        if (!response.ok || !data.success) {
+          throw new Error(data.error || `Failed with HTTP ${response.status}`);
+        }
+
+        renderDetails(data.item || {});
+      } catch (error) {
+        detailsTitle.textContent = "Could not load item";
+        detailsBody.textContent = error.message || "Unknown error.";
+      }
+    }
+
+    filterInput.addEventListener("input", renderRows);
+
+    skuButton.addEventListener("click", () => {
+      const sku = filterInput.value.trim();
+      if (!sku) {
+        filterInput.focus();
+        return;
+      }
+      openItem(sku);
+    });
+
+    filterInput.addEventListener("keydown", event => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        skuButton.click();
+      }
+    });
+
+    prevButton.addEventListener("click", () => {
+      if (state.page <= 1) return;
+      state.page -= 1;
+      filterInput.value = "";
+      loadItems();
+    });
+
+    nextButton.addEventListener("click", () => {
+      state.page += 1;
+      filterInput.value = "";
+      loadItems();
+    });
+
+    pageSize.addEventListener("change", () => {
+      state.perPage = Number(pageSize.value);
+      state.page = 1;
+      loadItems();
+    });
+
+    closeDetails.addEventListener("click", () => {
+      detailsOverlay.classList.remove("open");
+    });
+
+    detailsOverlay.addEventListener("click", event => {
+      if (event.target === detailsOverlay) {
+        detailsOverlay.classList.remove("open");
+      }
+    });
+
+    document.addEventListener("keydown", event => {
+      if (event.key === "Escape") {
+        detailsOverlay.classList.remove("open");
+      }
+    });
+
+    loadItems();
+  </script>
+</body>
+</html>
