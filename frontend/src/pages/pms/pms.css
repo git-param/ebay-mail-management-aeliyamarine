@@ -1,0 +1,1594 @@
+/* ==========================================================================
+   PMS MODULE
+   Monthly Performance Management System
+
+   This stylesheet is scoped primarily through the pmsModule-* namespace
+   so it does not unintentionally alter unrelated Helpdesk pages.
+   ========================================================================== */
+
+
+/* ==========================================================================
+   PAGE
+   ========================================================================== */
+
+.pmsModule-page {
+  width: 100%;
+  min-width: 0;
+  padding: 26px 28px 42px;
+  box-sizing: border-box;
+}
+
+.pmsModule-page * {
+  box-sizing: border-box;
+}
+
+
+/* ==========================================================================
+   HEADER
+   ========================================================================== */
+
+.pmsModule-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 22px;
+  margin-bottom: 20px;
+}
+
+.pmsModule-header > div:first-child {
+  min-width: 0;
+}
+
+.pmsModule-header h1 {
+  margin: 0;
+  font-size: 28px;
+  line-height: 1.2;
+  font-weight: 750;
+  color: #17213b;
+  letter-spacing: -0.4px;
+}
+
+.pmsModule-header p {
+  margin: 5px 0 0;
+  color: #74809a;
+  font-size: 14px;
+}
+
+.pmsModule-header-controls {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.pmsModule-month-select,
+.pmsModule-search-input {
+  height: 42px;
+  border: 1px solid #dce2ec;
+  border-radius: 10px;
+  background: #fff;
+  color: #26314c;
+  font-size: 14px;
+  outline: none;
+  transition:
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    background-color 0.18s ease;
+}
+
+.pmsModule-month-select {
+  min-width: 170px;
+  padding: 0 36px 0 13px;
+  cursor: pointer;
+}
+
+.pmsModule-search-input {
+  width: 230px;
+  padding: 0 13px;
+}
+
+.pmsModule-month-select:hover,
+.pmsModule-search-input:hover {
+  border-color: #bec8d9;
+}
+
+.pmsModule-month-select:focus,
+.pmsModule-search-input:focus {
+  border-color: #735cf4;
+  box-shadow: 0 0 0 3px rgba(115, 92, 244, 0.1);
+}
+
+
+/* ==========================================================================
+   TABS
+   ========================================================================== */
+
+.pmsModule-tabs {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px;
+  width: fit-content;
+  max-width: 100%;
+  margin-bottom: 22px;
+  background: #edf1f7;
+  border-radius: 11px;
+  overflow-x: auto;
+}
+
+.pmsModule-tabs button {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: #66728c;
+  font-size: 13px;
+  font-weight: 650;
+  white-space: nowrap;
+  min-height: 36px;
+  padding: 8px 15px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition:
+    background-color 0.18s ease,
+    color 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+.pmsModule-tabs button:hover {
+  color: #4835bd;
+  background: rgba(255, 255, 255, 0.62);
+}
+
+.pmsModule-tabs button.active {
+  background: #fff;
+  color: #5b46dd;
+  box-shadow: 0 2px 7px rgba(42, 51, 79, 0.11);
+}
+
+
+/* ==========================================================================
+   SUMMARY CARDS
+   ========================================================================== */
+
+.pmsModule-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(145px, 1fr));
+  gap: 14px;
+  margin: 18px 0;
+}
+
+.pmsModule-summary-card {
+  position: relative;
+  min-height: 112px;
+  padding: 17px 18px;
+  border: 1px solid #e2e7ef;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 3px 13px rgba(31, 41, 67, 0.045);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.pmsModule-summary-card span {
+  display: block;
+  color: #7a849a;
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.4;
+  margin-bottom: 7px;
+}
+
+.pmsModule-summary-card strong {
+  display: block;
+  color: #1d2944;
+  font-size: 27px;
+  line-height: 1.15;
+  font-weight: 760;
+  word-break: break-word;
+}
+
+.pmsModule-summary-card small {
+  display: block;
+  margin-top: 6px;
+  color: #6c7690;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.pmsModule-summary-card-highlight {
+  border-color: #ded8ff;
+  background:
+    linear-gradient(
+      135deg,
+      rgba(243, 240, 255, 0.97),
+      rgba(252, 251, 255, 0.98)
+    );
+}
+
+.pmsModule-summary-card-highlight::before {
+  content: "";
+  position: absolute;
+  top: -28px;
+  right: -28px;
+  width: 78px;
+  height: 78px;
+  border-radius: 50%;
+  background: rgba(111, 82, 238, 0.1);
+}
+
+.pmsModule-summary-card-highlight strong {
+  color: #5742d6;
+  font-size: 18px;
+}
+
+.pmsModule-summary-card-warning {
+  border-color: #f0d799;
+  background: #fffaf0;
+}
+
+.pmsModule-summary-card-warning strong {
+  color: #a76a00;
+}
+
+
+/* ==========================================================================
+   EMPLOYEE OF THE MONTH
+   ========================================================================== */
+
+.pmsModule-eom-card {
+  position: relative;
+  overflow: hidden;
+  padding: 21px 23px;
+  margin-bottom: 18px;
+  border: 1px solid #ded8ff;
+  border-radius: 16px;
+  background:
+    radial-gradient(
+      circle at top right,
+      rgba(125, 99, 242, 0.14),
+      transparent 32%
+    ),
+    linear-gradient(
+      135deg,
+      #fbfaff 0%,
+      #f4f1ff 50%,
+      #fafcff 100%
+    );
+  box-shadow: 0 6px 20px rgba(82, 64, 163, 0.065);
+}
+
+.pmsModule-eom-card::after {
+  content: "";
+  position: absolute;
+  right: -60px;
+  bottom: -80px;
+  width: 190px;
+  height: 190px;
+  border-radius: 50%;
+  background: rgba(115, 92, 244, 0.055);
+  pointer-events: none;
+}
+
+.pmsModule-eom-card h3 {
+  position: relative;
+  z-index: 1;
+  margin: 0 0 15px;
+  color: #392a8c;
+  font-size: 17px;
+  font-weight: 750;
+}
+
+.pmsModule-eom-body {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: minmax(200px, 0.7fr) minmax(350px, 1.3fr);
+  gap: 24px;
+  align-items: center;
+}
+
+.pmsModule-eom-name {
+  color: #1f2943;
+  font-size: 22px;
+  line-height: 1.25;
+  font-weight: 760;
+}
+
+.pmsModule-eom-score {
+  margin: 10px 0 0;
+  color: #73809a;
+  font-size: 13px;
+}
+
+.pmsModule-eom-score span {
+  display: block;
+  margin-top: 5px;
+  color: #5b46dd;
+  font-size: 28px;
+  line-height: 1.15;
+  font-weight: 780;
+}
+
+.pmsModule-eom-breakdown {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(115px, 1fr));
+  gap: 8px;
+}
+
+.pmsModule-eom-breakdown > div {
+  min-width: 0;
+  padding: 10px 11px;
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(218, 213, 247, 0.95);
+  border-radius: 9px;
+}
+
+.pmsModule-eom-breakdown span {
+  display: block;
+  min-width: 0;
+  margin-bottom: 4px;
+  color: #777f96;
+  font-size: 11px;
+  line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pmsModule-eom-breakdown strong {
+  display: block;
+  color: #2d3650;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.pmsModule-eom-actions {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  margin-top: 17px;
+}
+
+.pmsModule-eom-actions .secondary-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.pmsModule-eom-actions svg {
+  width: 15px;
+  height: 15px;
+}
+
+.pmsModule-eom-empty {
+  background: #fff;
+  border-color: #e2e7ef;
+}
+
+.pmsModule-eom-empty h3 {
+  color: #27334e;
+}
+
+.pmsModule-eom-empty p,
+.pmsModule-eom-tie > p {
+  margin: 0;
+  color: #76819a;
+  font-size: 13px;
+}
+
+.pmsModule-eom-tie {
+  border-color: #e1dafb;
+}
+
+.pmsModule-eom-tie-list {
+  list-style: none;
+  padding: 0;
+  margin: 15px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pmsModule-eom-tie-list li {
+  display: grid;
+  grid-template-columns: minmax(140px, 1fr) auto auto;
+  align-items: center;
+  gap: 12px;
+  min-height: 48px;
+  padding: 8px 10px 8px 13px;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.76);
+  border: 1px solid #e3def6;
+}
+
+.pmsModule-eom-tie-list li > span {
+  color: #28324a;
+  font-weight: 650;
+  font-size: 13px;
+}
+
+.pmsModule-eom-tie-list li > strong {
+  color: #5e48dc;
+  font-size: 14px;
+}
+
+.pmsModule-copy-feedback {
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.pmsModule-copy-feedback.success {
+  color: #16845b;
+}
+
+.pmsModule-copy-feedback.error {
+  color: #bf3d46;
+}
+
+
+/* ==========================================================================
+   GENERIC PMS CARDS
+   ========================================================================== */
+
+.pms-history-card,
+.pms-entry-card,
+.pmsModule-config-card {
+  width: 100%;
+  min-width: 0;
+  background: #fff;
+  border: 1px solid #e2e7ef;
+  border-radius: 14px;
+  box-shadow: 0 3px 14px rgba(31, 42, 67, 0.04);
+}
+
+.pms-history-card {
+  padding: 16px;
+}
+
+.pms-entry-card {
+  padding: 20px;
+}
+
+.pmsModule-config-card {
+  padding: 18px;
+}
+
+
+/* ==========================================================================
+   TABLE WRAPPER
+   ========================================================================== */
+
+.pmsModule-page .table-scroll {
+  width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: visible;
+  border-radius: 10px;
+  scrollbar-width: thin;
+}
+
+.pmsModule-page .table-scroll::-webkit-scrollbar {
+  height: 8px;
+}
+
+.pmsModule-page .table-scroll::-webkit-scrollbar-track {
+  background: #eef1f6;
+  border-radius: 999px;
+}
+
+.pmsModule-page .table-scroll::-webkit-scrollbar-thumb {
+  background: #c6ccda;
+  border-radius: 999px;
+}
+
+.pmsModule-page .table-scroll::-webkit-scrollbar-thumb:hover {
+  background: #aab2c4;
+}
+
+
+/* ==========================================================================
+   PMS TABLES
+   ========================================================================== */
+
+.pmsModule-page .users-table {
+  width: 100%;
+  min-width: 650px;
+  border-collapse: separate;
+  border-spacing: 0;
+  table-layout: auto;
+}
+
+.pmsModule-page .users-table thead th {
+  padding: 12px 13px;
+  background: #f5f7fb;
+  border-bottom: 1px solid #e0e5ed;
+  color: #606b82;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 730;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.pmsModule-page .users-table thead th:first-child {
+  border-top-left-radius: 9px;
+}
+
+.pmsModule-page .users-table thead th:last-child {
+  border-top-right-radius: 9px;
+}
+
+.pmsModule-page .users-table tbody td {
+  padding: 12px 13px;
+  color: #34405b;
+  font-size: 13px;
+  vertical-align: middle;
+  border-bottom: 1px solid #edf0f5;
+}
+
+.pmsModule-page .users-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.pmsModule-page .users-table tbody tr {
+  transition: background-color 0.15s ease;
+}
+
+.pmsModule-page .users-table tbody tr:hover {
+  background: #fafbfe;
+}
+
+.pmsModule-page .users-table td strong {
+  color: #28324c;
+}
+
+.pmsModule-monthly-table th:first-child,
+.pmsModule-monthly-table td:first-child {
+  min-width: 210px;
+}
+
+.pmsModule-monthly-table th:last-child,
+.pmsModule-monthly-table td:last-child {
+  width: 120px;
+}
+
+.pmsModule-table-subtext {
+  display: block;
+  max-width: 280px;
+  margin-top: 4px;
+  color: #8a94a8;
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.35;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.pmsModule-page .users-table tfoot td {
+  padding: 12px 13px;
+  border-top: 1px solid #dfe5ed;
+  background: #f8f9fc;
+  color: #303a54;
+  font-size: 13px;
+}
+
+
+/* ==========================================================================
+   BADGES
+   ========================================================================== */
+
+.pmsModule-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: fit-content;
+  min-width: 72px;
+  min-height: 25px;
+  padding: 4px 9px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 750;
+  text-transform: capitalize;
+  letter-spacing: 0.015em;
+  line-height: 1;
+}
+
+.pmsModule-badge-completed {
+  color: #13714e;
+  background: #e7f8f0;
+  border: 1px solid #c8eedf;
+}
+
+.pmsModule-badge-draft {
+  color: #886217;
+  background: #fff6d9;
+  border: 1px solid #f3e2a3;
+}
+
+.pmsModule-badge-pending {
+  color: #69748a;
+  background: #edf1f6;
+  border: 1px solid #dde3eb;
+}
+
+
+/* ==========================================================================
+   BUTTONS USED INSIDE PMS
+   ========================================================================== */
+
+.pmsModule-page .secondary-button,
+.pmsModule-page .primary-button {
+  min-height: 37px;
+  padding: 8px 13px;
+  border-radius: 9px;
+  font-size: 12px;
+  font-weight: 680;
+  cursor: pointer;
+  transition:
+    transform 0.12s ease,
+    border-color 0.16s ease,
+    background-color 0.16s ease,
+    color 0.16s ease,
+    box-shadow 0.16s ease;
+}
+
+.pmsModule-page .secondary-button {
+  border: 1px solid #d9dfE9;
+  background: #fff;
+  color: #3c4760;
+}
+
+.pmsModule-page .secondary-button:hover:not(:disabled) {
+  border-color: #bcb4f2;
+  color: #5741da;
+  background: #faf9ff;
+}
+
+.pmsModule-page .primary-button {
+  border: 1px solid #6750e5;
+  background: #6750e5;
+  color: #fff;
+  box-shadow: 0 3px 8px rgba(103, 80, 229, 0.2);
+}
+
+.pmsModule-page .primary-button:hover:not(:disabled) {
+  background: #5942d5;
+  border-color: #5942d5;
+}
+
+.pmsModule-page .primary-button:active:not(:disabled),
+.pmsModule-page .secondary-button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.pmsModule-page button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.pmsModule-page .compact-action {
+  min-height: 30px;
+  padding: 5px 10px;
+  font-size: 11px;
+  border-radius: 7px;
+}
+
+
+/* ==========================================================================
+   EMPTY / ERROR STATES
+   ========================================================================== */
+
+.pmsModule-empty-state {
+  width: 100%;
+  min-height: 115px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  color: #7a859c;
+  background: #fafbfd;
+  border: 1px dashed #d9dfe8;
+  border-radius: 10px;
+  font-size: 13px;
+  text-align: center;
+}
+
+.pmsModule-empty-state.error {
+  color: #b63e48;
+  background: #fff7f7;
+  border-color: #f1c9cc;
+}
+
+.pmsModule-page .form-message {
+  width: 100%;
+  margin-bottom: 14px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.pmsModule-page .form-message.error {
+  color: #a93640;
+  background: #fff1f2;
+  border: 1px solid #f1c5c8;
+}
+
+
+/* ==========================================================================
+   DRAWER / MODAL BACKDROPS
+   ========================================================================== */
+
+.pmsModule-page .drawer-backdrop,
+.pmsModule-page .modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  background: rgba(19, 26, 42, 0.47);
+  backdrop-filter: blur(2px);
+}
+
+.pmsModule-page .drawer-backdrop {
+  display: flex;
+  justify-content: flex-end;
+  align-items: stretch;
+}
+
+.pmsModule-page .modal-backdrop {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 22px;
+}
+
+.pmsModule-page .modal-panel {
+  background: #fff;
+  border: 1px solid #e0e5ee;
+  box-shadow: 0 22px 60px rgba(20, 28, 45, 0.22);
+}
+
+.pmsModule-page .modal-backdrop > .modal-panel {
+  width: min(520px, 100%);
+  max-height: 88vh;
+  overflow-y: auto;
+  border-radius: 15px;
+  padding: 20px;
+}
+
+
+/* ==========================================================================
+   PMS EDITOR DRAWER
+   ========================================================================== */
+
+.pmsModule-editor-drawer {
+  width: min(600px, 94vw);
+  height: 100%;
+  max-height: 100vh;
+  border-radius: 18px 0 0 18px;
+  padding: 0;
+  overflow-y: auto;
+  animation: pmsDrawerEnter 0.2s ease-out;
+}
+
+@keyframes pmsDrawerEnter {
+  from {
+    opacity: 0;
+    transform: translateX(22px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.pmsModule-page .drawer-header {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  min-height: 74px;
+  padding: 16px 20px;
+  background: rgba(255, 255, 255, 0.97);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid #e7eaf0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+}
+
+.pmsModule-page .drawer-header > div {
+  min-width: 0;
+}
+
+.pmsModule-page .drawer-header strong {
+  display: block;
+  color: #202b46;
+  font-size: 17px;
+  line-height: 1.3;
+  font-weight: 740;
+}
+
+.pmsModule-page .drawer-header p {
+  margin: 3px 0 0;
+  color: #7c869b;
+  font-size: 12px;
+}
+
+.pmsModule-page .icon-button {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  border: 1px solid #dfe4ec;
+  border-radius: 9px;
+  background: #fff;
+  color: #5c6780;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.pmsModule-page .icon-button:hover {
+  background: #f5f6fa;
+  color: #333d55;
+}
+
+.pmsModule-page .icon-button svg {
+  width: 16px;
+  height: 16px;
+}
+
+.pmsModule-editor-drawer > .form-message,
+.pmsModule-editor-drawer > .pmsModule-empty-state,
+.pmsModule-editor-drawer > .pmsModule-editor-metrics,
+.pmsModule-editor-drawer > .pmsModule-editor-final-row,
+.pmsModule-editor-drawer > .field,
+.pmsModule-editor-drawer > .modal-actions {
+  margin-left: 20px;
+  margin-right: 20px;
+}
+
+.pmsModule-editor-drawer > .form-message,
+.pmsModule-editor-drawer > .pmsModule-empty-state {
+  margin-top: 18px;
+}
+
+
+/* ==========================================================================
+   EDITOR METRICS
+   ========================================================================== */
+
+.pmsModule-editor-metrics {
+  margin-top: 18px;
+  border: 1px solid #e3e7ef;
+  border-radius: 12px;
+  overflow: visible;
+  background: #fff;
+}
+
+.pmsModule-editor-metric-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 170px;
+  gap: 14px;
+  align-items: center;
+  padding: 14px 15px;
+  border-bottom: 1px solid #edf0f5;
+}
+
+.pmsModule-editor-metric-row:last-child {
+  border-bottom: 0;
+}
+
+.pmsModule-editor-metric-row:hover {
+  background: #fcfcfe;
+}
+
+.pmsModule-editor-metric-label {
+  min-width: 0;
+}
+
+.pmsModule-editor-metric-title {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.pmsModule-editor-metric-title strong,
+.pmsModule-editor-metric-label > strong {
+  color: #2c3650;
+  font-size: 13px;
+  font-weight: 690;
+}
+
+.pmsModule-auto-value {
+  display: block;
+  margin-top: 5px;
+  color: #828ca2;
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.pmsModule-editor-metric-score {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  min-width: 0;
+}
+
+.pmsModule-editor-metric-score input {
+  width: 92px;
+  height: 37px;
+  padding: 0 9px;
+  border: 1px solid #d9dfe8;
+  border-radius: 8px;
+  outline: none;
+  background: #fff;
+  color: #28324a;
+  text-align: right;
+  font-size: 13px;
+  font-weight: 650;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.pmsModule-editor-metric-score input:focus {
+  border-color: #725bea;
+  box-shadow: 0 0 0 3px rgba(114, 91, 234, 0.1);
+}
+
+.pmsModule-score-max {
+  min-width: 46px;
+  color: #8791a5;
+  font-size: 12px;
+}
+
+.source-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 21px;
+  padding: 3px 7px;
+  border-radius: 999px;
+  font-size: 9px;
+  line-height: 1;
+  font-weight: 780;
+  letter-spacing: 0.035em;
+}
+
+.source-auto {
+  color: #315fc2;
+  background: #e9f1ff;
+  border: 1px solid #cddcff;
+}
+
+.source-manual {
+  color: #8a5b10;
+  background: #fff4d7;
+  border: 1px solid #efdba1;
+}
+
+.pmsModule-info-trigger {
+  width: 17px;
+  height: 17px;
+  flex: 0 0 17px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #cdd4df;
+  border-radius: 50%;
+  color: #727c90;
+  background: #f8f9fb;
+  font-size: 10px;
+  font-weight: 750;
+  cursor: help;
+}
+
+
+/* ==========================================================================
+   FINAL SCORE
+   ========================================================================== */
+
+.pmsModule-editor-final-row {
+  margin-top: 14px;
+  margin-bottom: 17px;
+  padding: 15px 16px;
+  border: 1px solid #dcd6fb;
+  border-radius: 11px;
+  background: #f7f5ff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+}
+
+.pmsModule-editor-final-row span {
+  color: #5c6680;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.pmsModule-editor-final-row strong {
+  color: #5c45db;
+  font-size: 20px;
+  font-weight: 780;
+}
+
+
+/* ==========================================================================
+   FORM ELEMENTS
+   ========================================================================== */
+
+.pmsModule-page .field {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pmsModule-page .field label {
+  color: #5d6780;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.pmsModule-page .field input,
+.pmsModule-page .field select,
+.pmsModule-page .field textarea {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid #dce1e9;
+  border-radius: 8px;
+  background: #fff;
+  color: #2d3851;
+  font-family: inherit;
+  font-size: 13px;
+  outline: none;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.pmsModule-page .field input,
+.pmsModule-page .field select {
+  height: 39px;
+  padding: 0 10px;
+}
+
+.pmsModule-page .field textarea {
+  min-height: 82px;
+  padding: 10px;
+  resize: vertical;
+}
+
+.pmsModule-page .field input:focus,
+.pmsModule-page .field select:focus,
+.pmsModule-page .field textarea:focus {
+  border-color: #735ce8;
+  box-shadow: 0 0 0 3px rgba(115, 92, 232, 0.09);
+}
+
+.pmsModule-page .form-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 13px;
+}
+
+.pmsModule-page .modal-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 9px;
+  padding-top: 16px;
+}
+
+.pmsModule-editor-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 4;
+  padding: 13px 0 16px !important;
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(7px);
+  border-top: 1px solid #e8ebf0;
+  justify-content: space-between !important;
+  gap: 12px;
+}
+
+.pmsModule-editor-save-group {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+
+/* ==========================================================================
+   CONFIGURATION
+   ========================================================================== */
+
+.pmsModule-config-weight-input {
+  width: 84px;
+  height: 34px;
+  padding: 0 9px;
+  border: 1px solid #d9dfe8;
+  border-radius: 7px;
+  color: #303950;
+  font-size: 12px;
+  font-weight: 650;
+  outline: none;
+}
+
+.pmsModule-config-weight-input:focus {
+  border-color: #6e57e8;
+  box-shadow: 0 0 0 3px rgba(110, 87, 232, 0.09);
+}
+
+.pmsModule-config-add {
+  margin-top: 17px;
+}
+
+.pmsModule-new-metric-form {
+  max-width: 720px;
+  padding: 17px;
+  border-radius: 11px;
+  border: 1px solid #e2e6ee;
+  background: #f9fafc;
+}
+
+.pmsModule-config-note {
+  margin: 16px 0 0;
+  padding: 11px 13px;
+  border-radius: 8px;
+  background: #f7f8fb;
+  border-left: 3px solid #8370e7;
+  color: #737d92;
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+
+/* ==========================================================================
+   HISTORY FILTERS
+   ========================================================================== */
+
+.pmsModule-history-filters {
+  display: grid;
+  grid-template-columns:
+    minmax(100px, 0.65fr)
+    minmax(130px, 0.9fr)
+    minmax(180px, 1.5fr)
+    minmax(130px, 0.9fr);
+  gap: 12px;
+  align-items: end;
+  margin-bottom: 16px;
+  padding: 14px;
+  background: #f7f9fc;
+  border: 1px solid #e5e9f0;
+  border-radius: 10px;
+}
+
+.pms-history-card .users-table tbody tr {
+  cursor: pointer;
+}
+
+.pms-history-card .users-table tbody tr:hover {
+  background: #f8f7ff;
+}
+
+
+/* ==========================================================================
+   AGENT RECORD
+   ========================================================================== */
+
+.pmsModule-agent-record {
+  max-width: 760px;
+}
+
+.pmsModule-agent-record .pmsModule-editor-final-row {
+  margin-top: 0;
+}
+
+.pmsModule-agent-record .pmsModule-editor-metrics {
+  margin-top: 15px;
+}
+
+.pmsModule-agent-record .pmsModule-editor-metric-score {
+  font-weight: 700;
+  color: #39445e;
+}
+
+.pmsModule-remarks-readout {
+  margin: 16px 0 0;
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: #f8f9fc;
+  border: 1px solid #e6e9f0;
+  color: #69748b;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+
+/* ==========================================================================
+   SCROLLBAR INSIDE DRAWER
+   ========================================================================== */
+
+.pmsModule-editor-drawer {
+  scrollbar-width: thin;
+  scrollbar-color: #c7cdda #f3f5f8;
+}
+
+.pmsModule-editor-drawer::-webkit-scrollbar {
+  width: 7px;
+}
+
+.pmsModule-editor-drawer::-webkit-scrollbar-track {
+  background: #f4f5f8;
+}
+
+.pmsModule-editor-drawer::-webkit-scrollbar-thumb {
+  background: #c6ccda;
+  border-radius: 999px;
+}
+
+
+/* ==========================================================================
+   RESPONSIVE
+   ========================================================================== */
+
+@media (max-width: 1450px) {
+  .pmsModule-summary-grid {
+    grid-template-columns: repeat(3, minmax(150px, 1fr));
+  }
+
+  .pmsModule-eom-body {
+    grid-template-columns: minmax(190px, 0.65fr) minmax(350px, 1.35fr);
+  }
+}
+
+
+@media (max-width: 1180px) {
+  .pmsModule-page {
+    padding: 23px 22px 36px;
+  }
+
+  .pmsModule-summary-grid {
+    grid-template-columns: repeat(3, minmax(140px, 1fr));
+  }
+
+  .pmsModule-eom-breakdown {
+    grid-template-columns: repeat(2, minmax(120px, 1fr));
+  }
+
+  .pmsModule-history-filters {
+    grid-template-columns: repeat(2, minmax(160px, 1fr));
+  }
+}
+
+
+@media (max-width: 900px) {
+  .pmsModule-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .pmsModule-header-controls {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .pmsModule-month-select,
+  .pmsModule-search-input {
+    flex: 1 1 190px;
+  }
+
+  .pmsModule-eom-body {
+    grid-template-columns: 1fr;
+  }
+
+  .pmsModule-eom-breakdown {
+    grid-template-columns: repeat(3, minmax(110px, 1fr));
+  }
+
+  .pmsModule-summary-grid {
+    grid-template-columns: repeat(2, minmax(140px, 1fr));
+  }
+
+  .pmsModule-editor-drawer {
+    width: min(560px, 96vw);
+  }
+}
+
+
+@media (max-width: 700px) {
+  .pmsModule-page {
+    padding: 18px 15px 30px;
+  }
+
+  .pmsModule-header h1 {
+    font-size: 24px;
+  }
+
+  .pmsModule-tabs {
+    width: 100%;
+  }
+
+  .pmsModule-tabs button {
+    flex: 1 0 auto;
+  }
+
+  .pmsModule-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .pmsModule-summary-card {
+    min-height: 100px;
+    padding: 14px;
+  }
+
+  .pmsModule-summary-card strong {
+    font-size: 22px;
+  }
+
+  .pmsModule-eom-card {
+    padding: 17px;
+  }
+
+  .pmsModule-eom-name {
+    font-size: 19px;
+  }
+
+  .pmsModule-eom-score span {
+    font-size: 24px;
+  }
+
+  .pmsModule-eom-breakdown {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .pmsModule-history-filters {
+    grid-template-columns: 1fr;
+  }
+
+  .pmsModule-page .form-row {
+    grid-template-columns: 1fr;
+  }
+
+  .pmsModule-editor-metric-row {
+    grid-template-columns: 1fr;
+    gap: 9px;
+  }
+
+  .pmsModule-editor-metric-score {
+    justify-content: flex-start;
+  }
+
+  .pmsModule-editor-actions {
+    align-items: stretch !important;
+    flex-direction: column;
+  }
+
+  .pmsModule-editor-save-group {
+    width: 100%;
+  }
+
+  .pmsModule-editor-save-group button {
+    flex: 1;
+  }
+
+  .pmsModule-eom-tie-list li {
+    grid-template-columns: 1fr auto;
+  }
+
+  .pmsModule-eom-tie-list li button {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+}
+
+
+@media (max-width: 520px) {
+  .pmsModule-page {
+    padding: 15px 11px 26px;
+  }
+
+  .pmsModule-header-controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .pmsModule-month-select,
+  .pmsModule-search-input {
+    width: 100%;
+    flex: none;
+  }
+
+  .pmsModule-summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .pmsModule-summary-card {
+    min-height: 88px;
+  }
+
+  .pmsModule-eom-breakdown {
+    grid-template-columns: 1fr;
+  }
+
+  .pmsModule-eom-breakdown span {
+    white-space: normal;
+  }
+
+  .pmsModule-eom-actions {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .pmsModule-editor-drawer {
+    width: 100vw;
+    max-width: none;
+    border-radius: 0;
+  }
+
+  .pmsModule-editor-drawer > .form-message,
+  .pmsModule-editor-drawer > .pmsModule-empty-state,
+  .pmsModule-editor-drawer > .pmsModule-editor-metrics,
+  .pmsModule-editor-drawer > .pmsModule-editor-final-row,
+  .pmsModule-editor-drawer > .field,
+  .pmsModule-editor-drawer > .modal-actions {
+    margin-left: 14px;
+    margin-right: 14px;
+  }
+
+  .pmsModule-page .drawer-header {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+
+  .pmsModule-editor-final-row strong {
+    font-size: 17px;
+  }
+
+  .pmsModule-page .modal-backdrop {
+    padding: 10px;
+  }
+
+  .pmsModule-page .modal-backdrop > .modal-panel {
+    padding: 16px;
+  }
+}
+
+
+/* ==========================================================================
+   VERY SMALL SCREENS
+   ========================================================================== */
+
+@media (max-width: 380px) {
+  .pmsModule-summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .pmsModule-tabs button {
+    padding-left: 11px;
+    padding-right: 11px;
+  }
+
+  .pmsModule-editor-save-group {
+    flex-direction: column;
+  }
+
+  .pmsModule-editor-save-group button {
+    width: 100%;
+  }
+}
+
+
+/* ==========================================================================
+   CUSTOM PMS TOOLTIP
+   ========================================================================== */
+
+.pmsModule-info-trigger {
+  position: relative;
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  border: 1px solid #cdd4df;
+  border-radius: 50%;
+
+  background: #f8f9fb;
+  color: #667085;
+
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
+
+  cursor: help;
+
+  /* Important so tooltip can appear above nearby content */
+  overflow: visible;
+}
+
+.pmsModule-info-trigger:hover {
+  border-color: #725bea;
+  background: #f3f0ff;
+  color: #5b46dd;
+}
+
+.pmsModule-tooltip {
+  position: absolute;
+  z-index: 9999;
+
+  left: 50%;
+  bottom: calc(100% + 10px);
+  transform: translateX(-50%) translateY(4px);
+
+  width: max-content;
+  max-width: 330px;
+  min-width: 220px;
+
+  padding: 10px 12px;
+
+  border-radius: 8px;
+
+  background: #222b3d;
+  color: #ffffff;
+
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.5;
+
+  text-align: left;
+  white-space: normal;
+
+  box-shadow: 0 8px 24px rgba(20, 28, 45, 0.22);
+
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+
+  transition:
+    opacity 0.15s ease,
+    transform 0.15s ease,
+    visibility 0.15s ease;
+}
+
+.pmsModule-tooltip::after {
+  content: "";
+  position: absolute;
+
+  top: 100%;
+  left: 50%;
+
+  transform: translateX(-50%);
+
+  border-width: 6px;
+  border-style: solid;
+
+  border-color:
+    #222b3d
+    transparent
+    transparent
+    transparent;
+}
+
+.pmsModule-info-trigger:hover .pmsModule-tooltip,
+.pmsModule-info-trigger:focus-within .pmsModule-tooltip {
+  opacity: 1;
+  visibility: visible;
+
+  transform: translateX(-50%) translateY(0);
+}
