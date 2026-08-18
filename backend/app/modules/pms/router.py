@@ -12,6 +12,7 @@ from app.modules.pms.schemas import (
     PMSDraftResponse,
     PMSListResponse,
     PMSLoadResponse,
+    PMSSLAReviewResponse,
     PMSUploadRequest,
     PMSUploadResponse,
 )
@@ -53,3 +54,11 @@ def entries(date_from: date | None = None, date_to: date | None = None, user_id:
     service = PMSService(db)
     items, total = service.list_entries(current_user, date_from=date_from, date_to=date_to, user_id=user_id)
     return {'items': [service.serialize(item) for item in items], 'total': total, 'limits': service.limits()}
+
+
+@router.get('/sla-review', response_model=PMSSLAReviewResponse)
+def sla_review(user_id: UUID = Query(...), entry_date: date = Query(...), db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    # Admin-only score-review function; enforced inside the service so the
+    # guard lives alongside the rest of the PMS authorization rules.
+    service = PMSService(db)
+    return service.sla_review(current_user, user_id, entry_date)
