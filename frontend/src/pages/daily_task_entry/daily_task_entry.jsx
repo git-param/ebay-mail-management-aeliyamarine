@@ -1,7 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 import AppLayout, { Icon } from '../../layouts/app_layout'
-import { fetchPmsEntries, fetchPmsSlaReview, loadPmsDailyEntries, uploadPmsDailyEntries } from '../../services/pmsApi'
+import {
+  fetchDailyEntries,
+  fetchDailyEntrySlaReview,
+  loadDailyEntries as apiLoadDailyEntries,
+  uploadDailyEntries,
+} from '../../services/dailyEntryApi'
 import { fetchUsers } from '../../services/userApi'
 import { normalizeRole } from '../../utils/roles'
 
@@ -68,9 +73,9 @@ function DetailModal({ entry, onClose }) {
   if (!entry) return null
   return (
     <div className="modal-backdrop" role="presentation">
-      <section className="modal-panel pms-detail-modal" role="dialog" aria-modal="true">
+      <section className="modal-panel dailyEntry-detail-modal" role="dialog" aria-modal="true">
         <div className="modal-header"><h2>{entry.user_name} - {entry.entry_date}</h2><button className="icon-button" type="button" onClick={onClose}>x</button></div>
-        <div className="pms-score-grid">
+        <div className="dailyEntry-score-grid">
           {(entry.score_items || []).map((item) => <p key={item.key}><span>{item.label}</span><strong>{item.status === 'NOT_APPLICABLE' ? 'N/A' : `${item.value} / ${item.max_score}`}</strong></p>)}
           <p><span>SLA Score</span><strong>{entry.sla_score}/{SLA_MAX}</strong></p>
           <p><span>Final Score</span><strong>{entry.final_score_percent}%</strong></p>
@@ -78,9 +83,18 @@ function DetailModal({ entry, onClose }) {
         </div>
         {entry.error_remark ? <section className="drawer-section"><h3>Error Remark</h3><p>{entry.error_remark}</p></section> : null}
         {entry.remarks ? <section className="drawer-section"><h3>Remarks</h3><p>{entry.remarks}</p></section> : null}
-        <section className="drawer-section"><h3>Particulars / Error Note</h3><p>{entry.particulars_error_note || 'NA'}</p></section>
-        <section className="drawer-section"><h3>SLA Remarks</h3><p>{entry.sla_remarks || 'NA'}</p></section>
-        <section className="drawer-section"><h3>Audit</h3><p>Created by {entry.created_by_name || '-'} - Updated by {entry.updated_by_name || '-'}</p></section>
+        <section className="drawer-section">
+          <h3>Particulars / Error Note</h3>
+          <p>{entry.particulars_error_note || 'NA'}</p>
+        </section>
+        <section className="drawer-section">
+          <h3>SLA Remarks</h3>
+          <p>{entry.sla_remarks || 'NA'}</p>
+        </section>
+        <section className="drawer-section">
+          <h3>Audit</h3>
+          <p>Created by {entry.created_by_name || '-'} - Updated by {entry.updated_by_name || '-'}</p>
+        </section>
       </section>
     </div>
   )
@@ -105,29 +119,29 @@ function OtherGeneralWorkInfo({ breakdown }) {
   }, [open])
 
   return (
-    <span className="pms-info-popover-wrap" ref={wrapRef}>
+    <span className="dailyEntry-info-popover-wrap" ref={wrapRef}>
       <button
         type="button"
-        className="pms-info-trigger"
+        className="dailyEntry-info-trigger"
         aria-label="Show Other General Work breakdown"
         onClick={() => setOpen((current) => !current)}
       >
         i
       </button>
       {open ? (
-        <div className="pms-info-popover" role="tooltip">
+        <div className="dailyEntry-info-popover" role="tooltip">
           {items.length === 0 ? (
-            <p className="pms-info-popover-empty">No unassigned activity found for this date.</p>
+            <p className="dailyEntry-info-popover-empty">No unassigned activity found for this date.</p>
           ) : (
             <ul>
               {items.map((entry) => (
                 <li key={entry.label}>
-                  <div className="pms-info-popover-row">
+                  <div className="dailyEntry-info-popover-row">
                     <span>{entry.label}</span>
                     <strong>{entry.count}</strong>
                   </div>
                   {(entry.conversation_ids || []).length > 0 ? (
-                    <ul className="pms-info-popover-links">
+                    <ul className="dailyEntry-info-popover-links">
                       {entry.conversation_ids.map((conversationId, index) => (
                         <li key={conversationId}>
                           <a href={`/inbox?conversation_id=${encodeURIComponent(conversationId)}`} target="_blank" rel="noreferrer">
@@ -156,7 +170,7 @@ function SlaReviewModal({ userId, userName, entryDate, onClose }) {
     let cancelled = false
     setLoading(true)
     setError('')
-    fetchPmsSlaReview({ user_id: userId, entry_date: entryDate })
+    fetchDailyEntrySlaReview({ user_id: userId, entry_date: entryDate })
       .then((response) => { if (!cancelled) setData(response) })
       .catch((caught) => { if (!cancelled) setError(caught.message) })
       .finally(() => { if (!cancelled) setLoading(false) })
@@ -172,7 +186,7 @@ function SlaReviewModal({ userId, userName, entryDate, onClose }) {
 
   return (
     <div className="modal-backdrop" role="presentation">
-      <section className="modal-panel pms-sla-review-modal" role="dialog" aria-modal="true">
+      <section className="modal-panel dailyEntry-sla-review-modal" role="dialog" aria-modal="true">
         <div className="modal-header">
           <h2>SLA Conversations - {userName} - {entryDate}</h2>
           <button className="icon-button" type="button" onClick={onClose}>x</button>
@@ -181,9 +195,9 @@ function SlaReviewModal({ userId, userName, entryDate, onClose }) {
         {error ? <p className="form-message error">{error}</p> : null}
         {!loading && !error && data ? (
           <>
-            <p className="field-help pms-sla-review-summary">{data.met_count}/{data.total_count} UNDER SLA</p>
+            <p className="field-help dailyEntry-sla-review-summary">{data.met_count}/{data.total_count} UNDER SLA</p>
             <div className="table-scroll">
-              <table className="users-table pms-sla-review-table">
+              <table className="users-table dailyEntry-sla-review-table">
                 <thead>
                   <tr>
                     <th>Buyer</th>
@@ -284,11 +298,11 @@ function AgentCard({ row, onChange, onReviewSla }) {
   }
 
   return (
-    <section className={`table-card pms-agent-card${isLocked ? ' locked' : ''}${isMajor ? ' major-error' : ''}`}>
-      <div className="pms-card-header pms-agent-card-header">
+    <section className={`table-card dailyEntry-agent-card${isLocked ? ' locked' : ''}${isMajor ? ' major-error' : ''}`}>
+      <div className="dailyEntry-card-header dailyEntry-agent-card-header">
         <label className="checkbox-field"><input type="checkbox" checked={row.selected} onChange={(event) => onChange(row.userId, (current) => ({ ...current, selected: event.target.checked }))} /></label>
-        <div className="pms-agent-identity"><h3>{row.userName}</h3><small>{row.userEmail}</small></div>
-        <div className="pms-agent-card-header-status">
+        <div className="dailyEntry-agent-identity"><h3>{row.userName}</h3><small>{row.userEmail}</small></div>
+        <div className="dailyEntry-agent-card-header-status">
           {isLocked ? <span className="upload-status success">Uploaded &amp; Locked</span> : null}
           {row.status === 'error' ? <span className="upload-status error">{row.statusMessage || 'Failed'}</span> : null}
           {isLocked ? <button className="unlock-button" type="button" onClick={() => onChange(row.userId, (current) => ({ ...current, status: 'idle', statusMessage: '' }))}>Unlock to Edit</button> : null}
@@ -296,13 +310,13 @@ function AgentCard({ row, onChange, onReviewSla }) {
       </div>
       {isLocked ? <p className="field-help locked-help">This entry has been uploaded and is locked from editing. Click "Unlock to Edit" to make changes and re-upload.</p> : null}
 
-      <section className="pms-task-box">
-        <h3 className="pms-section-label">Tasks &amp; Scoring</h3>
-        {(row.score_items || []).length === 0 ? <p className="field-help pms-empty-state">No subtasks assigned to this agent.</p> : null}
+      <section className="dailyEntry-task-box">
+        <h3 className="dailyEntry-section-label">Tasks &amp; Scoring</h3>
+        {(row.score_items || []).length === 0 ? <p className="field-help dailyEntry-empty-state">No subtasks assigned to this agent.</p> : null}
         {(row.score_items || []).map((item) => (
-          <div className={`pms-dynamic-row${item.status === 'NOT_APPLICABLE' ? ' not-applicable' : ''}`} key={item.key}>
-            <div className="pms-dynamic-row-label">
-              <div className="pms-dynamic-row-label-title">
+          <div className={`dailyEntry-dynamic-row${item.status === 'NOT_APPLICABLE' ? ' not-applicable' : ''}`} key={item.key}>
+            <div className="dailyEntry-dynamic-row-label">
+              <div className="dailyEntry-dynamic-row-label-title">
                 <strong>{item.label}</strong>
                 {item.key === OTHER_GENERAL_WORK_KEY ? <OtherGeneralWorkInfo breakdown={item.breakdown} /> : null}
               </div>
@@ -310,7 +324,7 @@ function AgentCard({ row, onChange, onReviewSla }) {
                 {sourceLabel(item.source)}{item.source === 'AUTO' ? ` \u00b7 ${item.activity_count ?? 0} handled` : ''}
               </span>
             </div>
-            <div className="pms-dynamic-row-score">
+            <div className="dailyEntry-dynamic-row-score">
               <input
                 type="number"
                 min="0"
@@ -319,36 +333,36 @@ function AgentCard({ row, onChange, onReviewSla }) {
                 value={isMajor ? 0 : item.value}
                 onChange={(event) => updateItem(item.key, { value: clamp(event.target.value, item.max_score), status: 'ENTERED' })}
               />
-              <span className="pms-score-max">/ {item.max_score}</span>
+              <span className="dailyEntry-score-max">/ {item.max_score}</span>
             </div>
           </div>
         ))}
-        <div className="pms-dynamic-row pms-sla-row">
-          <div className="pms-dynamic-row-label">
+        <div className="dailyEntry-dynamic-row dailyEntry-sla-row">
+          <div className="dailyEntry-dynamic-row-label">
             <strong>SLA Score</strong>
             <span className={`source-badge ${row.sla_auto_fetched ? 'source-auto' : 'source-manual'}`}>
               {row.sla_auto_fetched ? `AUTO FETCHED \u00b7 ${row.sla_met_count ?? 0}/${row.sla_total_count ?? 0} UNDER SLA` : 'Manual'}
             </span>
             {row.sla_total_count ? (
-              <button type="button" className="secondary-button compact-action pms-sla-review-button" onClick={() => onReviewSla(row)}>
+              <button type="button" className="secondary-button compact-action dailyEntry-sla-review-button" onClick={() => onReviewSla(row)}>
                 Review SLA Conversations ({row.sla_total_count})
               </button>
             ) : null}
           </div>
-          <div className="pms-dynamic-row-score">
+          <div className="dailyEntry-dynamic-row-score">
             <input type="number" min="0" max={SLA_MAX} disabled={isDisabled} value={isMajor ? 0 : row.sla_score} onChange={(event) => patch({ sla_score: clamp(event.target.value, SLA_MAX), sla_auto_fetched: false })} />
-            <span className="pms-score-max">/ {SLA_MAX}</span>
+            <span className="dailyEntry-score-max">/ {SLA_MAX}</span>
           </div>
         </div>
-        <div className="pms-task-row final">
-          <div className="pms-final-metric"><span>Task Total</span><strong>{isMajor ? 0 : totalTaskEarned}/{totalTaskMax}</strong></div>
-          <div className="pms-final-metric pms-final-score"><span>Final Score</span><strong>{row.final_score_percent}%</strong></div>
+        <div className="dailyEntry-task-row final">
+          <div className="dailyEntry-final-metric"><span>Task Total</span><strong>{isMajor ? 0 : totalTaskEarned}/{totalTaskMax}</strong></div>
+          <div className="dailyEntry-final-metric dailyEntry-final-score"><span>Final Score</span><strong>{row.final_score_percent}%</strong></div>
         </div>
       </section>
 
-      <section className="pms-details-box">
-        <h3 className="pms-section-label">Day Details</h3>
-        <div className="pms-form-row">
+      <section className="dailyEntry-details-box">
+        <h3 className="dailyEntry-section-label">Day Details</h3>
+        <div className="dailyEntry-form-row">
           <label className="field"><span>Day Type</span><select disabled={isLocked} value={row.day_type} onChange={(event) => patch({ day_type: event.target.value })}>{DAY_TYPES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
           <label className="field"><span>Error</span><select disabled={isLocked} value={row.error_level} onChange={(event) => updateErrorLevel(event.target.value)}>{ERROR_LEVELS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
         </div>
@@ -391,7 +405,7 @@ export default function DailyTaskEntry({ currentUser, onLogout }) {
 
   async function loadHistory(next = filters) {
     try {
-      setHistory(await fetchPmsEntries(next))
+      setHistory(await fetchDailyEntries(next))
     } catch (caught) {
       setError(caught.message)
     }
@@ -408,7 +422,7 @@ export default function DailyTaskEntry({ currentUser, onLogout }) {
     setError('')
     setMessage('')
     try {
-      const response = await loadPmsDailyEntries({ entry_date: entryDate, user_id: agentFilter || undefined })
+      const response = await apiLoadDailyEntries({ entry_date: entryDate, user_id: agentFilter || undefined })
       setRows((response.items || []).map(makeRow))
       setLoaded(true)
     } catch (caught) {
@@ -455,7 +469,7 @@ export default function DailyTaskEntry({ currentUser, onLogout }) {
         sla_remarks: row.sla_remarks || null,
         final_score_percent: row.final_score_percent,
       }))
-      const response = await uploadPmsDailyEntries(entries)
+      const response = await uploadDailyEntries(entries)
       const resultByUser = new Map((response.results || []).map((item) => [item.user_id, item]))
       setRows((current) => current.map((row) => {
         const result = resultByUser.get(row.userId)
@@ -481,44 +495,44 @@ export default function DailyTaskEntry({ currentUser, onLogout }) {
 
   return (
     <AppLayout activePage="Daily Task Entry" currentUser={currentUser} onLogout={onLogout}>
-      <main className="management-page pms-page">
-        <div className="page-header"><div><h1>Daily Task Entry</h1><p>{isAdmin ? 'Load, review and upload PMS entries for the team' : 'View your Daily Entry scores and history'}</p></div></div>
+      <main className="management-page dailyEntry-page">
+        <div className="page-header"><div><h1>Daily Task Entry</h1><p>{isAdmin ? 'Load, review and upload dailyEntry entries for the team' : 'View your Daily Entry scores and history'}</p></div></div>
         {error ? <p className="form-message error">{error}</p> : null}
         {message ? <p className="form-message success">{message}</p> : null}
-        <section className="pms-daily-entry-layout">
+        <section className="dailyEntry-daily-entry-layout">
           {isAdmin ? (
-            <section className="table-card pms-load-card">
-              <div className="pms-card-header"><h2>Load Daily Entries</h2></div>
+            <section className="table-card dailyEntry-load-card">
+              <div className="dailyEntry-card-header"><h2>Load Daily Entries</h2></div>
               <p className="field-help">Only Agent-role users are loaded here. Operations Managers and Admins are not included.</p>
-              <div className="pms-form-row pms-load-controls">
+              <div className="dailyEntry-form-row dailyEntry-load-controls">
                 <label className="field"><span>Date</span><input type="date" value={entryDate} onChange={(event) => setEntryDate(event.target.value)} /></label>
                 <button className="primary-button compact-action" type="button" onClick={loadDailyEntries} disabled={loading}>{loading ? 'Loading...' : 'Load Daily Entries'}</button>
               </div>
 
               {loaded ? (
                 <>
-                  <div className="pms-bulk-actions">
-                    <div className="pms-bulk-actions-select">
+                  <div className="dailyEntry-bulk-actions">
+                    <div className="dailyEntry-bulk-actions-select">
                       <button className="secondary-button compact-action" type="button" onClick={() => selectAll(true)}>Select All</button>
                       <button className="secondary-button compact-action" type="button" onClick={() => selectAll(false)}>Deselect All</button>
-                      <span className="field-help pms-select-count">{selectedCount} of {eligibleRows.length} selected{lockedCount ? ` \u00b7 ${lockedCount} already uploaded` : ''}</span>
+                      <span className="field-help dailyEntry-select-count">{selectedCount} of {eligibleRows.length} selected{lockedCount ? ` \u00b7 ${lockedCount} already uploaded` : ''}</span>
                     </div>
-                    <div className="pms-bulk-actions-upload">
+                    <div className="dailyEntry-bulk-actions-upload">
                       <button className="primary-button compact-action" type="button" onClick={() => upload('selected')} disabled={uploading || !selectedCount}>{uploading ? 'Uploading...' : 'Upload Selected'}</button>
                       <button className="primary-button compact-action" type="button" onClick={() => upload('all')} disabled={uploading || !eligibleRows.length}>{uploading ? 'Uploading...' : 'Upload All'}</button>
                     </div>
                   </div>
-                  {rows.length === 0 ? <p className="field-help pms-empty-state">No active agents found for this selection.</p> : null}
-                  <div className="pms-agent-cards">
+                  {rows.length === 0 ? <p className="field-help dailyEntry-empty-state">No active agents found for this selection.</p> : null}
+                  <div className="dailyEntry-agent-cards">
                     {rows.map((row) => <AgentCard key={row.userId} row={row} onChange={updateRow} onReviewSla={setSlaReviewRow} />)}
                   </div>
                 </>
               ) : null}
             </section>
           ) : null}
-          <section className="table-card pms-history-card">
-            <div className="pms-card-header"><h2>{isAdmin ? 'Team PMS History' : 'My History'}</h2></div>
-            <form className="pms-history-filters" onSubmit={applyFilters}>
+          <section className="table-card dailyEntry-history-card">
+            <div className="dailyEntry-card-header"><h2>{isAdmin ? 'Team dailyEntry History' : 'My History'}</h2></div>
+            <form className="dailyEntry-history-filters" onSubmit={applyFilters}>
               <label className="field">
                 <span>From</span>
                 <input type="date" value={filters.date_from} onChange={(event) => setFilters((current) => ({ ...current, date_from: event.target.value }))} />

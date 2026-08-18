@@ -4,11 +4,11 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 
 
-class PMSTaskLimits(BaseModel):
+class DailyEntryTaskLimits(BaseModel):
     sla_max: int = 20
 
 
-class PMSScoreBreakdownItem(BaseModel):
+class DailyEntryScoreBreakdownItem(BaseModel):
     label: str
     count: int = 0
     # Present for breakdown rows sourced from individual conversations (currently
@@ -17,7 +17,7 @@ class PMSScoreBreakdownItem(BaseModel):
     conversation_ids: list[UUID] | None = None
 
 
-class PMSScoreItem(BaseModel):
+class DailyEntryScoreItem(BaseModel):
     key: str
     label: str
     value: int = Field(default=0, ge=0)
@@ -29,10 +29,10 @@ class PMSScoreItem(BaseModel):
     subtask_id: UUID | None = None
     # Per-source fetched breakdown for catch-all items (currently Other General
     # Work). Preserved even after the Admin manually edits `value`.
-    breakdown: list[PMSScoreBreakdownItem] | None = None
+    breakdown: list[DailyEntryScoreBreakdownItem] | None = None
 
 
-class PMSDailyEntryBase(BaseModel):
+class DailyEntryBase(BaseModel):
     entry_date: date
     day_type: str = 'WORKING_DAY'
     final_score_percent: int = Field(default=0, ge=0)
@@ -40,7 +40,7 @@ class PMSDailyEntryBase(BaseModel):
     sla_met_count: int | None = None
     sla_total_count: int | None = None
     sla_auto_fetched: bool = False
-    score_items: list[PMSScoreItem] = Field(default_factory=list)
+    score_items: list[DailyEntryScoreItem] = Field(default_factory=list)
     error_level: str = 'NO_ERROR'
     error_remark: str | None = None
     remarks: str | None = None
@@ -48,11 +48,11 @@ class PMSDailyEntryBase(BaseModel):
     sla_remarks: str | None = None
 
 
-class PMSDailyEntryCreate(PMSDailyEntryBase):
+class DailyEntryCreate(DailyEntryBase):
     user_id: UUID
 
 
-class PMSDailyEntryResponse(PMSDailyEntryBase):
+class DailyEntryResponse(DailyEntryBase):
     id: UUID
     user_id: UUID
     user_name: str
@@ -65,56 +65,56 @@ class PMSDailyEntryResponse(PMSDailyEntryBase):
     updated_at: datetime
 
 
-class PMSDraftResponse(BaseModel):
-    entry: PMSDailyEntryBase
-    limits: PMSTaskLimits
+class DailyEntryDraftResponse(BaseModel):
+    entry: DailyEntryBase
+    limits: DailyEntryTaskLimits
     existing_entry_id: UUID | None = None
 
 
-class PMSListResponse(BaseModel):
-    items: list[PMSDailyEntryResponse]
+class DailyEntryListResponse(BaseModel):
+    items: list[DailyEntryResponse]
     total: int
-    limits: PMSTaskLimits
+    limits: DailyEntryTaskLimits
 
 
-class PMSLoadRequestUser(BaseModel):
+class DailyEntryLoadRequestUser(BaseModel):
     id: UUID
     full_name: str | None = None
     email: str | None = None
 
 
-class PMSLoadResponseItem(BaseModel):
-    user: PMSLoadRequestUser
-    entry: PMSDailyEntryBase
+class DailyEntryLoadResponseItem(BaseModel):
+    user: DailyEntryLoadRequestUser
+    entry: DailyEntryBase
     existing_entry_id: UUID | None = None
 
 
-class PMSLoadResponse(BaseModel):
+class DailyEntryLoadResponse(BaseModel):
     entry_date: date
-    limits: PMSTaskLimits
-    items: list[PMSLoadResponseItem]
+    limits: DailyEntryTaskLimits
+    items: list[DailyEntryLoadResponseItem]
 
 
-class PMSUploadEntry(PMSDailyEntryCreate):
+class DailyEntryUploadEntry(DailyEntryCreate):
     pass
 
 
-class PMSUploadRequest(BaseModel):
-    entries: list[PMSUploadEntry] = Field(min_length=1)
+class DailyEntryUploadRequest(BaseModel):
+    entries: list[DailyEntryUploadEntry] = Field(min_length=1)
 
 
-class PMSUploadResultItem(BaseModel):
+class DailyEntryUploadResultItem(BaseModel):
     user_id: UUID
     success: bool
     entry_id: UUID | None = None
     error: str | None = None
 
 
-class PMSUploadResponse(BaseModel):
-    results: list[PMSUploadResultItem]
+class DailyEntryUploadResponse(BaseModel):
+    results: list[DailyEntryUploadResultItem]
 
 
-class PMSSLAReviewItem(BaseModel):
+class DailyEntrySLAReviewItem(BaseModel):
     id: UUID
     conversation_id: UUID
     cycle_number: int
@@ -127,9 +127,9 @@ class PMSSLAReviewItem(BaseModel):
     sla_met: bool | None = None
 
 
-class PMSSLAReviewResponse(BaseModel):
+class DailyEntrySLAReviewResponse(BaseModel):
     user_id: UUID
     entry_date: date
     met_count: int
     total_count: int
-    items: list[PMSSLAReviewItem]
+    items: list[DailyEntrySLAReviewItem]

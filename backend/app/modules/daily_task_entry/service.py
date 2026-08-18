@@ -10,18 +10,18 @@ from app.models.conversation import Conversation, ConversationSLAHistory
 from app.models.message_type import MessageClassification, MessageType
 from app.models.user import User
 from app.modules.offer_management.models import OfferManagementEntry
-from app.modules.pms.models import PMSDailyTaskEntry, PMSDailyTaskEntryHistory, PMSDayType, PMSErrorLevel, PMSFeedbackStatus
-from app.modules.pms.schemas import (
-    PMSDailyEntryCreate,
-    PMSDailyEntryResponse,
-    PMSLoadRequestUser,
-    PMSLoadResponseItem,
-    PMSSLAReviewItem,
-    PMSSLAReviewResponse,
-    PMSScoreItem,
-    PMSTaskLimits,
-    PMSUploadEntry,
-    PMSUploadResultItem,
+from app.modules.daily_task_entry.models import DailyTaskEntry, DailyTaskEntryErrorLevel, DailyTaskEntryHistory, DailyTaskEntryDayType, DailyTaskEntryFeedbackStatus
+from app.modules.daily_task_entry.schemas import (
+    DailyEntryCreate,
+    DailyEntryResponse,
+    DailyEntryLoadRequestUser,
+    DailyEntryLoadResponseItem,
+    DailyEntrySLAReviewItem,
+    DailyEntrySLAReviewResponse,
+    DailyEntryScoreItem,
+    DailyEntryTaskLimits,
+    DailyEntryUploadEntry,
+    DailyEntryUploadResultItem,
 )
 from app.modules.sold_posting.models import SoldPostingLineItem
 from app.modules.task_management.models import Subtask, SubtaskSourceType, TaskCategory, TaskStatus, UserSubtaskAssignment
@@ -32,14 +32,14 @@ OTHER_GENERAL_WORK_LABEL = 'Other General Work'
 OTHER_GENERAL_WORK_MAX = 10
 
 
-class PMSService:
+class DailyEntryService:
     SLA_MAX = 20
 
     def __init__(self, db: Session):
         self.db = db
 
-    def limits(self) -> PMSTaskLimits:
-        return PMSTaskLimits(sla_max=self.SLA_MAX)
+    def limits(self) -> DailyEntryTaskLimits:
+        return DailyEntryTaskLimits(sla_max=self.SLA_MAX)
 
     # ------------------------------------------------------------------
     # Single-user draft (kept for backward compatibility with existing
@@ -60,15 +60,15 @@ class PMSService:
     # ------------------------------------------------------------------
     # Multi-user load: all active agents, or one selected agent
     # ------------------------------------------------------------------
-    def load(self, current_user, entry_date: date, user_id: UUID | None = None) -> list[PMSLoadResponseItem]:
+    def load(self, current_user, entry_date: date, user_id: UUID | None = None) -> list[DailyEntryLoadResponseItem]:
         self._require_admin(current_user)
         users = self._target_users(user_id)
-        items: list[PMSLoadResponseItem] = []
+        items: list[DailyEntryLoadResponseItem] = []
         for user in users:
             existing = self._entry(user.id, entry_date)
             entry = existing if existing else self._auto_entry(user.id, entry_date)
-            items.append(PMSLoadResponseItem(
-                user=PMSLoadRequestUser(id=user.id, full_name=user.full_name, email=user.email),
+            items.append(DailyEntryLoadResponseItem(
+                user=DailyEntryLoadRequestUser(id=user.id, full_name=user.full_name, email=user.email),
                 entry=self._to_base_schema(entry),
                 existing_entry_id=existing.id if existing else None,
             ))
@@ -103,7 +103,7 @@ class PMSService:
 
         return list(self.db.scalars(statement).all())
 
-    def _to_base_schema(self, entry: PMSDailyTaskEntry) -> dict:
+    def _to_base_schema(self, entry: DailyTaskEntry) -> dict:
         sla_metadata = getattr(entry, 'sla_metadata', {}) or {}
         return {
             'entry_date': entry.entry_date,
@@ -124,7 +124,7 @@ class PMSService:
     # ------------------------------------------------------------------
     # Single-entry save (kept for backward compatibility)
     # ------------------------------------------------------------------
-    def save(self, current_user, payload: PMSDailyEntryCreate) -> PMSDailyTaskEntry:
+    def save(self, current_user, payload: DailyEntryCreate) -> DailyTaskEntry:
         self._require_admin(current_user)
         entry, _ = self._save_one(current_user, payload)
         self.db.commit()
@@ -135,23 +135,23 @@ class PMSService:
     # Bulk upload: create-or-update per user/date, one DB transaction,
     # per-user success/failure reporting.
     # ------------------------------------------------------------------
-    def upload(self, current_user, entries: list[PMSUploadEntry]) -> list[PMSUploadResultItem]:
+    def upload(self, current_user, entries: list[DailyEntryUploadEntry]) -> list[DailyEntryUploadResultItem]:
         self._require_admin(current_user)
-        results: list[PMSUploadResultItem] = []
+        results: list[DailyEntryUploadResultItem] = []
         for payload in entries:
             try:
                 with self.db.begin_nested():
                     entry, _ = self._save_one(current_user, payload)
                     self.db.flush()
-                results.append(PMSUploadResultItem(user_id=payload.user_id, success=True, entry_id=entry.id))
+                results.append(DailyEntryUploadResultItem(user_id=payload.user_id, success=True, entry_id=entry.id))
             except HTTPException as exc:
-                results.append(PMSUploadResultItem(user_id=payload.user_id, success=False, error=str(exc.detail)))
+                results.append(DailyEntryUploadResultItem(user_id=payload.user_id, success=False, error=str(exc.detail)))
             except Exception as exc:  # noqa: BLE001 - surface to caller per-row instead of failing the whole batch
-                results.append(PMSUploadResultItem(user_id=payload.user_id, success=False, error=str(exc)))
+                results.append(DailyEntryUploadResultItem(user_id=payload.user_id, success=False, error=str(exc)))
         self.db.commit()
         return results
 
-    def _save_one(self, current_user, payload: PMSDailyEntryCreate) -> tuple[PMSDailyTaskEntry, str]:
+    def _save_one(self, current_user, payload: DailyEntryCreate) -> tuple[DailyTaskEntry, str]:
         target_user_id = payload.user_id
         user = self.db.get(User, target_user_id)
         if not user:
@@ -179,8 +179,8 @@ class PMSService:
         final_score = self.calculate_final(score_items, sla_score, payload.error_level)
 
         try:
-            day_type = PMSDayType(payload.day_type)
-            error_level = PMSErrorLevel(payload.error_level)
+            day_type = DailyTaskEntryDayType(payload.day_type)
+            error_level = DailyTaskEntryErrorLevel(payload.error_level)
         except ValueError as exc:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='Invalid PMS dropdown value') from exc
 
@@ -204,28 +204,28 @@ class PMSService:
                 setattr(entry, key, value)
             entry.updated_by_user_id = current_user.id
         else:
-            entry = PMSDailyTaskEntry(user_id=target_user_id, created_by_user_id=current_user.id, updated_by_user_id=current_user.id, **values)
+            entry = DailyTaskEntry(user_id=target_user_id, created_by_user_id=current_user.id, updated_by_user_id=current_user.id, **values)
             self.db.add(entry)
             self.db.flush()
-        self.db.add(PMSDailyTaskEntryHistory(entry_id=entry.id, changed_by_user_id=current_user.id, action=action, snapshot=self._snapshot(entry)))
+        self.db.add(DailyTaskEntryHistory(entry_id=entry.id, changed_by_user_id=current_user.id, action=action, snapshot=self._snapshot(entry)))
         return entry, action
 
     def list_entries(self, current_user, *, date_from: date | None = None, date_to: date | None = None, user_id: UUID | None = None):
-        statement = select(PMSDailyTaskEntry).options(joinedload(PMSDailyTaskEntry.user), joinedload(PMSDailyTaskEntry.created_by), joinedload(PMSDailyTaskEntry.updated_by))
+        statement = select(DailyTaskEntry).options(joinedload(DailyTaskEntry.user), joinedload(DailyTaskEntry.created_by), joinedload(DailyTaskEntry.updated_by))
         if not is_admin(current_user):
-            statement = statement.where(PMSDailyTaskEntry.user_id == current_user.id)
+            statement = statement.where(DailyTaskEntry.user_id == current_user.id)
         elif user_id:
-            statement = statement.where(PMSDailyTaskEntry.user_id == user_id)
+            statement = statement.where(DailyTaskEntry.user_id == user_id)
         if date_from:
-            statement = statement.where(PMSDailyTaskEntry.entry_date >= date_from)
+            statement = statement.where(DailyTaskEntry.entry_date >= date_from)
         if date_to:
-            statement = statement.where(PMSDailyTaskEntry.entry_date <= date_to)
+            statement = statement.where(DailyTaskEntry.entry_date <= date_to)
         total = self.db.scalar(select(func.count()).select_from(statement.subquery())) or 0
-        items = list(self.db.scalars(statement.order_by(PMSDailyTaskEntry.entry_date.desc(), PMSDailyTaskEntry.created_at.desc())))
+        items = list(self.db.scalars(statement.order_by(DailyTaskEntry.entry_date.desc(), DailyTaskEntry.created_at.desc())))
         return items, total
 
-    def serialize(self, entry: PMSDailyTaskEntry) -> PMSDailyEntryResponse:
-        return PMSDailyEntryResponse(
+    def serialize(self, entry: DailyTaskEntry) -> DailyEntryResponse:
+        return DailyEntryResponse(
             id=entry.id,
             user_id=entry.user_id,
             user_name=(entry.user.full_name or entry.user.email) if entry.user else '',
@@ -234,7 +234,7 @@ class PMSService:
             day_type=entry.day_type.value,
             final_score_percent=entry.final_score_percent,
             sla_score=entry.sla_score,
-            score_items=[PMSScoreItem(**item) for item in (entry.score_items or [])],
+            score_items=[DailyEntryScoreItem(**item) for item in (entry.score_items or [])],
             error_level=entry.error_level.value,
             error_remark=entry.error_remark,
             remarks=entry.remarks,
@@ -269,14 +269,14 @@ class PMSService:
             items.append(other_item)
         sla_met_count, sla_total_count = self._sla_counts(user_id, start, end)
         sla_score = round((sla_met_count / sla_total_count) * self.SLA_MAX) if sla_total_count else 0
-        entry = PMSDailyTaskEntry(
+        entry = DailyTaskEntry(
             user_id=user_id,
             entry_date=entry_date,
-            day_type=PMSDayType.WORKING_DAY,
+            day_type=DailyTaskEntryDayType.WORKING_DAY,
             score_items=items,
-            final_score_percent=self.calculate_final(items, sla_score, PMSErrorLevel.NO_ERROR.value),
+            final_score_percent=self.calculate_final(items, sla_score, DailyTaskEntryErrorLevel.NO_ERROR.value),
             sla_score=sla_score,
-            error_level=PMSErrorLevel.NO_ERROR,
+            error_level=DailyTaskEntryErrorLevel.NO_ERROR,
             remarks=None,
             particulars_error_note='NA',
             sla_remarks=f'AUTO FETCHED \u00b7 {sla_met_count}/{sla_total_count} UNDER SLA',
@@ -488,7 +488,7 @@ class PMSService:
     # SLA Conversation Review: same filter criteria as _sla_counts so the
     # review list and the x/y UNDER SLA total can never disagree.
     # ------------------------------------------------------------------
-    def sla_review(self, current_user, user_id: UUID, entry_date: date) -> PMSSLAReviewResponse:
+    def sla_review(self, current_user, user_id: UUID, entry_date: date) -> DailyEntrySLAReviewResponse:
         self._require_admin(current_user)
         user = self.db.get(User, user_id)
         if not user:
@@ -513,7 +513,7 @@ class PMSService:
         seller_by_conversation = self._latest_seller_labels({conversation.id for _, conversation in rows})
 
         items = [
-            PMSSLAReviewItem(
+            DailyEntrySLAReviewItem(
                 id=history.id,
                 conversation_id=conversation.id,
                 cycle_number=history.cycle_number,
@@ -528,7 +528,7 @@ class PMSService:
             for history, conversation in rows
         ]
         met_count = sum(1 for item in items if item.sla_met)
-        return PMSSLAReviewResponse(user_id=user_id, entry_date=entry_date, met_count=met_count, total_count=len(items), items=items)
+        return DailyEntrySLAReviewResponse(user_id=user_id, entry_date=entry_date, met_count=met_count, total_count=len(items), items=items)
 
     def _latest_seller_labels(self, conversation_ids: set[UUID]) -> dict[UUID, str | None]:
         # Best-effort: ConversationSLAHistory has no direct seller-account link, so
@@ -564,7 +564,7 @@ class PMSService:
             'subtask_id': str(subtask_id) if subtask_id else None,
         }
 
-    def _snapshot(self, entry: PMSDailyTaskEntry) -> dict:
+    def _snapshot(self, entry: DailyTaskEntry) -> dict:
         return {
             'entry_date': entry.entry_date.isoformat(),
             'score_items': entry.score_items,
@@ -575,7 +575,7 @@ class PMSService:
         }
 
     def _entry(self, user_id: UUID, entry_date: date):
-        return self.db.scalar(select(PMSDailyTaskEntry).options(joinedload(PMSDailyTaskEntry.user), joinedload(PMSDailyTaskEntry.created_by), joinedload(PMSDailyTaskEntry.updated_by)).where(PMSDailyTaskEntry.user_id == user_id, PMSDailyTaskEntry.entry_date == entry_date))
+        return self.db.scalar(select(DailyTaskEntry).options(joinedload(DailyTaskEntry.user), joinedload(DailyTaskEntry.created_by), joinedload(DailyTaskEntry.updated_by)).where(DailyTaskEntry.user_id == user_id, DailyTaskEntry.entry_date == entry_date))
 
     def _require_admin(self, current_user) -> None:
         if not is_admin(current_user):

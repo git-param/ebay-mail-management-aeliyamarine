@@ -39,7 +39,7 @@ from app.models import (
     OfferStatus,
 )
 from app.modules.offer_management.models import OfferManagementEntry, OfferManagementEntryHistory
-from app.modules.pms.models import PMSDailyTaskEntry, PMSDailyTaskEntryHistory
+from app.modules.daily_task_entry.models import DailyTaskEntry, DailyTaskEntryHistory
 from app.modules.sold_posting.models import SoldPostingLineItem, SoldPostingOrder, SoldPostingSyncState
 from app.modules.task_management.models import TaskCategory, Subtask, UserSubtaskAssignment
 
@@ -84,8 +84,8 @@ __all__ = [
     'OfferStatus',
     'OfferManagementEntry',
     'OfferManagementEntryHistory',
-    'PMSDailyTaskEntry',
-    'PMSDailyTaskEntryHistory',
+    'DailyTaskEntry',
+    'DailyTaskEntryHistory',
     'SoldPostingOrder',
     'SoldPostingLineItem',
     'SoldPostingSyncState',
