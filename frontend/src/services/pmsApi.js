@@ -34,3 +34,7 @@ export function uploadPmsDailyEntries(entries) {
     body: JSON.stringify({ entries }),
   })
 }
+
+export function fetchPmsSlaReview(params) {
+  return apiRequest(`/pms/sla-review${qs(params)}`)
+}

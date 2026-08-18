@@ -8,6 +8,15 @@ class PMSTaskLimits(BaseModel):
     sla_max: int = 20
 
 
+class PMSScoreBreakdownItem(BaseModel):
+    label: str
+    count: int = 0
+    # Present for breakdown rows sourced from individual conversations (currently
+    # Message Type activity) so the tooltip can link straight to each one, even
+    # when no SLA cycle was ever opened for that reply.
+    conversation_ids: list[UUID] | None = None
+
+
 class PMSScoreItem(BaseModel):
     key: str
     label: str
@@ -18,6 +27,9 @@ class PMSScoreItem(BaseModel):
     activity_count: int | None = None
     message_type_id: UUID | None = None
     subtask_id: UUID | None = None
+    # Per-source fetched breakdown for catch-all items (currently Other General
+    # Work). Preserved even after the Admin manually edits `value`.
+    breakdown: list[PMSScoreBreakdownItem] | None = None
 
 
 class PMSDailyEntryBase(BaseModel):
@@ -100,3 +112,24 @@ class PMSUploadResultItem(BaseModel):
 
 class PMSUploadResponse(BaseModel):
     results: list[PMSUploadResultItem]
+
+
+class PMSSLAReviewItem(BaseModel):
+    id: UUID
+    conversation_id: UUID
+    cycle_number: int
+    buyer: str | None = None
+    provider_conversation_id: str | None = None
+    seller: str | None = None
+    buyer_message_time: datetime
+    replied_time: datetime | None = None
+    response_duration_seconds: int | None = None
+    sla_met: bool | None = None
+
+
+class PMSSLAReviewResponse(BaseModel):
+    user_id: UUID
+    entry_date: date
+    met_count: int
+    total_count: int
+    items: list[PMSSLAReviewItem]

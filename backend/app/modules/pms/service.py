@@ -6,7 +6,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session, joinedload
 
 from app.api.dependencies import is_admin
-from app.models.conversation import ConversationSLAHistory
+from app.models.conversation import Conversation, ConversationSLAHistory
 from app.models.message_type import MessageClassification, MessageType
 from app.models.user import User
 from app.modules.offer_management.models import OfferManagementEntry
@@ -16,6 +16,8 @@ from app.modules.pms.schemas import (
     PMSDailyEntryResponse,
     PMSLoadRequestUser,
     PMSLoadResponseItem,
+    PMSSLAReviewItem,
+    PMSSLAReviewResponse,
     PMSScoreItem,
     PMSTaskLimits,
     PMSUploadEntry,
@@ -23,6 +25,11 @@ from app.modules.pms.schemas import (
 )
 from app.modules.sold_posting.models import SoldPostingLineItem
 from app.modules.task_management.models import Subtask, SubtaskSourceType, TaskCategory, TaskStatus, UserSubtaskAssignment
+
+
+OTHER_GENERAL_WORK_KEY = 'other_general_work'
+OTHER_GENERAL_WORK_LABEL = 'Other General Work'
+OTHER_GENERAL_WORK_MAX = 10
 
 
 class PMSService:
@@ -66,7 +73,7 @@ class PMSService:
                 existing_entry_id=existing.id if existing else None,
             ))
         return items
-    
+
     def _target_users(self, user_id: UUID | None) -> list[User]:
         if user_id:
             user = self.db.get(User, user_id)
@@ -95,7 +102,7 @@ class PMSService:
         )
 
         return list(self.db.scalars(statement).all())
-    
+
     def _to_base_schema(self, entry: PMSDailyTaskEntry) -> dict:
         sla_metadata = getattr(entry, 'sla_metadata', {}) or {}
         return {
@@ -255,7 +262,11 @@ class PMSService:
     def _auto_entry(self, user_id: UUID, entry_date: date):
         start = datetime.combine(entry_date, time.min, tzinfo=UTC)
         end = start + timedelta(days=1)
-        items = self._assigned_task_items(user_id, entry_date, start, end)
+        assignments = self._active_assignments(user_id, entry_date)
+        items = [self._assignment_item(assignment, user_id, start, end) for assignment in assignments]
+        other_item = self._other_general_work_item(assignments, user_id, start, end)
+        if other_item is not None:
+            items.append(other_item)
         sla_met_count, sla_total_count = self._sla_counts(user_id, start, end)
         sla_score = round((sla_met_count / sla_total_count) * self.SLA_MAX) if sla_total_count else 0
         entry = PMSDailyTaskEntry(
@@ -273,8 +284,8 @@ class PMSService:
         entry.sla_metadata = {'auto_fetched': True, 'met_count': sla_met_count, 'total_count': sla_total_count}
         return entry
 
-    def _assigned_task_items(self, user_id: UUID, entry_date: date, start: datetime, end: datetime) -> list[dict]:
-        assignments = list(self.db.scalars(
+    def _active_assignments(self, user_id: UUID, entry_date: date) -> list[UserSubtaskAssignment]:
+        return list(self.db.scalars(
             select(UserSubtaskAssignment)
             .join(UserSubtaskAssignment.subtask)
             .join(Subtask.category)
@@ -288,6 +299,11 @@ class PMSService:
             )
             .order_by(UserSubtaskAssignment.display_order, Subtask.display_order, Subtask.name)
         ))
+
+    def _assigned_task_items(self, user_id: UUID, entry_date: date, start: datetime, end: datetime) -> list[dict]:
+        # Retained for any other callers; _auto_entry now builds assignments itself
+        # so it can also compute Other General Work from the same assignment set.
+        assignments = self._active_assignments(user_id, entry_date)
         return [self._assignment_item(assignment, user_id, start, end) for assignment in assignments]
 
     def _assignment_item(self, assignment: UserSubtaskAssignment, user_id: UUID, start: datetime, end: datetime) -> dict:
@@ -351,6 +367,98 @@ class PMSService:
             ) or 0)
         return 0
 
+    # ------------------------------------------------------------------
+    # Other General Work: activity performed by the agent that falls
+    # outside their currently assigned tasks for the date.
+    # ------------------------------------------------------------------
+    def _other_general_work_item(self, assignments: list[UserSubtaskAssignment], user_id: UUID, start: datetime, end: datetime) -> dict | None:
+        breakdown: list[dict] = []
+        total_count = 0
+
+        # MESSAGE_TYPE: any message type IDs already covered by an assignment stay
+        # excluded here so activity is never counted twice. Conversation IDs are kept
+        # per row so the fetched-breakdown tooltip can link straight to each
+        # conversation, even when the reply never opened an SLA cycle.
+        assigned_message_type_ids = {
+            assignment.subtask.source_reference_id
+            for assignment in assignments
+            if assignment.subtask.source_type == SubtaskSourceType.MESSAGE_TYPE and assignment.subtask.source_reference_id
+        }
+        message_type_breakdown = self._unassigned_message_type_conversations(user_id, start, end, assigned_message_type_ids)
+        for label, conversation_ids in message_type_breakdown:
+            breakdown.append({'label': label, 'count': len(conversation_ids), 'conversation_ids': [str(cid) for cid in conversation_ids]})
+            total_count += len(conversation_ids)
+
+        # SOLD_POSTING / OFFER_MANAGEMENT: entire source is either assigned to this
+        # agent (already scored in its own task item above) or it is not assigned at
+        # all, in which case every record for the date belongs in Other General Work.
+        has_sold_posting_assignment = any(a.subtask.source_type == SubtaskSourceType.SOLD_POSTING for a in assignments)
+        if not has_sold_posting_assignment:
+            count = int(self.db.scalar(
+                select(func.count())
+                .select_from(SoldPostingLineItem)
+                .where(
+                    SoldPostingLineItem.copied_by_user_id == user_id,
+                    SoldPostingLineItem.copied_at >= start,
+                    SoldPostingLineItem.copied_at < end,
+                )
+            ) or 0)
+            if count:
+                breakdown.append({'label': 'Sold Posting', 'count': count})
+                total_count += count
+
+        has_offer_management_assignment = any(a.subtask.source_type == SubtaskSourceType.OFFER_MANAGEMENT for a in assignments)
+        if not has_offer_management_assignment:
+            count = int(self.db.scalar(
+                select(func.count())
+                .select_from(OfferManagementEntry)
+                .where(
+                    OfferManagementEntry.created_by_user_id == user_id,
+                    OfferManagementEntry.offer_date == start.date(),
+                )
+            ) or 0)
+            if count:
+                breakdown.append({'label': 'Offer Management', 'count': count})
+                total_count += count
+
+        item = self._item(
+            OTHER_GENERAL_WORK_KEY,
+            OTHER_GENERAL_WORK_LABEL,
+            OTHER_GENERAL_WORK_MAX if total_count > 0 else 0,
+            OTHER_GENERAL_WORK_MAX,
+            'AUTO',
+            status='ENTERED' if total_count > 0 else 'NOT_ENTERED',
+            activity_count=total_count,
+        )
+        item['breakdown'] = breakdown
+        return item
+
+    def _unassigned_message_type_conversations(self, user_id: UUID, start: datetime, end: datetime, assigned_message_type_ids: set[UUID]) -> list[tuple[str, list[UUID]]]:
+        # One row per classified reply, not grouped/counted in SQL, so each row's
+        # conversation_id can be surfaced to the frontend for direct navigation.
+        query = (
+            select(MessageType.name, MessageClassification.conversation_id)
+            .select_from(MessageClassification)
+            .join(MessageType, MessageType.id == MessageClassification.message_type_id)
+            .where(
+                MessageClassification.user_id == user_id,
+                MessageClassification.created_at >= start,
+                MessageClassification.created_at < end,
+            )
+        )
+        if assigned_message_type_ids:
+            query = query.where(MessageClassification.message_type_id.not_in(assigned_message_type_ids))
+        query = query.order_by(MessageType.name)
+
+        grouped: dict[str, list[UUID]] = {}
+        for name, conversation_id in self.db.execute(query):
+            # A buyer can be replied to more than once under the same message type in
+            # a day; de-duplicate so one conversation isn't listed/linked twice.
+            bucket = grouped.setdefault(name, [])
+            if conversation_id not in bucket:
+                bucket.append(conversation_id)
+        return list(grouped.items())
+
     def _sla_counts(self, user_id: UUID, start: datetime, end: datetime) -> tuple[int, int]:
         # Reuse completed SLA history cycles; repeated buyer messages before one
         # reply already roll into a single cycle in SLAService.
@@ -376,6 +484,73 @@ class PMSService:
         ) or 0)
         return met, total
 
+    # ------------------------------------------------------------------
+    # SLA Conversation Review: same filter criteria as _sla_counts so the
+    # review list and the x/y UNDER SLA total can never disagree.
+    # ------------------------------------------------------------------
+    def sla_review(self, current_user, user_id: UUID, entry_date: date) -> PMSSLAReviewResponse:
+        self._require_admin(current_user)
+        user = self.db.get(User, user_id)
+        if not user:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='User not found')
+
+        start = datetime.combine(entry_date, time.min, tzinfo=UTC)
+        end = start + timedelta(days=1)
+
+        query = (
+            select(ConversationSLAHistory, Conversation)
+            .join(Conversation, Conversation.id == ConversationSLAHistory.conversation_id)
+            .where(
+                ConversationSLAHistory.replied_by == user_id,
+                ConversationSLAHistory.replied_time >= start,
+                ConversationSLAHistory.replied_time < end,
+                ConversationSLAHistory.sla_met.is_not(None),
+            )
+            .order_by(ConversationSLAHistory.replied_time.asc())
+        )
+
+        rows = list(self.db.execute(query))
+        seller_by_conversation = self._latest_seller_labels({conversation.id for _, conversation in rows})
+
+        items = [
+            PMSSLAReviewItem(
+                id=history.id,
+                conversation_id=conversation.id,
+                cycle_number=history.cycle_number,
+                buyer=conversation.buyer_identifier,
+                provider_conversation_id=conversation.provider_conversation_id,
+                seller=seller_by_conversation.get(conversation.id),
+                buyer_message_time=history.buyer_message_time,
+                replied_time=history.replied_time,
+                response_duration_seconds=history.response_duration_seconds,
+                sla_met=history.sla_met,
+            )
+            for history, conversation in rows
+        ]
+        met_count = sum(1 for item in items if item.sla_met)
+        return PMSSLAReviewResponse(user_id=user_id, entry_date=entry_date, met_count=met_count, total_count=len(items), items=items)
+
+    def _latest_seller_labels(self, conversation_ids: set[UUID]) -> dict[UUID, str | None]:
+        # Best-effort: ConversationSLAHistory has no direct seller-account link, so
+        # fall back to the most recent classified message's seller account, mirroring
+        # how Message Reports resolves seller labels.
+        if not conversation_ids:
+            return {}
+        from app.models.ebay_account import EbayAccount
+
+        query = (
+            select(MessageClassification.conversation_id, EbayAccount, MessageClassification.created_at)
+            .join(EbayAccount, EbayAccount.id == MessageClassification.seller_account_id)
+            .where(MessageClassification.conversation_id.in_(conversation_ids))
+            .order_by(MessageClassification.conversation_id, MessageClassification.created_at.desc())
+        )
+        labels: dict[UUID, str | None] = {}
+        for conversation_id, account, _ in self.db.execute(query):
+            if conversation_id in labels:
+                continue
+            labels[conversation_id] = account.account_name or account.store_name or account.ebay_username
+        return labels
+
     def _item(self, key: str, label: str, value: int, max_score: int, source: str, *, status: str | None = None, activity_count: int | None = None, message_type_id: UUID | None = None, subtask_id: UUID | None = None) -> dict:
         return {
             'key': key,
@@ -397,7 +572,6 @@ class PMSService:
             'sla_score': entry.sla_score,
             'error_level': entry.error_level.value,
             'error_remark': entry.error_remark,
-            'remarks': entry.remarks,
         }
 
     def _entry(self, user_id: UUID, entry_date: date):

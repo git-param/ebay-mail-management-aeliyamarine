@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
-import AppLayout from '../../layouts/app_layout'
-import { fetchPmsEntries, loadPmsDailyEntries, uploadPmsDailyEntries } from '../../services/pmsApi'
+import AppLayout, { Icon } from '../../layouts/app_layout'
+import { fetchPmsEntries, fetchPmsSlaReview, loadPmsDailyEntries, uploadPmsDailyEntries } from '../../services/pmsApi'
 import { fetchUsers } from '../../services/userApi'
 import { normalizeRole } from '../../utils/roles'
 
@@ -10,6 +10,7 @@ import './daily_task_entry.css'
 const DAY_TYPES = [['WORKING_DAY', 'Working Day'], ['HOLIDAY', 'Holiday'], ['SUNDAY', 'Sunday'], ['LEAVE', 'Leave']]
 const ERROR_LEVELS = [['NO_ERROR', 'None'], ['MINOR', 'Minor'], ['MAJOR', 'Major']]
 const SLA_MAX = 20
+const OTHER_GENERAL_WORK_KEY = 'other_general_work'
 const today = () => new Date().toISOString().slice(0, 10)
 
 function number(value) {
@@ -85,7 +86,146 @@ function DetailModal({ entry, onClose }) {
   )
 }
 
-function AgentCard({ row, onChange }) {
+// Small click-to-open popover showing the fetched Other General Work breakdown,
+// e.g. "Sold Posting - 3", "Offer Management - 2". Rows sourced from individual
+// conversations (currently Message Type activity) list each conversation as a
+// link so an admin can jump straight to it, even when no SLA cycle exists.
+function OtherGeneralWorkInfo({ breakdown }) {
+  const [open, setOpen] = useState(false)
+  const wrapRef = useRef(null)
+  const items = breakdown || []
+
+  useEffect(() => {
+    if (!open) return undefined
+    function handleOutsideClick(event) {
+      if (wrapRef.current && !wrapRef.current.contains(event.target)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handleOutsideClick)
+    return () => document.removeEventListener('mousedown', handleOutsideClick)
+  }, [open])
+
+  return (
+    <span className="pms-info-popover-wrap" ref={wrapRef}>
+      <button
+        type="button"
+        className="pms-info-trigger"
+        aria-label="Show Other General Work breakdown"
+        onClick={() => setOpen((current) => !current)}
+      >
+        i
+      </button>
+      {open ? (
+        <div className="pms-info-popover" role="tooltip">
+          {items.length === 0 ? (
+            <p className="pms-info-popover-empty">No unassigned activity found for this date.</p>
+          ) : (
+            <ul>
+              {items.map((entry) => (
+                <li key={entry.label}>
+                  <div className="pms-info-popover-row">
+                    <span>{entry.label}</span>
+                    <strong>{entry.count}</strong>
+                  </div>
+                  {(entry.conversation_ids || []).length > 0 ? (
+                    <ul className="pms-info-popover-links">
+                      {entry.conversation_ids.map((conversationId, index) => (
+                        <li key={conversationId}>
+                          <a href={`/inbox?conversation_id=${encodeURIComponent(conversationId)}`} target="_blank" rel="noreferrer">
+                            Conversation {index + 1}
+                          </a>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      ) : null}
+    </span>
+  )
+}
+
+function SlaReviewModal({ userId, userName, entryDate, onClose }) {
+  const [data, setData] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    setError('')
+    fetchPmsSlaReview({ user_id: userId, entry_date: entryDate })
+      .then((response) => { if (!cancelled) setData(response) })
+      .catch((caught) => { if (!cancelled) setError(caught.message) })
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  }, [userId, entryDate])
+
+  function formatDuration(seconds) {
+    if (seconds === null || seconds === undefined) return '-'
+    const minutes = Math.floor(seconds / 60)
+    const remaining = seconds % 60
+    return minutes > 0 ? `${minutes}m ${remaining}s` : `${remaining}s`
+  }
+
+  return (
+    <div className="modal-backdrop" role="presentation">
+      <section className="modal-panel pms-sla-review-modal" role="dialog" aria-modal="true">
+        <div className="modal-header">
+          <h2>SLA Conversations - {userName} - {entryDate}</h2>
+          <button className="icon-button" type="button" onClick={onClose}>x</button>
+        </div>
+        {loading ? <p className="field-help">Loading SLA cycles...</p> : null}
+        {error ? <p className="form-message error">{error}</p> : null}
+        {!loading && !error && data ? (
+          <>
+            <p className="field-help pms-sla-review-summary">{data.met_count}/{data.total_count} UNDER SLA</p>
+            <div className="table-scroll">
+              <table className="users-table pms-sla-review-table">
+                <thead>
+                  <tr>
+                    <th>Buyer</th>
+                    <th>Seller</th>
+                    <th>Buyer Message</th>
+                    <th>Replied</th>
+                    <th>Response Time</th>
+                    <th>Status</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.items.length === 0 ? (
+                    <tr><td colSpan={7}>No SLA cycles found for this date.</td></tr>
+                  ) : data.items.map((item) => (
+                    <tr key={item.id}>
+                      <td>{item.buyer || '-'}</td>
+                      <td>{item.seller || '-'}</td>
+                      <td>{new Date(item.buyer_message_time).toLocaleString()}</td>
+                      <td>{item.replied_time ? new Date(item.replied_time).toLocaleString() : '-'}</td>
+                      <td>{formatDuration(item.response_duration_seconds)}</td>
+                      <td>
+                        <span className={`upload-status ${item.sla_met ? 'success' : 'error'}`}>{item.sla_met ? 'Met' : 'Missed'}</span>
+                      </td>
+                      <td>
+                        <a className="icon-button" href={`/inbox?conversation_id=${encodeURIComponent(item.conversation_id)}`} title="Go to Conversation" aria-label="Go to Conversation">
+                          <Icon name="message" />
+                        </a>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        ) : null}
+      </section>
+    </div>
+  )
+}
+
+function AgentCard({ row, onChange, onReviewSla }) {
   const totalTaskEarned = (row.score_items || []).filter((item) => item.status !== 'NOT_APPLICABLE').reduce((sum, item) => sum + number(item.value), 0)
   const totalTaskMax = (row.score_items || []).filter((item) => item.status !== 'NOT_APPLICABLE').reduce((sum, item) => sum + number(item.max_score), 0)
   const isMajor = row.error_level === 'MAJOR'
@@ -104,6 +244,9 @@ function AgentCard({ row, onChange }) {
   function updateItem(key, patchFields) {
     if (isLocked) return
     onChange(row.userId, (current) => {
+      // Spread patchFields over the existing item so fields we don't touch here -
+      // notably `breakdown` and `activity_count` on the Other General Work row -
+      // are preserved even after the Admin edits the score manually.
       const nextItems = current.score_items.map((item) => item.key === key ? { ...item, ...patchFields, source: patchFields.value !== undefined ? 'MANUAL' : item.source } : item)
       const next = { ...current, score_items: nextItems }
       next.final_score_percent = calculate(next.score_items, next.sla_score, next.error_level)
@@ -159,7 +302,10 @@ function AgentCard({ row, onChange }) {
         {(row.score_items || []).map((item) => (
           <div className={`pms-dynamic-row${item.status === 'NOT_APPLICABLE' ? ' not-applicable' : ''}`} key={item.key}>
             <div className="pms-dynamic-row-label">
-              <strong>{item.label}</strong>
+              <div className="pms-dynamic-row-label-title">
+                <strong>{item.label}</strong>
+                {item.key === OTHER_GENERAL_WORK_KEY ? <OtherGeneralWorkInfo breakdown={item.breakdown} /> : null}
+              </div>
               <span className={`source-badge ${item.source === 'AUTO' ? 'source-auto' : 'source-manual'}`}>
                 {sourceLabel(item.source)}{item.source === 'AUTO' ? ` \u00b7 ${item.activity_count ?? 0} handled` : ''}
               </span>
@@ -183,6 +329,11 @@ function AgentCard({ row, onChange }) {
             <span className={`source-badge ${row.sla_auto_fetched ? 'source-auto' : 'source-manual'}`}>
               {row.sla_auto_fetched ? `AUTO FETCHED \u00b7 ${row.sla_met_count ?? 0}/${row.sla_total_count ?? 0} UNDER SLA` : 'Manual'}
             </span>
+            {row.sla_total_count ? (
+              <button type="button" className="secondary-button compact-action pms-sla-review-button" onClick={() => onReviewSla(row)}>
+                Review SLA Conversations ({row.sla_total_count})
+              </button>
+            ) : null}
           </div>
           <div className="pms-dynamic-row-score">
             <input type="number" min="0" max={SLA_MAX} disabled={isDisabled} value={isMajor ? 0 : row.sla_score} onChange={(event) => patch({ sla_score: clamp(event.target.value, SLA_MAX), sla_auto_fetched: false })} />
@@ -231,6 +382,7 @@ export default function DailyTaskEntry({ currentUser, onLogout }) {
   const [history, setHistory] = useState({ items: [], total: 0 })
   const [filters, setFilters] = useState({ date_from: '', date_to: '', user_id: '' })
   const [selected, setSelected] = useState(null)
+  const [slaReviewRow, setSlaReviewRow] = useState(null)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
   const eligibleRows = useMemo(() => rows.filter((row) => row.status !== 'success'), [rows])
@@ -358,7 +510,7 @@ export default function DailyTaskEntry({ currentUser, onLogout }) {
                   </div>
                   {rows.length === 0 ? <p className="field-help pms-empty-state">No active agents found for this selection.</p> : null}
                   <div className="pms-agent-cards">
-                    {rows.map((row) => <AgentCard key={row.userId} row={row} onChange={updateRow} />)}
+                    {rows.map((row) => <AgentCard key={row.userId} row={row} onChange={updateRow} onReviewSla={setSlaReviewRow} />)}
                   </div>
                 </>
               ) : null}
@@ -403,6 +555,14 @@ export default function DailyTaskEntry({ currentUser, onLogout }) {
         </section>
       </main>
       <DetailModal entry={selected} onClose={() => setSelected(null)} />
+      {slaReviewRow ? (
+        <SlaReviewModal
+          userId={slaReviewRow.userId}
+          userName={slaReviewRow.userName}
+          entryDate={slaReviewRow.entry_date}
+          onClose={() => setSlaReviewRow(null)}
+        />
+      ) : null}
     </AppLayout>
   )
 }
