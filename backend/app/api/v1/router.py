@@ -8,6 +8,7 @@ from app.modules.daily_task_entry.router import router as daily_entry_router
 from app.modules.search_sku.router import router as search_sku_router
 from app.modules.sold_posting.router import router as sold_posting_router
 from app.modules.task_management.router import router as task_management_router
+from app.modules.pms.router import router as pms_router
 
 
 api_router = APIRouter()
@@ -28,6 +29,7 @@ api_router.include_router(offer_management_router, prefix='/offer-management', t
 api_router.include_router(sold_posting_router, prefix='/sold-posting', tags=['sold-posting'])
 api_router.include_router(daily_entry_router, prefix='/dailyEntry', tags=['daily-entry'])
 api_router.include_router(task_management_router, prefix='/task-management', tags=['task-management'])
+api_router.include_router(pms_router, prefix='/pms', tags=['pms'])
 api_router.include_router(config_router, prefix='/config', tags=['config'])
 api_router.include_router(
     ebay_oauth_routes.router,
