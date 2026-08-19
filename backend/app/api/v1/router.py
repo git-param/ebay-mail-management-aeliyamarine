@@ -31,8 +31,4 @@ api_router.include_router(daily_entry_router, prefix='/dailyEntry', tags=['daily
 api_router.include_router(task_management_router, prefix='/task-management', tags=['task-management'])
 api_router.include_router(pms_router, prefix='/pms', tags=['pms'])
 api_router.include_router(config_router, prefix='/config', tags=['config'])
-api_router.include_router(
-    ebay_oauth_routes.router,
-    prefix='/integrations/ebay',
-    tags=['integrations-ebay'],
-)
+api_router.include_router(ebay_oauth_routes.router,prefix='/integrations/ebay',tags=['integrations-ebay'])

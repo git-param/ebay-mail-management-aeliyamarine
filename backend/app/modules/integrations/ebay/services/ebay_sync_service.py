@@ -8,7 +8,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models.conversation import SyncLogStatus
+from app.models.conversation import SyncLog, SyncLogStatus
 from app.models.ebay_account import EbayAccount, EbayConnectionStatus
 from app.modules.integrations.ebay.oauth.token_service import EbayTokenService
 from app.modules.integrations.ebay.providers import EBAY_PROVIDER_NAME
@@ -67,11 +67,19 @@ class EbaySyncService:
         account_id: UUID,
         *,
         max_conversations: int | None = None,
+        sync_log_id: UUID | None = None,
     ) -> EbaySyncResult:
         account = self._get_syncable_account(account_id)
         updated_since = account.last_sync_at
 
-        sync_log = self._start_sync_log(account, max_conversations, updated_since)
+        # Worker jobs reuse the RUNNING log created by the API before the
+        # child process starts. Direct callers still create their own log.
+        sync_log = self._start_sync_log(
+            account,
+            max_conversations,
+            updated_since,
+            sync_log_id=sync_log_id,
+        )
         counters = self._initialize_counters()
         sync_context = self._initialize_sync_context(account, updated_since, max_conversations)
 
@@ -97,19 +105,153 @@ class EbaySyncService:
             return self._handle_sync_failure(account_id, account, sync_log, counters, sync_context, exc)
 
 
-    def _start_sync_log(self, account: EbayAccount, max_conversations: int | None, updated_since: datetime | None) -> SyncLog:
-        """Start a new sync log entry."""
+    def _start_sync_log(
+        self,
+        account: EbayAccount,
+        max_conversations: int | None,
+        updated_since: datetime | None,
+        *,
+        sync_log_id: UUID | None = None,
+    ) -> SyncLog:
+        """Create a sync log or reuse the log reserved by the worker coordinator."""
+        if sync_log_id is not None:
+            sync_log = self.db.get(SyncLog, sync_log_id)
+            if not sync_log:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Sync log not found')
+            if sync_log.provider_account_id != account.id:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail='Sync log does not belong to the requested eBay account',
+                )
+            if sync_log.status != SyncLogStatus.RUNNING:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=f'Sync log is not running: {sync_log.status.value}',
+                )
+            return sync_log
+
         return self.sync_log_service.start_sync(
             provider=EBAY_PROVIDER_NAME,
             provider_account_id=account.id,
             sync_type=EBAY_MESSAGE_SYNC_TYPE,
             sync_metadata={
+                'provider': EBAY_PROVIDER_NAME.upper(),
                 'conversation_types': list(EBAY_CONVERSATION_TYPES),
                 'max_conversations': max_conversations,
                 'updated_since': updated_since.isoformat() if updated_since else None,
                 'incremental': updated_since is not None,
+                'execution_mode': 'DIRECT',
             },
         )
+
+
+    def queue_sync_account(
+        self,
+        account_id: UUID,
+        *,
+        max_conversations: int | None = None,
+        trigger: str = 'MANUAL',
+    ) -> SyncLog:
+        """
+        Reserve a sync job before starting a separate OS process.
+
+        The account row is locked while checking for another RUNNING sync,
+        preventing double-clicks and overlapping scheduler ticks.
+        """
+        account = self.db.scalar(
+            select(EbayAccount)
+            .where(EbayAccount.id == account_id)
+            .with_for_update()
+        )
+        if not account:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='eBay account not found')
+        if not account.is_active:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='eBay account is inactive')
+        if account.connection_status != EbayConnectionStatus.CONNECTED:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f'eBay account is not connected. Current status: {account.connection_status.value}',
+            )
+
+        running_log = self.db.scalar(
+            select(SyncLog)
+            .where(
+                SyncLog.provider == EBAY_PROVIDER_NAME,
+                SyncLog.provider_account_id == account.id,
+                SyncLog.sync_type == EBAY_MESSAGE_SYNC_TYPE,
+                SyncLog.status == SyncLogStatus.RUNNING,
+            )
+            .order_by(SyncLog.started_at.desc())
+        )
+        if running_log:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail='An eBay sync is already running for this account',
+            )
+
+        updated_since = account.last_sync_at
+        sync_log = self.sync_log_service.start_sync(
+            provider=EBAY_PROVIDER_NAME,
+            provider_account_id=account.id,
+            sync_type=EBAY_MESSAGE_SYNC_TYPE,
+            sync_metadata={
+                'provider': EBAY_PROVIDER_NAME.upper(),
+                'conversation_types': list(EBAY_CONVERSATION_TYPES),
+                'max_conversations': max_conversations,
+                'updated_since': updated_since.isoformat() if updated_since else None,
+                'incremental': updated_since is not None,
+                'execution_mode': 'PROCESS',
+                'trigger': trigger,
+            },
+        )
+        account.sync_status = 'SYNCING'
+        self.db.commit()
+        self.db.refresh(sync_log)
+        return sync_log
+
+
+    def queue_sync_all_connected_accounts(
+        self,
+        *,
+        max_conversations: int | None = None,
+        trigger: str = 'MANUAL_ALL',
+    ) -> list[tuple[EbayAccount, SyncLog]]:
+        """Queue every connected active account; no eBay API work occurs here."""
+        accounts = list(
+            self.db.scalars(
+                select(EbayAccount)
+                .where(EbayAccount.connection_status == EbayConnectionStatus.CONNECTED)
+                .where(EbayAccount.is_active.is_(True))
+                .order_by(EbayAccount.created_at.asc())
+            )
+        )
+        queued: list[tuple[EbayAccount, SyncLog]] = []
+        for account in accounts:
+            try:
+                sync_log = self.queue_sync_account(
+                    account.id,
+                    max_conversations=max_conversations,
+                    trigger=trigger,
+                )
+            except HTTPException as exc:
+                if exc.status_code == status.HTTP_409_CONFLICT:
+                    self.db.rollback()
+                    existing = self.db.scalar(
+                        select(SyncLog)
+                        .where(
+                            SyncLog.provider == EBAY_PROVIDER_NAME,
+                            SyncLog.provider_account_id == account.id,
+                            SyncLog.sync_type == EBAY_MESSAGE_SYNC_TYPE,
+                            SyncLog.status == SyncLogStatus.RUNNING,
+                        )
+                        .order_by(SyncLog.started_at.desc())
+                    )
+                    if existing:
+                        queued.append((account, existing))
+                        continue
+                raise
+            queued.append((account, sync_log))
+        return queued
 
 
     def _initialize_counters(self) -> dict:
@@ -840,6 +982,7 @@ class EbaySyncService:
             counters['conversations_processed'],
         )
         return {
+            'provider': EBAY_PROVIDER_NAME.upper(),
             'conversation_types': list(EBAY_CONVERSATION_TYPES),
             'max_conversations': max_conversations,
             'updated_since': updated_since.isoformat() if updated_since else None,
@@ -923,7 +1066,7 @@ class EbaySyncService:
 
     # In ebay_sync_service.py, update the message processing logic
 
-    def _process_message_with_offer(self, message_data: dict, conversation: Conversation) -> dict:
+    def _process_message_with_offer(self, message_data: dict, conversation) -> dict:
         """
         Process a message that might contain offer data.
         """
@@ -972,46 +1115,3 @@ class EbaySyncService:
         return EBAY_PROVIDER_NAME.upper()  # 'EBAY'
 
     # Then update the progress_metadata to include normalized provider
-    def _progress_metadata(
-        self,
-        *,
-        counters: dict,
-        total_conversations_available: int | None,
-        max_conversations: int | None,
-        updated_since: datetime | None,
-        elapsed_seconds: float,
-        detail_seconds_total: float,
-        failed_conversations: list[dict],
-    ) -> dict:
-        average_detail_seconds = self._average_detail_seconds(
-            detail_seconds_total,
-            counters['conversations_processed'],
-        )
-        return {
-            'provider': self._normalize_provider(),  # Add normalized provider
-            'conversation_types': list(EBAY_CONVERSATION_TYPES),
-            'max_conversations': max_conversations,
-            'updated_since': updated_since.isoformat() if updated_since else None,
-            'incremental': updated_since is not None,
-            'total_conversations_available': total_conversations_available,
-            'conversations_processed': counters['conversations_processed'],
-            'conversations_failed': counters['conversations_failed'],
-            'failed_conversation_ids': [
-                failed_conversation['conversation_id']
-                for failed_conversation in failed_conversations
-                if failed_conversation.get('conversation_id')
-            ],
-            'failed_conversations': failed_conversations,
-            'conversations_created': counters['conversations_created'],
-            'conversations_updated': counters['conversations_updated'],
-            'messages_created': counters['messages_created'],
-            'messages_updated': counters['messages_updated'],
-            'result_status': 'SUCCESS_WITH_ERRORS' if counters['conversations_failed'] else 'SUCCESS',
-            'elapsed_seconds': round(elapsed_seconds, 3),
-            'average_detail_seconds': round(average_detail_seconds, 3) if average_detail_seconds is not None else None,
-            'remaining_count': self._remaining_count(
-                total_conversations_available=total_conversations_available,
-                max_conversations=max_conversations,
-                conversations_processed=counters['conversations_processed'] + counters['conversations_failed'],
-            ),
-        }

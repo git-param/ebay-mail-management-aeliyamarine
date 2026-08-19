@@ -12,6 +12,7 @@ from app.api.dependencies import get_current_user
 from app.core.config import get_settings
 from app.db.session import get_db
 from app.models.ebay_account import EbayAccount, EbayConnectionStatus
+from app.models.conversation import SyncLogStatus
 from app.modules.integrations.ebay.oauth.callback_service import EbayOAuthCallbackService
 from app.modules.integrations.ebay.oauth.oauth_service import EbayOAuthService
 from app.modules.integrations.ebay.oauth.token_service import EbayTokenService
@@ -32,6 +33,7 @@ from app.modules.integrations.ebay.schemas.oauth_schemas import (
 from app.modules.integrations.ebay.services.ebay_sync_service import EbaySyncResult, EbaySyncService
 from app.modules.config_management.service import ConfigService
 from app.services.ebay_auto_sync_service import AUTO_SYNC_ENABLED_KEY, AUTO_SYNC_INTERVAL_KEY
+from app.services.ebay_sync_worker import spawn_ebay_sync_process, spawn_ebay_sync_processes
 from app.services.audit_service import AuditService
 from app.services.ebay_api_usage_service import EbayApiUsageService, EbayApiUsageSummary
 
@@ -250,6 +252,27 @@ def serialize_sync_result(
     )
 
 
+def build_queued_sync_result(account: EbayAccount, sync_log_id: UUID) -> EbaySyncResult:
+    """Return the same response shape while the real sync runs in another process."""
+    return EbaySyncResult(
+        account_id=account.id,
+        ebay_username=account.ebay_username,
+        sync_log_id=sync_log_id,
+        status='RUNNING',
+        conversations_processed=0,
+        conversations_failed=0,
+        conversations_created=0,
+        conversations_updated=0,
+        messages_created=0,
+        messages_updated=0,
+        failed_conversation_ids=[],
+        total_conversations_available=None,
+        elapsed_seconds=0.0,
+        average_detail_seconds=None,
+        error_message=None,
+    )
+
+
 @router.post('/sync/{account_id}', response_model=EbaySyncResultResponse)
 def sync_ebay_account(
     account_id: UUID,
@@ -257,10 +280,45 @@ def sync_ebay_account(
     db: Session = Depends(get_db),
     current_user=Depends(require_ebay_sync_access),
 ) -> EbaySyncResultResponse:
+    """Queue the sync and return immediately; the worker owns the long-running operation."""
     sync_service = EbaySyncService(db)
-    result = sync_service.sync_account(account_id, max_conversations=max_conversations)
+    sync_log = sync_service.queue_sync_account(
+        account_id,
+        max_conversations=max_conversations,
+        trigger=f'MANUAL:{current_user.id}',
+    )
+    try:
+        worker_pid = spawn_ebay_sync_process(
+            account_id=account_id,
+            sync_log_id=sync_log.id,
+            max_conversations=max_conversations,
+        )
+        sync_log.sync_metadata = {
+            **(sync_log.sync_metadata or {}),
+            'worker_pid': worker_pid,
+        }
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        sync_log = db.get(type(sync_log), sync_log.id)
+        if sync_log:
+            sync_log.status = SyncLogStatus.FAILED
+            sync_log.completed_at = datetime.now(UTC)
+            sync_log.error_message = f'Could not start sync worker: {exc}'
+            account = db.get(EbayAccount, account_id)
+            if account:
+                account.sync_status = 'FAILED'
+            db.commit()
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail='Could not start the eBay sync worker',
+        ) from exc
+
     usage = EbayApiUsageService(db).get_today_usage()
-    return serialize_sync_result(result, api_usage=usage)
+    return serialize_sync_result(
+        build_queued_sync_result(db.get(EbayAccount, account_id), sync_log.id),
+        api_usage=usage,
+    )
 
 
 @router.post('/sync-all', response_model=EbaySyncAllResponse)
@@ -268,7 +326,45 @@ def sync_all_ebay_accounts(
     db: Session = Depends(get_db),
     current_user=Depends(require_ebay_sync_access),
 ) -> EbaySyncAllResponse:
-    results = EbaySyncService(db).sync_all_connected_accounts()
+    """Queue all connected accounts and start one independent process per account."""
+    queued = EbaySyncService(db).queue_sync_all_connected_accounts(
+        trigger=f'MANUAL_ALL:{current_user.id}',
+    )
+
+    jobs = [
+        (account.id, sync_log.id, None)
+        for account, sync_log in queued
+    ]
+    try:
+        pids = spawn_ebay_sync_processes(jobs)
+    except Exception as exc:
+        # If process creation fails part-way through, do not silently leave the
+        # affected logs looking successful. The worker-level failure handler
+        # cannot run for processes that were never started.
+        db.rollback()
+        for account, sync_log in queued:
+            if sync_log.status == SyncLogStatus.RUNNING:
+                sync_log.status = SyncLogStatus.FAILED
+                sync_log.completed_at = datetime.now(UTC)
+                sync_log.error_message = f'Could not start sync worker: {exc}'
+                account.sync_status = 'FAILED'
+        db.commit()
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail='Could not start one or more eBay sync workers',
+        ) from exc
+
+    for (_, sync_log), pid in zip(queued, pids):
+        sync_log.sync_metadata = {
+            **(sync_log.sync_metadata or {}),
+            'worker_pid': pid,
+        }
+    db.commit()
+
+    results = [
+        build_queued_sync_result(account, sync_log.id)
+        for account, sync_log in queued
+    ]
     usage = EbayApiUsageService(db).get_today_usage_all()
     return EbaySyncAllResponse(
         results=[serialize_sync_result(result) for result in results],
