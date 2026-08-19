@@ -340,7 +340,7 @@ export default function TaskManagement({ currentUser, onLogout }) {
         <div className="page-header">
           <div>
             <h1>Task Management</h1>
-            <p>Configure tasks, subtasks, and agent assignment weights.</p>
+            <p>Configure tasks, subtasks, and agent maximum scores.</p>
           </div>
           <button className="secondary-button compact-action" type="button" onClick={load}>Refresh</button>
         </div>
@@ -487,7 +487,7 @@ export default function TaskManagement({ currentUser, onLogout }) {
                 <h2>Agent Task Assignments</h2>
                 <p className="task-section-note">Assigning a task replaces the agent's current task and all of its active subtasks.</p>
               </div>
-              <span className={assignmentData.total_active_weight === 100 ? 'weight-ok' : assignmentData.total_active_weight > 100 ? 'weight-error' : 'weight-warning'}>Quality Weight Total: {displayWeight(assignmentData.total_active_weight)}/100</span>
+              <span className="weight-ok">Total Maximum Score: {displayWeight(assignmentData.total_active_weight)}</span>
             </div>
 
             <label className="field">
@@ -563,12 +563,12 @@ export default function TaskManagement({ currentUser, onLogout }) {
                   </div>
                 ) : (
                   <form className="management-form task-assignment-form" onSubmit={submitTaskAssignment}>
-                    <p className="field-help">Assigning <strong>{assignmentCategory?.name}</strong> automatically assigns every active subtask below. Set each subtask's weight and confirm the effective dates.</p>
+                    <p className="field-help">Assigning <strong>{assignmentCategory?.name}</strong> automatically assigns every active subtask below. Set each subtask's maximum score and confirm the effective dates.</p>
                     {assignableSubtasksForForm.map((subtask) => (
                       <label className="field task-weight-field" key={subtask.id}>
                         <span>
                           {subtask.name}
-                          <small>({sourceLabel(subtask.source_type)}){assignedSubtaskIdsForUser.has(subtask.id) ? ' · already active' : ''}</small>
+                          <small>({sourceLabel(subtask.source_type)} · Maximum Score){assignedSubtaskIdsForUser.has(subtask.id) ? ' · already active' : ''}</small>
                         </span>
                         <input
                           type="number"
