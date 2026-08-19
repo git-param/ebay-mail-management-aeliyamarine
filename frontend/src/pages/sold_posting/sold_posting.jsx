@@ -375,7 +375,7 @@ export default function SoldPosting({ currentUser, onLogout }) {
       <main className="management-page sold-posting-page">
         <div className="page-header">
           <div><h1>Sold Posting</h1><p>{data.summary?.line_item_count || 0} matching line items - {data.summary?.order_count || 0} orders - {data.summary?.quantity_sold || 0} quantity sold - Last sync {dt(data.sync?.last_successful_sync_at)}</p></div>
-          {isAdmin ? <button className="primary-button compact-action" type="button" disabled={syncing || data.sync?.is_running} onClick={syncLatest}>{syncing || data.sync?.is_running ? 'Syncing...' : 'Sync Latest Changes'}</button> : null}
+          <button className="primary-button compact-action" type="button" disabled={syncing || data.sync?.is_running} onClick={syncLatest}>{syncing || data.sync?.is_running ? 'Syncing...' : 'Sync Latest Changes'}</button> 
         </div>
         {error ? <p className="form-message error">{error}</p> : null}
         {partialError ? <p className="form-message error">{partialError}</p> : null}

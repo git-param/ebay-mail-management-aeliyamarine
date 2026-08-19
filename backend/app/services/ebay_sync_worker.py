@@ -86,7 +86,7 @@ def spawn_ebay_sync_process(
     process.start()
     _processes.add(process)
 
-    logger.warning(
+    print(
         'Started process-isolated eBay sync account_id=%s sync_log_id=%s pid=%s',
         account_id,
         sync_log_id,
