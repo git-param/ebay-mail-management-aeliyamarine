@@ -249,15 +249,32 @@ class DailyEntryService:
         )
 
     def calculate_final(self, score_items: list[dict], sla_score: int, error_level: str) -> int:
+        """Calculate PMS from normalized task performance and normalized SLA performance.
+
+        Each applicable subtask is scored against its own configured maximum first,
+        so a 20-point task does not carry twice the PMS weight of a 10-point task.
+        The task percentages are averaged, SLA is converted from /20 to a percentage,
+        and the two percentages contribute equally to the final PMS result.
+        """
         if error_level == 'MAJOR':
             return 0
-        applicable = [item for item in score_items if item.get('status') != 'NOT_APPLICABLE']
-        earned = sum(min(int(item.get('value') or 0), int(item.get('max_score') or 1)) for item in applicable)
-        possible = sum(int(item.get('max_score') or 1) for item in applicable)
-        if sla_score is not None:
-            earned += max(0, min(int(sla_score or 0), self.SLA_MAX))
-            possible += self.SLA_MAX
-        return round((earned / possible) * 100) if possible else 0
+
+        # Only explicitly ENTERED rows participate in the daily task average.
+        # Zero/no-activity rows default to NOT_APPLICABLE. An admin can explicitly
+        # mark one ENTERED with value 0 when zero should count as a real 0% result.
+        applicable = [item for item in score_items if item.get('status') == 'ENTERED']
+        task_percentages: list[float] = []
+        for item in applicable:
+            max_score = max(1, int(item.get('max_score') or 1))
+            value = max(0, min(int(item.get('value') or 0), max_score))
+            task_percentages.append((value / max_score) * 100)
+
+        task_average_percent = (sum(task_percentages) / len(task_percentages)) if task_percentages else 0.0
+        normalized_sla = max(0, min(int(sla_score or 0), self.SLA_MAX))
+        sla_percent = (normalized_sla / self.SLA_MAX) * 100
+
+        final_percent = (task_average_percent + sla_percent) / 2
+        return round(max(0.0, min(final_percent, 100.0)))
 
     def _auto_entry(self, user_id: UUID, entry_date: date):
         start = datetime.combine(entry_date, time.min, tzinfo=UTC)
@@ -313,15 +330,16 @@ class DailyEntryService:
         source = 'AUTO' if assignment.auto_fetch_enabled and subtask.supports_automatic_fetch else 'MANUAL'
         value = 0
         activity_count = None
-        status_value = 'NOT_ENTERED'
+        # Assigned tasks are not assumed to be required every day. A zero/no-activity
+        # task therefore starts excluded. Admins can explicitly include that zero on
+        # the Daily Task Entry screen when it represents a genuine missed task.
+        status_value = 'NOT_APPLICABLE'
         if source == 'AUTO':
-            # Any qualifying activity at all earns full marks by default; the admin can
-            # still lower it manually. A zero-activity result is also left editable
-            # (not locked as NOT_APPLICABLE) so the admin can enter marks by hand if the
-            # automatic fetch is wrong, missing, or fails for some other reason.
+            # Any qualifying activity earns full marks by default; no fetched activity
+            # stays excluded until the admin deliberately chooses to count the zero.
             activity_count = self._automatic_count(subtask, user_id, start, end)
             value = max_score if activity_count > 0 else 0
-            status_value = 'ENTERED' if activity_count > 0 else 'NOT_ENTERED'
+            status_value = 'ENTERED' if activity_count > 0 else 'NOT_APPLICABLE'
         return self._item(
             f'assignment:{assignment.id}',
             label,
@@ -427,7 +445,7 @@ class DailyEntryService:
             OTHER_GENERAL_WORK_MAX if total_count > 0 else 0,
             OTHER_GENERAL_WORK_MAX,
             'AUTO',
-            status='ENTERED' if total_count > 0 else 'NOT_ENTERED',
+            status='ENTERED' if total_count > 0 else 'NOT_APPLICABLE',
             activity_count=total_count,
         )
         item['breakdown'] = breakdown

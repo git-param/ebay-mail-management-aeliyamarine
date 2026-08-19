@@ -652,3 +652,116 @@
   }
 
 }
+
+/* ---- Per-day task applicability controls ---- */
+
+.dailyEntry-task-meta-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.dailyEntry-count-status {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+}
+
+.dailyEntry-count-status.included {
+  background: var(--dailyEntry-success-bg);
+  color: var(--dailyEntry-success);
+}
+
+.dailyEntry-count-status.excluded {
+  background: #f1f5f9;
+  color: var(--dailyEntry-muted);
+}
+
+.dailyEntry-dynamic-row-score-with-toggle {
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.dailyEntry-score-input-line {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.dailyEntry-task-count-toggle {
+  min-height: 28px;
+  padding: 4px 9px;
+  border: 1px solid #cbd5e1;
+  border-radius: 7px;
+  background: #ffffff;
+  font-size: 10.5px;
+  font-weight: 800;
+  line-height: 1.15;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color 0.15s ease, background-color 0.15s ease, color 0.15s ease;
+}
+
+.dailyEntry-task-count-toggle.include {
+  border-color: #a7d7b4;
+  background: #f0fdf4;
+  color: var(--dailyEntry-success);
+}
+
+.dailyEntry-task-count-toggle.include:hover:not(:disabled) {
+  background: var(--dailyEntry-success-bg);
+}
+
+.dailyEntry-task-count-toggle.exclude {
+  border-color: #d5dce6;
+  color: var(--dailyEntry-muted);
+}
+
+.dailyEntry-task-count-toggle.exclude:hover:not(:disabled) {
+  border-color: #f2bd22;
+  background: var(--dailyEntry-warning-bg);
+  color: var(--dailyEntry-warning);
+}
+
+.dailyEntry-task-count-toggle:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgb(109 92 245 / 0.15);
+}
+
+.dailyEntry-task-count-toggle:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.dailyEntry-dynamic-row.not-applicable {
+  opacity: 1;
+  background: rgb(248 250 252 / 0.7);
+}
+
+.dailyEntry-dynamic-row.not-applicable .dailyEntry-dynamic-row-label strong,
+.dailyEntry-dynamic-row.not-applicable .dailyEntry-dynamic-row-score input {
+  color: #64748b;
+}
+
+@media (max-width: 720px) {
+  .dailyEntry-dynamic-row-score-with-toggle {
+    align-items: stretch;
+  }
+
+  .dailyEntry-score-input-line {
+    justify-content: flex-start;
+  }
+
+  .dailyEntry-task-count-toggle {
+    width: 100%;
+  }
+}

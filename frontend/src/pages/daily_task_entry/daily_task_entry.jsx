@@ -26,12 +26,30 @@ function clamp(value, max) {
   return Math.min(Math.max(0, number(value)), max)
 }
 
+function taskPerformancePercent(item) {
+  const maxScore = Math.max(1, number(item?.max_score) || 1)
+  return (Math.min(number(item?.value), maxScore) / maxScore) * 100
+}
+
+function taskAveragePercent(items) {
+  const applicable = (items || []).filter((item) => item.status === 'ENTERED')
+  if (!applicable.length) return 0
+  return applicable.reduce((sum, item) => sum + taskPerformancePercent(item), 0) / applicable.length
+}
+
+function slaPerformancePercent(slaScore) {
+  return (Math.min(number(slaScore), SLA_MAX) / SLA_MAX) * 100
+}
+
+function formatPercent(value) {
+  return Number(value || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })
+}
+
 function calculate(items, slaScore, errorLevel) {
   if (errorLevel === 'MAJOR') return 0
-  const applicable = (items || []).filter((item) => item.status !== 'NOT_APPLICABLE')
-  const earned = applicable.reduce((sum, item) => sum + Math.min(number(item.value), number(item.max_score) || 1), 0) + Math.min(number(slaScore), SLA_MAX)
-  const possible = applicable.reduce((sum, item) => sum + (number(item.max_score) || 1), 0) + SLA_MAX
-  return possible ? Math.round((earned / possible) * 100) : 0
+  const taskAverage = taskAveragePercent(items)
+  const slaPerformance = slaPerformancePercent(slaScore)
+  return Math.round(Math.min(100, Math.max(0, (taskAverage + slaPerformance) / 2)))
 }
 
 function sourceLabel(source) {
@@ -76,7 +94,7 @@ function DetailModal({ entry, onClose }) {
       <section className="modal-panel dailyEntry-detail-modal" role="dialog" aria-modal="true">
         <div className="modal-header"><h2>{entry.user_name} - {entry.entry_date}</h2><button className="icon-button" type="button" onClick={onClose}>x</button></div>
         <div className="dailyEntry-score-grid">
-          {(entry.score_items || []).map((item) => <p key={item.key}><span>{item.label}</span><strong>{item.status === 'NOT_APPLICABLE' ? 'N/A' : `${item.value} / ${item.max_score}`}</strong></p>)}
+          {(entry.score_items || []).map((item) => <p key={item.key}><span>{item.label}</span><strong>{item.status === 'ENTERED' ? `${item.value} / ${item.max_score}` : 'N/A'}</strong></p>)}
           <p><span>SLA Score</span><strong>{entry.sla_score}/{SLA_MAX}</strong></p>
           <p><span>Final Score</span><strong>{entry.final_score_percent}%</strong></p>
           <p><span>Error</span><strong>{ERROR_LEVELS.find(([value]) => value === entry.error_level)?.[1] || entry.error_level}</strong></p>
@@ -240,11 +258,20 @@ function SlaReviewModal({ userId, userName, entryDate, onClose }) {
 }
 
 function AgentCard({ row, onChange, onReviewSla }) {
-  const totalTaskEarned = (row.score_items || []).filter((item) => item.status !== 'NOT_APPLICABLE').reduce((sum, item) => sum + number(item.value), 0)
-  const totalTaskMax = (row.score_items || []).filter((item) => item.status !== 'NOT_APPLICABLE').reduce((sum, item) => sum + number(item.max_score), 0)
+  const taskAverage = taskAveragePercent(row.score_items)
+  const slaPerformance = slaPerformancePercent(row.sla_score)
   const isMajor = row.error_level === 'MAJOR'
   const isLocked = row.status === 'success'
   const isDisabled = isLocked || isMajor
+
+  function isTaskIncluded(item) {
+    return item.status === 'ENTERED'
+  }
+
+  function toggleTaskInclusion(item) {
+    if (isDisabled) return
+    updateItem(item.key, { status: isTaskIncluded(item) ? 'NOT_APPLICABLE' : 'ENTERED' }, false)
+  }
 
   function patch(fields) {
     if (isLocked) return
@@ -255,13 +282,13 @@ function AgentCard({ row, onChange, onReviewSla }) {
     })
   }
 
-  function updateItem(key, patchFields) {
+  function updateItem(key, patchFields, markManual = true) {
     if (isLocked) return
     onChange(row.userId, (current) => {
       // Spread patchFields over the existing item so fields we don't touch here -
       // notably `breakdown` and `activity_count` on the Other General Work row -
       // are preserved even after the Admin edits the score manually.
-      const nextItems = current.score_items.map((item) => item.key === key ? { ...item, ...patchFields, source: patchFields.value !== undefined ? 'MANUAL' : item.source } : item)
+      const nextItems = current.score_items.map((item) => item.key === key ? { ...item, ...patchFields, source: markManual && patchFields.value !== undefined ? 'MANUAL' : item.source } : item)
       const next = { ...current, score_items: nextItems }
       next.final_score_percent = calculate(next.score_items, next.sla_score, next.error_level)
       return next
@@ -314,26 +341,46 @@ function AgentCard({ row, onChange, onReviewSla }) {
         <h3 className="dailyEntry-section-label">Tasks &amp; Scoring</h3>
         {(row.score_items || []).length === 0 ? <p className="field-help dailyEntry-empty-state">No subtasks assigned to this agent.</p> : null}
         {(row.score_items || []).map((item) => (
-          <div className={`dailyEntry-dynamic-row${item.status === 'NOT_APPLICABLE' ? ' not-applicable' : ''}`} key={item.key}>
+          <div className={`dailyEntry-dynamic-row${isTaskIncluded(item) ? '' : ' not-applicable'}`} key={item.key}>
             <div className="dailyEntry-dynamic-row-label">
               <div className="dailyEntry-dynamic-row-label-title">
                 <strong>{item.label}</strong>
                 {item.key === OTHER_GENERAL_WORK_KEY ? <OtherGeneralWorkInfo breakdown={item.breakdown} /> : null}
               </div>
-              <span className={`source-badge ${item.source === 'AUTO' ? 'source-auto' : 'source-manual'}`}>
-                {sourceLabel(item.source)}{item.source === 'AUTO' ? ` \u00b7 ${item.activity_count ?? 0} handled` : ''}
-              </span>
+              <div className="dailyEntry-task-meta-line">
+                <span className={`source-badge ${item.source === 'AUTO' ? 'source-auto' : 'source-manual'}`}>
+                  {sourceLabel(item.source)}{item.source === 'AUTO' ? ` · ${item.activity_count ?? 0} handled` : ''}
+                </span>
+                <span className={`dailyEntry-count-status ${isTaskIncluded(item) ? 'included' : 'excluded'}`}>
+                  {isTaskIncluded(item) ? 'Counted today' : 'Not counted today'}
+                </span>
+              </div>
             </div>
-            <div className="dailyEntry-dynamic-row-score">
-              <input
-                type="number"
-                min="0"
-                max={item.max_score}
+            <div className="dailyEntry-dynamic-row-score dailyEntry-dynamic-row-score-with-toggle">
+              <div className="dailyEntry-score-input-line">
+                <input
+                  type="number"
+                  min="0"
+                  max={item.max_score}
+                  disabled={isDisabled}
+                  value={isMajor ? 0 : item.value}
+                  onChange={(event) => {
+                    const value = clamp(event.target.value, item.max_score)
+                    const status = value > 0 ? 'ENTERED' : (isTaskIncluded(item) ? 'ENTERED' : 'NOT_APPLICABLE')
+                    updateItem(item.key, { value, status })
+                  }}
+                />
+                <span className="dailyEntry-score-max">/ {item.max_score} · {isTaskIncluded(item) ? `${formatPercent(taskPerformancePercent(item))}%` : 'N/A'}</span>
+              </div>
+              <button
+                type="button"
+                className={`dailyEntry-task-count-toggle ${isTaskIncluded(item) ? 'exclude' : 'include'}`}
                 disabled={isDisabled}
-                value={isMajor ? 0 : item.value}
-                onChange={(event) => updateItem(item.key, { value: clamp(event.target.value, item.max_score), status: 'ENTERED' })}
-              />
-              <span className="dailyEntry-score-max">/ {item.max_score}</span>
+                onClick={() => toggleTaskInclusion(item)}
+                title={isTaskIncluded(item) ? "Exclude this task from today's PMS calculation" : "Include this task in today's PMS calculation, even if its score is 0"}
+              >
+                {isTaskIncluded(item) ? 'Exclude Today' : 'Count 0 Today'}
+              </button>
             </div>
           </div>
         ))}
@@ -355,7 +402,8 @@ function AgentCard({ row, onChange, onReviewSla }) {
           </div>
         </div>
         <div className="dailyEntry-task-row final">
-          <div className="dailyEntry-final-metric"><span>Task Total</span><strong>{isMajor ? 0 : totalTaskEarned}/{totalTaskMax}</strong></div>
+          <div className="dailyEntry-final-metric"><span>Task Average</span><strong>{isMajor ? '0%' : `${formatPercent(taskAverage)}%`}</strong></div>
+          <div className="dailyEntry-final-metric"><span>SLA Performance</span><strong>{isMajor ? '0%' : `${formatPercent(slaPerformance)}%`}</strong></div>
           <div className="dailyEntry-final-metric dailyEntry-final-score"><span>Final Score</span><strong>{row.final_score_percent}%</strong></div>
         </div>
       </section>
