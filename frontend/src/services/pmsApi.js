@@ -9,28 +9,71 @@ function qs(params = {}) {
   return query ? `?${query}` : ''
 }
 
-export function fetchPmsDraft(params) {
-  return apiRequest(`/pms/draft${qs(params)}`)
+// ---- Configuration ----
+
+export function fetchPmsConfig() {
+  return apiRequest('/pms/config')
 }
 
-export function fetchPmsEntries(params) {
-  return apiRequest(`/pms/entries${qs(params)}`)
-}
-
-export function savePmsEntry(payload) {
-  return apiRequest('/pms/entries', {
+export function createPmsConfig(payload) {
+  return apiRequest('/pms/config', {
     method: 'POST',
     body: JSON.stringify(payload),
   })
 }
 
-export function loadPmsDailyEntries(params) {
-  return apiRequest(`/pms/daily-entries/load${qs(params)}`)
+export function updatePmsConfig(configId, payload) {
+  return apiRequest(`/pms/config/${configId}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  })
 }
 
-export function uploadPmsDailyEntries(entries) {
-  return apiRequest('/pms/daily-entries/upload', {
+export function deletePmsConfig(configId) {
+  return apiRequest(`/pms/config/${configId}`, {
+    method: 'DELETE',
+  })
+}
+
+// ---- Monthly PMS ----
+
+export function fetchPmsMonthlyTable(params) {
+  return apiRequest(`/pms/monthly${qs(params)}`)
+}
+
+export function fetchPmsMonthlyRecord(userId, params) {
+  return apiRequest(`/pms/monthly/${userId}${qs(params)}`)
+}
+
+export function refreshPmsAutoValues(payload) {
+  return apiRequest('/pms/monthly/refresh', {
     method: 'POST',
-    body: JSON.stringify({ entries }),
+    body: JSON.stringify(payload),
+  })
+}
+
+export function savePmsMonthly(payload) {
+  return apiRequest('/pms/monthly', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+// ---- History ----
+
+export function fetchPmsHistory(params) {
+  return apiRequest(`/pms/history${qs(params)}`)
+}
+
+// ---- Employee of the Month ----
+
+export function fetchPmsEmployeeOfMonth(params) {
+  return apiRequest(`/pms/employee-of-month${qs(params)}`)
+}
+
+export function resolvePmsEmployeeOfMonth(payload) {
+  return apiRequest('/pms/employee-of-month/resolve', {
+    method: 'POST',
+    body: JSON.stringify(payload),
   })
 }

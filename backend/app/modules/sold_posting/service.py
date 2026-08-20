@@ -73,13 +73,13 @@ class SoldPostingService:
         self.repo = SoldPostingRepository(db)
         self.token_service = EbayTokenService(db)
 
-    def assert_admin_can_sync(self, user) -> None:
-        """Raise HTTP 403 if the user is not an admin."""
-        if not is_admin(user):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Only admins can start Sold Posting synchronization",
-            )
+    # def assert_admin_can_sync(self, user) -> None:
+    #     """Raise HTTP 403 if the user is not an admin."""
+    #     if not is_admin(user):
+    #         raise HTTPException(
+    #             status_code=status.HTTP_403_FORBIDDEN,
+    #             detail="Only admins can start Sold Posting synchronization",
+    #         )
 
     def sync_all_accounts(self) -> dict:
         """

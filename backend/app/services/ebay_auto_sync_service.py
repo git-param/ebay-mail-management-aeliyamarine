@@ -8,7 +8,7 @@ from app.db.session import SessionLocal
 from app.models.ebay_account import EbayAccount, EbayConnectionStatus
 from app.modules.config_management.service import ConfigService
 from app.modules.integrations.ebay.services.ebay_sync_service import EbaySyncService
-
+from app.services.ebay_sync_worker import spawn_ebay_sync_processes
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +18,7 @@ AUTO_SYNC_CHECK_SECONDS = 60
 
 
 async def ebay_auto_sync_loop() -> None:
+    """Check the schedule without executing the long eBay sync in FastAPI."""
     while True:
         try:
             await asyncio.to_thread(run_due_ebay_auto_sync)
@@ -29,6 +30,7 @@ async def ebay_auto_sync_loop() -> None:
 
 
 def run_due_ebay_auto_sync() -> None:
+    """Queue due account syncs and hand the actual work to OS processes."""
     db = SessionLocal()
     try:
         config = ConfigService(db)
@@ -43,7 +45,11 @@ def run_due_ebay_auto_sync() -> None:
         )
         now = datetime.now(UTC)
         if latest_sync_at:
-            latest_sync_at = latest_sync_at.astimezone(UTC) if latest_sync_at.tzinfo else latest_sync_at.replace(tzinfo=UTC)
+            latest_sync_at = (
+                latest_sync_at.astimezone(UTC)
+                if latest_sync_at.tzinfo
+                else latest_sync_at.replace(tzinfo=UTC)
+            )
             if latest_sync_at + timedelta(hours=interval_hours) > now:
                 return
 
@@ -55,8 +61,22 @@ def run_due_ebay_auto_sync() -> None:
         if not connected_count:
             return
 
-        logger.warning('Starting scheduled eBay auto sync for %s connected account(s)', connected_count)
-        EbaySyncService(db).sync_all_connected_accounts()
-        logger.warning('Scheduled eBay auto sync finished')
+        queued = EbaySyncService(db).queue_sync_all_connected_accounts(
+            trigger='AUTO',
+        )
+
+        jobs = [
+            (account.id, sync_log.id, None)
+            for account, sync_log in queued
+        ]
+        if not jobs:
+            return
+
+        pids = spawn_ebay_sync_processes(jobs)
+        logger.warning(
+            'Queued scheduled eBay sync for %s account(s); worker_pids=%s',
+            len(jobs),
+            pids,
+        )
     finally:
         db.close()

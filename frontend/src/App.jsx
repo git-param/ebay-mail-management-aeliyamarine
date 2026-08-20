@@ -16,12 +16,13 @@ import MessageTypes from './pages/message_reports/message_types'
 import MessageReports from './pages/message_reports/message_reports'
 import OfferManagement from './pages/offer_management/offer_management'
 import SoldPosting from './pages/sold_posting/sold_posting'
-import DailyTaskEntry from './pages/daily_task_entry/daily_task_entry'
+import DailyTaskEntry from './pages/daily_task_entry/daily_task_entry' 
 import TaskManagement from './pages/task_management/task_management'
 import LeaveManagement from './pages/leave_management/leave_management'
 import { logoutUser } from './services/authApi'
 import { clearStoredSession } from './services/http'
 import { normalizeRole } from './utils/roles'
+import PMS from './pages/pms/pms'
 import './App.css'
 
 const PUBLIC_ROUTES = [
@@ -120,8 +121,6 @@ const PROTECTED_ROUTES = [
     component: Config,
     allowedRoles: ['ADMIN'],
   },
-<<<<<<< Updated upstream
-=======
   {
     path: '/pms',
     component: PMS,
@@ -132,7 +131,6 @@ const PROTECTED_ROUTES = [
     component: LeaveManagement,
     allowedRoles: ['ADMIN', 'AGENT'],
   },
->>>>>>> Stashed changes
 ]
 
 function getStoredAuth() {

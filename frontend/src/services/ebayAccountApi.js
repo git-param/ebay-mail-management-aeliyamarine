@@ -35,6 +35,10 @@ export function createEbayAccount(payload) {
   })
 }
 
+export function fetchEbaySyncStatus(syncLogId) {
+  return request(`/integrations/ebay/sync-status/${syncLogId}`)
+}
+
 export function updateEbayAccount(accountId, payload) {
   return request(`/ebay-accounts/${accountId}`, {
     method: 'PUT',

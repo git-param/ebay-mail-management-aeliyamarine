@@ -9,6 +9,7 @@ import {
   deleteEbayAccount,
   fetchEbayAutoSyncStatus,
   fetchEbayApiUsage,
+  fetchEbaySyncStatus,
   fetchEbayAccount,
   fetchEbayAccounts,
   syncAllEbayAccounts,
@@ -345,14 +346,17 @@ function SyncSummary({ results }) {
     { conversations: 0, messages: 0, failed: 0, elapsed: 0 },
   )
 
+  const runningCount = results.filter((result) => result.status === 'RUNNING').length
+
   return (
     <section className="sync-summary" aria-label="Sync summary">
-      <strong>Last sync</strong>
+      <strong>{runningCount ? 'Sync in progress' : 'Last sync'}</strong>
       <span>{results.length} account{results.length === 1 ? '' : 's'}</span>
       <span>{totals.conversations} conversations</span>
       <span>{totals.failed} failed</span>
       <span>{totals.messages} messages</span>
       <span>{formatElapsed(totals.elapsed)}</span>
+      {runningCount ? <span>{runningCount} still running</span> : null}
     </section>
   )
 }
@@ -428,6 +432,7 @@ function EbayAccounts({ currentUser, onLogout }) {
   const [isTogglingAutoSync, setIsTogglingAutoSync] = useState(false)
   const [connectingAccountId, setConnectingAccountId] = useState('')
   const [syncingAction, setSyncingAction] = useState('')
+  const [syncingAccountIds, setSyncingAccountIds] = useState(() => new Set())
   const [manualAccountId, setManualAccountId] = useState('')
   const [manualConnectUrl, setManualConnectUrl] = useState('')
   const [manualState, setManualState] = useState('')
@@ -725,6 +730,105 @@ function EbayAccounts({ currentUser, onLogout }) {
     showNotification('API limit reached.')
   }
 
+  function updateSyncingAccounts(accountIds, isSyncing) {
+    setSyncingAccountIds((current) => {
+      const next = new Set(current)
+      accountIds.forEach((accountId) => {
+        if (isSyncing) {
+          next.add(accountId)
+        } else {
+          next.delete(accountId)
+        }
+      })
+      return next
+    })
+  }
+
+  function isSyncInProgress(accountId) {
+    return syncingAccountIds.has(accountId)
+  }
+
+  function buildSyncResultFromStatus(statusResponse) {
+    const metadata = statusResponse?.sync_metadata || {}
+    const resultStatus =
+      statusResponse?.account_sync_status ||
+      metadata.result_status ||
+      statusResponse?.status ||
+      'RUNNING'
+
+    return normalizeSyncResult({
+      account_id: statusResponse.account_id,
+      ebay_username: statusResponse.ebay_username,
+      status: resultStatus,
+      conversations_processed: metadata.conversations_processed || 0,
+      conversations_failed: metadata.conversations_failed || 0,
+      failed_conversation_ids: metadata.failed_conversation_ids || [],
+      messages_created: metadata.messages_created || 0,
+      messages_updated: metadata.messages_updated || 0,
+      elapsed_seconds: metadata.elapsed_seconds,
+      error_message: statusResponse.error_message || '',
+    })
+  }
+
+  async function waitForSyncCompletion(syncLogId, accountId) {
+    const terminalStatuses = new Set(['SUCCESS', 'SUCCESS_WITH_ERRORS', 'FAILED'])
+    const pollIntervalMs = 2000
+    const timeoutMs = 30 * 60 * 1000
+    const startedAt = Date.now()
+
+    while (Date.now() - startedAt < timeoutMs) {
+      const statusResponse = await fetchEbaySyncStatus(syncLogId)
+      const normalizedStatus = String(
+        statusResponse?.account_sync_status ||
+          statusResponse?.sync_metadata?.result_status ||
+          statusResponse?.status ||
+          'RUNNING',
+      ).toUpperCase()
+
+      const progressResult = buildSyncResultFromStatus(statusResponse)
+      setSyncResults((current) => {
+        const withoutCurrent = current.filter((item) => item.accountId !== accountId)
+        return [...withoutCurrent, progressResult]
+      })
+
+      if (terminalStatuses.has(normalizedStatus)) {
+        return progressResult
+      }
+
+      await new Promise((resolve) => window.setTimeout(resolve, pollIntervalMs))
+    }
+
+    throw new Error('The eBay sync is taking longer than expected. Please refresh the account list and check the sync status.')
+  }
+
+  async function pollSyncJobs(jobs) {
+    const accountIds = jobs.map((job) => job.accountId)
+    updateSyncingAccounts(accountIds, true)
+
+    try {
+      const results = await Promise.all(jobs.map((job) => waitForSyncCompletion(job.syncLogId, job.accountId)))
+      setSyncResults(results)
+
+      const failed = results.filter((result) => result.status === 'FAILED')
+      const completedWithErrors = results.filter((result) => result.status === 'SUCCESS_WITH_ERRORS')
+
+      if (failed.length) {
+        showNotification(`${failed.length} eBay sync${failed.length === 1 ? '' : 's'} failed.`)
+      } else if (completedWithErrors.length) {
+        showNotification('Sync completed with some errors. Review the sync summary.')
+      } else {
+        showNotification('Sync completed successfully.')
+      }
+
+      await loadAccounts()
+      await loadApiUsage()
+      await loadAutoSyncStatus()
+      return results
+    } finally {
+      updateSyncingAccounts(accountIds, false)
+    }
+  }
+
   async function runSync(label, syncRequest) {
     setSyncingAction(label)
     setError('')
@@ -732,17 +836,29 @@ function EbayAccounts({ currentUser, onLogout }) {
 
     try {
       const response = await syncRequest()
-      const results = Array.isArray(response.results)
-        ? response.results.map(normalizeSyncResult)
-        : [normalizeSyncResult(response)]
-      setSyncResults(results)
+      const queuedResults = Array.isArray(response.results) ? response.results : [response]
+      const jobs = queuedResults
+        .map((result) => ({
+          accountId: result.account_id,
+          syncLogId: result.sync_log_id,
+        }))
+        .filter((job) => job.accountId && job.syncLogId)
+
+      if (!jobs.length) {
+        throw new Error('The server did not return a sync job ID.')
+      }
+
       if (response.api_usage) {
         setApiUsages(normalizeApiUsages(response.api_usage))
       }
-      showNotification('Sync completed successfully.')
-      await loadAccounts()
-      await loadApiUsage()
-      await loadAutoSyncStatus()
+
+      showNotification(
+        jobs.length === 1
+          ? 'eBay sync started in the background.'
+          : `${jobs.length} eBay syncs started in the background.`,
+      )
+
+      await pollSyncJobs(jobs)
     } catch (caughtError) {
       if (caughtError.status === 429 || /api limit|daily api limit|limit reached/i.test(caughtError.message || '')) {
         showApiLimitReached()
@@ -775,11 +891,11 @@ function EbayAccounts({ currentUser, onLogout }) {
     }
 
     await runSync('selected', async () => {
-      const results = []
+      const responseResults = []
       for (const accountId of accountIds) {
-        results.push(await syncEbayAccount(accountId))
+        responseResults.push(await syncEbayAccount(accountId))
       }
-      return { results }
+      return { results: responseResults }
     })
   }
 
@@ -848,7 +964,7 @@ function EbayAccounts({ currentUser, onLogout }) {
             <button
               className="secondary-button"
               type="button"
-              disabled={!selectedConnectedAccountIds.length || Boolean(syncingAction)}
+              disabled={!selectedConnectedAccountIds.length || Boolean(syncingAction) || syncingAccountIds.size > 0}
               onClick={syncSelectedAccounts}
             >
               {syncingAction === 'selected' ? 'Syncing...' : `Sync Selected (${selectedConnectedAccountIds.length})`}
@@ -856,7 +972,7 @@ function EbayAccounts({ currentUser, onLogout }) {
             <button
               className="secondary-button"
               type="button"
-              disabled={!connectedAccounts.length || Boolean(syncingAction)}
+              disabled={!connectedAccounts.length || Boolean(syncingAction) || syncingAccountIds.size > 0}
               onClick={syncAllConnectedAccounts}
             >
               {syncingAction === 'all' ? 'Syncing...' : 'Sync All Connected'}
@@ -964,7 +1080,7 @@ function EbayAccounts({ currentUser, onLogout }) {
                           <input
                             type="checkbox"
                             checked={selectedAccountIds.has(account.id)}
-                            disabled={account.connectionStatus !== 'CONNECTED' || Boolean(syncingAction)}
+                            disabled={account.connectionStatus !== 'CONNECTED' || Boolean(syncingAction) || isSyncInProgress(account.id)}
                             onChange={() => toggleAccountSelection(account.id)}
                             aria-label={`Select ${account.accountName}`}
                           />
@@ -1001,9 +1117,9 @@ function EbayAccounts({ currentUser, onLogout }) {
                             className="secondary-button compact-action"
                             type="button"
                             onClick={() => syncSingleAccount(account)}
-                            disabled={Boolean(syncingAction)}
+                            disabled={Boolean(syncingAction) || isSyncInProgress(account.id)}
                           >
-                            {syncingAction === account.id ? 'Syncing...' : 'Sync'}
+                            {isSyncInProgress(account.id) ? 'Syncing...' : 'Sync'}
                           </button>
                         ) : null}
                         <button

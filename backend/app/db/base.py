@@ -39,11 +39,9 @@ from app.models import (
     OfferStatus,
 )
 from app.modules.offer_management.models import OfferManagementEntry, OfferManagementEntryHistory
-from app.modules.pms.models import PMSDailyTaskEntry, PMSDailyTaskEntryHistory
+from app.modules.daily_task_entry.models import DailyTaskEntry, DailyTaskEntryHistory
 from app.modules.sold_posting.models import SoldPostingLineItem, SoldPostingOrder, SoldPostingSyncState
 from app.modules.task_management.models import TaskCategory, Subtask, UserSubtaskAssignment
-<<<<<<< Updated upstream
-=======
 from app.modules.leave_management.models import LeaveBalanceLedger, LeavePolicy, LeaveRequest
 from app.modules.pms.model import (
     PmsEmployeeOfMonthSelection,
@@ -51,8 +49,6 @@ from app.modules.pms.model import (
     PmsMonthlyMetric,
     PmsMonthlyRecord,
 )
->>>>>>> Stashed changes
-
 __all__ = [
     'AuditLog',
     'AppConfigSetting',
@@ -94,16 +90,14 @@ __all__ = [
     'OfferStatus',
     'OfferManagementEntry',
     'OfferManagementEntryHistory',
-    'PMSDailyTaskEntry',
-    'PMSDailyTaskEntryHistory',
+    'DailyTaskEntry',
+    'DailyTaskEntryHistory',
     'SoldPostingOrder',
     'SoldPostingLineItem',
     'SoldPostingSyncState',
     'TaskCategory',
     'Subtask',
     'UserSubtaskAssignment',
-<<<<<<< Updated upstream
-=======
     'PmsMetricConfig',
     'PmsMonthlyRecord',
     'PmsMonthlyMetric',
@@ -111,5 +105,4 @@ __all__ = [
     'LeavePolicy',
     'LeaveRequest',
     'LeaveBalanceLedger',
->>>>>>> Stashed changes
 ]

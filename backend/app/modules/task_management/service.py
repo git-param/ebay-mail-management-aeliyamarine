@@ -130,7 +130,6 @@ class TaskManagementService:
         if not assignment:
             assignment = UserSubtaskAssignment(created_by_user_id=actor.id)
         self._apply_assignment_payload(assignment, user.id, subtask.id, payload, actor)
-        self._validate_user_weight(user.id, payload.effective_from)
         self._audit('TASK_ASSIGNMENT_UPDATED' if is_update else 'TASK_ASSIGNMENT_CREATED', actor, 'USER_SUBTASK_ASSIGNMENT', assignment.id, {'user_id': str(user.id), 'subtask_id': str(subtask.id), 'quality_weight': float(assignment.quality_weight)})
         self.db.commit()
         self.db.refresh(assignment)
@@ -197,7 +196,6 @@ class TaskManagementService:
             else:
                 self.db.delete(assignment)
 
-        self._validate_user_weight(user.id, payload.effective_from)
         self._audit('TASK_ASSIGNED_BULK', actor, 'TASK_CATEGORY', category.id, {
             'user_id': str(user.id),
             'task_category_id': str(category.id),
@@ -216,14 +214,6 @@ class TaskManagementService:
         ))
         return float(total or 0)
 
-    def _validate_user_weight(self, user_id: UUID, as_of: date | None = None) -> None:
-        statement = select(func.coalesce(func.sum(UserSubtaskAssignment.quality_weight), 0)).where(
-            UserSubtaskAssignment.user_id == user_id,
-            self._current_assignment_clause(as_of or date.today()),
-        )
-        total = float(self.db.scalar(statement) or 0)
-        if total > 100:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='Active task assignment weights cannot exceed 100.')
 
     def _existing_assignment(self, user_id: UUID, subtask_id: UUID, effective_from) -> UserSubtaskAssignment | None:
         return self.db.scalar(select(UserSubtaskAssignment).where(

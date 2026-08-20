@@ -27,7 +27,7 @@ from app.models.message_type import MessageClassification, MessageType, MessageT
 from app.models.offer import Offer, OfferDirection, OfferStatus
 from app.models.ebay_best_offer_listing_sync_state import EbayBestOfferListingSyncState
 from app.modules.offer_management.models import OfferManagementEntry, OfferManagementEntryHistory
-from app.modules.pms.models import PMSDailyTaskEntry, PMSDailyTaskEntryHistory
+from app.modules.daily_task_entry.models import DailyTaskEntry, DailyTaskEntryHistory
 from app.modules.sold_posting.models import SoldPostingLineItem, SoldPostingOrder, SoldPostingSyncState
 from app.modules.task_management.models import TaskCategory, Subtask, UserSubtaskAssignment
 from app.modules.leave_management.models import LeaveBalanceLedger, LeavePolicy, LeaveRequest
