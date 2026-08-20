@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
 from app.api.dependencies import get_current_user, require_admin, require_operations_manager_or_admin
@@ -45,6 +45,12 @@ def create_config(payload: PmsMetricConfigCreate, db: Session = Depends(get_db),
 def update_config(config_id: UUID, payload: PmsMetricConfigUpdate, db: Session = Depends(get_db), current_user=Depends(require_admin)):
     service = PmsService(db)
     return service.update_config(current_user, config_id, payload)
+
+
+@router.delete('/config/{config_id}', status_code=status.HTTP_204_NO_CONTENT)
+def delete_config(config_id: UUID, db: Session = Depends(get_db), current_user=Depends(require_admin)):
+    service = PmsService(db)
+    service.delete_config(current_user, config_id)
 
 
 # ----------------------------------------------------------------------
