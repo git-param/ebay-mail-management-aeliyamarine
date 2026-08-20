@@ -6,9 +6,11 @@ import {
   cancelLeaveRequest,
   createLeaveRequest,
   fetchLeaveBalances,
+  fetchLeaveAdminSummary,
   fetchLeavePolicy,
   fetchLeaveRequests,
   reviewLeaveRequest,
+  updateLeaveAdminSummary,
   updateLeavePolicy,
 } from '../../services/leaveManagementApi'
 import { normalizeRole } from '../../utils/roles'
@@ -80,6 +82,7 @@ function LeaveManagement({ currentUser, onLogout }) {
   const [policy, setPolicy] = useState(null)
   const [policyDraft, setPolicyDraft] = useState({})
   const [requests, setRequests] = useState([])
+  const [adminSummary, setAdminSummary] = useState([])
   const [balances, setBalances] = useState([])
   const [users, setUsers] = useState([])
   const [filters, setFilters] = useState({ leave_type: '', status: '', user_id: '' })
@@ -88,13 +91,14 @@ function LeaveManagement({ currentUser, onLogout }) {
   const [error, setError] = useState('')
   const [selectedRequest, setSelectedRequest] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [summarySaving, setSummarySaving] = useState(false)
   const options = useMemo(monthOptions, [])
 
   async function loadData() {
     setLoading(true)
     setError('')
     try {
-      const [policyData, requestData, balanceData] = await Promise.all([
+      const [policyData, requestData, balanceData, summaryData] = await Promise.all([
         fetchLeavePolicy(),
         fetchLeaveRequests({
           year: selectedMonth.year,
@@ -108,11 +112,18 @@ function LeaveManagement({ currentUser, onLogout }) {
           month: selectedMonth.month,
           user_id: isAdmin ? filters.user_id : '',
         }),
+        isAdmin
+          ? fetchLeaveAdminSummary({
+            year: selectedMonth.year,
+            month: selectedMonth.month,
+          })
+          : Promise.resolve([]),
       ])
       setPolicy(policyData)
       setPolicyDraft(policyData)
       setRequests(requestData.items || [])
       setBalances(balanceData || [])
+      setAdminSummary(summaryData || [])
     } catch (err) {
       setError(err?.message || 'Failed to load leave data.')
     } finally {
@@ -129,7 +140,7 @@ function LeaveManagement({ currentUser, onLogout }) {
     let active = true
     fetchUsers()
       .then((items) => {
-        if (active) setUsers(items || [])
+        if (active) setUsers((items || []).filter((user) => normalizeRole(user.role) === 'AGENT'))
       })
       .catch(() => {
         if (active) setUsers([])
@@ -143,6 +154,14 @@ function LeaveManagement({ currentUser, onLogout }) {
 
   function updateForm(key, value) {
     setForm((current) => ({ ...current, [key]: value }))
+  }
+
+  function updateSummaryRow(userId, key, value) {
+    setAdminSummary((items) => items.map((item) => (
+      item.user_id === userId
+        ? { ...item, [key]: value }
+        : item
+    )))
   }
 
   async function submitRequest(event) {
@@ -228,6 +247,30 @@ function LeaveManagement({ currentUser, onLogout }) {
       await loadData()
     } catch (err) {
       setError(err?.message || 'Failed to update leave policy.')
+    }
+  }
+
+  async function saveAdminSummary() {
+    setError('')
+    setMessage('')
+    setSummarySaving(true)
+    try {
+      const saved = await updateLeaveAdminSummary({
+        year: selectedMonth.year,
+        month: selectedMonth.month,
+        items: adminSummary.map((item) => ({
+          user_id: item.user_id,
+          paid_leaves: Number(item.paid_leaves) || 0,
+          unpaid_leaves: Number(item.unpaid_leaves) || 0,
+          adh: Number(item.adh) || 0,
+        })),
+      })
+      setAdminSummary(saved || [])
+      setMessage('Leave summary updated.')
+    } catch (err) {
+      setError(err?.message || 'Failed to update leave summary.')
+    } finally {
+      setSummarySaving(false)
     }
   }
 
@@ -405,6 +448,58 @@ function LeaveManagement({ currentUser, onLogout }) {
             </div>
           </section>
         </section>
+
+        {isAdmin ? (
+          <section className="leaveModule-panel leaveModule-admin-summary">
+            <div className="leaveModule-panel-header">
+              <div>
+                <h2>Monthly Leave Summary</h2>
+                <p className="leaveModule-note">Values are fetched from approved leave requests for the selected month. Edit a row to correct paid, unpaid, or ADH counts.</p>
+              </div>
+              <div className="leaveModule-summary-actions">
+                <button className="leaveModule-primary" type="button" onClick={saveAdminSummary} disabled={summarySaving}>
+                  {summarySaving ? 'Updating...' : 'Update'}
+                </button>
+              </div>
+            </div>
+            <div className="leaveModule-table-wrap">
+              <table className="leaveModule-table leaveModule-summary-table">
+                <thead>
+                  <tr>
+                    <th>Employee</th>
+                    <th>Paid Leaves</th>
+                    <th>Unpaid leaves</th>
+                    <th>ADH</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {adminSummary.map((item) => (
+                    <tr key={item.user_id}>
+                      <td>
+                        {item.employee}
+                        {item.is_overridden ? <small className="leaveModule-override-label">Edited</small> : null}
+                      </td>
+                      <td>
+                        <input type="number" min="0" step="0.5" value={item.paid_leaves} onChange={(event) => updateSummaryRow(item.user_id, 'paid_leaves', event.target.value)} />
+                      </td>
+                      <td>
+                        <input type="number" min="0" step="0.5" value={item.unpaid_leaves} onChange={(event) => updateSummaryRow(item.user_id, 'unpaid_leaves', event.target.value)} />
+                      </td>
+                      <td>
+                        <input type="number" min="0" step="1" value={item.adh} onChange={(event) => updateSummaryRow(item.user_id, 'adh', event.target.value)} />
+                      </td>
+                    </tr>
+                  ))}
+                  {!adminSummary.length ? (
+                    <tr>
+                      <td colSpan={4}>No employees found.</td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        ) : null}
 
         {isAdmin ? (
           <section className="leaveModule-panel leaveModule-policy">

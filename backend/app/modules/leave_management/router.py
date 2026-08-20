@@ -8,6 +8,8 @@ from app.db.session import get_db
 from app.modules.leave_management.schemas import (
     LeaveBalanceResponse,
     LeaveImpactResponse,
+    LeaveAdminSummaryRow,
+    LeaveAdminSummaryUpdate,
     LeavePolicyResponse,
     LeavePolicyUpdate,
     LeaveRequestCreate,
@@ -73,6 +75,21 @@ def list_balances(
     current_user=Depends(get_current_user),
 ):
     return LeaveManagementService(db).list_balances(current_user, year, month, user_id)
+
+
+@router.get('/admin-summary', response_model=list[LeaveAdminSummaryRow])
+def admin_summary(
+    year: int = Query(...),
+    month: int = Query(..., ge=1, le=12),
+    db: Session = Depends(get_db),
+    current_user=Depends(require_admin),
+):
+    return LeaveManagementService(db).list_admin_summary(current_user, year, month)
+
+
+@router.put('/admin-summary', response_model=list[LeaveAdminSummaryRow])
+def update_admin_summary(payload: LeaveAdminSummaryUpdate, db: Session = Depends(get_db), current_user=Depends(require_admin)):
+    return LeaveManagementService(db).update_admin_summary(current_user, payload)
 
 
 @router.get('/balances/me', response_model=LeaveBalanceResponse)

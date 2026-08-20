@@ -134,3 +134,27 @@ class LeaveImpactResponse(BaseModel):
     excess_paid_occurrences: int
     approved_instances: int
     extra_instances: int
+
+
+class LeaveAdminSummaryRow(BaseModel):
+    user_id: UUID
+    employee: str
+    year: int
+    month: int
+    paid_leaves: float
+    unpaid_leaves: float
+    adh: int
+    is_overridden: bool = False
+
+
+class LeaveAdminSummaryUpdateItem(BaseModel):
+    user_id: UUID
+    paid_leaves: float = Field(ge=0)
+    unpaid_leaves: float = Field(ge=0)
+    adh: int = Field(ge=0)
+
+
+class LeaveAdminSummaryUpdate(BaseModel):
+    year: int = Field(ge=2000, le=2100)
+    month: int = Field(ge=1, le=12)
+    items: list[LeaveAdminSummaryUpdateItem]

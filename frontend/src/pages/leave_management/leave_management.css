@@ -275,6 +275,43 @@
   margin-top: 16px;
 }
 
+.leaveModule-admin-summary {
+  margin-top: 16px;
+}
+
+.leaveModule-panel-header .leaveModule-note {
+  margin-top: 5px;
+  max-width: 680px;
+}
+
+.leaveModule-summary-table input {
+  width: 110px;
+  max-width: 100%;
+}
+
+.leaveModule-summary-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.leaveModule-summary-actions .leaveModule-primary {
+  margin-top: 0;
+}
+
+.leaveModule-override-label {
+  display: inline-flex;
+  margin-left: 8px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: #eef2ff;
+  color: #4f46e5;
+  font-size: 10px;
+  font-weight: 800;
+}
+
 .leaveModule-note {
   margin: 12px 0 0;
 }

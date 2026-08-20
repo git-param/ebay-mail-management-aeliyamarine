@@ -1,4 +1,5 @@
 import calendar
+import json
 from datetime import UTC, date, datetime, time
 from math import ceil
 from uuid import UUID
@@ -7,7 +8,8 @@ from fastapi import HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, joinedload
 
-from app.api.dependencies import is_admin
+from app.api.dependencies import is_admin, is_support_agent
+from app.models.app_config import AppConfigSetting
 from app.models.user import User
 from app.modules.leave_management.models import LeaveBalanceLedger, LeavePolicy, LeaveRequest
 from app.modules.leave_management.schemas import (
@@ -15,6 +17,7 @@ from app.modules.leave_management.schemas import (
     INSTANCE_KINDS,
     SHORT_PATTERNS,
     LeavePolicyUpdate,
+    LeaveAdminSummaryUpdate,
     LeaveRequestCreate,
     LeaveReviewRequest,
 )
@@ -22,6 +25,8 @@ from app.services.audit_service import AuditService
 
 
 LEAVE_SYSTEM_START = date(2026, 8, 1)
+LEAVE_SUMMARY_OVERRIDE_PREFIX = 'leave.summary.override'
+AGENT_ROLE_NAME = 'Support Agent'
 
 
 class LeaveManagementService:
@@ -70,6 +75,8 @@ class LeaveManagementService:
         return policy
 
     def create_request(self, current_user, payload: LeaveRequestCreate) -> LeaveRequest:
+        if not is_support_agent(current_user):
+            raise HTTPException(status.HTTP_403_FORBIDDEN, 'Leave requests are available only for agent users')
         policy = self.get_policy()
         end_date = payload.end_date or payload.start_date
         if payload.start_date < LEAVE_SYSTEM_START or end_date < LEAVE_SYSTEM_START:
@@ -141,6 +148,7 @@ class LeaveManagementService:
     ) -> list[LeaveRequest]:
         statement = select(LeaveRequest).options(joinedload(LeaveRequest.user), joinedload(LeaveRequest.reviewed_by))
         if is_admin(current_user):
+            statement = statement.where(LeaveRequest.user.has(User.role.has(name=AGENT_ROLE_NAME)))
             if user_id:
                 statement = statement.where(LeaveRequest.user_id == user_id)
         else:
@@ -212,6 +220,8 @@ class LeaveManagementService:
         user = self.db.get(User, user_id)
         if not user:
             raise HTTPException(status.HTTP_404_NOT_FOUND, 'User not found')
+        if not is_support_agent(user):
+            raise HTTPException(status.HTTP_404_NOT_FOUND, 'Leave data is available only for agent users')
 
         policy = self.get_policy()
         paid_accrued = self._paid_accrued_until(policy, year, month)
@@ -240,10 +250,63 @@ class LeaveManagementService:
     def list_balances(self, current_user, year: int, month: int, user_id: UUID | None = None) -> list[dict]:
         if not is_admin(current_user):
             return [self.get_balance(current_user, current_user.id, year, month)]
-        users_statement = select(User).where(User.is_active.is_(True)).order_by(User.full_name.asc())
+        users_statement = self._agent_users_statement()
         if user_id:
             users_statement = users_statement.where(User.id == user_id)
         return [self.get_balance(current_user, user.id, year, month) for user in self.db.scalars(users_statement)]
+
+    def list_admin_summary(self, current_user, year: int, month: int) -> list[dict]:
+        self._require_admin(current_user)
+        users = list(self.db.scalars(self._agent_users_statement()))
+        rows = []
+        for user in users:
+            actual = self._actual_admin_summary_for_user(user.id, year, month)
+            override = self._summary_override(user.id, year, month)
+            values = override or actual
+            rows.append({
+                'user_id': user.id,
+                'employee': user.full_name or user.email,
+                'year': year,
+                'month': month,
+                'paid_leaves': round(float(values.get('paid_leaves', 0)), 2),
+                'unpaid_leaves': round(float(values.get('unpaid_leaves', 0)), 2),
+                'adh': int(values.get('adh', 0)),
+                'is_overridden': override is not None,
+            })
+        return rows
+
+    def update_admin_summary(self, current_user, payload: LeaveAdminSummaryUpdate) -> list[dict]:
+        self._require_admin(current_user)
+        for item in payload.items:
+            user = self.db.get(User, item.user_id)
+            if not user:
+                raise HTTPException(status.HTTP_404_NOT_FOUND, 'User not found')
+            if not is_support_agent(user):
+                raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, 'Leave summary can be updated only for agent users')
+            key = self._summary_override_key(item.user_id, payload.year, payload.month)
+            setting = self.db.scalar(select(AppConfigSetting).where(AppConfigSetting.config_key == key))
+            value = json.dumps({
+                'paid_leaves': round(float(item.paid_leaves), 2),
+                'unpaid_leaves': round(float(item.unpaid_leaves), 2),
+                'adh': int(item.adh),
+            })
+            if not setting:
+                setting = AppConfigSetting(
+                    section='leave_summary_override',
+                    config_key=key,
+                    label=f'Leave summary override {payload.year}-{payload.month:02d} {item.user_id}',
+                    value=value,
+                    value_type='json',
+                    is_editable=False,
+                    updated_by_user_id=current_user.id,
+                )
+                self.db.add(setting)
+            else:
+                setting.value = value
+                setting.updated_by_user_id = current_user.id
+
+        self.db.commit()
+        return self.list_admin_summary(current_user, payload.year, payload.month)
 
     def pms_impact_for_user_month(self, user_id: UUID, year: int, month: int) -> dict:
         policy = self.get_policy()
@@ -406,6 +469,40 @@ class LeaveManagementService:
             LeaveRequest.start_date >= start,
             LeaveRequest.start_date <= end,
         )) or 0)
+
+    def _actual_admin_summary_for_user(self, user_id: UUID, year: int, month: int) -> dict:
+        start, end = self._month_range(year, month)
+        approved = list(self.db.scalars(select(LeaveRequest).where(
+            LeaveRequest.user_id == user_id,
+            LeaveRequest.status == 'APPROVED',
+            LeaveRequest.start_date >= start,
+            LeaveRequest.start_date <= end,
+        )))
+        return {
+            'paid_leaves': sum(float(item.paid_days or 0) for item in approved if item.leave_type == 'PAID'),
+            'unpaid_leaves': sum(float(item.excess_days or 0) for item in approved if item.leave_type == 'PAID'),
+            'adh': sum(1 for item in approved if item.leave_type in {'INSTANCE', 'SHORT'}),
+        }
+
+    def _summary_override(self, user_id: UUID, year: int, month: int) -> dict | None:
+        setting = self.db.scalar(select(AppConfigSetting).where(AppConfigSetting.config_key == self._summary_override_key(user_id, year, month)))
+        if not setting:
+            return None
+        try:
+            data = json.loads(setting.value)
+        except json.JSONDecodeError:
+            return None
+        return {
+            'paid_leaves': float(data.get('paid_leaves', 0)),
+            'unpaid_leaves': float(data.get('unpaid_leaves', 0)),
+            'adh': int(data.get('adh', 0)),
+        }
+
+    def _summary_override_key(self, user_id: UUID, year: int, month: int) -> str:
+        return f'{LEAVE_SUMMARY_OVERRIDE_PREFIX}.{year}.{month:02d}.{user_id}'
+
+    def _agent_users_statement(self):
+        return select(User).where(User.is_active.is_(True), User.role.has(name=AGENT_ROLE_NAME)).order_by(User.full_name.asc())
 
     def _approved_requests_for_month(self, user_id: UUID, year: int, month: int, leave_type: str | None = None) -> list[LeaveRequest]:
         start, end = self._month_range(year, month)
