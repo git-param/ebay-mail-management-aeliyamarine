@@ -29,6 +29,12 @@ export function updatePmsConfig(configId, payload) {
   })
 }
 
+export function deletePmsConfig(configId) {
+  return apiRequest(`/pms/config/${configId}`, {
+    method: 'DELETE',
+  })
+}
+
 // ---- Monthly PMS ----
 
 export function fetchPmsMonthlyTable(params) {

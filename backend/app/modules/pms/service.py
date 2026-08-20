@@ -288,6 +288,39 @@ class PmsService:
 
         return config
 
+    def delete_config(
+        self,
+        current_user,
+        config_id: UUID,
+    ) -> None:
+        config = self.db.get(PmsMetricConfig, config_id)
+
+        if not config:
+            raise HTTPException(
+                status.HTTP_404_NOT_FOUND,
+                'Metric configuration not found',
+            )
+
+        snapshot = {
+            'key': config.key,
+            'name': config.name,
+            'weight': float(config.weight),
+            'source': config.source.value,
+            'is_active': config.is_active,
+        }
+
+        self.audit.log(
+            action='PMS_CONFIG_DELETED',
+            user_id=current_user.id,
+            entity_type='PMS_METRIC_CONFIG',
+            entity_id=config.id,
+            category='PMS_MANAGEMENT',
+            metadata=snapshot,
+        )
+
+        self.db.delete(config)
+        self.db.commit()
+
     # ------------------------------------------------------------------
     # Eligible employees (mirrors DailyEntryService._target_users)
     # ------------------------------------------------------------------
