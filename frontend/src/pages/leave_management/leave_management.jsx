@@ -69,7 +69,6 @@ function emptyForm() {
     short_leave_pattern: 'LATE_LOGIN',
     start_time: '',
     end_time: '',
-    duration_minutes: '',
     reason: '',
   }
 }
@@ -150,14 +149,30 @@ function LeaveManagement({ currentUser, onLogout }) {
     setError('')
     setMessage('')
     try {
+      // Build only the fields relevant to the selected leave type.
+      // This avoids sending empty time strings for paid leave, which FastAPI/Pydantic rejects.
       const payload = {
-        ...form,
+        leave_type: form.leave_type,
+        start_date: form.start_date,
         end_date: form.end_date || form.start_date,
-        duration_minutes: form.duration_minutes ? Number(form.duration_minutes) : undefined,
+        reason: form.reason.trim(),
       }
-      if (payload.leave_type !== 'PAID') delete payload.day_part
-      if (payload.leave_type !== 'INSTANCE') delete payload.instance_kind
-      if (payload.leave_type !== 'SHORT') delete payload.short_leave_pattern
+
+      if (form.leave_type === 'PAID') {
+        payload.day_part = form.day_part
+      }
+
+      if (form.leave_type === 'INSTANCE') {
+        payload.instance_kind = form.instance_kind
+        payload.start_time = form.start_time
+        payload.end_time = form.end_time
+      }
+
+      if (form.leave_type === 'SHORT') {
+        payload.short_leave_pattern = form.short_leave_pattern
+        payload.start_time = form.start_time
+        payload.end_time = form.end_time
+      }
       await createLeaveRequest(payload)
       setForm(emptyForm())
       setMessage('Leave request submitted.')
@@ -204,8 +219,6 @@ function LeaveManagement({ currentUser, onLogout }) {
         short_leave_max_minutes: Number(policyDraft.short_leave_max_minutes),
         office_start_time: policyDraft.office_start_time,
         office_end_time: policyDraft.office_end_time,
-        break_start_time: policyDraft.break_start_time || null,
-        break_end_time: policyDraft.break_end_time || null,
         attendance_deduction_per_excess: Number(policyDraft.attendance_deduction_per_excess),
         punctuality_deduction_per_extra_instance: Number(policyDraft.punctuality_deduction_per_extra_instance),
         short_leave_over_limit_action: 'BLOCK',
@@ -413,8 +426,6 @@ function LeaveManagement({ currentUser, onLogout }) {
                 ['short_leave_max_minutes', 'Short Max Minutes', 'number'],
                 ['office_start_time', 'Office Start', 'time'],
                 ['office_end_time', 'Office End', 'time'],
-                ['break_start_time', 'Break Start', 'time'],
-                ['break_end_time', 'Break End', 'time'],
                 ['attendance_deduction_per_excess', 'Attendance Deduction', 'number'],
                 ['punctuality_deduction_per_extra_instance', 'Punctuality Deduction', 'number'],
               ].map(([key, label, type]) => (

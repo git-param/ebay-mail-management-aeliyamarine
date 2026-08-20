@@ -20,8 +20,6 @@ class LeavePolicyResponse(BaseModel):
     short_leave_max_minutes: int
     office_start_time: time
     office_end_time: time
-    break_start_time: time | None = None
-    break_end_time: time | None = None
     attendance_deduction_per_excess: float
     punctuality_deduction_per_extra_instance: float
     short_leave_over_limit_action: str
@@ -37,8 +35,6 @@ class LeavePolicyUpdate(BaseModel):
     short_leave_max_minutes: int | None = Field(default=None, ge=1)
     office_start_time: time | None = None
     office_end_time: time | None = None
-    break_start_time: time | None = None
-    break_end_time: time | None = None
     attendance_deduction_per_excess: float | None = Field(default=None, ge=0)
     punctuality_deduction_per_extra_instance: float | None = Field(default=None, ge=0)
     short_leave_over_limit_action: str | None = None
@@ -53,7 +49,6 @@ class LeaveRequestCreate(BaseModel):
     short_leave_pattern: str | None = None
     start_time: time | None = None
     end_time: time | None = None
-    duration_minutes: int | None = Field(default=None, ge=1)
     reason: str = Field(min_length=2, max_length=2000)
 
     @field_validator('leave_type')

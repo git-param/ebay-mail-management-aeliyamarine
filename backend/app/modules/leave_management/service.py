@@ -107,7 +107,6 @@ class LeaveManagementService:
             request.instance_kind = kind
             request.start_time = payload.start_time
             request.end_time = payload.end_time
-            request.duration_minutes = minutes
 
         else:
             pattern = (payload.short_leave_pattern or '').strip().upper()
@@ -125,7 +124,6 @@ class LeaveManagementService:
             request.short_leave_pattern = pattern
             request.start_time = payload.start_time
             request.end_time = payload.end_time
-            request.duration_minutes = minutes
 
         self.db.add(request)
         self.db.flush()
@@ -386,12 +384,18 @@ class LeaveManagementService:
             LeaveRequest.start_date <= end,
         )) or 0)
 
+    def _duration_minutes(self, start_time: time | None, end_time: time | None) -> int:
+        if not start_time or not end_time:
+            return 0
+        start = start_time.hour * 60 + start_time.minute
+        end = end_time.hour * 60 + end_time.minute
+        return max(end - start, 0)
+
     def _minutes_from_payload(self, payload: LeaveRequestCreate) -> int:
         if not payload.start_time or not payload.end_time:
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, 'Start time and end time are required')
-        start = payload.start_time.hour * 60 + payload.start_time.minute
-        end = payload.end_time.hour * 60 + payload.end_time.minute
-        minutes = end - start
+
+        minutes = self._duration_minutes(payload.start_time, payload.end_time)
         if minutes <= 0:
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, 'End time must be after start time')
         return minutes
@@ -423,7 +427,9 @@ class LeaveManagementService:
             'start_time': item.start_time,
             'end_time': item.end_time,
             'duration_days': float(item.duration_days),
-            'duration_minutes': item.duration_minutes,
+            # Duration is derived from the employee-entered time range.
+            # It is intentionally not persisted as a separate DB column.
+            'duration_minutes': self._duration_minutes(item.start_time, item.end_time),
             'reason': item.reason,
             'status': item.status,
             'paid_days': float(item.paid_days),
