@@ -86,6 +86,7 @@ function LeaveManagement({ currentUser, onLogout }) {
   const [form, setForm] = useState(emptyForm)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
+  const [selectedRequest, setSelectedRequest] = useState(null)
   const [loading, setLoading] = useState(true)
   const options = useMemo(monthOptions, [])
 
@@ -154,7 +155,7 @@ function LeaveManagement({ currentUser, onLogout }) {
       const payload = {
         leave_type: form.leave_type,
         start_date: form.start_date,
-        end_date: form.end_date || form.start_date,
+        end_date: ['INSTANCE', 'SHORT'].includes(form.leave_type) ? form.start_date : (form.end_date || form.start_date),
         reason: form.reason.trim(),
       }
 
@@ -164,14 +165,10 @@ function LeaveManagement({ currentUser, onLogout }) {
 
       if (form.leave_type === 'INSTANCE') {
         payload.instance_kind = form.instance_kind
-        payload.start_time = form.start_time
-        payload.end_time = form.end_time
       }
 
       if (form.leave_type === 'SHORT') {
         payload.short_leave_pattern = form.short_leave_pattern
-        payload.start_time = form.start_time
-        payload.end_time = form.end_time
       }
       await createLeaveRequest(payload)
       setForm(emptyForm())
@@ -187,6 +184,7 @@ function LeaveManagement({ currentUser, onLogout }) {
     setMessage('')
     try {
       await reviewLeaveRequest(requestId, { status })
+      setSelectedRequest(null)
       setMessage(`Leave request ${status.toLowerCase()}.`)
       await loadData()
     } catch (err) {
@@ -316,24 +314,14 @@ function LeaveManagement({ currentUser, onLogout }) {
                 </label>
               ) : null}
               <label>
-                Start Date
+                {['INSTANCE', 'SHORT'].includes(form.leave_type) ? 'Date' : 'Start Date'}
                 <input type="date" value={form.start_date} onChange={(event) => updateForm('start_date', event.target.value)} required />
               </label>
-              <label>
-                End Date
-                <input type="date" value={form.end_date} onChange={(event) => updateForm('end_date', event.target.value)} />
-              </label>
-              {form.leave_type !== 'PAID' ? (
-                <>
-                  <label>
-                    Start Time
-                    <input type="time" value={form.start_time} onChange={(event) => updateForm('start_time', event.target.value)} required />
-                  </label>
-                  <label>
-                    End Time
-                    <input type="time" value={form.end_time} onChange={(event) => updateForm('end_time', event.target.value)} required />
-                  </label>
-                </>
+              {form.leave_type === 'PAID' ? (
+                <label>
+                  End Date
+                  <input type="date" value={form.end_date} onChange={(event) => updateForm('end_date', event.target.value)} />
+                </label>
               ) : null}
               <label className="leaveModule-span">
                 Reason
@@ -383,21 +371,27 @@ function LeaveManagement({ currentUser, onLogout }) {
                 </thead>
                 <tbody>
                   {requests.map((item) => (
-                    <tr key={item.id}>
+                    <tr
+                      key={item.id}
+                      className={isAdmin ? 'leaveModule-clickable-row' : undefined}
+                      onClick={() => {
+                        if (isAdmin) setSelectedRequest(item)
+                      }}
+                    >
                       {isAdmin ? <td>{item.user_name || item.user_email}</td> : null}
                       <td>{leaveLabel(item.leave_type)}</td>
                       <td>{item.start_date}{item.end_date !== item.start_date ? ` to ${item.end_date}` : ''}</td>
-                      <td>{item.leave_type === 'PAID' ? `${fmt(item.duration_days)} day` : `${item.duration_minutes} min`}</td>
+                      <td>{item.leave_type === 'PAID' ? `${fmt(item.duration_days)} day` : 'Single date'}</td>
                       <td><span className={statusClass(item.status)}>{leaveLabel(item.status)}</span></td>
                       <td>{fmt((item.pms_attendance_deduction || 0) + (item.pms_punctuality_deduction || 0))}</td>
                       <td>
                         {isAdmin && item.status === 'PENDING' ? (
                           <div className="leaveModule-row-actions">
-                            <button type="button" onClick={() => review(item.id, 'APPROVED')}>Approve</button>
-                            <button type="button" onClick={() => review(item.id, 'REJECTED')}>Reject</button>
+                            <button type="button" onClick={(event) => { event.stopPropagation(); review(item.id, 'APPROVED') }}>Approve</button>
+                            <button type="button" onClick={(event) => { event.stopPropagation(); review(item.id, 'REJECTED') }}>Reject</button>
                           </div>
                         ) : null}
-                        {!isAdmin && item.status === 'PENDING' ? <button type="button" onClick={() => cancel(item.id)}>Cancel</button> : null}
+                        {!isAdmin && item.status === 'PENDING' ? <button type="button" onClick={(event) => { event.stopPropagation(); cancel(item.id) }}>Cancel</button> : null}
                       </td>
                     </tr>
                   ))}
@@ -443,6 +437,48 @@ function LeaveManagement({ currentUser, onLogout }) {
             </form>
             <p className="leaveModule-note">Carry-forward starts at August 2026 only; earlier months are intentionally excluded.</p>
           </section>
+        ) : null}
+
+        {isAdmin && selectedRequest ? (
+          <div className="leaveModule-modal-backdrop" onClick={() => setSelectedRequest(null)}>
+            <section className="leaveModule-modal" onClick={(event) => event.stopPropagation()}>
+              <div className="leaveModule-modal-header">
+                <div>
+                  <h2>Leave Request</h2>
+                  <p>{selectedRequest.user_name || selectedRequest.user_email}</p>
+                </div>
+                <button type="button" aria-label="Close" onClick={() => setSelectedRequest(null)}>×</button>
+              </div>
+              <dl className="leaveModule-detail-grid">
+                <div>
+                  <dt>Type</dt>
+                  <dd>{leaveLabel(selectedRequest.leave_type)}</dd>
+                </div>
+                <div>
+                  <dt>Date</dt>
+                  <dd>{selectedRequest.start_date}{selectedRequest.end_date !== selectedRequest.start_date ? ` to ${selectedRequest.end_date}` : ''}</dd>
+                </div>
+                <div>
+                  <dt>Duration</dt>
+                  <dd>{selectedRequest.leave_type === 'PAID' ? `${fmt(selectedRequest.duration_days)} day` : 'Single date'}</dd>
+                </div>
+                <div>
+                  <dt>Status</dt>
+                  <dd><span className={statusClass(selectedRequest.status)}>{leaveLabel(selectedRequest.status)}</span></dd>
+                </div>
+              </dl>
+              <div className="leaveModule-reason-box">
+                <span>Reason</span>
+                <p>{selectedRequest.reason || 'No reason provided.'}</p>
+              </div>
+              {selectedRequest.status === 'PENDING' ? (
+                <div className="leaveModule-modal-actions">
+                  <button type="button" onClick={() => review(selectedRequest.id, 'REJECTED')}>Reject</button>
+                  <button type="button" onClick={() => review(selectedRequest.id, 'APPROVED')}>Approve</button>
+                </div>
+              ) : null}
+            </section>
+          </div>
         ) : null}
       </main>
     </AppLayout>

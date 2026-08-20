@@ -101,6 +101,7 @@ DEFAULT_METRICS = [
 # DailyEntryService._target_users, so PMS's "eligible employees" query
 # stays consistent with Daily Task Entry's.
 ELIGIBLE_ROLE_NAME = 'Support Agent'
+MAX_DEFAULT_MANUAL_METRIC_KEYS = {'competency'}
 
 
 class PmsService:
@@ -554,15 +555,33 @@ class PmsService:
 
         return round(max(weight - deduction, 0.0), 2), {
             'formula': (
-                'Leave Management approved excess usage only. '
-                'Valid paid leave and non-approved leave do not reduce PMS.'
+                'Leave Management approved excess usage only. Paid leave is '
+                'allowed up to the configured 1.5-day monthly allowance; excess '
+                'paid leave days are rounded up to whole attendance deductions '
+                '(for example, 3 days - 1.5 allowance = 1.5 excess = 2 points). '
+                'Short leave uses the Admin-configured monthly limit and pending '
+                'or approved requests consume that limit. Instance leave uses '
+                'its Admin-configured limit for punctuality deductions. '
+                'Non-approved leave does not reduce PMS.'
             ),
             'attendance_deduction': impact['attendance_deduction'],
             'punctuality_deduction': impact['punctuality_deduction'],
             'excess_paid_occurrences': impact['excess_paid_occurrences'],
             'approved_instances': impact['approved_instances'],
             'extra_instances': impact['extra_instances'],
+            'approved_short': impact.get('approved_short', 0),
+            'extra_short': impact.get('extra_short', 0),
         }
+
+    def _manual_metric_default_value(self, metric_key: str, weight: float) -> float:
+        # Competency starts at the Admin-configured maximum score for the month.
+        # Admins can still edit it manually; this only controls the untouched
+        # draft/default. Attendance and Late Login/Punctuality are computed by
+        # `_leave_metric_value`, which starts from the configured max and applies
+        # leave deductions.
+        if metric_key in MAX_DEFAULT_MANUAL_METRIC_KEYS:
+            return weight
+        return 0.0
 
     def apply_leave_impact_to_existing_record(
         self,
@@ -1191,7 +1210,31 @@ class PmsService:
         metrics: list[PmsMonthlyMetricSchema] = []
 
         for config in configs:
-            if config.source in (
+            leave_value = self._leave_metric_value(
+                config.key,
+                user_id,
+                year,
+                month,
+                float(config.weight),
+            )
+
+            if leave_value:
+                value, meta = leave_value
+
+                metrics.append(
+                    PmsMonthlyMetricSchema(
+                        metric_key=config.key,
+                        metric_name_snapshot=config.name,
+                        weight_snapshot=float(config.weight),
+                        source_snapshot=PmsMetricSource.CUSTOM.value,
+                        is_auto_calculated_snapshot=True,
+                        auto_value=value,
+                        final_value=value,
+                        was_overridden=False,
+                        calc_meta=meta,
+                    )
+                )
+            elif config.source in (
                 PmsMetricSource.PRODUCTIVITY_AUTO,
                 PmsMetricSource.QUALITY_AUTO,
             ):
@@ -1232,7 +1275,7 @@ class PmsService:
                         source_snapshot=config.source.value,
                         is_auto_calculated_snapshot=False,
                         auto_value=None,
-                        final_value=0,
+                        final_value=self._manual_metric_default_value(config.key, float(config.weight)),
                         was_overridden=False,
                         calc_meta=None,
                     )
@@ -1281,16 +1324,28 @@ class PmsService:
             )
 
         for metric in record.metrics:
-            if (
-                metric.source_snapshot
-                == PmsMetricSource.PRODUCTIVITY_AUTO.value
-            ):
+            leave_value = self._leave_metric_value(
+                metric.metric_key,
+                payload.user_id,
+                payload.year,
+                payload.month,
+                float(metric.weight_snapshot),
+            )
+
+            if leave_value:
+                value, meta = leave_value
+                metric.source_snapshot = PmsMetricSource.CUSTOM.value
+                metric.is_auto_calculated_snapshot = True
+                metric.auto_value = value
+                metric.final_value = value
+                metric.was_overridden = False
+                metric.calc_meta = meta
+                continue
+
+            if (metric.source_snapshot== PmsMetricSource.PRODUCTIVITY_AUTO.value):
                 kind = 'productivity'
 
-            elif (
-                metric.source_snapshot
-                == PmsMetricSource.QUALITY_AUTO.value
-            ):
+            elif (metric.source_snapshot== PmsMetricSource.QUALITY_AUTO.value):
                 kind = 'quality'
 
             else:
@@ -1434,7 +1489,21 @@ class PmsService:
                     f'{config.name} score cannot exceed {weight}',
                 )
 
-            if config.source in (
+            leave_value = self._leave_metric_value(
+                config.key,
+                payload.user_id,
+                payload.year,
+                payload.month,
+                weight,
+            )
+
+            if leave_value:
+                auto_value, meta = leave_value
+                final_value = auto_value
+                was_overridden = False
+                source_snapshot = PmsMetricSource.CUSTOM.value
+                is_auto_calculated = True
+            elif config.source in (
                 PmsMetricSource.PRODUCTIVITY_AUTO,
                 PmsMetricSource.QUALITY_AUTO,
             ):
@@ -1464,14 +1533,18 @@ class PmsService:
                     and round(float(entered_value), 2)
                     != round(float(auto_value), 2)
                 )
+                source_snapshot = config.source.value
+                is_auto_calculated = config.is_auto_calculated
             else:
                 auto_value = None
                 meta = None
+                source_snapshot = config.source.value
+                is_auto_calculated = config.is_auto_calculated
 
                 final_value = (
                     entered_value
                     if entered_value is not None
-                    else 0.0
+                    else self._manual_metric_default_value(config.key, weight)
                 )
 
                 was_overridden = False
@@ -1501,9 +1574,9 @@ class PmsService:
             if existing_metric:
                 existing_metric.metric_name_snapshot = config.name
                 existing_metric.weight_snapshot = weight
-                existing_metric.source_snapshot = config.source.value
+                existing_metric.source_snapshot = source_snapshot
                 existing_metric.is_auto_calculated_snapshot = (
-                    config.is_auto_calculated
+                    is_auto_calculated
                 )
                 existing_metric.auto_value = auto_value
                 existing_metric.final_value = final_value
@@ -1517,9 +1590,9 @@ class PmsService:
                         metric_key=config.key,
                         metric_name_snapshot=config.name,
                         weight_snapshot=weight,
-                        source_snapshot=config.source.value,
+                        source_snapshot=source_snapshot,
                         is_auto_calculated_snapshot=(
-                            config.is_auto_calculated
+                            is_auto_calculated
                         ),
                         auto_value=auto_value,
                         final_value=final_value,

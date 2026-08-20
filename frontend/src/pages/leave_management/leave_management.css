@@ -219,6 +219,14 @@
   font-weight: 750;
 }
 
+.leaveModule-clickable-row {
+  cursor: pointer;
+}
+
+.leaveModule-clickable-row:hover td {
+  background: #f8fbff;
+}
+
 .leaveModule-status {
   display: inline-flex;
   min-height: 24px;
@@ -271,6 +279,122 @@
   margin: 12px 0 0;
 }
 
+.leaveModule-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(18, 27, 46, 0.38);
+}
+
+.leaveModule-modal {
+  width: min(560px, 100%);
+  max-height: calc(100vh - 40px);
+  overflow: auto;
+  padding: 18px;
+  border: 1px solid #e1e6ef;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 18px 45px rgba(23, 33, 59, 0.22);
+}
+
+.leaveModule-modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.leaveModule-modal-header h2 {
+  margin: 0;
+  color: #17213b;
+  font-size: 18px;
+}
+
+.leaveModule-modal-header p {
+  margin: 4px 0 0;
+  color: #68748c;
+  font-size: 13px;
+}
+
+.leaveModule-modal-header button {
+  width: 32px;
+  height: 32px;
+  border: 1px solid #dce2ec;
+  border-radius: 8px;
+  background: #fff;
+  color: #3d4962;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.leaveModule-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0 0 14px;
+}
+
+.leaveModule-detail-grid div,
+.leaveModule-reason-box {
+  padding: 12px;
+  border: 1px solid #edf0f5;
+  border-radius: 8px;
+  background: #fbfcff;
+}
+
+.leaveModule-detail-grid dt,
+.leaveModule-reason-box span {
+  color: #68748c;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.leaveModule-detail-grid dd {
+  margin: 6px 0 0;
+  color: #26314c;
+  font-size: 13px;
+}
+
+.leaveModule-reason-box p {
+  margin: 8px 0 0;
+  color: #26314c;
+  font-size: 14px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.leaveModule-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.leaveModule-modal-actions button {
+  min-height: 34px;
+  padding: 7px 12px;
+  border: 1px solid #6750e5;
+  border-radius: 8px;
+  background: #6750e5;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.leaveModule-modal-actions button:first-child {
+  border-color: #d9dfe9;
+  background: #fff;
+  color: #3c4760;
+}
+
 @media (max-width: 1100px) {
   .leaveModule-summary {
     grid-template-columns: repeat(2, minmax(150px, 1fr));
@@ -294,7 +418,8 @@
 
   .leaveModule-summary,
   .leaveModule-form-grid,
-  .leaveModule-policy-grid {
+  .leaveModule-policy-grid,
+  .leaveModule-detail-grid {
     grid-template-columns: 1fr;
   }
 }

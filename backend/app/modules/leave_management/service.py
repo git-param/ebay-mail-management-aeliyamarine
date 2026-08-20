@@ -1,5 +1,6 @@
 import calendar
 from datetime import UTC, date, datetime, time
+from math import ceil
 from uuid import UUID
 
 from fastapi import HTTPException, status
@@ -75,6 +76,7 @@ class LeaveManagementService:
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, 'Leave tracking starts on August 1, 2026')
         if end_date < payload.start_date:
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, 'End date cannot be before start date')
+        self._ensure_no_overlapping_request(current_user.id, payload.start_date, end_date)
 
         request = LeaveRequest(
             user_id=current_user.id,
@@ -92,7 +94,9 @@ class LeaveManagementService:
             if day_part == 'HALF' and payload.start_date != end_date:
                 raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, 'Half-day paid leave must be a single date')
             request.day_part = day_part
-            request.duration_days = 0.5 if day_part == 'HALF' else self._inclusive_days(payload.start_date, end_date)
+            request.duration_days = 0.5 if day_part == 'HALF' else self._leave_days_excluding_sundays(payload.start_date, end_date)
+            if float(request.duration_days) <= 0:
+                raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, 'Paid leave cannot be requested for Sundays only')
 
         elif payload.leave_type == 'INSTANCE':
             kind = (payload.instance_kind or '').strip().upper()
@@ -100,13 +104,7 @@ class LeaveManagementService:
                 raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, 'Instance leave must be LATE_ARRIVAL or EARLY_DEPARTURE')
             if payload.start_date != end_date:
                 raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, 'Instance leave must be a single date')
-            minutes = self._minutes_from_payload(payload)
-            if minutes > int(policy.instance_max_minutes):
-                raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, f'Instance leave cannot exceed {policy.instance_max_minutes} minutes')
-            self._validate_instance_timing(policy, kind, payload.start_time, payload.end_time)
             request.instance_kind = kind
-            request.start_time = payload.start_time
-            request.end_time = payload.end_time
 
         else:
             pattern = (payload.short_leave_pattern or '').strip().upper()
@@ -114,16 +112,8 @@ class LeaveManagementService:
                 raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, 'Invalid short leave pattern')
             if payload.start_date != end_date:
                 raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, 'Short leave must be a single date')
-            minutes = self._minutes_from_payload(payload)
-            if minutes > int(policy.short_leave_max_minutes):
-                raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, f'Short leave cannot exceed {policy.short_leave_max_minutes} minutes')
-            self._validate_short_timing(policy, payload.start_time, payload.end_time)
-            balance = self.get_balance(current_user, current_user.id, payload.start_date.year, payload.start_date.month)
-            if balance['short_used'] >= int(policy.short_leave_limit):
-                raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, 'Monthly short leave limit is already used')
+            self._ensure_short_leave_slot_available(current_user.id, payload.start_date.year, payload.start_date.month, policy)
             request.short_leave_pattern = pattern
-            request.start_time = payload.start_time
-            request.end_time = payload.end_time
 
         self.db.add(request)
         self.db.flush()
@@ -264,18 +254,28 @@ class LeaveManagementService:
             LeaveRequest.start_date >= start,
             LeaveRequest.start_date <= end,
         )))
-        excess_paid = [item for item in approved if item.leave_type == 'PAID' and float(item.excess_days or 0) > 0]
+        paid_deductions_by_request = self._paid_pms_deductions_by_request(
+            policy,
+            approved,
+            self._paid_available_at_month_start(policy, user_id, year, month),
+        )
+        paid_deduction_count = sum(paid_deductions_by_request.values())
         approved_instances = [item for item in approved if item.leave_type == 'INSTANCE']
+        approved_short = [item for item in approved if item.leave_type == 'SHORT']
         extra_instances = max(len(approved_instances) - int(policy.instance_limit), 0)
+        extra_short = max(len(approved_short) - int(policy.short_leave_limit), 0)
+        punctuality_deduction_count = extra_instances + extra_short
         return {
             'user_id': user_id,
             'year': year,
             'month': month,
-            'attendance_deduction': round(len(excess_paid) * float(policy.attendance_deduction_per_excess), 2),
-            'punctuality_deduction': round(extra_instances * float(policy.punctuality_deduction_per_extra_instance), 2),
-            'excess_paid_occurrences': len(excess_paid),
+            'attendance_deduction': round(paid_deduction_count * float(policy.attendance_deduction_per_excess), 2),
+            'punctuality_deduction': round(punctuality_deduction_count * float(policy.punctuality_deduction_per_extra_instance), 2),
+            'excess_paid_occurrences': paid_deduction_count,
             'approved_instances': len(approved_instances),
             'extra_instances': extra_instances,
+            'approved_short': len(approved_short),
+            'extra_short': extra_short,
         }
 
     def _approve_request(self, current_user, request: LeaveRequest, review_note: str | None) -> None:
@@ -313,17 +313,33 @@ class LeaveManagementService:
                         category='LEAVE_MANAGEMENT',
                         metadata={'employee_user_id': str(request.user_id), 'amount': float(ledger.amount), 'entry_type': ledger.entry_type},
                     )
-            if float(request.excess_days) > 0:
-                request.pms_attendance_deduction = float(policy.attendance_deduction_per_excess)
+            approved_paid = self._approved_requests_for_month(request.user_id, month_year, month, 'PAID')
+            paid_allowance = self._paid_available_at_month_start(policy, request.user_id, month_year, month)
+            before = self._paid_pms_deductions_by_request(policy, approved_paid, paid_allowance)
+            after = self._paid_pms_deductions_by_request(policy, [*approved_paid, request], paid_allowance)
+            request.pms_attendance_deduction = round(
+                (after.get(request.id, 0) - before.get(request.id, 0)) * float(policy.attendance_deduction_per_excess),
+                2,
+            )
 
         elif request.leave_type == 'INSTANCE':
+            # Instance leave uses the Admin-configured monthly count limit.
+            # The first `policy.instance_limit` approved requests have no PMS
+            # impact. Once that configured limit is already reached, approving
+            # another instance request deducts one punctuality PMS point using
+            # the Admin-configured deduction value.
             existing_count = self._approved_count(request.user_id, month_year, month, 'INSTANCE')
             if existing_count >= int(policy.instance_limit):
                 request.pms_punctuality_deduction = float(policy.punctuality_deduction_per_extra_instance)
 
         elif request.leave_type == 'SHORT':
+            # Short leave uses the Admin-configured monthly count limit. The
+            # first `policy.short_leave_limit` approved requests have no PMS
+            # impact. Every approved short leave after that configured limit
+            # deducts one punctuality PMS point using the Admin-configured
+            # deduction value.
             if self._approved_count(request.user_id, month_year, month, 'SHORT') >= int(policy.short_leave_limit):
-                raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, 'Monthly short leave limit is already used')
+                request.pms_punctuality_deduction = float(policy.punctuality_deduction_per_extra_instance)
 
         request.status = 'APPROVED'
         request.reviewed_by_user_id = current_user.id
@@ -374,12 +390,101 @@ class LeaveManagementService:
             (LeaveBalanceLedger.year * 100 + LeaveBalanceLedger.month) <= (year * 100 + month),
         )) or 0) * -1
 
+    def _paid_available_at_month_start(self, policy: LeavePolicy, user_id: UUID, year: int, month: int) -> float:
+        previous_year = year if month > 1 else year - 1
+        previous_month = month - 1 if month > 1 else 12
+        accrued = self._paid_accrued_until(policy, year, month)
+        used_before_month = self._paid_used_until(user_id, previous_year, previous_month)
+        return max(accrued - used_before_month, 0)
+
     def _approved_count(self, user_id: UUID, year: int, month: int, leave_type: str) -> int:
         start, end = self._month_range(year, month)
         return int(self.db.scalar(select(func.count()).select_from(LeaveRequest).where(
             LeaveRequest.user_id == user_id,
             LeaveRequest.leave_type == leave_type,
             LeaveRequest.status == 'APPROVED',
+            LeaveRequest.start_date >= start,
+            LeaveRequest.start_date <= end,
+        )) or 0)
+
+    def _approved_requests_for_month(self, user_id: UUID, year: int, month: int, leave_type: str | None = None) -> list[LeaveRequest]:
+        start, end = self._month_range(year, month)
+        statement = select(LeaveRequest).where(
+            LeaveRequest.user_id == user_id,
+            LeaveRequest.status == 'APPROVED',
+            LeaveRequest.start_date >= start,
+            LeaveRequest.start_date <= end,
+        )
+        if leave_type:
+            statement = statement.where(LeaveRequest.leave_type == leave_type)
+        return list(self.db.scalars(statement.order_by(LeaveRequest.created_at.asc(), LeaveRequest.id.asc())))
+
+    def _paid_pms_deductions_by_request(self, policy: LeavePolicy, requests: list[LeaveRequest], paid_allowance: float | None = None) -> dict[UUID, int]:
+        paid_allowance = float(policy.paid_leave_per_month if paid_allowance is None else paid_allowance)
+        deductions: dict[UUID, int] = {}
+
+        # Paid leave allowance is 1.5 days per month from Admin Config, plus
+        # any carry-forward balance available to the employee. Sundays are
+        # excluded before this point, so full-day requests consume only their
+        # non-Sunday duration and half-day requests consume 0.5 day. PMS
+        # deduction is based on excess leave days rounded up to whole PMS
+        # points: once the allowance is exhausted, any remaining full or half
+        # day portion costs one attendance PMS point. Example: a 3-day paid
+        # request with 1.5 paid days available has 1.5 excess days, so it
+        # deducts ceil(1.5) = 2 PMS points. Requests are evaluated in creation
+        # order, not leave-date order, so a later-applied half-day for an earlier
+        # date cannot consume allowance that an earlier request already used.
+        for request in sorted(requests, key=lambda item: (item.created_at, item.id)):
+            if request.leave_type != 'PAID':
+                continue
+
+            requested_days = 0.5 if (request.day_part or '').upper() == 'HALF' else float(request.duration_days or 0)
+            excess_days = max(requested_days - paid_allowance, 0)
+            if excess_days > 0:
+                deductions[request.id] = int(ceil(excess_days))
+            paid_allowance = max(paid_allowance - requested_days, 0)
+
+        return deductions
+
+    def _ensure_short_leave_slot_available(self, user_id: UUID, year: int, month: int, policy: LeavePolicy) -> None:
+        # Short leave is capped by the Admin-configured monthly limit. Pending
+        # requests reserve a slot until they are rejected/cancelled; approved
+        # requests consume a slot permanently for that month. Therefore, when
+        # the active pending+approved count has reached `policy.short_leave_limit`,
+        # the employee cannot request another short leave.
+        active_count = self._active_count(user_id, year, month, 'SHORT')
+        if active_count >= int(policy.short_leave_limit):
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                f'Monthly short leave limit is already used. You can request another short leave only if an existing pending short leave is rejected or cancelled.',
+            )
+
+    def _ensure_no_overlapping_request(self, user_id: UUID, start_date: date, end_date: date) -> None:
+        # Overlap validation is enforced in the backend so it cannot be bypassed
+        # by a custom client. Pending and approved requests reserve their date
+        # ranges; rejected and cancelled requests do not. Date ranges overlap
+        # when the new start is on/before the existing end and the new end is
+        # on/after the existing start, covering partial and exact collisions
+        # such as 19-20, 15-21, 21-25, and 19-22 against an existing 19-22.
+        overlap = self.db.scalar(select(LeaveRequest).where(
+            LeaveRequest.user_id == user_id,
+            LeaveRequest.status.in_(['PENDING', 'APPROVED']),
+            LeaveRequest.start_date <= end_date,
+            LeaveRequest.end_date >= start_date,
+        ).order_by(LeaveRequest.start_date.asc()))
+        if overlap:
+            existing = self._format_date_range(overlap.start_date, overlap.end_date)
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                f'You already have a leave request overlapping these dates ({existing}). Please select different dates.',
+            )
+
+    def _active_count(self, user_id: UUID, year: int, month: int, leave_type: str) -> int:
+        start, end = self._month_range(year, month)
+        return int(self.db.scalar(select(func.count()).select_from(LeaveRequest).where(
+            LeaveRequest.user_id == user_id,
+            LeaveRequest.leave_type == leave_type,
+            LeaveRequest.status.in_(['PENDING', 'APPROVED']),
             LeaveRequest.start_date >= start,
             LeaveRequest.start_date <= end,
         )) or 0)
@@ -468,8 +573,23 @@ class LeaveManagementService:
         if not is_admin(current_user) and current_user.id != user_id:
             raise HTTPException(status.HTTP_403_FORBIDDEN, 'Agents can only view their own leave data')
 
-    def _inclusive_days(self, start: date, end: date) -> float:
-        return float((end - start).days + 1)
+    def _leave_days_excluding_sundays(self, start: date, end: date) -> float:
+        # Sundays are not counted as leave days and therefore do not consume
+        # paid leave allowance or produce PMS deductions. The stored date range
+        # is kept intact for visibility/overlap checks, but duration/PMS uses
+        # this non-Sunday count.
+        current = start
+        days = 0
+        while current <= end:
+            if current.weekday() != 6:
+                days += 1
+            current = date.fromordinal(current.toordinal() + 1)
+        return float(days)
 
     def _month_range(self, year: int, month: int) -> tuple[date, date]:
         return date(year, month, 1), date(year, month, calendar.monthrange(year, month)[1])
+
+    def _format_date_range(self, start: date, end: date) -> str:
+        if start == end:
+            return str(start.day)
+        return f'{start.day}-{end.day}'
