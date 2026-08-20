@@ -49,6 +49,17 @@ export function fetchLeaveBalances(params) {
   return apiRequest(`/leave-management/balances${qs(params)}`)
 }
 
+export function fetchLeaveAdminSummary(params) {
+  return apiRequest(`/leave-management/admin-summary${qs(params)}`)
+}
+
+export function updateLeaveAdminSummary(payload) {
+  return apiRequest('/leave-management/admin-summary', {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  })
+}
+
 export function fetchMyLeaveBalance(params) {
   return apiRequest(`/leave-management/balances/me${qs(params)}`)
 }

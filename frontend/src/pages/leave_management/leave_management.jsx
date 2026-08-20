@@ -6,9 +6,11 @@ import {
   cancelLeaveRequest,
   createLeaveRequest,
   fetchLeaveBalances,
+  fetchLeaveAdminSummary,
   fetchLeavePolicy,
   fetchLeaveRequests,
   reviewLeaveRequest,
+  updateLeaveAdminSummary,
   updateLeavePolicy,
 } from '../../services/leaveManagementApi'
 import { normalizeRole } from '../../utils/roles'
@@ -80,20 +82,23 @@ function LeaveManagement({ currentUser, onLogout }) {
   const [policy, setPolicy] = useState(null)
   const [policyDraft, setPolicyDraft] = useState({})
   const [requests, setRequests] = useState([])
+  const [adminSummary, setAdminSummary] = useState([])
   const [balances, setBalances] = useState([])
   const [users, setUsers] = useState([])
   const [filters, setFilters] = useState({ leave_type: '', status: '', user_id: '' })
   const [form, setForm] = useState(emptyForm)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
+  const [selectedRequest, setSelectedRequest] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [summarySaving, setSummarySaving] = useState(false)
   const options = useMemo(monthOptions, [])
 
   async function loadData() {
     setLoading(true)
     setError('')
     try {
-      const [policyData, requestData, balanceData] = await Promise.all([
+      const [policyData, requestData, balanceData, summaryData] = await Promise.all([
         fetchLeavePolicy(),
         fetchLeaveRequests({
           year: selectedMonth.year,
@@ -107,11 +112,18 @@ function LeaveManagement({ currentUser, onLogout }) {
           month: selectedMonth.month,
           user_id: isAdmin ? filters.user_id : '',
         }),
+        isAdmin
+          ? fetchLeaveAdminSummary({
+            year: selectedMonth.year,
+            month: selectedMonth.month,
+          })
+          : Promise.resolve([]),
       ])
       setPolicy(policyData)
       setPolicyDraft(policyData)
       setRequests(requestData.items || [])
       setBalances(balanceData || [])
+      setAdminSummary(summaryData || [])
     } catch (err) {
       setError(err?.message || 'Failed to load leave data.')
     } finally {
@@ -128,7 +140,7 @@ function LeaveManagement({ currentUser, onLogout }) {
     let active = true
     fetchUsers()
       .then((items) => {
-        if (active) setUsers(items || [])
+        if (active) setUsers((items || []).filter((user) => normalizeRole(user.role) === 'AGENT'))
       })
       .catch(() => {
         if (active) setUsers([])
@@ -144,6 +156,14 @@ function LeaveManagement({ currentUser, onLogout }) {
     setForm((current) => ({ ...current, [key]: value }))
   }
 
+  function updateSummaryRow(userId, key, value) {
+    setAdminSummary((items) => items.map((item) => (
+      item.user_id === userId
+        ? { ...item, [key]: value }
+        : item
+    )))
+  }
+
   async function submitRequest(event) {
     event.preventDefault()
     setError('')
@@ -154,7 +174,7 @@ function LeaveManagement({ currentUser, onLogout }) {
       const payload = {
         leave_type: form.leave_type,
         start_date: form.start_date,
-        end_date: form.end_date || form.start_date,
+        end_date: ['INSTANCE', 'SHORT'].includes(form.leave_type) ? form.start_date : (form.end_date || form.start_date),
         reason: form.reason.trim(),
       }
 
@@ -164,14 +184,10 @@ function LeaveManagement({ currentUser, onLogout }) {
 
       if (form.leave_type === 'INSTANCE') {
         payload.instance_kind = form.instance_kind
-        payload.start_time = form.start_time
-        payload.end_time = form.end_time
       }
 
       if (form.leave_type === 'SHORT') {
         payload.short_leave_pattern = form.short_leave_pattern
-        payload.start_time = form.start_time
-        payload.end_time = form.end_time
       }
       await createLeaveRequest(payload)
       setForm(emptyForm())
@@ -187,6 +203,7 @@ function LeaveManagement({ currentUser, onLogout }) {
     setMessage('')
     try {
       await reviewLeaveRequest(requestId, { status })
+      setSelectedRequest(null)
       setMessage(`Leave request ${status.toLowerCase()}.`)
       await loadData()
     } catch (err) {
@@ -230,6 +247,30 @@ function LeaveManagement({ currentUser, onLogout }) {
       await loadData()
     } catch (err) {
       setError(err?.message || 'Failed to update leave policy.')
+    }
+  }
+
+  async function saveAdminSummary() {
+    setError('')
+    setMessage('')
+    setSummarySaving(true)
+    try {
+      const saved = await updateLeaveAdminSummary({
+        year: selectedMonth.year,
+        month: selectedMonth.month,
+        items: adminSummary.map((item) => ({
+          user_id: item.user_id,
+          paid_leaves: Number(item.paid_leaves) || 0,
+          unpaid_leaves: Number(item.unpaid_leaves) || 0,
+          adh: Number(item.adh) || 0,
+        })),
+      })
+      setAdminSummary(saved || [])
+      setMessage('Leave summary updated.')
+    } catch (err) {
+      setError(err?.message || 'Failed to update leave summary.')
+    } finally {
+      setSummarySaving(false)
     }
   }
 
@@ -316,24 +357,14 @@ function LeaveManagement({ currentUser, onLogout }) {
                 </label>
               ) : null}
               <label>
-                Start Date
+                {['INSTANCE', 'SHORT'].includes(form.leave_type) ? 'Date' : 'Start Date'}
                 <input type="date" value={form.start_date} onChange={(event) => updateForm('start_date', event.target.value)} required />
               </label>
-              <label>
-                End Date
-                <input type="date" value={form.end_date} onChange={(event) => updateForm('end_date', event.target.value)} />
-              </label>
-              {form.leave_type !== 'PAID' ? (
-                <>
-                  <label>
-                    Start Time
-                    <input type="time" value={form.start_time} onChange={(event) => updateForm('start_time', event.target.value)} required />
-                  </label>
-                  <label>
-                    End Time
-                    <input type="time" value={form.end_time} onChange={(event) => updateForm('end_time', event.target.value)} required />
-                  </label>
-                </>
+              {form.leave_type === 'PAID' ? (
+                <label>
+                  End Date
+                  <input type="date" value={form.end_date} onChange={(event) => updateForm('end_date', event.target.value)} />
+                </label>
               ) : null}
               <label className="leaveModule-span">
                 Reason
@@ -383,21 +414,27 @@ function LeaveManagement({ currentUser, onLogout }) {
                 </thead>
                 <tbody>
                   {requests.map((item) => (
-                    <tr key={item.id}>
+                    <tr
+                      key={item.id}
+                      className={isAdmin ? 'leaveModule-clickable-row' : undefined}
+                      onClick={() => {
+                        if (isAdmin) setSelectedRequest(item)
+                      }}
+                    >
                       {isAdmin ? <td>{item.user_name || item.user_email}</td> : null}
                       <td>{leaveLabel(item.leave_type)}</td>
                       <td>{item.start_date}{item.end_date !== item.start_date ? ` to ${item.end_date}` : ''}</td>
-                      <td>{item.leave_type === 'PAID' ? `${fmt(item.duration_days)} day` : `${item.duration_minutes} min`}</td>
+                      <td>{item.leave_type === 'PAID' ? `${fmt(item.duration_days)} day` : 'Single date'}</td>
                       <td><span className={statusClass(item.status)}>{leaveLabel(item.status)}</span></td>
                       <td>{fmt((item.pms_attendance_deduction || 0) + (item.pms_punctuality_deduction || 0))}</td>
                       <td>
                         {isAdmin && item.status === 'PENDING' ? (
                           <div className="leaveModule-row-actions">
-                            <button type="button" onClick={() => review(item.id, 'APPROVED')}>Approve</button>
-                            <button type="button" onClick={() => review(item.id, 'REJECTED')}>Reject</button>
+                            <button type="button" onClick={(event) => { event.stopPropagation(); review(item.id, 'APPROVED') }}>Approve</button>
+                            <button type="button" onClick={(event) => { event.stopPropagation(); review(item.id, 'REJECTED') }}>Reject</button>
                           </div>
                         ) : null}
-                        {!isAdmin && item.status === 'PENDING' ? <button type="button" onClick={() => cancel(item.id)}>Cancel</button> : null}
+                        {!isAdmin && item.status === 'PENDING' ? <button type="button" onClick={(event) => { event.stopPropagation(); cancel(item.id) }}>Cancel</button> : null}
                       </td>
                     </tr>
                   ))}
@@ -411,6 +448,58 @@ function LeaveManagement({ currentUser, onLogout }) {
             </div>
           </section>
         </section>
+
+        {isAdmin ? (
+          <section className="leaveModule-panel leaveModule-admin-summary">
+            <div className="leaveModule-panel-header">
+              <div>
+                <h2>Monthly Leave Summary</h2>
+                <p className="leaveModule-note">Values are fetched from approved leave requests for the selected month. Edit a row to correct paid, unpaid, or ADH counts.</p>
+              </div>
+              <div className="leaveModule-summary-actions">
+                <button className="leaveModule-primary" type="button" onClick={saveAdminSummary} disabled={summarySaving}>
+                  {summarySaving ? 'Updating...' : 'Update'}
+                </button>
+              </div>
+            </div>
+            <div className="leaveModule-table-wrap">
+              <table className="leaveModule-table leaveModule-summary-table">
+                <thead>
+                  <tr>
+                    <th>Employee</th>
+                    <th>Paid Leaves</th>
+                    <th>Unpaid leaves</th>
+                    <th>ADH</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {adminSummary.map((item) => (
+                    <tr key={item.user_id}>
+                      <td>
+                        {item.employee}
+                        {item.is_overridden ? <small className="leaveModule-override-label">Edited</small> : null}
+                      </td>
+                      <td>
+                        <input type="number" min="0" step="0.5" value={item.paid_leaves} onChange={(event) => updateSummaryRow(item.user_id, 'paid_leaves', event.target.value)} />
+                      </td>
+                      <td>
+                        <input type="number" min="0" step="0.5" value={item.unpaid_leaves} onChange={(event) => updateSummaryRow(item.user_id, 'unpaid_leaves', event.target.value)} />
+                      </td>
+                      <td>
+                        <input type="number" min="0" step="1" value={item.adh} onChange={(event) => updateSummaryRow(item.user_id, 'adh', event.target.value)} />
+                      </td>
+                    </tr>
+                  ))}
+                  {!adminSummary.length ? (
+                    <tr>
+                      <td colSpan={4}>No employees found.</td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        ) : null}
 
         {isAdmin ? (
           <section className="leaveModule-panel leaveModule-policy">
@@ -443,6 +532,48 @@ function LeaveManagement({ currentUser, onLogout }) {
             </form>
             <p className="leaveModule-note">Carry-forward starts at August 2026 only; earlier months are intentionally excluded.</p>
           </section>
+        ) : null}
+
+        {isAdmin && selectedRequest ? (
+          <div className="leaveModule-modal-backdrop" onClick={() => setSelectedRequest(null)}>
+            <section className="leaveModule-modal" onClick={(event) => event.stopPropagation()}>
+              <div className="leaveModule-modal-header">
+                <div>
+                  <h2>Leave Request</h2>
+                  <p>{selectedRequest.user_name || selectedRequest.user_email}</p>
+                </div>
+                <button type="button" aria-label="Close" onClick={() => setSelectedRequest(null)}>×</button>
+              </div>
+              <dl className="leaveModule-detail-grid">
+                <div>
+                  <dt>Type</dt>
+                  <dd>{leaveLabel(selectedRequest.leave_type)}</dd>
+                </div>
+                <div>
+                  <dt>Date</dt>
+                  <dd>{selectedRequest.start_date}{selectedRequest.end_date !== selectedRequest.start_date ? ` to ${selectedRequest.end_date}` : ''}</dd>
+                </div>
+                <div>
+                  <dt>Duration</dt>
+                  <dd>{selectedRequest.leave_type === 'PAID' ? `${fmt(selectedRequest.duration_days)} day` : 'Single date'}</dd>
+                </div>
+                <div>
+                  <dt>Status</dt>
+                  <dd><span className={statusClass(selectedRequest.status)}>{leaveLabel(selectedRequest.status)}</span></dd>
+                </div>
+              </dl>
+              <div className="leaveModule-reason-box">
+                <span>Reason</span>
+                <p>{selectedRequest.reason || 'No reason provided.'}</p>
+              </div>
+              {selectedRequest.status === 'PENDING' ? (
+                <div className="leaveModule-modal-actions">
+                  <button type="button" onClick={() => review(selectedRequest.id, 'REJECTED')}>Reject</button>
+                  <button type="button" onClick={() => review(selectedRequest.id, 'APPROVED')}>Approve</button>
+                </div>
+              ) : null}
+            </section>
+          </div>
         ) : null}
       </main>
     </AppLayout>

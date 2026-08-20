@@ -14,7 +14,7 @@ class LeavePolicy(Base):
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     paid_leave_per_month: Mapped[float] = mapped_column(Numeric(5, 2), nullable=False, default=1.5)
     instance_limit: Mapped[int] = mapped_column(Integer, nullable=False, default=3)
-    short_leave_limit: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    short_leave_limit: Mapped[int] = mapped_column(Integer, nullable=False, default=3)
     instance_max_minutes: Mapped[int] = mapped_column(Integer, nullable=False, default=30)
     short_leave_max_minutes: Mapped[int] = mapped_column(Integer, nullable=False, default=120)
     office_start_time: Mapped[time] = mapped_column(Time, nullable=False, default=time(10, 0))

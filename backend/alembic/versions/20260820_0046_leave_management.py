@@ -22,7 +22,7 @@ def upgrade() -> None:
         sa.Column('id', postgresql.UUID(as_uuid=True), primary_key=True, nullable=False),
         sa.Column('paid_leave_per_month', sa.Numeric(5, 2), nullable=False, server_default='1.5'),
         sa.Column('instance_limit', sa.Integer(), nullable=False, server_default='3'),
-        sa.Column('short_leave_limit', sa.Integer(), nullable=False, server_default='1'),
+        sa.Column('short_leave_limit', sa.Integer(), nullable=False, server_default='3'),
         sa.Column('instance_max_minutes', sa.Integer(), nullable=False, server_default='30'),
         sa.Column('short_leave_max_minutes', sa.Integer(), nullable=False, server_default='120'),
         sa.Column('office_start_time', sa.Time(), nullable=False, server_default='10:00:00'),
@@ -93,7 +93,7 @@ def upgrade() -> None:
             effective_from, created_at, updated_at
         )
         VALUES (
-            gen_random_uuid(), 1.5, 3, 1, 30, 120, '10:00:00',
+            gen_random_uuid(), 1.5, 3, 3, 30, 120, '10:00:00',
             '19:00:00', 1, 1, 'BLOCK', '2026-08-01', now(), now()
         )
         """
