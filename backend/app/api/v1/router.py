@@ -9,6 +9,8 @@ from app.modules.search_sku.router import router as search_sku_router
 from app.modules.sold_posting.router import router as sold_posting_router
 from app.modules.task_management.router import router as task_management_router
 from app.modules.pms.router import router as pms_router
+from app.modules.leave_management.router import router as leave_management_router
+from app.modules.pms.router import router as pms_router
 
 
 api_router = APIRouter()
@@ -27,6 +29,9 @@ api_router.include_router(message_types.reports_router, prefix='/reports', tags=
 api_router.include_router(search_sku_router, tags=['search-sku'])
 api_router.include_router(offer_management_router, prefix='/offer-management', tags=['offer-management'])
 api_router.include_router(sold_posting_router, prefix='/sold-posting', tags=['sold-posting'])
+api_router.include_router(pms_router, prefix='/pms', tags=['pms'])
+api_router.include_router(task_management_router, prefix='/task-management', tags=['task-management'])
+api_router.include_router(leave_management_router, prefix='/leave-management', tags=['leave-management'])
 api_router.include_router(daily_entry_router, prefix='/dailyEntry', tags=['daily-entry'])
 api_router.include_router(task_management_router, prefix='/task-management', tags=['task-management'])
 api_router.include_router(pms_router, prefix='/pms', tags=['pms'])

@@ -87,3 +87,29 @@ class Offer(Base):
 
     def __repr__(self) -> str:
         return f"<Offer {self.provider_offer_id} {self.status} {self.currency} {self.offer_amount}>"
+
+    @property
+    def buyer_message(self) -> str | None:
+        payload = self.raw_payload if isinstance(self.raw_payload, dict) else {}
+        message = payload.get("buyerMessage")
+
+        if message:
+            return str(message)
+
+        if self.direction == OfferDirection.INCOMING and self.raw_text:
+            return self.raw_text
+
+        return None
+
+    @property
+    def seller_message(self) -> str | None:
+        payload = self.raw_payload if isinstance(self.raw_payload, dict) else {}
+        message = payload.get("sellerMessage")
+
+        if message:
+            return str(message)
+
+        if self.direction == OfferDirection.OUTGOING and self.raw_text:
+            return self.raw_text
+
+        return None

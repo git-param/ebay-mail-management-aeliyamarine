@@ -30,6 +30,7 @@ from app.modules.offer_management.models import OfferManagementEntry, OfferManag
 from app.modules.daily_task_entry.models import DailyTaskEntry, DailyTaskEntryHistory
 from app.modules.sold_posting.models import SoldPostingLineItem, SoldPostingOrder, SoldPostingSyncState
 from app.modules.task_management.models import TaskCategory, Subtask, UserSubtaskAssignment
+from app.modules.leave_management.models import LeaveBalanceLedger, LeavePolicy, LeaveRequest
 
 __all__ = [
     'AuditLog',
@@ -79,4 +80,7 @@ __all__ = [
     'TaskCategory',
     'Subtask',
     'UserSubtaskAssignment',
+    'LeavePolicy',
+    'LeaveRequest',
+    'LeaveBalanceLedger',
 ]

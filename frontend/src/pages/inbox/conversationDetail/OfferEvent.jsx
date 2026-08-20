@@ -86,27 +86,58 @@ function OfferEvent({
         )
 
   /*
-   * Seller text belongs only to the actual active
-   * outgoing offer/counteroffer.
-   *
-   * Expired, declined and accepted status records
-   * must not repeat that seller message.
+   * Offer notifications can include both buyer and seller notes.
+   * Status-only records should not repeat fallback raw_text from an earlier
+   * active offer, but explicit provider-side messages are still shown.
    */
   const shouldShowSellerMessage =
     showSellerMessage &&
-    isOutgoing &&
     !isExpired &&
     !isDeclined &&
     !isAccepted
 
-  const sellerOfferMessage =
-    shouldShowSellerMessage
-      ? String(
-          offer?.raw_text ||
-            offer?.rawText ||
-            '',
-        ).trim()
-      : ''
+  const explicitSellerMessage = String(
+    offer?.seller_message ||
+      offer?.sellerMessage ||
+      '',
+  ).trim()
+
+  const explicitBuyerMessage = String(
+    offer?.buyer_message ||
+      offer?.buyerMessage ||
+      '',
+  ).trim()
+
+  const legacyRawText = String(
+    offer?.raw_text ||
+      offer?.rawText ||
+      '',
+  ).trim()
+
+  const sellerOfferMessage = (
+    explicitSellerMessage ||
+    (
+      shouldShowSellerMessage &&
+      isOutgoing
+        ? legacyRawText
+        : ''
+    )
+  )
+
+  const buyerOfferMessage = (
+    explicitBuyerMessage ||
+    (
+      isIncoming &&
+      !explicitSellerMessage
+        ? legacyRawText
+        : ''
+    )
+  )
+
+  const showBuyerOfferMessage = (
+    buyerOfferMessage &&
+    buyerOfferMessage !== sellerOfferMessage
+  )
 
   const avatarLabel = String(
     buyerName || 'B',
@@ -160,6 +191,14 @@ function OfferEvent({
         <div className="offer-seller-message-row">
           <div className="offer-seller-message-bubble">
             {sellerOfferMessage}
+          </div>
+        </div>
+      ) : null}
+
+      {showBuyerOfferMessage ? (
+        <div className="offer-buyer-message-row">
+          <div className="offer-buyer-message-bubble">
+            {buyerOfferMessage}
           </div>
         </div>
       ) : null}

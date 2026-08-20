@@ -42,13 +42,13 @@ from app.modules.offer_management.models import OfferManagementEntry, OfferManag
 from app.modules.daily_task_entry.models import DailyTaskEntry, DailyTaskEntryHistory
 from app.modules.sold_posting.models import SoldPostingLineItem, SoldPostingOrder, SoldPostingSyncState
 from app.modules.task_management.models import TaskCategory, Subtask, UserSubtaskAssignment
+from app.modules.leave_management.models import LeaveBalanceLedger, LeavePolicy, LeaveRequest
 from app.modules.pms.model import (
     PmsEmployeeOfMonthSelection,
     PmsMetricConfig,
     PmsMonthlyMetric,
     PmsMonthlyRecord,
 )
-
 __all__ = [
     'AuditLog',
     'AppConfigSetting',
@@ -102,4 +102,7 @@ __all__ = [
     'PmsMonthlyRecord',
     'PmsMonthlyMetric',
     'PmsEmployeeOfMonthSelection',
+    'LeavePolicy',
+    'LeaveRequest',
+    'LeaveBalanceLedger',
 ]

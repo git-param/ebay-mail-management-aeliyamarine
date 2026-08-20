@@ -22,6 +22,8 @@ class OfferResponse(BaseModel):
     offer_type: str | None = None
     message: str | None = None
     raw_text: str | None = None
+    buyer_message: str | None = None
+    seller_message: str | None = None
     expires_at: datetime | None = None
     created_at_provider: datetime | None = None
     created_at: datetime

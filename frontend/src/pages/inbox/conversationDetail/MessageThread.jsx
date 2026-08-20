@@ -592,62 +592,6 @@ function MessageThread({
   ])
 
   /*
-   * Preserve the original dashboard logic:
-   *
-   * Offers linked to a message are rendered in place
-   * of that source message.
-   *
-   * They do not enter the independent offer timeline.
-   */
-  const offersByMessageId =
-    useMemo(() => {
-      const grouped = new Map()
-
-      if (
-        isSystemConversation ||
-        conversation
-          ?.provider_conversation_type ===
-          'FROM_EBAY'
-      ) {
-        return grouped
-      }
-
-      function addOffer(
-        messageId,
-        offer,
-      ) {
-        if (!messageId || !offer) {
-          return
-        }
-
-        const current =
-          grouped.get(messageId) || []
-
-        grouped.set(messageId, [
-          ...current,
-          offer,
-        ])
-      }
-
-      ;(offers || []).forEach(
-        (offer) => {
-          addOffer(
-            offer.message_id ||
-              offer.messageId ||
-              offer.source_message_id,
-            offer,
-          )
-        },
-      )
-
-      return grouped
-    }, [
-      offers,
-      conversation,
-      isSystemConversation,
-    ])
-
-  /*
    * Normalize and deduplicate all structured offers.
    * This mirrors the original dashboard implementation.
    */
@@ -750,36 +694,9 @@ function MessageThread({
     ])
 
   /*
-   * Only offers that do not belong to a stored message
-   * are added independently to timelineItems.
-   */
-  const unlinkedStructuredOffers =
-    useMemo(() => {
-      const messageIds = new Set(
-        messages.map(
-          (message) => message.id,
-        ),
-      )
-
-      return structuredOffers.filter(
-        (offer) =>
-          !offer.message_id ||
-          !messageIds.has(
-            offer.message_id,
-          ),
-      )
-    }, [
-      structuredOffers,
-      messages,
-    ])
-
-  /*
-   * Original timeline:
-   * - all messages
-   * - only unlinked structured offers
-   *
-   * Linked offer cards remain at their source
-   * message's position.
+   * Offer cards must be placed by the true eBay offer timestamp.
+   * Raw eBay offer-notification messages are hidden separately, so linked
+   * offers can safely participate in the same sorted timeline as messages.
    */
   const timelineItems =
     useMemo(() => {
@@ -797,7 +714,7 @@ function MessageThread({
           }),
         ),
 
-        ...unlinkedStructuredOffers.map(
+        ...structuredOffers.map(
           (offer, index) => ({
             type: 'offer',
             offer,
@@ -844,7 +761,7 @@ function MessageThread({
       )
     }, [
       messages,
-      unlinkedStructuredOffers,
+      structuredOffers,
     ])
 
   if (
@@ -901,67 +818,6 @@ function MessageThread({
             index,
           } = item
 
-          /*
-           * Look for structured offers linked to this
-           * exact message.
-           */
-          const messageOffers =
-            offersByMessageId.get(
-              message.id,
-            ) || []
-
-          /*
-          * A single source message can have multiple offer-state
-          * records. Keep the message's timeline position, but order
-          * those records using their true provider timestamps.
-          */
-          const displayOffers = [
-            ...messageOffers,
-          ].sort((left, right) => {
-            const leftTime =
-              eventTimeValue(
-                offerTimestamp(left),
-              )
-
-            const rightTime =
-              eventTimeValue(
-                offerTimestamp(right),
-              )
-
-            if (leftTime !== rightTime) {
-              return leftTime - rightTime
-            }
-
-            /*
-            * Stable logical order when the API timestamps
-            * are identical or unavailable.
-            */
-            const statusOrder = {
-              PENDING: 1,
-              ACCEPTED: 2,
-              DECLINED: 2,
-              EXPIRED: 3,
-            }
-
-            const leftStatus =
-              String(
-                left.status || 'PENDING',
-              ).toUpperCase()
-
-            const rightStatus =
-              String(
-                right.status || 'PENDING',
-              ).toUpperCase()
-
-            return (
-              (statusOrder[leftStatus] || 1) -
-              (statusOrder[rightStatus] || 1)
-            )
-          })
-
-          const isOfferNotification =
-            displayOffers.length > 0
-
           const isSystem =
             isEbayNotificationMessage(
               message,
@@ -985,91 +841,9 @@ function MessageThread({
            */
           if (
             message
-              .is_offer_notification &&
-            !displayOffers.length
+              .is_offer_notification
           ) {
             return null
-          }
-
-          /*
-           * Replace the raw message with one or more
-           * structured eBay-style offer cards.
-           *
-           * Most importantly, the source MESSAGE timestamp
-           * is used before the offer timestamp.
-           */
-          if (isOfferNotification) {
-            return (
-              <div
-                className="offer-message-slot"
-                key={
-                  message.id ||
-                  index
-                }
-              >
-                {displayOffers.map(
-                  (
-                    offer,
-                    offerIndex,
-                  ) => {
-                    const providerTimestamp =
-                      offerTimestamp(offer)
-
-                    const messageTimestamp =
-                      message.sent_at ||
-                      message.created_at ||
-                      message.created_date
-
-                    return (
-                      <OfferEvent
-                        offer={{
-                          ...offer,
-
-                          /*
-                          * Keep the real offer/provider timestamp.
-                          * Use the message timestamp only as fallback.
-                          */
-                          created_at:
-                            providerTimestamp ||
-                            messageTimestamp,
-
-                          created_date:
-                            providerTimestamp ||
-                            offer.created_date ||
-                            messageTimestamp,
-
-                          buyer_username:
-                            offer.buyer_username ||
-                            conversation
-                              ?.buyer_identifier ||
-                            message
-                              .sender_identifier,
-                        }}
-                        /*
-                        * Only one active outgoing event should render
-                        * the seller text. Status-only records should not.
-                        */
-                        showSellerMessage={
-                          offerIndex === 0 ||
-                          String(
-                            offer.status || '',
-                          ).toUpperCase() ===
-                            'PENDING'
-                        }
-                        key={`offer-${
-                          offer.provider_offer_id ||
-                          offer.id ||
-                          message.id
-                        }-${offerIndex}`}
-                        conversation={
-                          conversation
-                        }
-                      />
-                    )
-                  },
-                )}
-              </div>
-            )
           }
 
           const messageBody =

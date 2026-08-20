@@ -373,7 +373,6 @@ class PmsService:
             entry.entry_date: entry
             for entry in entries
         }
-
         productivity_values: list[float] = []
         quality_values: list[float] = []
 
@@ -499,7 +498,7 @@ class PmsService:
                 },
             },
         }
-
+    
     def _auto_metric_value(
         self,
         kind: str,
@@ -527,9 +526,606 @@ class PmsService:
 
         return value, meta
 
+    def _leave_metric_value(
+        self,
+        metric_key: str,
+        user_id: UUID,
+        year: int,
+        month: int,
+        weight: float,
+    ) -> tuple[float, dict] | None:
+        if metric_key not in {'attendance', 'punctuality'}:
+            return None
+
+        from app.modules.leave_management.service import LeaveManagementService
+
+        impact = LeaveManagementService(self.db).pms_impact_for_user_month(
+            user_id,
+            year,
+            month,
+        )
+
+        deduction_key = (
+            'attendance_deduction'
+            if metric_key == 'attendance'
+            else 'punctuality_deduction'
+        )
+        deduction = float(impact[deduction_key])
+
+        return round(max(weight - deduction, 0.0), 2), {
+            'formula': (
+                'Leave Management approved excess usage only. '
+                'Valid paid leave and non-approved leave do not reduce PMS.'
+            ),
+            'attendance_deduction': impact['attendance_deduction'],
+            'punctuality_deduction': impact['punctuality_deduction'],
+            'excess_paid_occurrences': impact['excess_paid_occurrences'],
+            'approved_instances': impact['approved_instances'],
+            'extra_instances': impact['extra_instances'],
+        }
+
+    def apply_leave_impact_to_existing_record(
+        self,
+        user_id: UUID,
+        year: int,
+        month: int,
+        current_user,
+    ) -> PmsMonthlyRecord | None:
+        record = self._get_record(user_id, year, month)
+
+        if not record:
+            return None
+
+        changed = False
+
+        for metric in record.metrics:
+            leave_value = self._leave_metric_value(
+                metric.metric_key,
+                user_id,
+                year,
+                month,
+                float(metric.weight_snapshot),
+            )
+
+            if not leave_value:
+                continue
+
+            value, meta = leave_value
+
+            if (
+                round(float(metric.final_value), 2) != value
+                or metric.calc_meta != meta
+                or not metric.is_auto_calculated_snapshot
+            ):
+                metric.source_snapshot = PmsMetricSource.CUSTOM.value
+                metric.is_auto_calculated_snapshot = True
+                metric.auto_value = value
+                metric.final_value = value
+                metric.was_overridden = False
+                metric.calc_meta = meta
+                changed = True
+
+        if not changed:
+            return None
+
+        record.final_score = round(
+            sum(float(metric.final_value) for metric in record.metrics),
+            2,
+        )
+        record.updated_by_user_id = current_user.id
+        self._recalculate_employee_of_month(year, month)
+        self.db.flush()
+
+        return record
+
+    # ------------------------------------------------------------------
+    # Single-entry save (kept for backward compatibility)
+    # ------------------------------------------------------------------
+    def save(self, current_user, payload: PMSDailyEntryCreate) -> PMSDailyTaskEntry:
+        self._require_admin(current_user)
+        entry, _ = self._save_one(current_user, payload)
+    def _get_record(
+        self,
+        user_id: UUID,
+        year: int,
+        month: int,
+    ) -> PmsMonthlyRecord | None:
+        # IMPORTANT:
+        # `metrics` is a one-to-many collection. selectinload avoids duplicate
+        # parent rows and the SQLAlchemy unique() requirement caused by
+        # joinedload on collection relationships.
+        return self.db.scalar(
+            select(PmsMonthlyRecord)
+            .options(
+                selectinload(PmsMonthlyRecord.metrics),
+                joinedload(PmsMonthlyRecord.user),
+                joinedload(PmsMonthlyRecord.updated_by),
+            )
+            .where(
+                PmsMonthlyRecord.user_id == user_id,
+                PmsMonthlyRecord.year == year,
+                PmsMonthlyRecord.month == month,
+            )
+        )
+
+    def get_monthly_record(
+        self,
+        current_user,
+        user_id: UUID,
+        year: int,
+        month: int,
+    ) -> PmsMonthlyRecordResponse:
+        self._authorize_self_or_privileged(
+            current_user,
+            user_id,
+        )
+
+        user = self.db.get(User, user_id)
+
+        if not user:
+            raise HTTPException(
+                status.HTTP_404_NOT_FOUND,
+                'User not found',
+            )
+
+        record = self._get_record(
+            user_id,
+            year,
+            month,
+        )
+
+        if record:
+            return self._serialize_record(
+                record,
+                user,
+            )
+
+        # Nothing saved yet: build a live unsaved draft using the active
+        # configuration plus fresh auto calculations.
+        configs, _ = self.list_config(
+            include_inactive=False
+        )
+
+        metrics: list[PmsMonthlyMetricSchema] = []
+
+        for config in configs:
+            leave_value = self._leave_metric_value(
+                config.key,
+                user_id,
+                year,
+                month,
+                float(config.weight),
+            )
+
+            if leave_value:
+                value, meta = leave_value
+
+                metrics.append(
+                    PmsMonthlyMetricSchema(
+                        metric_key=config.key,
+                        metric_name_snapshot=config.name,
+                        weight_snapshot=float(config.weight),
+                        source_snapshot=PmsMetricSource.CUSTOM.value,
+                        is_auto_calculated_snapshot=True,
+                        auto_value=value,
+                        final_value=value,
+                        was_overridden=False,
+                        calc_meta=meta,
+                    )
+                )
+
+            elif config.source in (
+                PmsMetricSource.PRODUCTIVITY_AUTO,
+                PmsMetricSource.QUALITY_AUTO,
+            ):
+                kind = (
+                    'productivity'
+                    if config.source
+                    == PmsMetricSource.PRODUCTIVITY_AUTO
+                    else 'quality'
+                )
+
+                value, meta = self._auto_metric_value(
+                    kind,
+                    user_id,
+                    year,
+                    month,
+                    float(config.weight),
+                )
+
+                metrics.append(
+                    PmsMonthlyMetricSchema(
+                        metric_key=config.key,
+                        metric_name_snapshot=config.name,
+                        weight_snapshot=float(config.weight),
+                        source_snapshot=config.source.value,
+                        is_auto_calculated_snapshot=True,
+                        auto_value=value,
+                        final_value=value,
+                        was_overridden=False,
+                        calc_meta=meta,
+                    )
+                )
+            else:
+                metrics.append(
+                    PmsMonthlyMetricSchema(
+                        metric_key=config.key,
+                        metric_name_snapshot=config.name,
+                        weight_snapshot=float(config.weight),
+                        source_snapshot=config.source.value,
+                        is_auto_calculated_snapshot=False,
+                        auto_value=None,
+                        final_value=0,
+                        was_overridden=False,
+                        calc_meta=None,
+                    )
+                )
+
+        return PmsMonthlyRecordResponse(
+            id=None,
+            user_id=user.id,
+            user_name=user.full_name or user.email,
+            user_email=user.email,
+            year=year,
+            month=month,
+            status='DRAFT',
+            final_score=round(
+                sum(m.final_value for m in metrics),
+                2,
+            ),
+            maximum_score=round(
+                sum(m.weight_snapshot for m in metrics),
+                2,
+            ),
+            remarks=None,
+            metrics=metrics,
+        )
+
+    def refresh_auto_values(
+        self,
+        current_user,
+        payload: PmsMonthlyRefreshRequest,
+    ) -> PmsMonthlyRecordResponse:
+        self._require_admin(current_user)
+
+        record = self._get_record(
+            payload.user_id,
+            payload.year,
+            payload.month,
+        )
+
+        if not record:
+            # Nothing saved yet — refresh simply regenerates the live draft.
+            return self.get_monthly_record(
+                current_user,
+                payload.user_id,
+                payload.year,
+                payload.month,
+            )
+
+        for metric in record.metrics:
+            leave_value = self._leave_metric_value(
+                metric.metric_key,
+                payload.user_id,
+                payload.year,
+                payload.month,
+                float(metric.weight_snapshot),
+            )
+
+            if leave_value:
+                value, meta = leave_value
+                metric.source_snapshot = PmsMetricSource.CUSTOM.value
+                metric.is_auto_calculated_snapshot = True
+                metric.auto_value = value
+                metric.final_value = value
+                metric.was_overridden = False
+                metric.calc_meta = meta
+                continue
+
+            if (
+                metric.source_snapshot
+                == PmsMetricSource.PRODUCTIVITY_AUTO.value
+            ):
+                kind = 'productivity'
+
+            elif (
+                metric.source_snapshot
+                == PmsMetricSource.QUALITY_AUTO.value
+            ):
+                kind = 'quality'
+
+            else:
+                continue
+
+            value, meta = self._auto_metric_value(
+                kind,
+                payload.user_id,
+                payload.year,
+                payload.month,
+                float(metric.weight_snapshot),
+            )
+
+            metric.auto_value = value
+            metric.calc_meta = meta
+
+            # Refreshing automatic values must never silently overwrite an
+            # Admin's deliberate manual override.
+            if not metric.was_overridden:
+                metric.final_value = value
+
+        record.final_score = round(
+            sum(
+                float(metric.final_value)
+                for metric in record.metrics
+            ),
+            2,
+        )
+
+        record.updated_by_user_id = current_user.id
+
+        self.db.flush()
+
+        self.audit.log(
+            action='PMS_AUTO_VALUES_REFRESHED',
+            user_id=current_user.id,
+            entity_type='PMS_MONTHLY_RECORD',
+            entity_id=record.id,
+            category='PMS_MANAGEMENT',
+            metadata={
+                'employee_user_id': str(payload.user_id),
+                'year': payload.year,
+                'month': payload.month,
+            },
+        )
+
+        self.db.commit()
+        self.db.refresh(entry)
+        return entry
+
     # ------------------------------------------------------------------
     # Monthly record — live draft (unsaved) or persisted
     # ------------------------------------------------------------------
+
+    def upload(self, current_user, entries: list[PMSUploadEntry]) -> list[PMSUploadResultItem]:
+        self._require_admin(current_user)
+        results: list[PMSUploadResultItem] = []
+        for payload in entries:
+            try:
+                with self.db.begin_nested():
+                    entry, _ = self._save_one(current_user, payload)
+                    self.db.flush()
+                results.append(PMSUploadResultItem(user_id=payload.user_id, success=True, entry_id=entry.id))
+            except HTTPException as exc:
+                results.append(PMSUploadResultItem(user_id=payload.user_id, success=False, error=str(exc.detail)))
+            except Exception as exc:  # noqa: BLE001 - surface to caller per-row instead of failing the whole batch
+                results.append(PMSUploadResultItem(user_id=payload.user_id, success=False, error=str(exc)))
+
+        user = self.db.get(
+            User,
+            payload.user_id,
+        )
+
+        if not user:
+            raise HTTPException(
+                status.HTTP_404_NOT_FOUND,
+                'User not found',
+            )
+
+        configs, total_active_weight = self.list_config(
+            include_inactive=False
+        )
+
+        input_by_key = {
+            item.metric_key: item
+            for item in payload.metrics
+        }
+
+        record = self._get_record(
+            payload.user_id,
+            payload.year,
+            payload.month,
+        )
+
+        action = (
+            'PMS_UPDATED'
+            if record
+            else 'PMS_CREATED'
+        )
+
+        if not record:
+            record = PmsMonthlyRecord(
+                user_id=payload.user_id,
+                year=payload.year,
+                month=payload.month,
+                created_by_user_id=current_user.id,
+            )
+
+            self.db.add(record)
+            self.db.flush()
+
+        existing_by_key = {
+            metric.metric_key: metric
+            for metric in record.metrics
+        }
+
+        overridden_keys: list[str] = []
+        final_score = 0.0
+
+        for config in configs:
+            weight = float(config.weight)
+
+            entered = input_by_key.get(config.key)
+
+            entered_value = (
+                entered.final_value
+                if entered is not None
+                else None
+            )
+
+            if (
+                entered_value is not None
+                and (
+                    entered_value < 0
+                    or entered_value > weight
+                )
+            ):
+                raise HTTPException(
+                    status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    f'{config.name} score cannot exceed {weight}',
+                )
+
+            leave_value = self._leave_metric_value(
+                config.key,
+                payload.user_id,
+                payload.year,
+                payload.month,
+                weight,
+            )
+
+            if leave_value:
+                auto_value, meta = leave_value
+                final_value = auto_value
+                was_overridden = False
+                source_snapshot = PmsMetricSource.CUSTOM.value
+                is_auto_calculated = True
+
+            elif config.source in (
+                PmsMetricSource.PRODUCTIVITY_AUTO,
+                PmsMetricSource.QUALITY_AUTO,
+            ):
+                kind = (
+                    'productivity'
+                    if config.source
+                    == PmsMetricSource.PRODUCTIVITY_AUTO
+                    else 'quality'
+                )
+
+                auto_value, meta = self._auto_metric_value(
+                    kind,
+                    payload.user_id,
+                    payload.year,
+                    payload.month,
+                    weight,
+                )
+
+                final_value = (
+                    entered_value
+                    if entered_value is not None
+                    else auto_value
+                )
+
+                was_overridden = (
+                    entered_value is not None
+                    and round(float(entered_value), 2)
+                    != round(float(auto_value), 2)
+                )
+                source_snapshot = config.source.value
+                is_auto_calculated = config.is_auto_calculated
+            else:
+                auto_value = None
+                meta = None
+
+                final_value = (
+                    entered_value
+                    if entered_value is not None
+                    else 0.0
+                )
+
+                was_overridden = False
+                source_snapshot = config.source.value
+                is_auto_calculated = config.is_auto_calculated
+
+            final_value = round(
+                max(
+                    0.0,
+                    min(
+                        float(final_value),
+                        weight,
+                    ),
+                ),
+                2,
+            )
+
+            final_score += final_value
+
+            if was_overridden:
+                overridden_keys.append(
+                    config.key
+                )
+
+            existing_metric = existing_by_key.get(
+                config.key
+            )
+
+            if existing_metric:
+                existing_metric.metric_name_snapshot = config.name
+                existing_metric.weight_snapshot = weight
+                existing_metric.source_snapshot = source_snapshot
+                existing_metric.is_auto_calculated_snapshot = (
+                    is_auto_calculated
+                )
+                existing_metric.auto_value = auto_value
+                existing_metric.final_value = final_value
+                existing_metric.was_overridden = was_overridden
+                existing_metric.calc_meta = meta
+
+            else:
+                self.db.add(
+                    PmsMonthlyMetric(
+                        pms_monthly_record_id=record.id,
+                        metric_key=config.key,
+                        metric_name_snapshot=config.name,
+                        weight_snapshot=weight,
+                        source_snapshot=source_snapshot,
+                        is_auto_calculated_snapshot=(
+                            is_auto_calculated
+                        ),
+                        auto_value=auto_value,
+                        final_value=final_value,
+                        was_overridden=was_overridden,
+                        calc_meta=meta,
+                    )
+                )
+
+        record.remarks = payload.remarks
+        record.status = PmsMonthlyStatus(
+            payload.status
+        )
+        record.final_score = round(
+            final_score,
+            2,
+        )
+        record.maximum_score = total_active_weight
+        record.updated_by_user_id = current_user.id
+
+        self.db.flush()
+
+        self.audit.log(
+            action=action,
+            user_id=current_user.id,
+            entity_type='PMS_MONTHLY_RECORD',
+            entity_id=record.id,
+            category='PMS_MANAGEMENT',
+            metadata={
+                'employee_user_id': str(payload.user_id),
+                'year': payload.year,
+                'month': payload.month,
+                'final_score': record.final_score,
+                'status': record.status.value,
+                'overridden_metrics': overridden_keys,
+            },
+        )
+
+        # Re-evaluate Employee of the Month immediately after every PMS save,
+        # so edits and status changes are reflected without a separate job.
+        self._recalculate_employee_of_month(
+            payload.year,
+            payload.month,
+        )
+
+        self.db.commit()
+        return results
+
     def _get_record(
         self,
         user_id: UUID,

@@ -90,6 +90,12 @@ const NAV_ITEMS = [
     roles: ['ADMIN', 'OPS_MANAGER', 'AGENT'],
   },
   {
+    label: 'Leave Management',
+    path: '/leave-management',
+    icon: 'calendar',
+    roles: ['ADMIN', 'AGENT'],
+  },
+  {
     label: 'Config',
     path: '/config',
     icon: 'settings',
@@ -162,6 +168,7 @@ export function Icon({ name }) {
     trash: <path d="M6 7h8m-7 0 .6 9h4.8L13 7M8 7V5h4v2M9 10v4m2-4v4" />,
     external: <path d="M8 5H5v10h10v-3M11 5h4v4m0-4-6 6" />,
     settings: <path d="M8.8 3h2.4l.4 2a5.8 5.8 0 0 1 1.2.5l1.8-1.1 1.2 2.1-1.5 1.3c.1.4.2.8.2 1.2s-.1.8-.2 1.2l1.5 1.3-1.2 2.1-1.8-1.1a5.8 5.8 0 0 1-1.2.5l-.4 2H8.8l-.4-2a5.8 5.8 0 0 1-1.2-.5l-1.8 1.1-1.2-2.1 1.5-1.3A5 5 0 0 1 5.5 9c0-.4.1-.8.2-1.2L4.2 6.5l1.2-2.1 1.8 1.1c.4-.2.8-.4 1.2-.5l.4-2Zm1.2 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z" />,
+    calendar: <path d="M5 4V2.5M15 4V2.5M4 7h12M5 4h10a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Zm2 6h2v2H7v-2Zm4 0h2v2h-2v-2Z" />,
     pms: <path d="M7 4h1.2a2 2 0 0 1 3.6 0H13a2 2 0 0 1 2 2v11H5V6a2 2 0 0 1 2-2Zm1 0v2h4V4M8 10l1.5 1.5L12.5 8M8 14h4" />,
   }
 

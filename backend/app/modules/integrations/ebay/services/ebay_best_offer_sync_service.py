@@ -615,8 +615,8 @@ class EbayBestOfferSyncService:
             return
         if self._is_offer_notification_message(match):
             offer.message_id = match.id
-        offer.created_at_provider = match.sent_at
-        offer.created_at = match.sent_at
+        if not offer.created_at_provider:
+            offer.created_at_provider = match.sent_at
 
     def _matching_offer_message(self, offer: Offer, messages: list[Message]) -> Message | None:
         amount = self._decimal(offer.offer_amount)
@@ -662,8 +662,8 @@ class EbayBestOfferSyncService:
             if raw_text and body and body == raw_text:
                 if self._is_offer_notification_message(message):
                     offer.message_id = message.id
-                offer.created_at_provider = message.sent_at
-                offer.created_at = message.sent_at
+                if not offer.created_at_provider:
+                    offer.created_at_provider = message.sent_at
                 return
 
 

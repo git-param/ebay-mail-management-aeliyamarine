@@ -356,6 +356,11 @@
   justify-content: flex-end;
 }
 
+.inbox-page .offer-buyer-message-row {
+  display: flex;
+  justify-content: flex-start;
+}
+
 .inbox-page .offer-seller-message-bubble {
   max-width: min(620px, 82%);
   padding: 10px 13px;
@@ -363,6 +368,17 @@
   border-radius: 12px 12px 4px 12px;
   background: #eaf3ff;
   color: #0b326d;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.inbox-page .offer-buyer-message-bubble {
+  max-width: min(620px, 82%);
+  padding: 10px 13px;
+  border: 1px solid #d8e2ef;
+  border-radius: 12px 12px 12px 4px;
+  background: #ffffff;
+  color: #253149;
   font-size: 13px;
   line-height: 1.5;
 }
@@ -649,6 +665,7 @@ html[data-theme='dark'] .inbox-page .detail-section {
 html[data-theme='dark'] .inbox-page .message-bubble.inbound,
 html[data-theme='dark'] .inbox-page .message-bubble.system,
 html[data-theme='dark'] .inbox-page .attachment-card,
+html[data-theme='dark'] .inbox-page .offer-buyer-message-bubble,
 html[data-theme='dark'] .inbox-page .offer-chat-card-incoming,
 html[data-theme='dark'] .inbox-page .history-item,
 html[data-theme='dark'] .inbox-page .note-item {
