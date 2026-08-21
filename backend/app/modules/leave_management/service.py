@@ -14,19 +14,21 @@ from app.modules.leave_management.schemas import (
     DAY_PARTS,
     INSTANCE_KINDS,
     SHORT_PATTERNS,
-    LeavePolicyUpdate,
     LeaveAdminSummaryUpdate,
+    LeaveCarryForwardUpdate,
+    LeavePolicyUpdate,
     LeaveRequestCreate,
     LeaveReviewRequest,
 )
 from app.services.audit_service import AuditService
 
 
-LEAVE_SYSTEM_START = date(2026, 8, 1)
+LEAVE_SYSTEM_START = date(2026, 4, 1)
 AGENT_ROLE_NAME = 'Support Agent'
 ADH_LEDGER_ENTRY_TYPE = 'ADH_OVERRIDE'
 PAID_SUMMARY_LEDGER_ENTRY_TYPE = 'PAID_SUMMARY_OVERRIDE'
 UNPAID_SUMMARY_LEDGER_ENTRY_TYPE = 'UNPAID_SUMMARY_OVERRIDE'
+CARRY_FORWARD_LEDGER_ENTRY_TYPE = 'CARRY_FORWARD_OVERRIDE'
 
 
 class LeaveManagementService:
@@ -80,7 +82,7 @@ class LeaveManagementService:
         policy = self.get_policy()
         end_date = payload.end_date or payload.start_date
         if payload.start_date < LEAVE_SYSTEM_START or end_date < LEAVE_SYSTEM_START:
-            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, 'Leave tracking starts on August 1, 2026')
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, 'Leave tracking starts on April 1, 2026')
         if end_date < payload.start_date:
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, 'End date cannot be before start date')
         self._ensure_no_overlapping_request(current_user.id, payload.start_date, end_date)
@@ -224,13 +226,10 @@ class LeaveManagementService:
             raise HTTPException(status.HTTP_404_NOT_FOUND, 'Leave data is available only for agent users')
 
         policy = self.get_policy()
-        paid_accrued = self._paid_accrued_until(policy, year, month)
-        paid_used = self._paid_used_until(user_id, year, month)
-        # Admin summary edits for months without leave rows are stored in the
-        # existing leave balance ledger. Include those paid totals here so the
-        # balance view reflects the admin-entered summary even before any leave
-        # request exists for that month.
-        paid_used += self._paid_summary_override_used_until(user_id, year, month)
+        monthly_paid_allowance = self._monthly_paid_allowance(policy, year, month)
+        carry_forward = self._carry_forward_override(user_id, year, month)
+        paid_accrued = monthly_paid_allowance + carry_forward
+        paid_used = self._paid_used_for_month(user_id, year, month)
         impact = self.pms_impact_for_user_month(user_id, year, month)
         short_used = self._approved_count(user_id, year, month, 'SHORT')
         instance_used = self._approved_count(user_id, year, month, 'INSTANCE')
@@ -241,6 +240,7 @@ class LeaveManagementService:
             'year': year,
             'month': month,
             'paid_accrued': round(paid_accrued, 2),
+            'carry_forward': round(carry_forward, 2),
             'paid_used': round(paid_used, 2),
             'paid_available': round(max(paid_accrued - paid_used, 0), 2),
             'excess_paid_occurrences': impact['excess_paid_occurrences'],
@@ -266,8 +266,9 @@ class LeaveManagementService:
         rows = []
         for user in users:
             actual = self._actual_admin_summary_for_user(user.id, year, month)
-            has_paid_requests = self._has_approved_paid_requests(user.id, year, month)
-            if not has_paid_requests:
+            has_paid_summary = self._has_monthly_ledger_value(user.id, year, month, PAID_SUMMARY_LEDGER_ENTRY_TYPE)
+            has_unpaid_summary = self._has_monthly_ledger_value(user.id, year, month, UNPAID_SUMMARY_LEDGER_ENTRY_TYPE)
+            if has_paid_summary or has_unpaid_summary:
                 actual['paid_leaves'] = self._monthly_ledger_value(user.id, year, month, PAID_SUMMARY_LEDGER_ENTRY_TYPE)
                 actual['unpaid_leaves'] = self._monthly_ledger_value(user.id, year, month, UNPAID_SUMMARY_LEDGER_ENTRY_TYPE)
             rows.append({
@@ -294,7 +295,7 @@ class LeaveManagementService:
                 raise HTTPException(status.HTTP_404_NOT_FOUND, 'User not found')
             if not is_support_agent(user):
                 raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, 'Leave summary can be updated only for agent users')
-            self._apply_paid_summary_correction(
+            self._set_paid_summary_override(
                 current_user,
                 item.user_id,
                 payload.year,
@@ -303,13 +304,52 @@ class LeaveManagementService:
                 float(item.unpaid_leaves),
             )
             self._set_adh_override(current_user, item.user_id, payload.year, payload.month, int(item.adh))
+            self._recalculate_pms_after_leave(current_user, item.user_id, payload.year, payload.month)
 
         self.db.commit()
         return self.list_admin_summary(current_user, payload.year, payload.month)
 
+    def get_carry_forward(self, current_user, user_id: UUID, year: int, month: int) -> dict:
+        self._require_admin(current_user)
+        user = self.db.get(User, user_id)
+        if not user:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, 'User not found')
+        if not is_support_agent(user):
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, 'Carry forward can be updated only for agent users')
+        return {
+            'user_id': user.id,
+            'employee': user.full_name or user.email,
+            'year': year,
+            'month': month,
+            'carry_forward': round(self._carry_forward_override(user_id, year, month), 2),
+        }
+
+    def update_carry_forward(self, current_user, payload: LeaveCarryForwardUpdate) -> dict:
+        self._require_admin(current_user)
+        user = self.db.get(User, payload.user_id)
+        if not user:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, 'User not found')
+        if not is_support_agent(user):
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, 'Carry forward can be updated only for agent users')
+
+        self._set_monthly_ledger_value(
+            current_user,
+            payload.user_id,
+            payload.year,
+            payload.month,
+            CARRY_FORWARD_LEDGER_ENTRY_TYPE,
+            float(payload.carry_forward),
+            'Admin carry forward override',
+        )
+        self._recalculate_pms_after_leave(current_user, payload.user_id, payload.year, payload.month)
+        self.db.commit()
+        return self.get_carry_forward(current_user, payload.user_id, payload.year, payload.month)
+
     def pms_impact_for_user_month(self, user_id: UUID, year: int, month: int) -> dict:
         policy = self.get_policy()
         start, end = self._month_range(year, month)
+        has_paid_summary = self._has_monthly_ledger_value(user_id, year, month, PAID_SUMMARY_LEDGER_ENTRY_TYPE)
+        has_unpaid_summary = self._has_monthly_ledger_value(user_id, year, month, UNPAID_SUMMARY_LEDGER_ENTRY_TYPE)
         approved = list(self.db.scalars(select(LeaveRequest).where(
             LeaveRequest.user_id == user_id,
             LeaveRequest.status == 'APPROVED',
@@ -317,14 +357,15 @@ class LeaveManagementService:
             LeaveRequest.start_date <= end,
         )))
         approved_paid = [item for item in approved if item.leave_type == 'PAID']
-        paid_deduction_count = sum(self._paid_pms_deduction_count(item) for item in approved_paid)
-        if not approved_paid:
-            # When an admin edits a summary month that has no leave request rows,
-            # paid/unpaid totals are represented by monthly ledger overrides.
-            # Unpaid leave is already the amount beyond the 1.5 monthly paid
-            # allowance, and each excess full or half leave occurrence deducts
-            # one PMS attendance point, so partial unpaid totals are rounded up.
+        if has_paid_summary or has_unpaid_summary:
+            # The Admin Summary table is the monthly source of truth for PMS.
+            # Its paid/unpaid values are stored in the ledger so auto-refresh
+            # keeps using the same summary totals even when request rows exist.
+            # Unpaid leave is already the amount beyond the monthly paid
+            # allowance, and any partial unpaid amount costs one PMS point.
             paid_deduction_count = int(ceil(max(self._monthly_ledger_value(user_id, year, month, UNPAID_SUMMARY_LEDGER_ENTRY_TYPE), 0)))
+        else:
+            paid_deduction_count = sum(self._paid_pms_deduction_count(item) for item in approved_paid)
 
         approved_instances = [item for item in approved if item.leave_type == 'INSTANCE']
         approved_short = [item for item in approved if item.leave_type == 'SHORT']
@@ -354,10 +395,16 @@ class LeaveManagementService:
         month = request.start_date.month
 
         if request.leave_type == 'PAID':
-            available = max(self._paid_accrued_until(policy, month_year, month) - self._paid_used_until(request.user_id, month_year, month), 0)
+            available = max(
+                self._monthly_paid_allowance(policy, month_year, month)
+                + self._carry_forward_override(request.user_id, month_year, month)
+                - self._paid_used_for_month(request.user_id, month_year, month),
+                0,
+            )
             requested = float(request.duration_days)
             request.paid_days = round(min(requested, available), 2)
             request.excess_days = round(max(requested - float(request.paid_days), 0), 2)
+            self._add_paid_request_to_summary(current_user, request.user_id, month_year, month, float(request.paid_days), float(request.excess_days))
             if float(request.paid_days) > 0:
                 ledger_exists = self.db.scalar(select(LeaveBalanceLedger).where(
                     LeaveBalanceLedger.source_request_id == request.id,
@@ -440,33 +487,38 @@ class LeaveManagementService:
                 metadata={'employee_user_id': str(user_id), 'year': year, 'month': month},
             )
 
-    def _paid_accrued_until(self, policy: LeavePolicy, year: int, month: int) -> float:
+    def _monthly_paid_allowance(self, policy: LeavePolicy, year: int, month: int) -> float:
         if date(year, month, 1) < LEAVE_SYSTEM_START:
             return 0.0
-        months = (year - LEAVE_SYSTEM_START.year) * 12 + (month - LEAVE_SYSTEM_START.month) + 1
-        return max(months, 0) * float(policy.paid_leave_per_month)
+        return float(policy.paid_leave_per_month)
 
-    def _paid_used_until(self, user_id: UUID, year: int, month: int) -> float:
+    def _paid_used_for_month(self, user_id: UUID, year: int, month: int) -> float:
+        if date(year, month, 1) < LEAVE_SYSTEM_START:
+            return 0.0
+
+        has_summary = self._has_monthly_ledger_value(
+            user_id,
+            year,
+            month,
+            PAID_SUMMARY_LEDGER_ENTRY_TYPE,
+        )
+        if has_summary:
+            return self._monthly_ledger_value(
+                user_id,
+                year,
+                month,
+                PAID_SUMMARY_LEDGER_ENTRY_TYPE,
+            )
+
         return float(self.db.scalar(select(func.coalesce(func.sum(LeaveBalanceLedger.amount), 0)).where(
             LeaveBalanceLedger.user_id == user_id,
             LeaveBalanceLedger.entry_type == 'PAID_DEDUCTION',
-            (LeaveBalanceLedger.year * 100 + LeaveBalanceLedger.month) <= (year * 100 + month),
+            LeaveBalanceLedger.year == year,
+            LeaveBalanceLedger.month == month,
         )) or 0) * -1
 
-    def _paid_summary_override_used_until(self, user_id: UUID, year: int, month: int) -> float:
-        return float(self.db.scalar(select(func.coalesce(func.sum(LeaveBalanceLedger.amount), 0)).where(
-            LeaveBalanceLedger.user_id == user_id,
-            LeaveBalanceLedger.entry_type == PAID_SUMMARY_LEDGER_ENTRY_TYPE,
-            (LeaveBalanceLedger.year * 100 + LeaveBalanceLedger.month) <= (year * 100 + month),
-        )) or 0)
-
-    def _paid_available_at_month_start(self, policy: LeavePolicy, user_id: UUID, year: int, month: int) -> float:
-        previous_year = year if month > 1 else year - 1
-        previous_month = month - 1 if month > 1 else 12
-        accrued = self._paid_accrued_until(policy, year, month)
-        used_before_month = self._paid_used_until(user_id, previous_year, previous_month)
-        used_before_month += self._paid_summary_override_used_until(user_id, previous_year, previous_month)
-        return max(accrued - used_before_month, 0)
+    def _carry_forward_override(self, user_id: UUID, year: int, month: int) -> float:
+        return self._monthly_ledger_value(user_id, year, month, CARRY_FORWARD_LEDGER_ENTRY_TYPE)
 
     def _approved_count(self, user_id: UUID, year: int, month: int, leave_type: str) -> int:
         start, end = self._month_range(year, month)
@@ -491,17 +543,38 @@ class LeaveManagementService:
             'unpaid_leaves': sum(float(item.excess_days or 0) for item in approved if item.leave_type == 'PAID'),
         }
 
-    def _has_approved_paid_requests(self, user_id: UUID, year: int, month: int) -> bool:
-        start, end = self._month_range(year, month)
-        return bool(self.db.scalar(select(LeaveRequest.id).where(
-            LeaveRequest.user_id == user_id,
-            LeaveRequest.status == 'APPROVED',
-            LeaveRequest.leave_type == 'PAID',
-            LeaveRequest.start_date >= start,
-            LeaveRequest.start_date <= end,
-        ).limit(1)))
+    def _add_paid_request_to_summary(
+        self,
+        current_user,
+        user_id: UUID,
+        year: int,
+        month: int,
+        paid_days: float,
+        unpaid_days: float,
+    ) -> None:
+        current_paid = self._monthly_ledger_value(user_id, year, month, PAID_SUMMARY_LEDGER_ENTRY_TYPE)
+        current_unpaid = self._monthly_ledger_value(user_id, year, month, UNPAID_SUMMARY_LEDGER_ENTRY_TYPE)
 
-    def _apply_paid_summary_correction(
+        self._set_monthly_ledger_value(
+            current_user,
+            user_id,
+            year,
+            month,
+            PAID_SUMMARY_LEDGER_ENTRY_TYPE,
+            current_paid + round(float(paid_days), 2),
+            'Approved paid leave monthly summary',
+        )
+        self._set_monthly_ledger_value(
+            current_user,
+            user_id,
+            year,
+            month,
+            UNPAID_SUMMARY_LEDGER_ENTRY_TYPE,
+            current_unpaid + round(float(unpaid_days), 2),
+            'Approved unpaid leave monthly summary',
+        )
+
+    def _set_paid_summary_override(
         self,
         current_user,
         user_id: UUID,
@@ -510,81 +583,24 @@ class LeaveManagementService:
         paid_total: float,
         unpaid_total: float,
     ) -> None:
-        paid_requests = self._approved_requests_for_month(user_id, year, month, 'PAID')
-        if not paid_requests:
-            self._set_monthly_ledger_value(
-                current_user,
-                user_id,
-                year,
-                month,
-                PAID_SUMMARY_LEDGER_ENTRY_TYPE,
-                paid_total,
-                'Admin paid leave monthly override',
-            )
-            self._set_monthly_ledger_value(
-                current_user,
-                user_id,
-                year,
-                month,
-                UNPAID_SUMMARY_LEDGER_ENTRY_TYPE,
-                unpaid_total,
-                'Admin unpaid leave monthly override',
-            )
-            return
-
-        self._clear_monthly_ledger_value(user_id, year, month, PAID_SUMMARY_LEDGER_ENTRY_TYPE)
-        self._clear_monthly_ledger_value(user_id, year, month, UNPAID_SUMMARY_LEDGER_ENTRY_TYPE)
-
-        paid_values = self._distribute_summary_total(paid_requests, paid_total)
-        unpaid_values = self._distribute_summary_total(paid_requests, unpaid_total)
-        for request, paid_days, excess_days in zip(paid_requests, paid_values, unpaid_values, strict=False):
-            request.paid_days = paid_days
-            request.excess_days = excess_days
-            self._upsert_paid_ledger(current_user, request, year, month)
-
-        self._recalculate_paid_pms_for_month(current_user, user_id, year, month)
-
-    def _upsert_paid_ledger(self, current_user, request: LeaveRequest, year: int, month: int) -> None:
-        ledger = self.db.scalar(select(LeaveBalanceLedger).where(
-            LeaveBalanceLedger.source_request_id == request.id,
-            LeaveBalanceLedger.entry_type == 'PAID_DEDUCTION',
-        ))
-        paid_days = float(request.paid_days or 0)
-        if paid_days <= 0:
-            if ledger:
-                self.db.delete(ledger)
-            return
-        if not ledger:
-            ledger = LeaveBalanceLedger(
-                user_id=request.user_id,
-                year=year,
-                month=month,
-                entry_type='PAID_DEDUCTION',
-                source_request_id=request.id,
-                note='Paid leave summary correction',
-                created_by_user_id=current_user.id,
-            )
-            self.db.add(ledger)
-        ledger.amount = -paid_days
-
-    def _distribute_summary_total(self, requests: list[LeaveRequest], total: float) -> list[float]:
-        remaining = round(float(total), 2)
-        values: list[float] = []
-        for index, request in enumerate(requests):
-            if index == len(requests) - 1:
-                value = remaining
-            else:
-                value = min(round(float(request.duration_days or 0), 2), remaining)
-            values.append(round(value, 2))
-            remaining = round(max(remaining - value, 0), 2)
-        return values
-
-    def _recalculate_paid_pms_for_month(self, current_user, user_id: UUID, year: int, month: int) -> None:
-        policy = self.get_policy()
-        paid_requests = self._approved_requests_for_month(user_id, year, month, 'PAID')
-        for request in paid_requests:
-            request.pms_attendance_deduction = round(self._paid_pms_deduction_count(request) * float(policy.attendance_deduction_per_excess), 2)
-        self._recalculate_pms_after_leave(current_user, user_id, year, month)
+        self._set_monthly_ledger_value(
+            current_user,
+            user_id,
+            year,
+            month,
+            PAID_SUMMARY_LEDGER_ENTRY_TYPE,
+            paid_total,
+            'Admin paid leave monthly summary',
+        )
+        self._set_monthly_ledger_value(
+            current_user,
+            user_id,
+            year,
+            month,
+            UNPAID_SUMMARY_LEDGER_ENTRY_TYPE,
+            unpaid_total,
+            'Admin unpaid leave monthly summary',
+        )
 
     def _paid_pms_deduction_count(self, request: LeaveRequest) -> int:
         return int(ceil(max(float(request.excess_days or 0), 0)))
@@ -628,17 +644,13 @@ class LeaveManagementService:
                 entry_type=entry_type,
                 source_request_id=None,
                 note=note,
-                created_by_user_id=current_user.id,
+                created_by_user_id=getattr(current_user, 'id', None),
             )
             self.db.add(ledger)
         ledger.amount = round(float(amount), 2)
         ledger.note = note
-        ledger.created_by_user_id = current_user.id
-
-    def _clear_monthly_ledger_value(self, user_id: UUID, year: int, month: int, entry_type: str) -> None:
-        ledger = self._monthly_ledger_entry(user_id, year, month, entry_type)
-        if ledger:
-            self.db.delete(ledger)
+        if current_user:
+            ledger.created_by_user_id = current_user.id
 
     def _adh_override(self, user_id: UUID, year: int, month: int) -> int:
         ledger = self.db.scalar(select(LeaveBalanceLedger).where(
@@ -676,33 +688,12 @@ class LeaveManagementService:
     def _agent_users_statement(self):
         return select(User).where(User.is_active.is_(True), User.role.has(name=AGENT_ROLE_NAME)).order_by(User.full_name.asc())
 
-    def _approved_requests_for_month(self, user_id: UUID, year: int, month: int, leave_type: str | None = None) -> list[LeaveRequest]:
-        start, end = self._month_range(year, month)
-        statement = select(LeaveRequest).where(
-            LeaveRequest.user_id == user_id,
-            LeaveRequest.status == 'APPROVED',
-            LeaveRequest.start_date >= start,
-            LeaveRequest.start_date <= end,
-        )
-        if leave_type:
-            statement = statement.where(LeaveRequest.leave_type == leave_type)
-        return list(self.db.scalars(statement.order_by(LeaveRequest.created_at.asc(), LeaveRequest.id.asc())))
-
     def _paid_pms_deductions_by_request(self, policy: LeavePolicy, requests: list[LeaveRequest], paid_allowance: float | None = None) -> dict[UUID, int]:
         paid_allowance = float(policy.paid_leave_per_month if paid_allowance is None else paid_allowance)
         deductions: dict[UUID, int] = {}
 
-        # Paid leave allowance is 1.5 days per month from Admin Config, plus
-        # any carry-forward balance available to the employee. Sundays are
-        # excluded before this point, so full-day requests consume only their
-        # non-Sunday duration and half-day requests consume 0.5 day. PMS
-        # deduction is based on excess leave days rounded up to whole PMS
-        # points: once the allowance is exhausted, any remaining full or half
-        # day portion costs one attendance PMS point. Example: a 3-day paid
-        # request with 1.5 paid days available has 1.5 excess days, so it
-        # deducts ceil(1.5) = 2 PMS points. Requests are evaluated in creation
-        # order, not leave-date order, so a later-applied half-day for an earlier
-        # date cannot consume allowance that an earlier request already used.
+        # PMS deduction is based on excess leave days rounded up to whole
+        # points. The caller supplies the available paid allowance to evaluate.
         for request in sorted(requests, key=lambda item: (item.created_at, item.id)):
             if request.leave_type != 'PAID':
                 continue

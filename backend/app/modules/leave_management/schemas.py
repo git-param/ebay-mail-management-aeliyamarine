@@ -114,6 +114,7 @@ class LeaveBalanceResponse(BaseModel):
     year: int
     month: int
     paid_accrued: float
+    carry_forward: float
     paid_used: float
     paid_available: float
     excess_paid_occurrences: int
@@ -158,3 +159,18 @@ class LeaveAdminSummaryUpdate(BaseModel):
     year: int = Field(ge=2000, le=2100)
     month: int = Field(ge=1, le=12)
     items: list[LeaveAdminSummaryUpdateItem]
+
+
+class LeaveCarryForwardResponse(BaseModel):
+    user_id: UUID
+    employee: str
+    year: int
+    month: int
+    carry_forward: float
+
+
+class LeaveCarryForwardUpdate(BaseModel):
+    user_id: UUID
+    year: int = Field(ge=2000, le=2100)
+    month: int = Field(ge=1, le=12)
+    carry_forward: float = Field(ge=0)
