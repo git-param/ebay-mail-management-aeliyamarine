@@ -7,10 +7,12 @@ import {
   createLeaveRequest,
   fetchLeaveBalances,
   fetchLeaveAdminSummary,
+  fetchLeaveCarryForward,
   fetchLeavePolicy,
   fetchLeaveRequests,
   reviewLeaveRequest,
   updateLeaveAdminSummary,
+  updateLeaveCarryForward,
   updateLeavePolicy,
 } from '../../services/leaveManagementApi'
 import { normalizeRole } from '../../utils/roles'
@@ -94,6 +96,9 @@ function LeaveManagement({ currentUser, onLogout }) {
   const [adminSummary, setAdminSummary] = useState([])
   const [balances, setBalances] = useState([])
   const [users, setUsers] = useState([])
+  const [carryForwardUserId, setCarryForwardUserId] = useState('')
+  const [carryForwardDraft, setCarryForwardDraft] = useState('0')
+  const [carryForwardSaving, setCarryForwardSaving] = useState(false)
   const [filters, setFilters] = useState({ leave_type: '', status: '', user_id: '' })
   const [form, setForm] = useState(emptyForm)
   const [message, setMessage] = useState('')
@@ -158,6 +163,30 @@ function LeaveManagement({ currentUser, onLogout }) {
       active = false
     }
   }, [isAdmin])
+
+  useEffect(() => {
+    if (!isAdmin || !users.length) return
+    setCarryForwardUserId((current) => current || users[0].id)
+  }, [isAdmin, users])
+
+  useEffect(() => {
+    if (!isAdmin || !carryForwardUserId) return
+    let active = true
+    fetchLeaveCarryForward({
+      user_id: carryForwardUserId,
+      year: selectedMonth.year,
+      month: selectedMonth.month,
+    })
+      .then((data) => {
+        if (active) setCarryForwardDraft(String(data.carry_forward ?? 0))
+      })
+      .catch(() => {
+        if (active) setCarryForwardDraft('0')
+      })
+    return () => {
+      active = false
+    }
+  }, [isAdmin, carryForwardUserId, selectedMonth.year, selectedMonth.month])
 
   const myBalance = balances[0]
 
@@ -285,6 +314,29 @@ function LeaveManagement({ currentUser, onLogout }) {
     }
   }
 
+  async function saveCarryForward(event) {
+    event.preventDefault()
+    if (!carryForwardUserId) return
+    setError('')
+    setMessage('')
+    setCarryForwardSaving(true)
+    try {
+      const saved = await updateLeaveCarryForward({
+        user_id: carryForwardUserId,
+        year: selectedMonth.year,
+        month: selectedMonth.month,
+        carry_forward: numericValue(carryForwardDraft),
+      })
+      setCarryForwardDraft(String(saved.carry_forward ?? 0))
+      setMessage('Carry forward updated.')
+      await loadData()
+    } catch (err) {
+      setError(err?.message || 'Failed to update carry forward.')
+    } finally {
+      setCarryForwardSaving(false)
+    }
+  }
+
   return (
     <AppLayout activePage="Leave Management" currentUser={currentUser} onLogout={onLogout}>
       <main className="leaveModule-page">
@@ -305,7 +357,7 @@ function LeaveManagement({ currentUser, onLogout }) {
           <div>
             <span>Paid Available</span>
             <strong>{fmt(myBalance?.paid_available)}</strong>
-            <small>{fmt(myBalance?.paid_used)} used from {fmt(myBalance?.paid_accrued)} accrued</small>
+            <small>{fmt(myBalance?.paid_used)} used from {fmt(myBalance?.paid_accrued)} available pool</small>
           </div>
           <div>
             <span>Instances</span>
@@ -517,6 +569,22 @@ function LeaveManagement({ currentUser, onLogout }) {
             <div className="leaveModule-panel-header">
               <h2>Policy Configuration</h2>
             </div>
+            <form className="leaveModule-policy-grid" onSubmit={saveCarryForward}>
+              <label>
+                Employee
+                <select value={carryForwardUserId} onChange={(event) => setCarryForwardUserId(event.target.value)}>
+                  {users.map((user) => <option key={user.id} value={user.id}>{user.name || user.email}</option>)}
+                </select>
+              </label>
+              <label>
+                Carry Forward
+                <input type="number" min="0" step="0.5" value={carryForwardDraft} onChange={(event) => setCarryForwardDraft(event.target.value)} />
+              </label>
+              <button className="leaveModule-primary" type="submit" disabled={!carryForwardUserId || carryForwardSaving}>
+                {carryForwardSaving ? 'Saving...' : 'Save Carry Forward'}
+              </button>
+            </form>
+            <p className="leaveModule-note">Carry forward is set manually per employee for the selected month. It is used before unpaid leave, along with that month's paid allowance.</p>
             <form className="leaveModule-policy-grid" onSubmit={savePolicy}>
               {[
                 ['paid_leave_per_month', 'Paid / Month', 'number'],
@@ -541,7 +609,6 @@ function LeaveManagement({ currentUser, onLogout }) {
               ))}
               <button className="leaveModule-primary" type="submit">Save Policy</button>
             </form>
-            <p className="leaveModule-note">Carry-forward starts at August 2026 only; earlier months are intentionally excluded.</p>
           </section>
         ) : null}
 

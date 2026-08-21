@@ -7,6 +7,8 @@ from app.api.dependencies import get_current_user, require_admin
 from app.db.session import get_db
 from app.modules.leave_management.schemas import (
     LeaveBalanceResponse,
+    LeaveCarryForwardResponse,
+    LeaveCarryForwardUpdate,
     LeaveImpactResponse,
     LeaveAdminSummaryRow,
     LeaveAdminSummaryUpdate,
@@ -90,6 +92,22 @@ def admin_summary(
 @router.put('/admin-summary', response_model=list[LeaveAdminSummaryRow])
 def update_admin_summary(payload: LeaveAdminSummaryUpdate, db: Session = Depends(get_db), current_user=Depends(require_admin)):
     return LeaveManagementService(db).update_admin_summary(current_user, payload)
+
+
+@router.get('/carry-forward', response_model=LeaveCarryForwardResponse)
+def get_carry_forward(
+    user_id: UUID,
+    year: int = Query(...),
+    month: int = Query(..., ge=1, le=12),
+    db: Session = Depends(get_db),
+    current_user=Depends(require_admin),
+):
+    return LeaveManagementService(db).get_carry_forward(current_user, user_id, year, month)
+
+
+@router.put('/carry-forward', response_model=LeaveCarryForwardResponse)
+def update_carry_forward(payload: LeaveCarryForwardUpdate, db: Session = Depends(get_db), current_user=Depends(require_admin)):
+    return LeaveManagementService(db).update_carry_forward(current_user, payload)
 
 
 @router.get('/balances/me', response_model=LeaveBalanceResponse)

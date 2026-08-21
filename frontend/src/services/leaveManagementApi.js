@@ -82,6 +82,17 @@ export function updateLeaveAdminSummary(payload) {
   }, getLeaveErrorMessage)
 }
 
+export function fetchLeaveCarryForward(params) {
+  return apiRequest(`/leave-management/carry-forward${qs(params)}`, {}, getLeaveErrorMessage)
+}
+
+export function updateLeaveCarryForward(payload) {
+  return apiRequest('/leave-management/carry-forward', {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  }, getLeaveErrorMessage)
+}
+
 export function fetchMyLeaveBalance(params) {
   return apiRequest(`/leave-management/balances/me${qs(params)}`, {}, getLeaveErrorMessage)
 }
