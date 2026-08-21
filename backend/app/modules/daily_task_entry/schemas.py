@@ -27,6 +27,7 @@ class DailyEntryScoreItem(BaseModel):
     activity_count: int | None = None
     message_type_id: UUID | None = None
     subtask_id: UUID | None = None
+    sub_subtask_id: UUID | None = None
     # Per-source fetched breakdown for catch-all items (currently Other General
     # Work). Preserved even after the Admin manually edits `value`.
     breakdown: list[DailyEntryScoreBreakdownItem] | None = None

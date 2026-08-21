@@ -24,9 +24,23 @@ class SubtaskPayload(BaseModel):
     supports_automatic_fetch: bool = False
 
 
+class SubSubtaskPayload(BaseModel):
+    subtask_id: UUID
+    name: str = Field(min_length=1, max_length=160)
+    description: str | None = None
+    status: str = 'ACTIVE'
+    source_type: str = 'MANUAL'
+    source_reference_id: UUID | None = None
+    source_configuration: dict | None = None
+    count_method: str | None = None
+    completion_rule: str | None = None
+    supports_automatic_fetch: bool = False
+
+
 class AssignmentPayload(BaseModel):
     user_id: UUID
     subtask_id: UUID
+    sub_subtask_id: UUID | None = None
     quality_weight: float = Field(ge=0, le=100)
     effective_from: date
     effective_to: date | None = None
@@ -44,6 +58,8 @@ class AssignmentResponse(BaseModel):
     auto_fetch_enabled: bool = True
     status: str = 'ACTIVE'
     subtask_name: str | None = None
+    sub_subtask_id: UUID | None = None
+    sub_subtask_name: str | None = None
     category_name: str | None = None
     task_category_id: UUID | None = None
     source_type: str | None = None
@@ -55,6 +71,17 @@ class AssignmentResponse(BaseModel):
 
 
 class SubtaskResponse(SubtaskPayload):
+    id: UUID
+    assignment_count: int = 0
+    child_tasks: list['SubSubtaskResponse'] = Field(default_factory=list)
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class SubSubtaskResponse(SubSubtaskPayload):
     id: UUID
     assignment_count: int = 0
     created_at: datetime
@@ -82,6 +109,7 @@ class UserAssignmentSummary(BaseModel):
 
 class SubtaskWeightEntry(BaseModel):
     subtask_id: UUID
+    sub_subtask_id: UUID | None = None
     quality_weight: float = Field(ge=0, le=100)
 
 

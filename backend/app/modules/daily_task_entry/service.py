@@ -2,8 +2,8 @@ from datetime import UTC, date, datetime, time, timedelta
 from uuid import UUID
 
 from fastapi import HTTPException, status
-from sqlalchemy import func, select
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import func, or_, select
+from sqlalchemy.orm import Session, joinedload, selectinload
 
 from app.api.dependencies import is_admin
 from app.models.conversation import Conversation, ConversationSLAHistory
@@ -24,7 +24,7 @@ from app.modules.daily_task_entry.schemas import (
     DailyEntryUploadResultItem,
 )
 from app.modules.sold_posting.models import SoldPostingLineItem
-from app.modules.task_management.models import Subtask, SubtaskSourceType, TaskCategory, TaskStatus, UserSubtaskAssignment
+from app.modules.task_management.models import SubSubtask, Subtask, SubtaskSourceType, TaskCategory, TaskStatus, UserSubtaskAssignment
 
 
 OTHER_GENERAL_WORK_KEY = 'other_general_work'
@@ -304,8 +304,13 @@ class DailyEntryService:
     def _active_assignments(self, user_id: UUID, entry_date: date) -> list[UserSubtaskAssignment]:
         return list(self.db.scalars(
             select(UserSubtaskAssignment)
+            .options(
+                selectinload(UserSubtaskAssignment.subtask).selectinload(Subtask.category),
+                selectinload(UserSubtaskAssignment.sub_subtask),
+            )
             .join(UserSubtaskAssignment.subtask)
             .join(Subtask.category)
+            .outerjoin(UserSubtaskAssignment.sub_subtask)
             .where(
                 UserSubtaskAssignment.user_id == user_id,
                 UserSubtaskAssignment.status == TaskStatus.ACTIVE,
@@ -313,8 +318,9 @@ class DailyEntryService:
                 ((UserSubtaskAssignment.effective_to.is_(None)) | (UserSubtaskAssignment.effective_to >= entry_date)),
                 Subtask.status == TaskStatus.ACTIVE,
                 TaskCategory.status == TaskStatus.ACTIVE,
+                or_(UserSubtaskAssignment.sub_subtask_id.is_(None), SubSubtask.status == TaskStatus.ACTIVE),
             )
-            .order_by(UserSubtaskAssignment.display_order, Subtask.display_order, Subtask.name)
+            .order_by(UserSubtaskAssignment.display_order, Subtask.display_order, SubSubtask.display_order, Subtask.name, SubSubtask.name)
         ))
 
     def _assigned_task_items(self, user_id: UUID, entry_date: date, start: datetime, end: datetime) -> list[dict]:
@@ -325,9 +331,12 @@ class DailyEntryService:
 
     def _assignment_item(self, assignment: UserSubtaskAssignment, user_id: UUID, start: datetime, end: datetime) -> dict:
         subtask = assignment.subtask
+        child = assignment.sub_subtask
+        target = child or subtask
         max_score = max(1, round(float(assignment.quality_weight or 0)))
-        label = f'{subtask.category.name} - {subtask.name}' if subtask.category else subtask.name
-        source = 'AUTO' if assignment.auto_fetch_enabled and subtask.supports_automatic_fetch else 'MANUAL'
+        subtask_label = f'{subtask.category.name} - {subtask.name}' if subtask.category else subtask.name
+        label = f'{subtask_label} - {child.name}' if child else subtask_label
+        source = 'AUTO' if assignment.auto_fetch_enabled and target.supports_automatic_fetch else 'MANUAL'
         value = 0
         activity_count = None
         # Assigned tasks are not assumed to be required every day. A zero/no-activity
@@ -337,7 +346,7 @@ class DailyEntryService:
         if source == 'AUTO':
             # Any qualifying activity earns full marks by default; no fetched activity
             # stays excluded until the admin deliberately chooses to count the zero.
-            activity_count = self._automatic_count(subtask, user_id, start, end)
+            activity_count = self._automatic_count(target, user_id, start, end)
             value = max_score if activity_count > 0 else 0
             status_value = 'ENTERED' if activity_count > 0 else 'NOT_APPLICABLE'
         return self._item(
@@ -348,23 +357,24 @@ class DailyEntryService:
             source,
             status=status_value,
             activity_count=activity_count,
-            message_type_id=subtask.source_reference_id if subtask.source_type == SubtaskSourceType.MESSAGE_TYPE else None,
+            message_type_id=target.source_reference_id if target.source_type == SubtaskSourceType.MESSAGE_TYPE else None,
             subtask_id=subtask.id,
+            sub_subtask_id=child.id if child else None,
         )
 
-    def _automatic_count(self, subtask: Subtask, user_id: UUID, start: datetime, end: datetime) -> int:
-        if subtask.source_type == SubtaskSourceType.MESSAGE_TYPE and subtask.source_reference_id:
+    def _automatic_count(self, target: Subtask | SubSubtask, user_id: UUID, start: datetime, end: datetime) -> int:
+        if target.source_type == SubtaskSourceType.MESSAGE_TYPE and target.source_reference_id:
             return int(self.db.scalar(
                 select(func.count())
                 .select_from(MessageClassification)
                 .where(
                     MessageClassification.user_id == user_id,
-                    MessageClassification.message_type_id == subtask.source_reference_id,
+                    MessageClassification.message_type_id == target.source_reference_id,
                     MessageClassification.created_at >= start,
                     MessageClassification.created_at < end,
                 )
             ) or 0)
-        if subtask.source_type == SubtaskSourceType.SOLD_POSTING:
+        if target.source_type == SubtaskSourceType.SOLD_POSTING:
             return int(self.db.scalar(
                 select(func.count())
                 .select_from(SoldPostingLineItem)
@@ -374,7 +384,7 @@ class DailyEntryService:
                     SoldPostingLineItem.copied_at < end,
                 )
             ) or 0)
-        if subtask.source_type == SubtaskSourceType.OFFER_MANAGEMENT:
+        if target.source_type == SubtaskSourceType.OFFER_MANAGEMENT:
             return int(self.db.scalar(
                 select(func.count())
                 .select_from(OfferManagementEntry)
@@ -398,9 +408,9 @@ class DailyEntryService:
         # per row so the fetched-breakdown tooltip can link straight to each
         # conversation, even when the reply never opened an SLA cycle.
         assigned_message_type_ids = {
-            assignment.subtask.source_reference_id
+            (assignment.sub_subtask or assignment.subtask).source_reference_id
             for assignment in assignments
-            if assignment.subtask.source_type == SubtaskSourceType.MESSAGE_TYPE and assignment.subtask.source_reference_id
+            if (assignment.sub_subtask or assignment.subtask).source_type == SubtaskSourceType.MESSAGE_TYPE and (assignment.sub_subtask or assignment.subtask).source_reference_id
         }
         message_type_breakdown = self._unassigned_message_type_conversations(user_id, start, end, assigned_message_type_ids)
         for label, conversation_ids in message_type_breakdown:
@@ -410,7 +420,7 @@ class DailyEntryService:
         # SOLD_POSTING / OFFER_MANAGEMENT: entire source is either assigned to this
         # agent (already scored in its own task item above) or it is not assigned at
         # all, in which case every record for the date belongs in Other General Work.
-        has_sold_posting_assignment = any(a.subtask.source_type == SubtaskSourceType.SOLD_POSTING for a in assignments)
+        has_sold_posting_assignment = any((a.sub_subtask or a.subtask).source_type == SubtaskSourceType.SOLD_POSTING for a in assignments)
         if not has_sold_posting_assignment:
             count = int(self.db.scalar(
                 select(func.count())
@@ -425,7 +435,7 @@ class DailyEntryService:
                 breakdown.append({'label': 'Sold Posting', 'count': count})
                 total_count += count
 
-        has_offer_management_assignment = any(a.subtask.source_type == SubtaskSourceType.OFFER_MANAGEMENT for a in assignments)
+        has_offer_management_assignment = any((a.sub_subtask or a.subtask).source_type == SubtaskSourceType.OFFER_MANAGEMENT for a in assignments)
         if not has_offer_management_assignment:
             count = int(self.db.scalar(
                 select(func.count())
@@ -569,7 +579,7 @@ class DailyEntryService:
             labels[conversation_id] = account.account_name or account.store_name or account.ebay_username
         return labels
 
-    def _item(self, key: str, label: str, value: int, max_score: int, source: str, *, status: str | None = None, activity_count: int | None = None, message_type_id: UUID | None = None, subtask_id: UUID | None = None) -> dict:
+    def _item(self, key: str, label: str, value: int, max_score: int, source: str, *, status: str | None = None, activity_count: int | None = None, message_type_id: UUID | None = None, subtask_id: UUID | None = None, sub_subtask_id: UUID | None = None) -> dict:
         return {
             'key': key,
             'label': label,
@@ -580,6 +590,7 @@ class DailyEntryService:
             'activity_count': activity_count,
             'message_type_id': str(message_type_id) if message_type_id else None,
             'subtask_id': str(subtask_id) if subtask_id else None,
+            'sub_subtask_id': str(sub_subtask_id) if sub_subtask_id else None,
         }
 
     def _snapshot(self, entry: DailyTaskEntry) -> dict:

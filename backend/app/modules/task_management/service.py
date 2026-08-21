@@ -6,8 +6,8 @@ from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.models.user import User
-from app.modules.task_management.models import Subtask, SubtaskSourceType, TaskCategory, TaskStatus, UserSubtaskAssignment
-from app.modules.task_management.schemas import AssignmentPayload, TaskAssignmentPayload, TaskCategoryPayload, SubtaskPayload
+from app.modules.task_management.models import SubSubtask, Subtask, SubtaskSourceType, TaskCategory, TaskStatus, UserSubtaskAssignment
+from app.modules.task_management.schemas import AssignmentPayload, TaskAssignmentPayload, TaskCategoryPayload, SubSubtaskPayload, SubtaskPayload
 from app.services.audit_service import AuditService
 
 
@@ -18,7 +18,10 @@ class TaskManagementService:
     def list_categories(self) -> list[TaskCategory]:
         return list(self.db.scalars(
             select(TaskCategory)
-            .options(selectinload(TaskCategory.subtasks).selectinload(Subtask.assignments))
+            .options(
+                selectinload(TaskCategory.subtasks).selectinload(Subtask.assignments),
+                selectinload(TaskCategory.subtasks).selectinload(Subtask.child_tasks).selectinload(SubSubtask.assignments),
+            )
             .order_by(TaskCategory.display_order.asc(), TaskCategory.name.asc())
         ))
 
@@ -102,11 +105,58 @@ class TaskManagementService:
         self._audit('SUBTASK_DELETED', actor, 'SUBTASK', subtask.id, {'name': subtask.name})
         self.db.commit()
 
+    def save_sub_subtask(self, payload: SubSubtaskPayload, actor: User, sub_subtask_id: UUID | None = None) -> SubSubtask:
+        subtask = self.db.get(Subtask, payload.subtask_id)
+        if not subtask:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Subtask not found')
+        child = self.db.get(SubSubtask, sub_subtask_id) if sub_subtask_id else SubSubtask(created_by_user_id=actor.id)
+        if not child:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Sub-subtask not found')
+        if sub_subtask_id and child.subtask_id != subtask.id:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='Parent subtask cannot be changed for an existing sub-subtask')
+        source_type = self._enum(SubtaskSourceType, payload.source_type, 'Invalid source type')
+        if source_type == SubtaskSourceType.MESSAGE_TYPE and not payload.source_reference_id:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='Select a Message Type for this sub-subtask')
+        child.subtask_id = subtask.id
+        child.name = payload.name.strip()
+        child.description = payload.description
+        child.status = self._enum(TaskStatus, payload.status, 'Invalid sub-subtask status')
+        if sub_subtask_id is None:
+            child.display_order = self._next_sub_subtask_display_order(subtask.id)
+        child.source_type = source_type
+        child.source_reference_id = payload.source_reference_id if source_type == SubtaskSourceType.MESSAGE_TYPE else None
+        child.source_configuration = payload.source_configuration
+        child.count_method = payload.count_method
+        child.completion_rule = payload.completion_rule
+        child.supports_automatic_fetch = source_type in (
+            SubtaskSourceType.MESSAGE_TYPE,
+            SubtaskSourceType.SOLD_POSTING,
+            SubtaskSourceType.OFFER_MANAGEMENT,
+        )
+        child.updated_by_user_id = actor.id
+        self.db.add(child)
+        self.db.flush()
+        self._audit('SUB_SUBTASK_UPDATED' if sub_subtask_id else 'SUB_SUBTASK_CREATED', actor, 'SUB_SUBTASK', child.id, {'name': child.name, 'source_type': child.source_type.value})
+        self.db.commit()
+        self.db.refresh(child)
+        return child
+
+    def delete_sub_subtask(self, sub_subtask_id: UUID, actor: User) -> None:
+        child = self.db.get(SubSubtask, sub_subtask_id)
+        if not child:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Sub-subtask not found')
+        self.db.delete(child)
+        self._audit('SUB_SUBTASK_DELETED', actor, 'SUB_SUBTASK', child.id, {'name': child.name})
+        self.db.commit()
+
     def list_assignments(self, user_id: UUID | None = None, as_of: date | None = None) -> list[UserSubtaskAssignment]:
         as_of = as_of or date.today()
         statement = (
             select(UserSubtaskAssignment)
-            .options(selectinload(UserSubtaskAssignment.subtask).selectinload(Subtask.category))
+            .options(
+                selectinload(UserSubtaskAssignment.subtask).selectinload(Subtask.category),
+                selectinload(UserSubtaskAssignment.sub_subtask),
+            )
             .order_by(UserSubtaskAssignment.display_order.asc(), UserSubtaskAssignment.created_at.asc())
         )
         statement = statement.where(self._current_assignment_clause(as_of))
@@ -121,15 +171,18 @@ class TaskManagementService:
         subtask = self.db.get(Subtask, payload.subtask_id)
         if not subtask:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Subtask not found')
+        sub_subtask = self.db.get(SubSubtask, payload.sub_subtask_id) if payload.sub_subtask_id else None
+        if payload.sub_subtask_id and (not sub_subtask or sub_subtask.subtask_id != subtask.id):
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='Sub-subtask does not belong to the selected subtask')
         if payload.effective_to and payload.effective_to < payload.effective_from:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='Effective To cannot be before Effective From')
-        assignment = self.db.get(UserSubtaskAssignment, assignment_id) if assignment_id else self._existing_assignment(user.id, subtask.id, payload.effective_from)
+        assignment = self.db.get(UserSubtaskAssignment, assignment_id) if assignment_id else self._existing_assignment(user.id, subtask.id, payload.sub_subtask_id, payload.effective_from)
         if assignment_id and not assignment:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Task assignment not found')
         is_update = bool(assignment)
         if not assignment:
             assignment = UserSubtaskAssignment(created_by_user_id=actor.id)
-        self._apply_assignment_payload(assignment, user.id, subtask.id, payload, actor)
+        self._apply_assignment_payload(assignment, user.id, subtask.id, payload.sub_subtask_id, payload, actor)
         self._audit('TASK_ASSIGNMENT_UPDATED' if is_update else 'TASK_ASSIGNMENT_CREATED', actor, 'USER_SUBTASK_ASSIGNMENT', assignment.id, {'user_id': str(user.id), 'subtask_id': str(subtask.id), 'quality_weight': float(assignment.quality_weight)})
         self.db.commit()
         self.db.refresh(assignment)
@@ -146,35 +199,42 @@ class TaskManagementService:
         if payload.effective_to and payload.effective_to < payload.effective_from:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='Effective To cannot be before Effective From')
 
-        active_subtasks = [subtask for subtask in category.subtasks if subtask.status == TaskStatus.ACTIVE]
+        active_subtasks = self._active_subtasks_for_category(category)
         if not active_subtasks:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='Selected task has no active subtasks to assign')
 
         active_subtask_ids = {subtask.id for subtask in active_subtasks}
-        requested_ids = [entry.subtask_id for entry in payload.subtask_weights]
-        unknown_ids = set(requested_ids) - active_subtask_ids
-        if unknown_ids:
+        requested_subtask_ids = [entry.subtask_id for entry in payload.subtask_weights]
+        if any(entry.sub_subtask_id for entry in payload.subtask_weights):
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='Assign marks to subtasks only; sub-subtask marks are split automatically')
+        if set(requested_subtask_ids) - active_subtask_ids:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='One or more subtasks do not belong to the selected task')
-        if len(requested_ids) != len(active_subtasks):
+        if len(set(requested_subtask_ids)) != len(active_subtask_ids) or len(requested_subtask_ids) != len(active_subtask_ids):
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='Assign every active subtask for the selected task')
+        weight_by_subtask_id = {entry.subtask_id: entry.quality_weight for entry in payload.subtask_weights}
+        assignment_targets = self._distributed_assignment_targets(active_subtasks, weight_by_subtask_id)
+        active_target_keys = {self._target_key(subtask.id, child.id if child else None) for subtask, child, _ in assignment_targets}
 
         assignment_status = self._enum(TaskStatus, payload.status, 'Invalid assignment status')
         current_assignments = list(self.db.scalars(
             select(UserSubtaskAssignment)
-            .options(selectinload(UserSubtaskAssignment.subtask).selectinload(Subtask.category))
+            .options(selectinload(UserSubtaskAssignment.subtask).selectinload(Subtask.category), selectinload(UserSubtaskAssignment.sub_subtask))
             .where(UserSubtaskAssignment.user_id == user.id)
             .where(self._current_assignment_clause(payload.effective_from))
         ))
-        current_by_subtask_id = {assignment.subtask_id: assignment for assignment in current_assignments}
+        current_by_target_key = {self._target_key(assignment.subtask_id, assignment.sub_subtask_id): assignment for assignment in current_assignments}
 
         results: list[UserSubtaskAssignment] = []
-        for index, entry in enumerate(payload.subtask_weights):
-            assignment = current_by_subtask_id.get(entry.subtask_id) or self._existing_assignment(user.id, entry.subtask_id, payload.effective_from)
+        for index, (subtask, child, quality_weight) in enumerate(assignment_targets):
+            sub_subtask_id = child.id if child else None
+            key = self._target_key(subtask.id, sub_subtask_id)
+            assignment = current_by_target_key.get(key) or self._existing_assignment(user.id, subtask.id, sub_subtask_id, payload.effective_from)
             if not assignment:
                 assignment = UserSubtaskAssignment(created_by_user_id=actor.id)
             assignment.user_id = user.id
-            assignment.subtask_id = entry.subtask_id
-            assignment.quality_weight = entry.quality_weight
+            assignment.subtask_id = subtask.id
+            assignment.sub_subtask_id = sub_subtask_id
+            assignment.quality_weight = quality_weight
             assignment.effective_from = payload.effective_from
             assignment.effective_to = payload.effective_to
             assignment.auto_fetch_enabled = payload.auto_fetch_enabled
@@ -186,7 +246,7 @@ class TaskManagementService:
             results.append(assignment)
 
         for assignment in current_assignments:
-            if assignment.subtask_id in active_subtask_ids:
+            if self._target_key(assignment.subtask_id, assignment.sub_subtask_id) in active_target_keys:
                 continue
             if assignment.effective_from < payload.effective_from:
                 assignment.effective_to = payload.effective_from - timedelta(days=1)
@@ -215,16 +275,18 @@ class TaskManagementService:
         return float(total or 0)
 
 
-    def _existing_assignment(self, user_id: UUID, subtask_id: UUID, effective_from) -> UserSubtaskAssignment | None:
+    def _existing_assignment(self, user_id: UUID, subtask_id: UUID, sub_subtask_id: UUID | None, effective_from) -> UserSubtaskAssignment | None:
         return self.db.scalar(select(UserSubtaskAssignment).where(
             UserSubtaskAssignment.user_id == user_id,
             UserSubtaskAssignment.subtask_id == subtask_id,
+            UserSubtaskAssignment.sub_subtask_id == sub_subtask_id,
             UserSubtaskAssignment.effective_from == effective_from,
         ))
 
-    def _apply_assignment_payload(self, assignment: UserSubtaskAssignment, user_id: UUID, subtask_id: UUID, payload: AssignmentPayload, actor: User) -> None:
+    def _apply_assignment_payload(self, assignment: UserSubtaskAssignment, user_id: UUID, subtask_id: UUID, sub_subtask_id: UUID | None, payload: AssignmentPayload, actor: User) -> None:
         assignment.user_id = user_id
         assignment.subtask_id = subtask_id
+        assignment.sub_subtask_id = sub_subtask_id
         assignment.quality_weight = payload.quality_weight
         assignment.effective_from = payload.effective_from
         assignment.effective_to = payload.effective_to
@@ -248,6 +310,50 @@ class TaskManagementService:
     def _next_subtask_display_order(self, category_id: UUID) -> int:
         current_max = self.db.scalar(select(func.coalesce(func.max(Subtask.display_order), -1)).where(Subtask.task_category_id == category_id))
         return int(current_max or -1) + 1
+
+    def _next_sub_subtask_display_order(self, subtask_id: UUID) -> int:
+        current_max = self.db.scalar(select(func.coalesce(func.max(SubSubtask.display_order), -1)).where(SubSubtask.subtask_id == subtask_id))
+        return int(current_max or -1) + 1
+
+    def _active_subtasks_for_category(self, category: TaskCategory) -> list[Subtask]:
+        return [
+            subtask
+            for subtask in sorted(category.subtasks, key=lambda item: (item.display_order, item.name))
+            if subtask.status == TaskStatus.ACTIVE
+        ]
+
+    def _distributed_assignment_targets(self, subtasks: list[Subtask], weight_by_subtask_id: dict[UUID, float]) -> list[tuple[Subtask, SubSubtask | None, float]]:
+        targets: list[tuple[Subtask, SubSubtask | None, float]] = []
+        for subtask in subtasks:
+            subtask_weight = float(weight_by_subtask_id.get(subtask.id) or 0)
+            active_children = [child for child in sorted(subtask.child_tasks, key=lambda item: (item.display_order, item.name)) if child.status == TaskStatus.ACTIVE]
+            if active_children:
+                child_weight = round(subtask_weight / len(active_children), 2)
+                allocated = 0.0
+                for index, child in enumerate(active_children):
+                    weight = child_weight
+                    if index == len(active_children) - 1:
+                        weight = round(subtask_weight - allocated, 2)
+                    allocated = round(allocated + weight, 2)
+                    targets.append((subtask, child, weight))
+            else:
+                targets.append((subtask, None, subtask_weight))
+        return targets
+
+    def _assignment_targets_for_category(self, category: TaskCategory) -> list[tuple[Subtask, SubSubtask | None]]:
+        targets: list[tuple[Subtask, SubSubtask | None]] = []
+        for subtask in sorted(category.subtasks, key=lambda item: (item.display_order, item.name)):
+            if subtask.status != TaskStatus.ACTIVE:
+                continue
+            active_children = [child for child in sorted(subtask.child_tasks, key=lambda item: (item.display_order, item.name)) if child.status == TaskStatus.ACTIVE]
+            if active_children:
+                targets.extend((subtask, child) for child in active_children)
+            else:
+                targets.append((subtask, None))
+        return targets
+
+    def _target_key(self, subtask_id: UUID, sub_subtask_id: UUID | None) -> tuple[UUID, UUID | None]:
+        return subtask_id, sub_subtask_id
 
     def _ensure_default_other_subtask(self, category: TaskCategory, actor: User) -> None:
         existing_other = self.db.scalar(select(Subtask).where(

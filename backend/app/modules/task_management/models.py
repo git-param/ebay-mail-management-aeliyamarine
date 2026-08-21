@@ -75,7 +75,38 @@ class Subtask(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC), nullable=False)
 
     category = relationship('TaskCategory', back_populates='subtasks')
+    child_tasks = relationship('SubSubtask', back_populates='subtask', cascade='all, delete-orphan', order_by='SubSubtask.display_order')
     assignments = relationship('UserSubtaskAssignment', back_populates='subtask', cascade='all, delete-orphan')
+    created_by = relationship('User', foreign_keys=[created_by_user_id])
+    updated_by = relationship('User', foreign_keys=[updated_by_user_id])
+
+
+class SubSubtask(Base):
+    __tablename__ = 'sub_subtasks'
+    __table_args__ = (
+        Index('ix_sub_subtasks_subtask_order', 'subtask_id', 'display_order'),
+        Index('ix_sub_subtasks_source_type', 'source_type'),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    subtask_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey('subtasks.id', ondelete='CASCADE'), nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String(160), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    status: Mapped[TaskStatus] = mapped_column(Enum(TaskStatus, name='task_status'), nullable=False, default=TaskStatus.ACTIVE)
+    display_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    source_type: Mapped[SubtaskSourceType] = mapped_column(Enum(SubtaskSourceType, name='subtask_source_type'), nullable=False, default=SubtaskSourceType.MANUAL)
+    source_reference_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    source_configuration: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    count_method: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    completion_rule: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    supports_automatic_fetch: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    created_by_user_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey('users.id'), nullable=True)
+    updated_by_user_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey('users.id'), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC), nullable=False)
+
+    subtask = relationship('Subtask', back_populates='child_tasks')
+    assignments = relationship('UserSubtaskAssignment', back_populates='sub_subtask', cascade='all, delete-orphan')
     created_by = relationship('User', foreign_keys=[created_by_user_id])
     updated_by = relationship('User', foreign_keys=[updated_by_user_id])
 
@@ -83,13 +114,14 @@ class Subtask(Base):
 class UserSubtaskAssignment(Base):
     __tablename__ = 'user_subtask_assignments'
     __table_args__ = (
-        UniqueConstraint('user_id', 'subtask_id', 'effective_from', name='uq_user_subtask_assignment_effective_from'),
+        UniqueConstraint('user_id', 'subtask_id', 'sub_subtask_id', 'effective_from', name='uq_user_subtask_assignment_effective_from'),
         Index('ix_user_subtask_assignments_user_dates', 'user_id', 'effective_from', 'effective_to'),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey('users.id'), nullable=False, index=True)
     subtask_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey('subtasks.id'), nullable=False, index=True)
+    sub_subtask_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey('sub_subtasks.id', ondelete='CASCADE'), nullable=True, index=True)
     quality_weight: Mapped[float] = mapped_column(Numeric(6, 2), nullable=False, default=0)
     effective_from: Mapped[date] = mapped_column(Date, nullable=False)
     effective_to: Mapped[date | None] = mapped_column(Date, nullable=True)
@@ -105,5 +137,6 @@ class UserSubtaskAssignment(Base):
 
     user = relationship('User', foreign_keys=[user_id])
     subtask = relationship('Subtask', back_populates='assignments')
+    sub_subtask = relationship('SubSubtask', back_populates='assignments')
     created_by = relationship('User', foreign_keys=[created_by_user_id])
     updated_by = relationship('User', foreign_keys=[updated_by_user_id])
