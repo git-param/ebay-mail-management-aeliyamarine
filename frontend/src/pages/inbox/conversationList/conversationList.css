@@ -287,11 +287,11 @@
      the header and each row share the same 8 columns (checkbox, customer,
      seller, message, category, messages, SLA, last update) and will drift
      out of alignment (as happened here) if only one side is edited. */
-  grid-template-columns: 46px minmax(280px, 2fr) 130px minmax(280px, 2fr) 150px 80px 130px 120px;
+  grid-template-columns: 46px 260px 130px minmax(280px, 2fr) 150px 80px 130px 120px;
   flex: 0 0 auto;
   align-items: center;
   gap: 16px;
-  padding: 10px 26px;
+  padding: 14px 26px;
   border-top: 1px solid #e5edf7;
   border-bottom: 1px solid #e5edf7;
   background: #f7fbff;
@@ -307,10 +307,10 @@
   min-width: 0;
   min-height: 92px;
   display: grid;
-  grid-template-columns: 46px minmax(280px, 2fr) 130px minmax(280px, 2fr) 150px 80px 130px 120px;
+  grid-template-columns: 46px 280px 130px minmax(280px, 2fr) 150px 80px 130px 120px;
   align-items: center;
-  gap: 16px;
-  padding: 14px 26px;
+  gap: 12px;
+  padding: 14px 18px;
   border-bottom: 1px solid #edf2f7;
   background: #ffffff;
   color: #0f172a;
@@ -537,14 +537,6 @@
   color: #475569;
 }
 
-.inbox-page .ticket-category {
-  min-width: 0;
-}
-
-.inbox-page .ticket-category .conversation-badge {
-  max-width: 142px;
-}
-
 .inbox-page .ticket-count {
   width: fit-content;
   min-width: 0;
@@ -624,10 +616,13 @@
 
 .inbox-page .ticket-last {
   min-width: 0;
+  overflow: hidden;
   justify-self: start;
   color: #64748b;
   font-size: 13px;
   font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .inbox-page .inbox-empty {
@@ -783,12 +778,6 @@
 
 /* Narrow list when detail pane is open */
 
-.inbox-page.conversation-open .conversation-row {
-  grid-template-columns: minmax(0, 1fr);
-  min-height: 84px;
-  gap: 8px;
-  padding: 14px 16px;
-}
 
 .inbox-page.conversation-open .ticket-select,
 .inbox-page.conversation-open .ticket-seller-account,
@@ -962,13 +951,6 @@ html[data-theme='dark'] .inbox-page .ticket-deadline-urgent strong {
 
   .inbox-page .conversation-table-head {
     display: none;
-  }
-
-  .inbox-page.list-only .conversation-row,
-  .inbox-page.conversation-open .conversation-row {
-    grid-template-columns: 42px minmax(0, 1fr);
-    min-height: 96px;
-    padding: 14px 16px;
   }
 
   .inbox-page.conversation-open .ticket-select {

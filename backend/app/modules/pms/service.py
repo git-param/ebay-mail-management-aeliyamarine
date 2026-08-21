@@ -693,21 +693,31 @@ class PmsService:
             month,
         )
 
-        if record:
+        configs, _ = self.list_config(
+            include_inactive=False
+        )
+
+        active_keys = {config.key for config in configs}
+        existing_by_key = {
+            metric.metric_key: metric
+            for metric in (record.metrics if record else [])
+        }
+
+        if record and active_keys and active_keys.issubset(existing_by_key.keys()):
             return self._serialize_record(
                 record,
                 user,
             )
 
-        # Nothing saved yet: build a live unsaved draft using the active
-        # configuration plus fresh auto calculations.
-        configs, _ = self.list_config(
-            include_inactive=False
-        )
+        # Nothing saved yet, or a stale/empty monthly record exists without
+        # metric rows. Always build the editor from active PMS config factors so
+        # the PMS entry drawer never opens as "0 / 0" just because the record
+        # shell was created before metrics were inserted.
 
         metrics: list[PmsMonthlyMetricSchema] = []
 
         for config in configs:
+            saved_metric = existing_by_key.get(config.key)
             leave_value = self._leave_metric_value(
                 config.key,
                 user_id,
@@ -1195,21 +1205,31 @@ class PmsService:
             month,
         )
 
-        if record:
+        configs, _ = self.list_config(
+            include_inactive=False
+        )
+
+        active_keys = {config.key for config in configs}
+        existing_by_key = {
+            metric.metric_key: metric
+            for metric in (record.metrics if record else [])
+        }
+
+        if record and active_keys and active_keys.issubset(existing_by_key.keys()):
             return self._serialize_record(
                 record,
                 user,
             )
 
-        # Nothing saved yet: build a live unsaved draft using the active
-        # configuration plus fresh auto calculations.
-        configs, _ = self.list_config(
-            include_inactive=False
-        )
+        # Nothing saved yet, or a stale/empty monthly record exists without
+        # metric rows. Always build the editor from active PMS config factors so
+        # the PMS entry drawer never opens as "0 / 0" just because the record
+        # shell was created before metrics were inserted.
 
         metrics: list[PmsMonthlyMetricSchema] = []
 
         for config in configs:
+            saved_metric = existing_by_key.get(config.key)
             leave_value = self._leave_metric_value(
                 config.key,
                 user_id,
@@ -1261,8 +1281,12 @@ class PmsService:
                         source_snapshot=config.source.value,
                         is_auto_calculated_snapshot=True,
                         auto_value=value,
-                        final_value=value,
-                        was_overridden=False,
+                        final_value=(
+                            float(saved_metric.final_value)
+                            if saved_metric and saved_metric.was_overridden
+                            else value
+                        ),
+                        was_overridden=bool(saved_metric and saved_metric.was_overridden),
                         calc_meta=meta,
                     )
                 )
@@ -1275,20 +1299,24 @@ class PmsService:
                         source_snapshot=config.source.value,
                         is_auto_calculated_snapshot=False,
                         auto_value=None,
-                        final_value=self._manual_metric_default_value(config.key, float(config.weight)),
+                        final_value=(
+                            float(saved_metric.final_value)
+                            if saved_metric
+                            else self._manual_metric_default_value(config.key, float(config.weight))
+                        ),
                         was_overridden=False,
                         calc_meta=None,
                     )
                 )
 
         return PmsMonthlyRecordResponse(
-            id=None,
+            id=record.id if record else None,
             user_id=user.id,
             user_name=user.full_name or user.email,
             user_email=user.email,
             year=year,
             month=month,
-            status='DRAFT',
+            status=record.status.value if record else 'DRAFT',
             final_score=round(
                 sum(m.final_value for m in metrics),
                 2,
@@ -1297,7 +1325,7 @@ class PmsService:
                 sum(m.weight_snapshot for m in metrics),
                 2,
             ),
-            remarks=None,
+            remarks=record.remarks if record else None,
             metrics=metrics,
         )
 

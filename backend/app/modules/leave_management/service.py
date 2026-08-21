@@ -25,6 +25,8 @@ from app.services.audit_service import AuditService
 LEAVE_SYSTEM_START = date(2026, 8, 1)
 AGENT_ROLE_NAME = 'Support Agent'
 ADH_LEDGER_ENTRY_TYPE = 'ADH_OVERRIDE'
+PAID_SUMMARY_LEDGER_ENTRY_TYPE = 'PAID_SUMMARY_OVERRIDE'
+UNPAID_SUMMARY_LEDGER_ENTRY_TYPE = 'UNPAID_SUMMARY_OVERRIDE'
 
 
 class LeaveManagementService:
@@ -224,6 +226,11 @@ class LeaveManagementService:
         policy = self.get_policy()
         paid_accrued = self._paid_accrued_until(policy, year, month)
         paid_used = self._paid_used_until(user_id, year, month)
+        # Admin summary edits for months without leave rows are stored in the
+        # existing leave balance ledger. Include those paid totals here so the
+        # balance view reflects the admin-entered summary even before any leave
+        # request exists for that month.
+        paid_used += self._paid_summary_override_used_until(user_id, year, month)
         impact = self.pms_impact_for_user_month(user_id, year, month)
         short_used = self._approved_count(user_id, year, month, 'SHORT')
         instance_used = self._approved_count(user_id, year, month, 'INSTANCE')
@@ -259,6 +266,10 @@ class LeaveManagementService:
         rows = []
         for user in users:
             actual = self._actual_admin_summary_for_user(user.id, year, month)
+            has_paid_requests = self._has_approved_paid_requests(user.id, year, month)
+            if not has_paid_requests:
+                actual['paid_leaves'] = self._monthly_ledger_value(user.id, year, month, PAID_SUMMARY_LEDGER_ENTRY_TYPE)
+                actual['unpaid_leaves'] = self._monthly_ledger_value(user.id, year, month, UNPAID_SUMMARY_LEDGER_ENTRY_TYPE)
             rows.append({
                 'user_id': user.id,
                 'employee': user.full_name or user.email,
@@ -267,7 +278,11 @@ class LeaveManagementService:
                 'paid_leaves': round(float(actual.get('paid_leaves', 0)), 2),
                 'unpaid_leaves': round(float(actual.get('unpaid_leaves', 0)), 2),
                 'adh': int(self._adh_override(user.id, year, month)),
-                'is_overridden': False,
+                'is_overridden': (
+                    self._has_monthly_ledger_value(user.id, year, month, PAID_SUMMARY_LEDGER_ENTRY_TYPE)
+                    or self._has_monthly_ledger_value(user.id, year, month, UNPAID_SUMMARY_LEDGER_ENTRY_TYPE)
+                    or self._has_monthly_ledger_value(user.id, year, month, ADH_LEDGER_ENTRY_TYPE)
+                ),
             })
         return rows
 
@@ -301,12 +316,25 @@ class LeaveManagementService:
             LeaveRequest.start_date >= start,
             LeaveRequest.start_date <= end,
         )))
-        paid_deduction_count = sum(self._paid_pms_deduction_count(item) for item in approved if item.leave_type == 'PAID')
+        approved_paid = [item for item in approved if item.leave_type == 'PAID']
+        paid_deduction_count = sum(self._paid_pms_deduction_count(item) for item in approved_paid)
+        if not approved_paid:
+            # When an admin edits a summary month that has no leave request rows,
+            # paid/unpaid totals are represented by monthly ledger overrides.
+            # Unpaid leave is already the amount beyond the 1.5 monthly paid
+            # allowance, and each excess full or half leave occurrence deducts
+            # one PMS attendance point, so partial unpaid totals are rounded up.
+            paid_deduction_count = int(ceil(max(self._monthly_ledger_value(user_id, year, month, UNPAID_SUMMARY_LEDGER_ENTRY_TYPE), 0)))
+
         approved_instances = [item for item in approved if item.leave_type == 'INSTANCE']
         approved_short = [item for item in approved if item.leave_type == 'SHORT']
-        extra_instances = max(len(approved_instances) - int(policy.instance_limit), 0)
-        extra_short = max(len(approved_short) - int(policy.short_leave_limit), 0)
-        punctuality_deduction_count = extra_instances + extra_short
+        adh_count = self._adh_override(user_id, year, month)
+        combined_adh_limit = int(policy.instance_limit) + int(policy.short_leave_limit)
+        # ADH is maintained by admin from the summary table. It represents the
+        # monthly short/instance count, while the allowed limits still come from
+        # Admin Config. A PMS punctuality point is deducted only for counts above
+        # those configured limits.
+        punctuality_deduction_count = max(adh_count - combined_adh_limit, 0)
         return {
             'user_id': user_id,
             'year': year,
@@ -315,9 +343,9 @@ class LeaveManagementService:
             'punctuality_deduction': round(punctuality_deduction_count * float(policy.punctuality_deduction_per_extra_instance), 2),
             'excess_paid_occurrences': paid_deduction_count,
             'approved_instances': len(approved_instances),
-            'extra_instances': extra_instances,
+            'extra_instances': max(adh_count - combined_adh_limit, 0),
             'approved_short': len(approved_short),
-            'extra_short': extra_short,
+            'extra_short': 0,
         }
 
     def _approve_request(self, current_user, request: LeaveRequest, review_note: str | None) -> None:
@@ -425,11 +453,19 @@ class LeaveManagementService:
             (LeaveBalanceLedger.year * 100 + LeaveBalanceLedger.month) <= (year * 100 + month),
         )) or 0) * -1
 
+    def _paid_summary_override_used_until(self, user_id: UUID, year: int, month: int) -> float:
+        return float(self.db.scalar(select(func.coalesce(func.sum(LeaveBalanceLedger.amount), 0)).where(
+            LeaveBalanceLedger.user_id == user_id,
+            LeaveBalanceLedger.entry_type == PAID_SUMMARY_LEDGER_ENTRY_TYPE,
+            (LeaveBalanceLedger.year * 100 + LeaveBalanceLedger.month) <= (year * 100 + month),
+        )) or 0)
+
     def _paid_available_at_month_start(self, policy: LeavePolicy, user_id: UUID, year: int, month: int) -> float:
         previous_year = year if month > 1 else year - 1
         previous_month = month - 1 if month > 1 else 12
         accrued = self._paid_accrued_until(policy, year, month)
         used_before_month = self._paid_used_until(user_id, previous_year, previous_month)
+        used_before_month += self._paid_summary_override_used_until(user_id, previous_year, previous_month)
         return max(accrued - used_before_month, 0)
 
     def _approved_count(self, user_id: UUID, year: int, month: int, leave_type: str) -> int:
@@ -455,6 +491,16 @@ class LeaveManagementService:
             'unpaid_leaves': sum(float(item.excess_days or 0) for item in approved if item.leave_type == 'PAID'),
         }
 
+    def _has_approved_paid_requests(self, user_id: UUID, year: int, month: int) -> bool:
+        start, end = self._month_range(year, month)
+        return bool(self.db.scalar(select(LeaveRequest.id).where(
+            LeaveRequest.user_id == user_id,
+            LeaveRequest.status == 'APPROVED',
+            LeaveRequest.leave_type == 'PAID',
+            LeaveRequest.start_date >= start,
+            LeaveRequest.start_date <= end,
+        ).limit(1)))
+
     def _apply_paid_summary_correction(
         self,
         current_user,
@@ -465,9 +511,29 @@ class LeaveManagementService:
         unpaid_total: float,
     ) -> None:
         paid_requests = self._approved_requests_for_month(user_id, year, month, 'PAID')
-        requested_total = round(float(paid_total) + float(unpaid_total), 2)
-        if not paid_requests and requested_total > 0:
-            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, 'Cannot set paid or unpaid leave totals without approved paid leave requests for this employee/month')
+        if not paid_requests:
+            self._set_monthly_ledger_value(
+                current_user,
+                user_id,
+                year,
+                month,
+                PAID_SUMMARY_LEDGER_ENTRY_TYPE,
+                paid_total,
+                'Admin paid leave monthly override',
+            )
+            self._set_monthly_ledger_value(
+                current_user,
+                user_id,
+                year,
+                month,
+                UNPAID_SUMMARY_LEDGER_ENTRY_TYPE,
+                unpaid_total,
+                'Admin unpaid leave monthly override',
+            )
+            return
+
+        self._clear_monthly_ledger_value(user_id, year, month, PAID_SUMMARY_LEDGER_ENTRY_TYPE)
+        self._clear_monthly_ledger_value(user_id, year, month, UNPAID_SUMMARY_LEDGER_ENTRY_TYPE)
 
         paid_values = self._distribute_summary_total(paid_requests, paid_total)
         unpaid_values = self._distribute_summary_total(paid_requests, unpaid_total)
@@ -522,6 +588,57 @@ class LeaveManagementService:
 
     def _paid_pms_deduction_count(self, request: LeaveRequest) -> int:
         return int(ceil(max(float(request.excess_days or 0), 0)))
+
+    def _monthly_ledger_value(self, user_id: UUID, year: int, month: int, entry_type: str) -> float:
+        ledger = self._monthly_ledger_entry(user_id, year, month, entry_type)
+        return float(ledger.amount) if ledger else 0.0
+
+    def _has_monthly_ledger_value(self, user_id: UUID, year: int, month: int, entry_type: str) -> bool:
+        return self._monthly_ledger_entry(user_id, year, month, entry_type) is not None
+
+    def _monthly_ledger_entry(self, user_id: UUID, year: int, month: int, entry_type: str) -> LeaveBalanceLedger | None:
+        ledgers = list(self.db.scalars(select(LeaveBalanceLedger).where(
+            LeaveBalanceLedger.user_id == user_id,
+            LeaveBalanceLedger.year == year,
+            LeaveBalanceLedger.month == month,
+            LeaveBalanceLedger.entry_type == entry_type,
+            LeaveBalanceLedger.source_request_id.is_(None),
+        ).order_by(LeaveBalanceLedger.created_at.asc())))
+        ledger = ledgers[0] if ledgers else None
+        for duplicate in ledgers[1:]:
+            self.db.delete(duplicate)
+        return ledger
+
+    def _set_monthly_ledger_value(
+        self,
+        current_user,
+        user_id: UUID,
+        year: int,
+        month: int,
+        entry_type: str,
+        amount: float,
+        note: str,
+    ) -> None:
+        ledger = self._monthly_ledger_entry(user_id, year, month, entry_type)
+        if not ledger:
+            ledger = LeaveBalanceLedger(
+                user_id=user_id,
+                year=year,
+                month=month,
+                entry_type=entry_type,
+                source_request_id=None,
+                note=note,
+                created_by_user_id=current_user.id,
+            )
+            self.db.add(ledger)
+        ledger.amount = round(float(amount), 2)
+        ledger.note = note
+        ledger.created_by_user_id = current_user.id
+
+    def _clear_monthly_ledger_value(self, user_id: UUID, year: int, month: int, entry_type: str) -> None:
+        ledger = self._monthly_ledger_entry(user_id, year, month, entry_type)
+        if ledger:
+            self.db.delete(ledger)
 
     def _adh_override(self, user_id: UUID, year: int, month: int) -> int:
         ledger = self.db.scalar(select(LeaveBalanceLedger).where(
