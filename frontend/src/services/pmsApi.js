@@ -71,6 +71,10 @@ export function fetchPmsEmployeeOfMonth(params) {
   return apiRequest(`/pms/employee-of-month${qs(params)}`)
 }
 
+export function fetchPmsEmployeeOfMonthStats() {
+  return apiRequest('/pms/employee-of-month/stats')
+}
+
 export function resolvePmsEmployeeOfMonth(payload) {
   return apiRequest('/pms/employee-of-month/resolve', {
     method: 'POST',

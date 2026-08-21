@@ -85,6 +85,7 @@ class PmsMonthlyTableRow(BaseModel):
     status: str | None = None
     final_score: float | None = None
     maximum_score: float | None = None
+    metrics: list[PmsMonthlyMetricSchema] = Field(default_factory=list)
 
 
 class PmsMonthlyTableResponse(BaseModel):
@@ -171,3 +172,21 @@ class PmsEmployeeOfMonthResolveRequest(BaseModel):
     month: int = Field(ge=1, le=12)
     selected_user_id: UUID
     reason: str | None = None
+
+
+class PmsEmployeeOfMonthWin(BaseModel):
+    year: int
+    month: int
+    final_score: float
+
+
+class PmsEmployeeOfMonthStatsItem(BaseModel):
+    user_id: UUID
+    user_name: str
+    user_email: str | None = None
+    win_count: int
+    wins: list[PmsEmployeeOfMonthWin] = Field(default_factory=list)
+
+
+class PmsEmployeeOfMonthStatsResponse(BaseModel):
+    items: list[PmsEmployeeOfMonthStatsItem]

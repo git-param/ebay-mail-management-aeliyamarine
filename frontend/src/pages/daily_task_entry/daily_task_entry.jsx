@@ -37,18 +37,72 @@ function taskAveragePercent(items) {
   return applicable.reduce((sum, item) => sum + taskPerformancePercent(item), 0) / applicable.length
 }
 
-function slaPerformancePercent(slaScore) {
-  return (Math.min(number(slaScore), SLA_MAX) / SLA_MAX) * 100
+function effectiveSlaScore(slaScore, slaTotalCount) {
+  return number(slaTotalCount) === 0 ? SLA_MAX : Math.min(number(slaScore), SLA_MAX)
+}
+
+function slaPerformancePercent(slaScore, slaTotalCount) {
+  return (effectiveSlaScore(slaScore, slaTotalCount) / SLA_MAX) * 100
 }
 
 function formatPercent(value) {
   return Number(value || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })
 }
 
-function calculate(items, slaScore, errorLevel) {
+function parentTaskLabel(label) {
+  const parts = String(label || '').split(' - ')
+  if (parts.length > 2) return parts[parts.length - 2]
+  return parts.length > 1 ? parts[parts.length - 1] : label
+}
+
+function childTaskLabel(label) {
+  const parts = String(label || '').split(' - ')
+  return parts.length > 2 ? parts[parts.length - 1] : label
+}
+
+function buildTaskDisplayItems(items) {
+  const groups = new Map()
+  const displayItems = []
+
+  for (const item of items || []) {
+    if (!item.sub_subtask_id) {
+      displayItems.push({ ...item, display_key: item.key, label: parentTaskLabel(item.label), child_items: [] })
+      continue
+    }
+
+    const groupKey = item.subtask_id || item.key
+    if (!groups.has(groupKey)) {
+      const group = {
+        ...item,
+        key: `subtask:${groupKey}`,
+        display_key: `subtask:${groupKey}`,
+        label: parentTaskLabel(item.label),
+        value: 0,
+        max_score: 0,
+        status: 'NOT_APPLICABLE',
+        activity_count: 0,
+        child_items: [],
+      }
+      groups.set(groupKey, group)
+      displayItems.push(group)
+    }
+
+    const group = groups.get(groupKey)
+    group.child_items.push(item)
+    group.value += number(item.value)
+    group.max_score += number(item.max_score)
+    group.activity_count += number(item.activity_count)
+    if (item.status === 'ENTERED') group.status = 'ENTERED'
+    if (item.source === 'AUTO') group.source = 'AUTO'
+  }
+
+  return displayItems
+}
+
+function calculate(items, slaScore, errorLevel, slaTotalCount = null) {
   if (errorLevel === 'MAJOR') return 0
   const taskAverage = taskAveragePercent(items)
-  const slaPerformance = slaPerformancePercent(slaScore)
+  const slaPerformance = slaPerformancePercent(slaScore, slaTotalCount)
   return Math.round(Math.min(100, Math.max(0, (taskAverage + slaPerformance) / 2)))
 }
 
@@ -89,12 +143,13 @@ function makeRow(loadedItem) {
 
 function DetailModal({ entry, onClose }) {
   if (!entry) return null
+  const displayItems = buildTaskDisplayItems(entry.score_items)
   return (
     <div className="modal-backdrop" role="presentation">
       <section className="modal-panel dailyEntry-detail-modal" role="dialog" aria-modal="true">
         <div className="modal-header"><h2>{entry.user_name} - {entry.entry_date}</h2><button className="icon-button" type="button" onClick={onClose}>x</button></div>
         <div className="dailyEntry-score-grid">
-          {(entry.score_items || []).map((item) => <p key={item.key}><span>{item.label}</span><strong>{item.status === 'ENTERED' ? `${item.value} / ${item.max_score}` : 'N/A'}</strong></p>)}
+          {displayItems.map((item) => <p key={item.key}><span>{item.label}</span><strong>{item.status === 'ENTERED' ? `${item.value} / ${item.max_score}` : 'N/A'}</strong></p>)}
           <p><span>SLA Score</span><strong>{entry.sla_score}/{SLA_MAX}</strong></p>
           <p><span>Final Score</span><strong>{entry.final_score_percent}%</strong></p>
           <p><span>Error</span><strong>{ERROR_LEVELS.find(([value]) => value === entry.error_level)?.[1] || entry.error_level}</strong></p>
@@ -173,6 +228,51 @@ function OtherGeneralWorkInfo({ breakdown }) {
               ))}
             </ul>
           )}
+        </div>
+      ) : null}
+    </span>
+  )
+}
+
+function SubtaskChildrenInfo({ children }) {
+  const [open, setOpen] = useState(false)
+  const wrapRef = useRef(null)
+  const items = children || []
+
+  useEffect(() => {
+    if (!open) return undefined
+    function handleOutsideClick(event) {
+      if (wrapRef.current && !wrapRef.current.contains(event.target)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handleOutsideClick)
+    return () => document.removeEventListener('mousedown', handleOutsideClick)
+  }, [open])
+
+  if (!items.length) return null
+
+  return (
+    <span className="dailyEntry-info-popover-wrap" ref={wrapRef}>
+      <button
+        type="button"
+        className="dailyEntry-info-trigger"
+        aria-label="Show sub-subtask breakdown"
+        onClick={() => setOpen((current) => !current)}
+      >
+        i
+      </button>
+      {open ? (
+        <div className="dailyEntry-info-popover" role="tooltip">
+          <ul>
+            {items.map((item) => (
+              <li key={item.key}>
+                <div className="dailyEntry-info-popover-row">
+                  <span>{childTaskLabel(item.label)}</span>
+                  <strong>{item.activity_count ?? 0} handled</strong>
+                </div>
+                <p className="dailyEntry-info-popover-empty">{item.value} / {item.max_score}</p>
+              </li>
+            ))}
+          </ul>
         </div>
       ) : null}
     </span>
@@ -258,8 +358,9 @@ function SlaReviewModal({ userId, userName, entryDate, onClose }) {
 }
 
 function AgentCard({ row, onChange, onReviewSla }) {
+  const displayItems = useMemo(() => buildTaskDisplayItems(row.score_items), [row.score_items])
   const taskAverage = taskAveragePercent(row.score_items)
-  const slaPerformance = slaPerformancePercent(row.sla_score)
+  const slaPerformance = slaPerformancePercent(row.sla_score, row.sla_total_count)
   const isMajor = row.error_level === 'MAJOR'
   const isLocked = row.status === 'success'
   const isDisabled = isLocked || isMajor
@@ -270,6 +371,10 @@ function AgentCard({ row, onChange, onReviewSla }) {
 
   function toggleTaskInclusion(item) {
     if (isDisabled) return
+    if (item.child_items?.length) {
+      updateItems(item.child_items.map((child) => child.key), { status: isTaskIncluded(item) ? 'NOT_APPLICABLE' : 'ENTERED' }, false)
+      return
+    }
     updateItem(item.key, { status: isTaskIncluded(item) ? 'NOT_APPLICABLE' : 'ENTERED' }, false)
   }
 
@@ -277,20 +382,55 @@ function AgentCard({ row, onChange, onReviewSla }) {
     if (isLocked) return
     onChange(row.userId, (current) => {
       const next = { ...current, ...fields }
-      next.final_score_percent = calculate(next.score_items, next.sla_score, next.error_level)
+      next.final_score_percent = calculate(next.score_items, next.sla_score, next.error_level, next.sla_total_count)
       return next
     })
   }
 
   function updateItem(key, patchFields, markManual = true) {
+    updateItems([key], patchFields, markManual)
+  }
+
+  function updateItems(keys, patchFields, markManual = true) {
     if (isLocked) return
+    const keySet = new Set(keys)
     onChange(row.userId, (current) => {
       // Spread patchFields over the existing item so fields we don't touch here -
       // notably `breakdown` and `activity_count` on the Other General Work row -
       // are preserved even after the Admin edits the score manually.
-      const nextItems = current.score_items.map((item) => item.key === key ? { ...item, ...patchFields, source: markManual && patchFields.value !== undefined ? 'MANUAL' : item.source } : item)
+      const nextItems = current.score_items.map((item) => keySet.has(item.key) ? { ...item, ...patchFields, source: markManual && patchFields.value !== undefined ? 'MANUAL' : item.source } : item)
       const next = { ...current, score_items: nextItems }
-      next.final_score_percent = calculate(next.score_items, next.sla_score, next.error_level)
+      next.final_score_percent = calculate(next.score_items, next.sla_score, next.error_level, next.sla_total_count)
+      return next
+    })
+  }
+
+  function updateDisplayItemScore(item, value) {
+    if (item.child_items?.length) {
+      updateGroupedScore(item, value)
+      return
+    }
+    const status = value > 0 ? 'ENTERED' : (isTaskIncluded(item) ? 'ENTERED' : 'NOT_APPLICABLE')
+    updateItem(item.key, { value, status })
+  }
+
+  function updateGroupedScore(group, value) {
+    if (isLocked) return
+    onChange(row.userId, (current) => {
+      let remaining = value
+      const childKeys = new Set(group.child_items.map((child) => child.key))
+      const children = group.child_items
+      const nextItems = current.score_items.map((item) => {
+        if (!childKeys.has(item.key)) return item
+        const childIndex = children.findIndex((child) => child.key === item.key)
+        const isLast = childIndex === children.length - 1
+        const childMax = number(item.max_score)
+        const childValue = isLast ? clamp(remaining, childMax) : Math.min(childMax, remaining)
+        remaining = Math.max(0, remaining - childValue)
+        return { ...item, value: childValue, status: value > 0 ? 'ENTERED' : (isTaskIncluded(group) ? 'ENTERED' : 'NOT_APPLICABLE'), source: 'MANUAL' }
+      })
+      const next = { ...current, score_items: nextItems }
+      next.final_score_percent = calculate(next.score_items, next.sla_score, next.error_level, next.sla_total_count)
       return next
     })
   }
@@ -319,7 +459,7 @@ function AgentCard({ row, onChange, onReviewSla }) {
         sla_score: restoredSla,
         error_remark: value === 'NO_ERROR' ? '' : current.error_remark,
       }
-      next.final_score_percent = calculate(next.score_items, next.sla_score, next.error_level)
+      next.final_score_percent = calculate(next.score_items, next.sla_score, next.error_level, next.sla_total_count)
       return next
     })
   }
@@ -340,12 +480,13 @@ function AgentCard({ row, onChange, onReviewSla }) {
       <section className="dailyEntry-task-box">
         <h3 className="dailyEntry-section-label">Tasks &amp; Scoring</h3>
         {(row.score_items || []).length === 0 ? <p className="field-help dailyEntry-empty-state">No subtasks assigned to this agent.</p> : null}
-        {(row.score_items || []).map((item) => (
+        {displayItems.map((item) => (
           <div className={`dailyEntry-dynamic-row${isTaskIncluded(item) ? '' : ' not-applicable'}`} key={item.key}>
             <div className="dailyEntry-dynamic-row-label">
               <div className="dailyEntry-dynamic-row-label-title">
                 <strong>{item.label}</strong>
                 {item.key === OTHER_GENERAL_WORK_KEY ? <OtherGeneralWorkInfo breakdown={item.breakdown} /> : null}
+                {item.child_items?.length ? <SubtaskChildrenInfo children={item.child_items} /> : null}
               </div>
               <div className="dailyEntry-task-meta-line">
                 <span className={`source-badge ${item.source === 'AUTO' ? 'source-auto' : 'source-manual'}`}>
@@ -366,8 +507,7 @@ function AgentCard({ row, onChange, onReviewSla }) {
                   value={isMajor ? 0 : item.value}
                   onChange={(event) => {
                     const value = clamp(event.target.value, item.max_score)
-                    const status = value > 0 ? 'ENTERED' : (isTaskIncluded(item) ? 'ENTERED' : 'NOT_APPLICABLE')
-                    updateItem(item.key, { value, status })
+                    updateDisplayItemScore(item, value)
                   }}
                 />
                 <span className="dailyEntry-score-max">/ {item.max_score} · {isTaskIncluded(item) ? `${formatPercent(taskPerformancePercent(item))}%` : 'N/A'}</span>
