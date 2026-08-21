@@ -25,6 +25,9 @@ from app.modules.pms.schema import (
     PmsEmployeeOfMonthCandidate,
     PmsEmployeeOfMonthResolveRequest,
     PmsEmployeeOfMonthResponse,
+    PmsEmployeeOfMonthStatsItem,
+    PmsEmployeeOfMonthStatsResponse,
+    PmsEmployeeOfMonthWin,
     PmsHistoryItem,
     PmsHistoryResponse,
     PmsMetricConfigCreate,
@@ -1778,7 +1781,9 @@ class PmsService:
 
         if users:
             found = self.db.scalars(
-                select(PmsMonthlyRecord).where(
+                select(PmsMonthlyRecord)
+                .options(selectinload(PmsMonthlyRecord.metrics))
+                .where(
                     PmsMonthlyRecord.year == year,
                     PmsMonthlyRecord.month == month,
                     PmsMonthlyRecord.user_id.in_(
@@ -1830,6 +1835,20 @@ class PmsService:
                         if record
                         else None
                     ),
+                    metrics=[
+                        PmsMonthlyMetricSchema(
+                            metric_key=metric.metric_key,
+                            metric_name_snapshot=metric.metric_name_snapshot,
+                            weight_snapshot=float(metric.weight_snapshot or 0),
+                            source_snapshot=getattr(metric.source_snapshot, 'value', metric.source_snapshot),
+                            is_auto_calculated_snapshot=metric.is_auto_calculated_snapshot,
+                            auto_value=float(metric.auto_value) if metric.auto_value is not None else None,
+                            final_value=float(metric.final_value or 0),
+                            was_overridden=metric.was_overridden,
+                            calc_meta=metric.calc_meta,
+                        )
+                        for metric in (record.metrics if record else [])
+                    ],
                 )
             )
 
@@ -2068,14 +2087,14 @@ class PmsService:
             return
 
         top_score = max(
-            float(record.final_score)
+            self._rounded_score(record.final_score)
             for record in completed
         )
 
         top_records = [
             record
             for record in completed
-            if float(record.final_score)
+            if self._rounded_score(record.final_score)
             == top_score
         ]
 
@@ -2170,14 +2189,14 @@ class PmsService:
             )
 
         top_score = max(
-            float(record.final_score)
+            self._rounded_score(record.final_score)
             for record in completed
         )
 
         top_records = [
             record
             for record in completed
-            if float(record.final_score)
+            if self._rounded_score(record.final_score)
             == top_score
         ]
 
@@ -2343,9 +2362,53 @@ class PmsService:
             payload.month,
         )
 
+    def get_employee_of_month_stats(self, current_user) -> PmsEmployeeOfMonthStatsResponse:
+        self._require_view_all(current_user)
+
+        rows = list(self.db.execute(
+            select(PmsEmployeeOfMonthSelection, PmsMonthlyRecord, User)
+            .join(
+                PmsMonthlyRecord,
+                (PmsMonthlyRecord.user_id == PmsEmployeeOfMonthSelection.selected_user_id)
+                & (PmsMonthlyRecord.year == PmsEmployeeOfMonthSelection.year)
+                & (PmsMonthlyRecord.month == PmsEmployeeOfMonthSelection.month),
+            )
+            .join(User, User.id == PmsEmployeeOfMonthSelection.selected_user_id)
+            .where(PmsEmployeeOfMonthSelection.selected_user_id.is_not(None))
+            .order_by(User.full_name.asc(), PmsEmployeeOfMonthSelection.year.desc(), PmsEmployeeOfMonthSelection.month.desc())
+        ))
+
+        grouped: dict[UUID, PmsEmployeeOfMonthStatsItem] = {}
+        for selection, record, user in rows:
+            item = grouped.get(user.id)
+            if not item:
+                item = PmsEmployeeOfMonthStatsItem(
+                    user_id=user.id,
+                    user_name=user.full_name or user.email,
+                    user_email=user.email,
+                    win_count=0,
+                    wins=[],
+                )
+                grouped[user.id] = item
+
+            item.wins.append(PmsEmployeeOfMonthWin(
+                year=selection.year,
+                month=selection.month,
+                final_score=float(record.final_score or 0),
+            ))
+            item.win_count += 1
+
+        items = sorted(grouped.values(), key=lambda item: (-item.win_count, item.user_name.lower()))
+        return PmsEmployeeOfMonthStatsResponse(items=items)
+
     # ------------------------------------------------------------------
     # Authorization helpers
     # ------------------------------------------------------------------
+    def _rounded_score(self, value) -> int:
+        numeric = float(value or 0)
+        base = int(numeric)
+        return base + (1 if numeric - base > 0.4 else 0)
+
     def _require_admin(
         self,
         current_user,

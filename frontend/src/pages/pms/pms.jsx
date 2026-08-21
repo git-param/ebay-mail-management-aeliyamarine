@@ -6,6 +6,7 @@ import {
   deletePmsConfig,
   fetchPmsConfig,
   fetchPmsEmployeeOfMonth,
+  fetchPmsEmployeeOfMonthStats,
   fetchPmsHistory,
   fetchPmsMonthlyRecord,
   fetchPmsMonthlyTable,
@@ -32,6 +33,8 @@ const MONTH_NAMES = [
   'November',
   'December',
 ]
+const TARGET_ACHIEVEMENT_KEY = 'target_achievement'
+const TARGET_ACHIEVEMENT_STORAGE_KEY = 'pms.targetAchievementByMonth'
 
 function monthLabel(year, month) {
   return `${MONTH_NAMES[month - 1]} ${year}`
@@ -75,6 +78,25 @@ function fmt(value, decimals = 1) {
   return Number(value)
     .toFixed(decimals)
     .replace(/\.0$/, '')
+}
+
+function roundScore(value) {
+  if (
+    value === null
+    || value === undefined
+    || Number.isNaN(Number(value))
+  ) {
+    return null
+  }
+
+  const numeric = Number(value)
+  const base = Math.floor(numeric)
+  return base + (numeric - base > 0.4 ? 1 : 0)
+}
+
+function fmtScore(value) {
+  const rounded = roundScore(value)
+  return rounded === null ? '-' : String(rounded)
 }
 
 function clampNumber(value, max) {
@@ -167,6 +189,24 @@ function scorePercent(value, max) {
   )
 }
 
+function monthKey(year, month) {
+  return `${year}-${String(month).padStart(2, '0')}`
+}
+
+function loadTargetAchievementByMonth() {
+  try {
+    return JSON.parse(window.localStorage.getItem(TARGET_ACHIEVEMENT_STORAGE_KEY) || '{}')
+  } catch {
+    return {}
+  }
+}
+
+function sameRoundedScore(left, right) {
+  const leftScore = roundScore(left)
+  const rightScore = roundScore(right)
+  return leftScore !== null && rightScore !== null && leftScore === rightScore
+}
+
 /**
  * Copy text with a fallback for browsers/environments where the modern
  * Clipboard API is unavailable or blocked.
@@ -239,6 +279,10 @@ export function PMS({
 
   const [activeTab, setActiveTab] = useState('monthly')
   const [search, setSearch] = useState('')
+  const [targetAchievementByMonth, setTargetAchievementByMonth] = useState(loadTargetAchievementByMonth)
+  const [targetAchievementDraft, setTargetAchievementDraft] = useState('100')
+  const currentTargetAchievementKey = monthKey(selectedYear, selectedMonth)
+  const targetAchievementPercent = targetAchievementByMonth[currentTargetAchievementKey] ?? 100
 
   const [tableData, setTableData] = useState(null)
   const [tableLoading, setTableLoading] = useState(false)
@@ -281,12 +325,15 @@ export function PMS({
   const [historyData, setHistoryData] = useState(null)
   const [historyLoading, setHistoryLoading] = useState(false)
   const [historyDetail, setHistoryDetail] = useState(null)
+  const [eomStatsData, setEomStatsData] = useState(null)
+  const [eomStatsLoading, setEomStatsLoading] = useState(false)
+  const [selectedEomEmployeeId, setSelectedEomEmployeeId] = useState('')
 
   const copyResetRef = useRef(null)
 
   const leaderboardRows = useMemo(
     () => {
-      const items = tableData?.items || []
+      const items = (tableData?.items || []).map(adjustedRow)
 
       return [...items].sort((a, b) => {
         const scoreA = Number(a.final_score) || 0
@@ -295,8 +342,65 @@ export function PMS({
         return scoreB - scoreA
       })
     },
-    [tableData],
+    [tableData, targetAchievementPercent],
   )
+
+  function targetMetricValue(metric, percent = targetAchievementPercent) {
+    return roundScore(clampNumber(
+      (Number(metric.weight_snapshot) || 0) * (Number(percent) || 0) / 100,
+      Number(metric.weight_snapshot) || 0,
+    ))
+  }
+
+  function applyTargetAchievement(metrics, percent = targetAchievementPercent) {
+    return metrics.map((metric) => {
+      if (metric.metric_key !== TARGET_ACHIEVEMENT_KEY) {
+        return metric
+      }
+
+      return {
+        ...metric,
+        final_value: targetMetricValue(metric, percent),
+      }
+    })
+  }
+
+  function adjustedRow(row) {
+    const targetMetric = (row.metrics || []).find(
+      (metric) => metric.metric_key === TARGET_ACHIEVEMENT_KEY,
+    )
+
+    if (!targetMetric || row.final_score === null || row.final_score === undefined) {
+      return row
+    }
+
+    const currentTargetValue = Number(targetMetric.final_value) || 0
+    const sharedTargetValue = targetMetricValue(targetMetric)
+    const finalScore = Math.max(
+      0,
+      (Number(row.final_score) || 0) - currentTargetValue + sharedTargetValue,
+    )
+
+    return {
+      ...row,
+      final_score: finalScore,
+      metrics: applyTargetAchievement(row.metrics || []),
+    }
+  }
+
+  function submitTargetAchievement(event) {
+    event.preventDefault()
+    const nextPercent = clampNumber(targetAchievementDraft, 100)
+    setTargetAchievementByMonth((current) => {
+      const next = {
+        ...current,
+        [currentTargetAchievementKey]: nextPercent,
+      }
+      window.localStorage.setItem(TARGET_ACHIEVEMENT_STORAGE_KEY, JSON.stringify(next))
+      return next
+    })
+    setTargetAchievementDraft(String(nextPercent))
+  }
 
   const displayedTopPerformer = useMemo(
     () => {
@@ -309,16 +413,35 @@ export function PMS({
       if (hasSelectedMonthWinner) {
         return {
           name: eomData.winner.user_name,
-          score: eomData.winner.final_score,
+          score: adjustedRow(eomData.winner).final_score,
         }
       }
 
+      const completedRows = leaderboardRows.filter(
+        (row) => row.status === 'COMPLETED' && row.final_score !== null,
+      )
+      const topRow = completedRows[0]
+
       return {
-        name: tableData?.top_performer_name || '',
-        score: tableData?.top_performer_score ?? null,
+        name: topRow?.user_name || tableData?.top_performer_name || '',
+        score: topRow?.final_score ?? tableData?.top_performer_score ?? null,
       }
     },
-    [eomData, selectedMonth, selectedYear, tableData],
+    [eomData, leaderboardRows, selectedMonth, selectedYear, tableData],
+  )
+
+  const roundedTopRows = useMemo(
+    () => {
+      const completedRows = leaderboardRows.filter(
+        (row) => row.status === 'COMPLETED' && row.final_score !== null,
+      )
+      const topRow = completedRows[0]
+      if (!topRow) return []
+      return completedRows.filter(
+        (row) => sameRoundedScore(row.final_score, topRow.final_score),
+      )
+    },
+    [leaderboardRows],
   )
 
   const dashboardInsights = useMemo(
@@ -327,7 +450,7 @@ export function PMS({
         return []
       }
 
-      const items = tableData.items || []
+      const items = leaderboardRows
       const completed = Number(tableData.completed_count) || 0
       const total = items.length
       const aboveNinety = items.filter(
@@ -347,7 +470,7 @@ export function PMS({
           : 'No top performer has been published yet.',
       ]
     },
-    [displayedTopPerformer.name, tableData],
+    [displayedTopPerformer.name, leaderboardRows, tableData],
   )
 
   useEffect(
@@ -479,6 +602,20 @@ export function PMS({
     }
   }
 
+  async function loadEmployeeOfMonthStats() {
+    setEomStatsLoading(true)
+
+    try {
+      const data = await fetchPmsEmployeeOfMonthStats()
+      setEomStatsData(data)
+      setSelectedEomEmployeeId((current) => current || data.items?.[0]?.user_id || '')
+    } catch {
+      setEomStatsData(null)
+    } finally {
+      setEomStatsLoading(false)
+    }
+  }
+
   useEffect(() => {
     if (canViewAll) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -533,6 +670,12 @@ export function PMS({
       loadHistory()
     }
 
+    if (
+      activeTab === 'employee-of-month'
+    ) {
+      loadEmployeeOfMonthStats()
+    }
+
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab])
 
@@ -546,6 +689,16 @@ export function PMS({
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [historyFilters])
+
+  useEffect(() => {
+    setEditorMetrics((items) => applyTargetAchievement(items))
+
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [targetAchievementPercent])
+
+  useEffect(() => {
+    setTargetAchievementDraft(String(targetAchievementPercent))
+  }, [targetAchievementPercent])
 
   // ------------------------------------------------------------------
   // Editor drawer
@@ -568,11 +721,11 @@ export function PMS({
       setEditorRecord(record)
 
       setEditorMetrics(
-        record.metrics.map(
+        applyTargetAchievement(record.metrics.map(
           (metric) => ({
             ...metric,
           }),
-        ),
+        )),
       )
 
       setEditorRemarks(
@@ -604,6 +757,7 @@ export function PMS({
         (item) => {
           if (
             item.metric_key !== key
+            || item.metric_key === TARGET_ACHIEVEMENT_KEY
           ) {
             return item
           }
@@ -667,11 +821,11 @@ export function PMS({
       setEditorRecord(record)
 
       setEditorMetrics(
-        record.metrics.map(
+        applyTargetAchievement(record.metrics.map(
           (metric) => ({
             ...metric,
           }),
-        ),
+        )),
       )
     } catch (err) {
       setEditorError(
@@ -702,7 +856,9 @@ export function PMS({
           (metric) => ({
             metric_key: metric.metric_key,
             final_value:
-              Number(metric.final_value) || 0,
+              metric.metric_key === TARGET_ACHIEVEMENT_KEY
+                ? targetMetricValue(metric)
+                : Number(metric.final_value) || 0,
           }),
         ),
       }
@@ -833,7 +989,7 @@ export function PMS({
       return
     }
 
-    const winner = eomData.winner
+    const winner = adjustedRow(eomData.winner)
 
     const label = monthLabel(
       eomData.year,
@@ -845,12 +1001,12 @@ export function PMS({
       '',
       `Congratulations to ${winner.user_name} for achieving the highest PMS score for ${label}.`,
       '',
-      `Final Score: ${fmt(winner.final_score)}/${fmt(winner.maximum_score)}`,
+      `Final Score: ${fmtScore(winner.final_score)}/${fmtScore(winner.maximum_score)}`,
       '',
       'Performance Breakdown:',
       ...winner.metrics.map(
         (metric) => (
-          `- ${metric.metric_name_snapshot}: ${fmt(metric.final_value)}/${fmt(metric.weight_snapshot)}`
+          `- ${metric.metric_name_snapshot}: ${fmtScore(metric.final_value)}/${fmtScore(metric.weight_snapshot)}`
         ),
       ),
       '',
@@ -943,8 +1099,17 @@ export function PMS({
     const pendingPercent = employeeCount
       ? (tableData.pending_count / employeeCount) * 100
       : 0
+    const completedRows = leaderboardRows.filter(
+      (row) => row.status === 'COMPLETED' && row.final_score !== null,
+    )
+    const adjustedAverageScore = completedRows.length
+      ? completedRows.reduce(
+        (sum, row) => sum + (Number(row.final_score) || 0),
+        0,
+      ) / completedRows.length
+      : null
     const averagePercent = scorePercent(
-      tableData.average_score,
+      adjustedAverageScore,
       tableData.total_active_weight || 100,
     )
 
@@ -984,8 +1149,8 @@ export function PMS({
           <div className="pmsModule-summary-card">
             <span>Average Score</span>
             <strong>
-              {tableData.average_score !== null
-                ? fmt(tableData.average_score)
+              {adjustedAverageScore !== null
+                ? fmtScore(adjustedAverageScore)
                 : '-'}
             </strong>
             <div className="pmsModule-mini-meter">
@@ -997,7 +1162,7 @@ export function PMS({
             <span>Top Performer</span>
             <strong>{displayedTopPerformer.name || '-'}</strong>
             {displayedTopPerformer.score !== null ? (
-              <small>{fmt(displayedTopPerformer.score)}</small>
+              <small>{fmtScore(displayedTopPerformer.score)}</small>
             ) : null}
           </div>
         </div>
@@ -1005,7 +1170,7 @@ export function PMS({
         {tableData.total_active_weight !== 100 ? (
           <div className="pmsModule-summary-card pmsModule-summary-card-warning">
             <span>Configured Total Weight</span>
-            <strong>{fmt(tableData.total_active_weight)}</strong>
+            <strong>{fmtScore(tableData.total_active_weight)}</strong>
             <small>
               Active weights don't total 100 - check PMS Configuration.
             </small>
@@ -1055,7 +1220,7 @@ export function PMS({
       )
     }
 
-    if (!eomData || (!eomData.winner && !eomData.is_tie)) {
+    if (!eomData || (!eomData.winner && !eomData.is_tie && roundedTopRows.length < 2)) {
       return (
         <section className="pmsModule-eom-card pmsModule-eom-empty">
           <div className="pmsModule-award-outline" />
@@ -1070,23 +1235,24 @@ export function PMS({
       )
     }
 
-    if (eomData.is_tie && !eomData.winner) {
+    if ((eomData.is_tie && !eomData.winner) || (roundedTopRows.length > 1 && !eomData?.winner)) {
+      const candidates = roundedTopRows.length > 1 ? roundedTopRows : eomData.candidates
       return (
         <section className="pmsModule-eom-card pmsModule-eom-tie">
           <div className="pmsModule-eom-copy">
             <span className="pmsModule-eyebrow">Winner Decision</span>
             <h3>Joint Top Performers</h3>
             <p>
-              {eomData.candidates.length}{' '}
-              employees are tied for the highest score this month.
+              {candidates.length}{' '}
+              employees are tied for the highest rounded score this month.
             </p>
           </div>
 
           <ul className="pmsModule-eom-tie-list">
-            {eomData.candidates.map((candidate) => (
+            {candidates.map((candidate) => (
               <li key={candidate.user_id}>
                 <span>{candidate.user_name}</span>
-                <strong>{fmt(candidate.final_score)}</strong>
+                <strong>{fmtScore(candidate.final_score)}</strong>
 
                 {isAdmin ? (
                   <button
@@ -1129,8 +1295,8 @@ export function PMS({
           </div>
 
           <div className="pmsModule-eom-score">
-            <strong>{fmt(winner.final_score)}</strong>
-            <span>/ {fmt(winner.maximum_score)}</span>
+            <strong>{fmtScore(winner.final_score)}</strong>
+            <span>/ {fmtScore(winner.maximum_score)}</span>
           </div>
 
           <div
@@ -1177,7 +1343,7 @@ export function PMS({
               <div key={metric.metric_key}>
                 <span>{metric.metric_name_snapshot}</span>
                 <strong>
-                  {fmt(metric.final_value)} / {fmt(metric.weight_snapshot)}
+                  {fmtScore(metric.final_value)} / {fmtScore(metric.weight_snapshot)}
                 </strong>
                 <div className="pmsModule-metric-bar">
                   <i style={{ width: `${metricPercent}%` }} />
@@ -1217,7 +1383,31 @@ export function PMS({
             <span className="pmsModule-eyebrow">Leaderboard</span>
             <h2>Employee Performance Ranking</h2>
           </div>
-          <small>{leaderboardRows.length} employees</small>
+          <div className="pmsModule-leaderboard-controls">
+            {isAdmin ? (
+              <form className="pmsModule-target-achievement-field" onSubmit={submitTargetAchievement}>
+                <label htmlFor="pms-target-achievement">
+                  Target Achievement
+                </label>
+                <input
+                  id="pms-target-achievement"
+                  type="number"
+                  min={0}
+                  max={100}
+                  step="0.1"
+                  value={targetAchievementDraft}
+                  onChange={(event) => (
+                    setTargetAchievementDraft(event.target.value)
+                  )}
+                />
+                <strong>%</strong>
+                <button type="submit" className="secondary-button compact-action">
+                  Submit
+                </button>
+              </form>
+            ) : null}
+            <small>{leaderboardRows.length} employees</small>
+          </div>
         </div>
 
         <div className="table-scroll">
@@ -1271,7 +1461,7 @@ export function PMS({
                       <div className="pmsModule-table-score">
                         <strong>
                           {row.final_score !== null
-                            ? `${fmt(row.final_score)} / ${fmt(row.maximum_score)}`
+                            ? `${fmtScore(row.final_score)} / ${fmtScore(row.maximum_score)}`
                             : '-'}
                         </strong>
                         <div className="pmsModule-score-track">
@@ -1373,6 +1563,9 @@ export function PMS({
                     const isAuto = (
                       metric.is_auto_calculated_snapshot
                     )
+                    const isTargetAchievement = (
+                      metric.metric_key === TARGET_ACHIEVEMENT_KEY
+                    )
 
                     const tooltip = metricTooltip(
                       metric,
@@ -1428,10 +1621,17 @@ export function PMS({
                             <small className="pmsModule-auto-value">
                               Auto calculated:{' '}
                               {metric.auto_value !== null
-                                ? fmt(metric.auto_value)
+                                ? fmtScore(metric.auto_value)
                                 : '-'}
                               {' / '}
-                              {fmt(metric.weight_snapshot)}
+                              {fmtScore(metric.weight_snapshot)}
+                            </small>
+                          ) : isTargetAchievement ? (
+                            <small className="pmsModule-auto-value">
+                              Shared target:{' '}
+                              {fmt(targetAchievementPercent)}
+                              % of{' '}
+                              {fmtScore(metric.weight_snapshot)}
                             </small>
                           ) : null}
                         </div>
@@ -1443,9 +1643,7 @@ export function PMS({
                             max={metric.weight_snapshot}
                             step="0.1"
                             disabled={
-                              !editorRecord
-                                ? false
-                                : false
+                              isTargetAchievement
                             }
                             value={metric.final_value}
                             onChange={(event) => (
@@ -1458,7 +1656,7 @@ export function PMS({
 
                           <span className="pmsModule-score-max">
                             /{' '}
-                            {fmt(
+                            {fmtScore(
                               metric.weight_snapshot,
                             )}
                           </span>
@@ -1475,9 +1673,9 @@ export function PMS({
                 </span>
 
                 <strong>
-                  {fmt(editorFinalScore)}
+                  {fmtScore(editorFinalScore)}
                   {' / '}
-                  {fmt(editorMaxScore)}
+                  {fmtScore(editorMaxScore)}
                 </strong>
               </div>
 
@@ -1952,11 +2150,11 @@ export function PMS({
                       ) : null}
 
                       <td>
-                        {fmt(
+                        {fmtScore(
                           item.final_score,
                         )}
                         {' / '}
-                        {fmt(
+                        {fmtScore(
                           item.maximum_score,
                         )}
                       </td>
@@ -2034,11 +2232,11 @@ export function PMS({
                 Final Score:{' '}
 
                 <strong>
-                  {fmt(
+                  {fmtScore(
                     historyDetail.final_score,
                   )}
                   {' / '}
-                  {fmt(
+                  {fmtScore(
                     historyDetail.maximum_score,
                   )}
                 </strong>
@@ -2081,6 +2279,68 @@ export function PMS({
     )
   }
 
+  function renderEmployeeOfMonthTab() {
+    const items = eomStatsData?.items || []
+    const selectedEmployee = items.find((item) => item.user_id === selectedEomEmployeeId) || items[0] || null
+
+    return (
+      <div className="pms-history-card pmsModule-eom-stats-card">
+        <div className="pmsModule-section-heading">
+          <div>
+            <span className="pmsModule-eyebrow">Employee of the Month</span>
+            <h2>Winner History</h2>
+          </div>
+          <small>{items.length} employees</small>
+        </div>
+
+        {eomStatsLoading ? (
+          <div className="pmsModule-empty-state pmsModule-skeleton-panel">
+            Loading Employee of the Month history...
+          </div>
+        ) : items.length === 0 ? (
+          <div className="pmsModule-empty-state">
+            No Employee of the Month winners have been selected yet.
+          </div>
+        ) : (
+          <div className="pmsModule-eom-stats-layout">
+            <div className="pmsModule-eom-stats-grid">
+              {items.map((item) => (
+                <button
+                  type="button"
+                  className={`pmsModule-eom-stat-card${item.user_id === selectedEmployee?.user_id ? ' active' : ''}`}
+                  key={item.user_id}
+                  onClick={() => setSelectedEomEmployeeId(item.user_id)}
+                >
+                  <span className="pmsModule-avatar pmsModule-avatar-small">
+                    {initials(item.user_name)}
+                  </span>
+                  <span>
+                    <strong>{item.user_name}</strong>
+                    {item.user_email ? <small>{item.user_email}</small> : null}
+                  </span>
+                  <b>{item.win_count}</b>
+                </button>
+              ))}
+            </div>
+
+            <div className="pmsModule-eom-win-list">
+              <div className="pmsModule-eom-win-list-header">
+                <strong>{selectedEmployee?.user_name}</strong>
+                <span>{selectedEmployee?.win_count || 0} wins</span>
+              </div>
+              {(selectedEmployee?.wins || []).map((win) => (
+                <div className="pmsModule-eom-win-row" key={`${win.year}-${win.month}`}>
+                  <span>{monthLabel(win.year, win.month)}</span>
+                  <strong>{fmtScore(win.final_score)}</strong>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    )
+  }
+
   function renderAgentOwnRecord() {
     if (agentLoading) {
       return (
@@ -2114,11 +2374,11 @@ export function PMS({
           </span>
 
           <strong>
-            {fmt(
+            {fmtScore(
               agentRecord.final_score,
             )}
             {' / '}
-            {fmt(
+            {fmtScore(
               agentRecord.maximum_score,
             )}
           </strong>
@@ -2139,11 +2399,11 @@ export function PMS({
 
                 <div className="pmsModule-editor-metric-score">
                   <span>
-                    {fmt(
+                    {fmtScore(
                       metric.final_value,
                     )}
                     {' / '}
-                    {fmt(
+                    {fmtScore(
                       metric.weight_snapshot,
                     )}
                   </span>
@@ -2250,6 +2510,22 @@ export function PMS({
             History
           </button>
 
+          {canViewAll ? (
+            <button
+              type="button"
+              className={
+                activeTab === 'employee-of-month'
+                  ? 'active'
+                  : ''
+              }
+              onClick={() => (
+                setActiveTab('employee-of-month')
+              )}
+            >
+              Employee of the Month
+            </button>
+          ) : null}
+
           {isAdmin ? (
             <button
               type="button"
@@ -2287,6 +2563,10 @@ export function PMS({
 
         {activeTab === 'history'
           ? renderHistoryTab()
+          : null}
+
+        {activeTab === 'employee-of-month'
+          ? renderEmployeeOfMonthTab()
           : null}
 
         {activeTab === 'config'

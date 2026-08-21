@@ -8,6 +8,7 @@ from app.db.session import get_db
 from app.modules.pms.schema import (
     PmsEmployeeOfMonthResolveRequest,
     PmsEmployeeOfMonthResponse,
+    PmsEmployeeOfMonthStatsResponse,
     PmsHistoryResponse,
     PmsMetricConfigCreate,
     PmsMetricConfigListResponse,
@@ -127,6 +128,12 @@ def get_employee_of_month(
 ):
     service = PmsService(db)
     return service.get_employee_of_month(current_user, year, month)
+
+
+@router.get('/employee-of-month/stats', response_model=PmsEmployeeOfMonthStatsResponse)
+def get_employee_of_month_stats(db: Session = Depends(get_db), current_user=Depends(require_operations_manager_or_admin)):
+    service = PmsService(db)
+    return service.get_employee_of_month_stats(current_user)
 
 
 @router.post('/employee-of-month/resolve', response_model=PmsEmployeeOfMonthResponse)

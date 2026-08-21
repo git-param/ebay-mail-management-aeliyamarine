@@ -285,7 +285,7 @@ class DailyEntryService:
         if other_item is not None:
             items.append(other_item)
         sla_met_count, sla_total_count = self._sla_counts(user_id, start, end)
-        sla_score = round((sla_met_count / sla_total_count) * self.SLA_MAX) if sla_total_count else 0
+        sla_score = round((sla_met_count / sla_total_count) * self.SLA_MAX) if sla_total_count else self.SLA_MAX
         entry = DailyTaskEntry(
             user_id=user_id,
             entry_date=entry_date,
@@ -337,18 +337,11 @@ class DailyEntryService:
         subtask_label = f'{subtask.category.name} - {subtask.name}' if subtask.category else subtask.name
         label = f'{subtask_label} - {child.name}' if child else subtask_label
         source = 'AUTO' if assignment.auto_fetch_enabled and target.supports_automatic_fetch else 'MANUAL'
-        value = 0
+        value = max_score
         activity_count = None
-        # Assigned tasks are not assumed to be required every day. A zero/no-activity
-        # task therefore starts excluded. Admins can explicitly include that zero on
-        # the Daily Task Entry screen when it represents a genuine missed task.
-        status_value = 'NOT_APPLICABLE'
+        status_value = 'ENTERED'
         if source == 'AUTO':
-            # Any qualifying activity earns full marks by default; no fetched activity
-            # stays excluded until the admin deliberately chooses to count the zero.
             activity_count = self._automatic_count(target, user_id, start, end)
-            value = max_score if activity_count > 0 else 0
-            status_value = 'ENTERED' if activity_count > 0 else 'NOT_APPLICABLE'
         return self._item(
             f'assignment:{assignment.id}',
             label,
@@ -452,10 +445,10 @@ class DailyEntryService:
         item = self._item(
             OTHER_GENERAL_WORK_KEY,
             OTHER_GENERAL_WORK_LABEL,
-            OTHER_GENERAL_WORK_MAX if total_count > 0 else 0,
+            OTHER_GENERAL_WORK_MAX,
             OTHER_GENERAL_WORK_MAX,
             'AUTO',
-            status='ENTERED' if total_count > 0 else 'NOT_APPLICABLE',
+            status='ENTERED',
             activity_count=total_count,
         )
         item['breakdown'] = breakdown
