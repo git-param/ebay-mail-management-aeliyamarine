@@ -126,7 +126,7 @@ function Dashboard({
     useState(() =>
       getStoredNumber(
         LIST_WIDTH_KEY,
-        420,
+        360,
       ),
     )
 
@@ -134,7 +134,7 @@ function Dashboard({
     useState(() =>
       getStoredNumber(
         DETAILS_WIDTH_KEY,
-        360,
+        320,
       ),
     )
 
@@ -543,8 +543,8 @@ function Dashboard({
       setListWidth(
         clamp(
           mouseEvent.clientX - 272,
-          320,
-          680,
+          280,
+          560,
         ),
       )
     }
@@ -580,8 +580,8 @@ function Dashboard({
         clamp(
           window.innerWidth -
             mouseEvent.clientX,
-          300,
-          560,
+          260,
+          460,
         ),
       )
     }
