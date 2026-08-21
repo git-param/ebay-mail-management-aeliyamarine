@@ -1,5 +1,4 @@
 import calendar
-import json
 from datetime import UTC, date, datetime, time
 from math import ceil
 from uuid import UUID
@@ -9,7 +8,6 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session, joinedload
 
 from app.api.dependencies import is_admin, is_support_agent
-from app.models.app_config import AppConfigSetting
 from app.models.user import User
 from app.modules.leave_management.models import LeaveBalanceLedger, LeavePolicy, LeaveRequest
 from app.modules.leave_management.schemas import (
@@ -25,8 +23,8 @@ from app.services.audit_service import AuditService
 
 
 LEAVE_SYSTEM_START = date(2026, 8, 1)
-LEAVE_SUMMARY_OVERRIDE_PREFIX = 'leave.summary.override'
 AGENT_ROLE_NAME = 'Support Agent'
+ADH_LEDGER_ENTRY_TYPE = 'ADH_OVERRIDE'
 
 
 class LeaveManagementService:
@@ -261,17 +259,15 @@ class LeaveManagementService:
         rows = []
         for user in users:
             actual = self._actual_admin_summary_for_user(user.id, year, month)
-            override = self._summary_override(user.id, year, month)
-            values = override or actual
             rows.append({
                 'user_id': user.id,
                 'employee': user.full_name or user.email,
                 'year': year,
                 'month': month,
-                'paid_leaves': round(float(values.get('paid_leaves', 0)), 2),
-                'unpaid_leaves': round(float(values.get('unpaid_leaves', 0)), 2),
-                'adh': int(values.get('adh', 0)),
-                'is_overridden': override is not None,
+                'paid_leaves': round(float(actual.get('paid_leaves', 0)), 2),
+                'unpaid_leaves': round(float(actual.get('unpaid_leaves', 0)), 2),
+                'adh': int(self._adh_override(user.id, year, month)),
+                'is_overridden': False,
             })
         return rows
 
@@ -283,27 +279,15 @@ class LeaveManagementService:
                 raise HTTPException(status.HTTP_404_NOT_FOUND, 'User not found')
             if not is_support_agent(user):
                 raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, 'Leave summary can be updated only for agent users')
-            key = self._summary_override_key(item.user_id, payload.year, payload.month)
-            setting = self.db.scalar(select(AppConfigSetting).where(AppConfigSetting.config_key == key))
-            value = json.dumps({
-                'paid_leaves': round(float(item.paid_leaves), 2),
-                'unpaid_leaves': round(float(item.unpaid_leaves), 2),
-                'adh': int(item.adh),
-            })
-            if not setting:
-                setting = AppConfigSetting(
-                    section='leave_summary_override',
-                    config_key=key,
-                    label=f'Leave summary override {payload.year}-{payload.month:02d} {item.user_id}',
-                    value=value,
-                    value_type='json',
-                    is_editable=False,
-                    updated_by_user_id=current_user.id,
-                )
-                self.db.add(setting)
-            else:
-                setting.value = value
-                setting.updated_by_user_id = current_user.id
+            self._apply_paid_summary_correction(
+                current_user,
+                item.user_id,
+                payload.year,
+                payload.month,
+                float(item.paid_leaves),
+                float(item.unpaid_leaves),
+            )
+            self._set_adh_override(current_user, item.user_id, payload.year, payload.month, int(item.adh))
 
         self.db.commit()
         return self.list_admin_summary(current_user, payload.year, payload.month)
@@ -317,12 +301,7 @@ class LeaveManagementService:
             LeaveRequest.start_date >= start,
             LeaveRequest.start_date <= end,
         )))
-        paid_deductions_by_request = self._paid_pms_deductions_by_request(
-            policy,
-            approved,
-            self._paid_available_at_month_start(policy, user_id, year, month),
-        )
-        paid_deduction_count = sum(paid_deductions_by_request.values())
+        paid_deduction_count = sum(self._paid_pms_deduction_count(item) for item in approved if item.leave_type == 'PAID')
         approved_instances = [item for item in approved if item.leave_type == 'INSTANCE']
         approved_short = [item for item in approved if item.leave_type == 'SHORT']
         extra_instances = max(len(approved_instances) - int(policy.instance_limit), 0)
@@ -376,14 +355,7 @@ class LeaveManagementService:
                         category='LEAVE_MANAGEMENT',
                         metadata={'employee_user_id': str(request.user_id), 'amount': float(ledger.amount), 'entry_type': ledger.entry_type},
                     )
-            approved_paid = self._approved_requests_for_month(request.user_id, month_year, month, 'PAID')
-            paid_allowance = self._paid_available_at_month_start(policy, request.user_id, month_year, month)
-            before = self._paid_pms_deductions_by_request(policy, approved_paid, paid_allowance)
-            after = self._paid_pms_deductions_by_request(policy, [*approved_paid, request], paid_allowance)
-            request.pms_attendance_deduction = round(
-                (after.get(request.id, 0) - before.get(request.id, 0)) * float(policy.attendance_deduction_per_excess),
-                2,
-            )
+            request.pms_attendance_deduction = round(self._paid_pms_deduction_count(request) * float(policy.attendance_deduction_per_excess), 2)
 
         elif request.leave_type == 'INSTANCE':
             # Instance leave uses the Admin-configured monthly count limit.
@@ -481,25 +453,108 @@ class LeaveManagementService:
         return {
             'paid_leaves': sum(float(item.paid_days or 0) for item in approved if item.leave_type == 'PAID'),
             'unpaid_leaves': sum(float(item.excess_days or 0) for item in approved if item.leave_type == 'PAID'),
-            'adh': sum(1 for item in approved if item.leave_type in {'INSTANCE', 'SHORT'}),
         }
 
-    def _summary_override(self, user_id: UUID, year: int, month: int) -> dict | None:
-        setting = self.db.scalar(select(AppConfigSetting).where(AppConfigSetting.config_key == self._summary_override_key(user_id, year, month)))
-        if not setting:
-            return None
-        try:
-            data = json.loads(setting.value)
-        except json.JSONDecodeError:
-            return None
-        return {
-            'paid_leaves': float(data.get('paid_leaves', 0)),
-            'unpaid_leaves': float(data.get('unpaid_leaves', 0)),
-            'adh': int(data.get('adh', 0)),
-        }
+    def _apply_paid_summary_correction(
+        self,
+        current_user,
+        user_id: UUID,
+        year: int,
+        month: int,
+        paid_total: float,
+        unpaid_total: float,
+    ) -> None:
+        paid_requests = self._approved_requests_for_month(user_id, year, month, 'PAID')
+        requested_total = round(float(paid_total) + float(unpaid_total), 2)
+        if not paid_requests and requested_total > 0:
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, 'Cannot set paid or unpaid leave totals without approved paid leave requests for this employee/month')
 
-    def _summary_override_key(self, user_id: UUID, year: int, month: int) -> str:
-        return f'{LEAVE_SUMMARY_OVERRIDE_PREFIX}.{year}.{month:02d}.{user_id}'
+        paid_values = self._distribute_summary_total(paid_requests, paid_total)
+        unpaid_values = self._distribute_summary_total(paid_requests, unpaid_total)
+        for request, paid_days, excess_days in zip(paid_requests, paid_values, unpaid_values, strict=False):
+            request.paid_days = paid_days
+            request.excess_days = excess_days
+            self._upsert_paid_ledger(current_user, request, year, month)
+
+        self._recalculate_paid_pms_for_month(current_user, user_id, year, month)
+
+    def _upsert_paid_ledger(self, current_user, request: LeaveRequest, year: int, month: int) -> None:
+        ledger = self.db.scalar(select(LeaveBalanceLedger).where(
+            LeaveBalanceLedger.source_request_id == request.id,
+            LeaveBalanceLedger.entry_type == 'PAID_DEDUCTION',
+        ))
+        paid_days = float(request.paid_days or 0)
+        if paid_days <= 0:
+            if ledger:
+                self.db.delete(ledger)
+            return
+        if not ledger:
+            ledger = LeaveBalanceLedger(
+                user_id=request.user_id,
+                year=year,
+                month=month,
+                entry_type='PAID_DEDUCTION',
+                source_request_id=request.id,
+                note='Paid leave summary correction',
+                created_by_user_id=current_user.id,
+            )
+            self.db.add(ledger)
+        ledger.amount = -paid_days
+
+    def _distribute_summary_total(self, requests: list[LeaveRequest], total: float) -> list[float]:
+        remaining = round(float(total), 2)
+        values: list[float] = []
+        for index, request in enumerate(requests):
+            if index == len(requests) - 1:
+                value = remaining
+            else:
+                value = min(round(float(request.duration_days or 0), 2), remaining)
+            values.append(round(value, 2))
+            remaining = round(max(remaining - value, 0), 2)
+        return values
+
+    def _recalculate_paid_pms_for_month(self, current_user, user_id: UUID, year: int, month: int) -> None:
+        policy = self.get_policy()
+        paid_requests = self._approved_requests_for_month(user_id, year, month, 'PAID')
+        for request in paid_requests:
+            request.pms_attendance_deduction = round(self._paid_pms_deduction_count(request) * float(policy.attendance_deduction_per_excess), 2)
+        self._recalculate_pms_after_leave(current_user, user_id, year, month)
+
+    def _paid_pms_deduction_count(self, request: LeaveRequest) -> int:
+        return int(ceil(max(float(request.excess_days or 0), 0)))
+
+    def _adh_override(self, user_id: UUID, year: int, month: int) -> int:
+        ledger = self.db.scalar(select(LeaveBalanceLedger).where(
+            LeaveBalanceLedger.user_id == user_id,
+            LeaveBalanceLedger.year == year,
+            LeaveBalanceLedger.month == month,
+            LeaveBalanceLedger.entry_type == ADH_LEDGER_ENTRY_TYPE,
+        ).order_by(LeaveBalanceLedger.created_at.desc()))
+        return int(float(ledger.amount)) if ledger else 0
+
+    def _set_adh_override(self, current_user, user_id: UUID, year: int, month: int, adh: int) -> None:
+        ledgers = list(self.db.scalars(select(LeaveBalanceLedger).where(
+            LeaveBalanceLedger.user_id == user_id,
+            LeaveBalanceLedger.year == year,
+            LeaveBalanceLedger.month == month,
+            LeaveBalanceLedger.entry_type == ADH_LEDGER_ENTRY_TYPE,
+        ).order_by(LeaveBalanceLedger.created_at.asc())))
+        ledger = ledgers[0] if ledgers else None
+        for duplicate in ledgers[1:]:
+            self.db.delete(duplicate)
+        if not ledger:
+            ledger = LeaveBalanceLedger(
+                user_id=user_id,
+                year=year,
+                month=month,
+                entry_type=ADH_LEDGER_ENTRY_TYPE,
+                source_request_id=None,
+                note='Admin ADH monthly override',
+                created_by_user_id=current_user.id,
+            )
+            self.db.add(ledger)
+        ledger.amount = int(adh)
+        ledger.created_by_user_id = current_user.id
 
     def _agent_users_statement(self):
         return select(User).where(User.is_active.is_(True), User.role.has(name=AGENT_ROLE_NAME)).order_by(User.full_name.asc())
@@ -641,7 +696,6 @@ class LeaveManagementService:
             'reviewed_by_user_id': item.reviewed_by_user_id,
             'reviewed_by_name': (item.reviewed_by.full_name or item.reviewed_by.email) if item.reviewed_by else None,
             'reviewed_at': item.reviewed_at,
-            'review_note': item.review_note,
             'created_at': item.created_at,
             'updated_at': item.updated_at,
         }

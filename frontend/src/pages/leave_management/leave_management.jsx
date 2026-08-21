@@ -61,6 +61,10 @@ function leaveLabel(value) {
   return String(value || '').replaceAll('_', ' ').toLowerCase().replace(/\b\w/g, (letter) => letter.toUpperCase())
 }
 
+function dateTimeLabel(value) {
+  return value ? new Date(value).toLocaleString() : '-'
+}
+
 function emptyForm() {
   return {
     leave_type: 'PAID',
@@ -454,7 +458,7 @@ function LeaveManagement({ currentUser, onLogout }) {
             <div className="leaveModule-panel-header">
               <div>
                 <h2>Monthly Leave Summary</h2>
-                <p className="leaveModule-note">Values are fetched from approved leave requests for the selected month. Edit a row to correct paid, unpaid, or ADH counts.</p>
+                <p className="leaveModule-note">Paid and unpaid leaves are fetched from approved paid leave requests for the selected month. ADH is maintained by admin.</p>
               </div>
               <div className="leaveModule-summary-actions">
                 <button className="leaveModule-primary" type="button" onClick={saveAdminSummary} disabled={summarySaving}>
@@ -560,6 +564,10 @@ function LeaveManagement({ currentUser, onLogout }) {
                 <div>
                   <dt>Status</dt>
                   <dd><span className={statusClass(selectedRequest.status)}>{leaveLabel(selectedRequest.status)}</span></dd>
+                </div>
+                <div>
+                  <dt>Handled At</dt>
+                  <dd>{dateTimeLabel(selectedRequest.reviewed_at)}</dd>
                 </div>
               </dl>
               <div className="leaveModule-reason-box">
