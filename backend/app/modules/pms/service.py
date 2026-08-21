@@ -555,14 +555,12 @@ class PmsService:
 
         return round(max(weight - deduction, 0.0), 2), {
             'formula': (
-                'Leave Management approved excess usage only. Paid leave is '
-                'allowed up to the configured 1.5-day monthly allowance; excess '
-                'paid leave days are rounded up to whole attendance deductions '
-                '(for example, 3 days - 1.5 allowance = 1.5 excess = 2 points). '
-                'Short leave uses the Admin-configured monthly limit and pending '
-                'or approved requests consume that limit. Instance leave uses '
-                'its Admin-configured limit for punctuality deductions. '
-                'Non-approved leave does not reduce PMS.'
+                'Leave Management monthly summary is the source of truth. '
+                'Paid and unpaid summary values come from the leave balance '
+                'ledger when Admin has updated the summary table. Unpaid leave '
+                'is rounded up to whole attendance deductions. ADH comes from '
+                'the ledger-backed Admin summary and is compared with the '
+                'combined short/instance monthly limits for punctuality.'
             ),
             'attendance_deduction': impact['attendance_deduction'],
             'punctuality_deduction': impact['punctuality_deduction'],

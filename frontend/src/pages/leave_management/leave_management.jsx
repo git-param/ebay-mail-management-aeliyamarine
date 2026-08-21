@@ -53,6 +53,11 @@ function fmt(value) {
   return Number.isInteger(number) ? String(number) : number.toFixed(1)
 }
 
+function numericValue(value) {
+  const number = Number(value)
+  return Number.isFinite(number) && number >= 0 ? number : 0
+}
+
 function statusClass(status) {
   return `leaveModule-status leaveModule-status-${String(status || '').toLowerCase()}`
 }
@@ -262,12 +267,14 @@ function LeaveManagement({ currentUser, onLogout }) {
       const saved = await updateLeaveAdminSummary({
         year: selectedMonth.year,
         month: selectedMonth.month,
-        items: adminSummary.map((item) => ({
-          user_id: item.user_id,
-          paid_leaves: Number(item.paid_leaves) || 0,
-          unpaid_leaves: Number(item.unpaid_leaves) || 0,
-          adh: Number(item.adh) || 0,
-        })),
+        items: adminSummary
+          .filter((item) => item.user_id)
+          .map((item) => ({
+            user_id: item.user_id,
+            paid_leaves: numericValue(item.paid_leaves),
+            unpaid_leaves: numericValue(item.unpaid_leaves),
+            adh: Math.floor(numericValue(item.adh)),
+          })),
       })
       setAdminSummary(saved || [])
       setMessage('Leave summary updated.')
