@@ -1401,7 +1401,7 @@ export function PMS({
                   )}
                 />
                 <strong>%</strong>
-                <button type="submit" className="secondary-button compact-action">
+                <button type="submit" className="secondary-button-compact-action">
                   Submit
                 </button>
               </form>
@@ -2545,10 +2545,10 @@ export function PMS({
 
         {activeTab === 'monthly' ? (
           <>
-            {renderEmployeeOfMonth()}
-
             {canViewAll ? (
               <>
+                {renderEmployeeOfMonth()}
+
                 {renderSummaryCards()}
 
                 <div className="pms-history-card">
