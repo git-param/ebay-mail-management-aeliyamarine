@@ -4,7 +4,7 @@ from fastapi import HTTPException, status
 
 from app.models.conversation import Conversation
 from app.models.ebay_account import EbayAccount
-from app.modules.offer_management.models import OfferManagementEntry
+from app.modules.offer_management.models import OfferManagementEntry, OfferManagementOutcome, OfferManagementStatus
 from app.modules.offer_management.permissions import can_view_all_offer_entries, require_offer_entry_access, require_offer_entry_delete_access
 from app.modules.offer_management.repository import OfferManagementRepository
 from app.modules.offer_management.schemas import OfferEntryCreate, OfferEntryUpdate
@@ -13,6 +13,21 @@ from app.modules.config_management.service import ConfigService
 
 
 class OfferManagementService:
+    ACTIVE_STATUSES = {
+        OfferManagementStatus.OPEN,
+        OfferManagementStatus.CLOSED,
+    }
+    ACTIVE_OUTCOMES = {
+        OfferManagementOutcome.PENDING,
+        OfferManagementOutcome.DONE,
+        OfferManagementOutcome.IGNORE,
+        OfferManagementOutcome.SOLD,
+        OfferManagementOutcome.NOT_ABLE_TO_MATCH_THE_PRICE,
+    }
+    CLOSED_OUTCOMES = ACTIVE_OUTCOMES - {
+        OfferManagementOutcome.PENDING,
+    }
+
     def __init__(self, db):
         self.db = db
         self.repo = OfferManagementRepository(db)
@@ -38,6 +53,36 @@ class OfferManagementService:
         values['ebay_account_name'] = values.get('ebay_account_name') or account.account_name or account.store_name or account.ebay_username
         merged = {column.name: getattr(existing, column.name, None) for column in OfferManagementEntry.__table__.columns} if existing else {}
         merged.update(values)
+
+        if merged.get('status') not in self.ACTIVE_STATUSES:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail='Status must be Open or Closed.',
+            )
+
+        if merged.get('outcome') not in self.ACTIVE_OUTCOMES:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail='Invalid offer outcome.',
+            )
+
+        if merged.get('status') == OfferManagementStatus.CLOSED:
+            if merged.get('outcome') not in self.CLOSED_OUTCOMES:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail='Outcome is required before closing an offer.',
+                )
+
+            if not str(merged.get('remarks') or '').strip():
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail='Remarks are required before closing an offer.',
+                )
+
+            values['next_offer_followup'] = None
+        elif merged.get('outcome') is None:
+            values['outcome'] = OfferManagementOutcome.PENDING
+
         threshold = ConfigService(self.db).get_decimal('offer.high_value_amount', default=Decimal('500'))
         quantity = merged.get('offer_quantity') or merged.get('listing_quantity')
         values['is_high_value'] = is_high_value_amount(

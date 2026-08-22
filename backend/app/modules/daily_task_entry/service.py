@@ -161,12 +161,12 @@ class DailyEntryService:
 
         score_items = [item.model_dump(mode='json') for item in payload.score_items]
         for item in score_items:
-            max_score = int(item.get('max_score') or 0)
-            value = int(item.get('value') or 0)
+            max_score = float(item.get('max_score') or 0)
+            value = float(item.get('value') or 0)
             if value < 0:
                 raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=f'Score cannot be negative for {item.get("label", "a task")}')
             if max_score and value > max_score:
-                raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=f'Score cannot exceed {max_score} for {item.get("label", "a task")}')
+                raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=f'Score cannot exceed {max_score:g} for {item.get("label", "a task")}')
 
         sla_score = payload.sla_score or 0
         if sla_score < 0 or sla_score > self.SLA_MAX:
@@ -265,8 +265,8 @@ class DailyEntryService:
         applicable = [item for item in score_items if item.get('status') == 'ENTERED']
         task_percentages: list[float] = []
         for item in applicable:
-            max_score = max(1, int(item.get('max_score') or 1))
-            value = max(0, min(int(item.get('value') or 0), max_score))
+            max_score = max(0.01, float(item.get('max_score') or 1))
+            value = max(0.0, min(float(item.get('value') or 0), max_score))
             task_percentages.append((value / max_score) * 100)
 
         task_average_percent = (sum(task_percentages) / len(task_percentages)) if task_percentages else 0.0
@@ -333,7 +333,7 @@ class DailyEntryService:
         subtask = assignment.subtask
         child = assignment.sub_subtask
         target = child or subtask
-        max_score = max(1, round(float(assignment.quality_weight or 0)))
+        max_score = max(0.01, round(float(assignment.quality_weight or 0), 2))
         subtask_label = f'{subtask.category.name} - {subtask.name}' if subtask.category else subtask.name
         label = f'{subtask_label} - {child.name}' if child else subtask_label
         source = 'AUTO' if assignment.auto_fetch_enabled and target.supports_automatic_fetch else 'MANUAL'
@@ -572,7 +572,7 @@ class DailyEntryService:
             labels[conversation_id] = account.account_name or account.store_name or account.ebay_username
         return labels
 
-    def _item(self, key: str, label: str, value: int, max_score: int, source: str, *, status: str | None = None, activity_count: int | None = None, message_type_id: UUID | None = None, subtask_id: UUID | None = None, sub_subtask_id: UUID | None = None) -> dict:
+    def _item(self, key: str, label: str, value: float, max_score: float, source: str, *, status: str | None = None, activity_count: int | None = None, message_type_id: UUID | None = None, subtask_id: UUID | None = None, sub_subtask_id: UUID | None = None) -> dict:
         return {
             'key': key,
             'label': label,

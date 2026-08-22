@@ -423,14 +423,14 @@ class PmsService:
             ]
 
             possible = sum(
-                int(item.get('max_score') or 1)
+                float(item.get('max_score') or 1)
                 for item in applicable
             )
 
             earned = sum(
                 min(
-                    int(item.get('value') or 0),
-                    int(item.get('max_score') or 1),
+                    float(item.get('value') or 0),
+                    float(item.get('max_score') or 1),
                 )
                 for item in applicable
             )

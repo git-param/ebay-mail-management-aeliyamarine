@@ -35,9 +35,10 @@ const blankEntry = {
   counteroffer_price: '',
   final_price: '',
   buyer_id: '',
-  status: 'NEW',
+  status: 'OPEN',
   outcome: 'PENDING',
   is_vip_lead: false,
+  next_offer_followup: '',
   follow_up_1_notes: '',
   follow_up_2_notes: '',
   remarks: '',
@@ -45,8 +46,43 @@ const blankEntry = {
   related_offer_id: '',
 }
 
+const OFFER_STATUSES = ['OPEN', 'CLOSED']
+const OFFER_OUTCOMES = [
+  'DONE',
+  'IGNORE',
+  'SOLD',
+  'NOT_ABLE_TO_MATCH_THE_PRICE',
+]
+
+function normalizeOfferForm(entry) {
+  const next = entry ? { ...blankEntry, ...entry } : { ...blankEntry }
+
+  if (!OFFER_STATUSES.includes(next.status)) {
+    next.status = 'OPEN'
+  }
+
+  if (
+    next.outcome !== 'PENDING'
+    && !OFFER_OUTCOMES.includes(next.outcome)
+  ) {
+    next.outcome = 'PENDING'
+  }
+
+  if (next.status === 'CLOSED' && next.outcome === 'PENDING') {
+    next.outcome = ''
+  }
+
+  return next
+}
+
 function cleanPayload(form) {
   const payload = { ...form }
+  if (payload.status === 'CLOSED') {
+    payload.next_offer_followup = null
+  }
+  if (payload.status !== 'CLOSED' && !payload.outcome) {
+    payload.outcome = 'PENDING'
+  }
   if (payload.currency === 'OTHER') {
     payload.currency = String(payload.custom_currency || '').trim().toUpperCase()
   }
@@ -69,6 +105,12 @@ function label(value) {
   return String(value || '—').replaceAll('_', ' ')
 }
 
+function todayDateValue() {
+  const today = new Date()
+  const offset = today.getTimezoneOffset() * 60000
+  return new Date(today.getTime() - offset).toISOString().slice(0, 10)
+}
+
 function Badge({ value, tone = '' }) {
   return <span className={`status-badge status-${tone || String(value).toLowerCase().replaceAll('_', '-')}`}>{label(value)}</span>
 }
@@ -82,7 +124,7 @@ function ActionIcon({ title, icon, tone = 'neutral', onClick, href, external = f
 }
 
 function OfferForm({ entry, lookups, accounts, onCancel, onSaved }) {
-  const [form, setForm] = useState(entry ? { ...blankEntry, ...entry } : blankEntry)
+  const [form, setForm] = useState(() => normalizeOfferForm(entry))
   const [lookupText, setLookupText] = useState(entry?.listing_id || '')
   const [lookupResult, setLookupResult] = useState(null)
   const [error, setError] = useState('')
@@ -100,7 +142,22 @@ function OfferForm({ entry, lookups, accounts, onCancel, onSaved }) {
   }, [accounts, form.ebay_account_id, form.ebay_account_name])
 
   function update(key, value) {
-    setForm((current) => ({ ...current, [key]: value }))
+    setForm((current) => {
+      const next = { ...current, [key]: value }
+
+      if (key === 'status') {
+        if (value === 'CLOSED') {
+          next.next_offer_followup = ''
+          if (next.outcome === 'PENDING') {
+            next.outcome = ''
+          }
+        } else if (!next.outcome) {
+          next.outcome = 'PENDING'
+        }
+      }
+
+      return next
+    })
   }
 
   function applyLookup(data) {
@@ -135,6 +192,14 @@ function OfferForm({ entry, lookups, accounts, onCancel, onSaved }) {
       const payload = cleanPayload(nextForm)
       if (!payload.currency) {
         throw new Error('Enter a currency code.')
+      }
+      if (payload.status === 'CLOSED') {
+        if (!payload.outcome || payload.outcome === 'PENDING') {
+          throw new Error('Select an outcome before closing the offer.')
+        }
+        if (!String(payload.remarks || '').trim()) {
+          throw new Error('Remarks are required before closing the offer.')
+        }
       }
       const saved = entry?.id ? await updateOfferEntry(entry.id, payload) : await createOfferEntry(payload)
       onSaved(saved, preview)
@@ -183,13 +248,14 @@ function OfferForm({ entry, lookups, accounts, onCancel, onSaved }) {
             <h3>Offer Details</h3>
             <div className="form-grid">
               {field('offer_date', 'Offer date', 'date')}{field('buyer_id', 'Buyer ID')}{field('offer_quantity', 'Offer quantity', 'number')}{field('automated_offer_price', 'Automated offer', 'number')}{field('buyer_offer_price', 'Buyer offer', 'number')}{field('revised_price', 'Revised price', 'number')}{field('counteroffer_price', 'Counteroffer/best price', 'number')}{field('final_price', 'Final agreed price', 'number')}
-              <label className="field"><span>Status</span><select value={form.status} onChange={(event) => update('status', event.target.value)}>{(lookups.statuses || []).map((item) => <option key={item}>{item}</option>)}</select></label>
-              <label className="field"><span>Outcome</span><select value={form.outcome} onChange={(event) => update('outcome', event.target.value)}>{(lookups.outcomes || []).map((item) => <option key={item}>{item}</option>)}</select></label>
+              <label className="field"><span>Status</span><select value={form.status} onChange={(event) => update('status', event.target.value)}>{OFFER_STATUSES.map((item) => <option key={item} value={item}>{label(item)}</option>)}</select></label>
+              <label className="field"><span>Outcome</span><select value={form.outcome || ''} required={form.status === 'CLOSED'} onChange={(event) => update('outcome', event.target.value)}><option value={form.status === 'CLOSED' ? '' : 'PENDING'}>{form.status === 'CLOSED' ? 'Select outcome' : 'Pending'}</option>{OFFER_OUTCOMES.map((item) => <option key={item} value={item}>{label(item)}</option>)}</select></label>
+              <label className="field"><span>Next offer follow-up</span><input type="date" value={form.next_offer_followup || ''} disabled={form.status === 'CLOSED'} onChange={(event) => update('next_offer_followup', event.target.value)} /></label>
               <label className="checkbox-field"><input type="checkbox" checked={Boolean(form.is_vip_lead)} onChange={(event) => update('is_vip_lead', event.target.checked)} /> VIP lead</label>
             </div>
           </section>
           <section className="offer-form-section"><h3>Follow-ups</h3><div className="form-grid two"><label className="field"><span>Follow-up 1</span><textarea value={form.follow_up_1_notes || ''} onChange={(event) => update('follow_up_1_notes', event.target.value)} /></label><label className="field"><span>Follow-up 2</span><textarea value={form.follow_up_2_notes || ''} onChange={(event) => update('follow_up_2_notes', event.target.value)} /></label></div></section>
-          <section className="offer-form-section"><h3>Notes</h3><div className="form-grid two"><label className="field"><span>Remarks</span><textarea value={form.remarks || ''} onChange={(event) => update('remarks', event.target.value)} /></label></div></section>
+          <section className="offer-form-section"><h3>Notes</h3><div className="form-grid two"><label className="field"><span>Remarks</span><textarea required={form.status === 'CLOSED'} value={form.remarks || ''} onChange={(event) => update('remarks', event.target.value)} /></label></div></section>
           <div className="modal-actions"><button className="secondary-button" type="button" onClick={onCancel}>Cancel</button><button className="secondary-button" type="button" disabled={saving} onClick={() => save(true)}>Save and Preview</button><button className="primary-button" type="button" disabled={saving} onClick={() => save(false)}>{saving ? 'Saving...' : 'Save Entry'}</button></div>
         </div>
       </section>
@@ -199,7 +265,7 @@ function OfferForm({ entry, lookups, accounts, onCancel, onSaved }) {
 
 function PreviewDrawer({ entry, history, canDelete, onClose, onEdit, onDelete }) {
   if (!entry) return null
-  return <div className="drawer-backdrop" role="presentation"><aside className="user-drawer offer-preview-drawer"><div className="drawer-header"><h2>Entry #{entry.entry_number}</h2><button className="icon-button" type="button" onClick={onClose}><Icon name="close" /></button></div><div className="drawer-profile"><h3>{entry.product_title || entry.listing_id}</h3><p>{entry.agent_name || 'Agent'} · {entry.ebay_account_name}</p><div className="badge-row"><Badge value={entry.status} /><Badge value={entry.outcome} />{entry.is_high_value ? <Badge value="High Value" tone="active" /> : null}</div></div><section className="drawer-section"><h3>Listing</h3><p>{entry.listing_id} · {entry.sku || 'No SKU'}</p><p>{entry.condition || 'No condition'} · Qty {entry.listing_quantity || '—'}</p></section><section className="drawer-section"><h3>Price Progression</h3><p>{money(entry.listed_price, entry.currency)} → {money(entry.buyer_offer_price, entry.currency)} → {money(entry.counteroffer_price, entry.currency)} → {money(entry.final_price, entry.currency)}</p></section><section className="drawer-section"><h3>Follow-ups</h3><p>1: {entry.follow_up_1_notes || '—'}</p><p>2: {entry.follow_up_2_notes || '—'}</p></section><section className="drawer-section"><h3>Remarks</h3><p className="drawer-note">{entry.remarks || 'No remarks added.'}</p></section><section className="drawer-section"><h3>Change History</h3>{history?.length ? history.slice(0, 5).map((item) => <p key={item.id}>{item.action} · {item.changed_by_name || 'System'} · {new Date(item.changed_at).toLocaleString()}</p>) : <p>No history available.</p>}</section><div className="modal-actions offer-icon-actions"><ActionIcon title="Edit" icon="edit" tone="edit" onClick={onEdit} />{canDelete ? <ActionIcon title="Delete" icon="trash" tone="delete" onClick={() => onDelete(entry)} /> : null}{entry.listing_url ? <ActionIcon title="Open eBay Listing" icon="external" tone="external" href={entry.listing_url} external /> : null}{entry.related_conversation_id ? <ActionIcon title="Open Related Conversation" icon="message" tone="conversation" href={`/inbox?conversation_id=${entry.related_conversation_id}`} /> : null}</div></aside></div>
+  return <div className="drawer-backdrop" role="presentation"><aside className="user-drawer offer-preview-drawer"><div className="drawer-header"><h2>Entry #{entry.entry_number}</h2><button className="icon-button" type="button" onClick={onClose}><Icon name="close" /></button></div><div className="drawer-profile"><h3>{entry.product_title || entry.listing_id}</h3><p>{entry.agent_name || 'Agent'} · {entry.ebay_account_name}</p><div className="badge-row"><Badge value={entry.status} /><Badge value={entry.outcome} />{entry.is_high_value ? <Badge value="High Value" tone="active" /> : null}</div></div><section className="drawer-section"><h3>Listing</h3><p>{entry.listing_id} · {entry.sku || 'No SKU'}</p><p>{entry.condition || 'No condition'} · Qty {entry.listing_quantity || '—'}</p></section><section className="drawer-section"><h3>Price Progression</h3><p>{money(entry.listed_price, entry.currency)} → {money(entry.buyer_offer_price, entry.currency)} → {money(entry.counteroffer_price, entry.currency)} → {money(entry.final_price, entry.currency)}</p></section><section className="drawer-section"><h3>Follow-ups</h3><p>Next: {entry.next_offer_followup || '—'}</p><p>1: {entry.follow_up_1_notes || '—'}</p><p>2: {entry.follow_up_2_notes || '—'}</p></section><section className="drawer-section"><h3>Remarks</h3><p className="drawer-note">{entry.remarks || 'No remarks added.'}</p></section><section className="drawer-section"><h3>Change History</h3>{history?.length ? history.slice(0, 5).map((item) => <p key={item.id}>{item.action} · {item.changed_by_name || 'System'} · {new Date(item.changed_at).toLocaleString()}</p>) : <p>No history available.</p>}</section><div className="modal-actions offer-icon-actions"><ActionIcon title="Edit" icon="edit" tone="edit" onClick={onEdit} />{canDelete ? <ActionIcon title="Delete" icon="trash" tone="delete" onClick={() => onDelete(entry)} /> : null}{entry.listing_url ? <ActionIcon title="Open eBay Listing" icon="external" tone="external" href={entry.listing_url} external /> : null}{entry.related_conversation_id ? <ActionIcon title="Open Related Conversation" icon="message" tone="conversation" href={`/inbox?conversation_id=${entry.related_conversation_id}`} /> : null}</div></aside></div>
 }
 
 export default function OfferManagement({ currentUser, onLogout }) {
@@ -647,9 +713,9 @@ export default function OfferManagement({ currentUser, onLogout }) {
             >
               <option value="">All</option>
 
-              {lookups.statuses.map((item) => (
+              {OFFER_STATUSES.map((item) => (
                 <option key={item} value={item}>
-                  {item}
+                  {label(item)}
                 </option>
               ))}
             </select>
@@ -666,9 +732,11 @@ export default function OfferManagement({ currentUser, onLogout }) {
             >
               <option value="">All</option>
 
-              {lookups.outcomes.map((item) => (
+              <option value="PENDING">Pending</option>
+
+              {OFFER_OUTCOMES.map((item) => (
                 <option key={item} value={item}>
-                  {item}
+                  {label(item)}
                 </option>
               ))}
             </select>
@@ -689,24 +757,15 @@ export default function OfferManagement({ currentUser, onLogout }) {
             </select>
           </label>
 
-          <label className="field">
-            <span>Currency</span>
-
-            <select
-              value={filters.currency || ''}
-              onChange={(event) =>
-                updateFilter('currency', event.target.value)
-              }
-            >
-              <option value="">All</option>
-
-              {lookups.currencies.map((item) => (
-                <option key={item} value={item}>
-                  {item}
-                </option>
-              ))}
-            </select>
-          </label>
+          <button
+            className="secondary-button compact-action"
+            type="button"
+            onClick={() =>
+              updateFilter('next_offer_followup', todayDateValue())
+            }
+          >
+            Today&apos;s offer followup
+          </button>
 
           <button
             className="secondary-button compact-action"
@@ -848,9 +907,8 @@ export default function OfferManagement({ currentUser, onLogout }) {
                       </td>
 
                       <td>
-                        {entry.follow_up_1_notes ||
-                        entry.follow_up_2_notes
-                          ? 'Added'
+                        {entry.next_offer_followup
+                          ? entry.next_offer_followup
                           : '—'}
                       </td>
 

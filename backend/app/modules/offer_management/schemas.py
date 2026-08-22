@@ -27,9 +27,10 @@ class OfferEntryBase(BaseModel):
     counteroffer_price: Decimal | None = None
     final_price: Decimal | None = None
     buyer_id: str | None = None
-    status: OfferManagementStatus = OfferManagementStatus.NEW
+    status: OfferManagementStatus = OfferManagementStatus.OPEN
     outcome: OfferManagementOutcome = OfferManagementOutcome.PENDING
     is_vip_lead: bool = False
+    next_offer_followup: date | None = None
     follow_up_1_notes: str | None = None
     follow_up_2_notes: str | None = None
     remarks: str | None = None
@@ -90,6 +91,7 @@ class OfferEntryUpdate(BaseModel):
     status: OfferManagementStatus | None = None
     outcome: OfferManagementOutcome | None = None
     is_vip_lead: bool | None = None
+    next_offer_followup: date | None = None
     follow_up_1_notes: str | None = None
     follow_up_2_notes: str | None = None
     remarks: str | None = None
