@@ -11,6 +11,8 @@ from app.db.base_class import Base
 
 
 class OfferManagementStatus(str, enum.Enum):
+    OPEN = 'OPEN'
+    CLOSED = 'CLOSED'
     NEW = 'NEW'
     REVIEWING = 'REVIEWING'
     COUNTEROFFER_SENT = 'COUNTEROFFER_SENT'
@@ -27,6 +29,10 @@ class OfferManagementStatus(str, enum.Enum):
 
 class OfferManagementOutcome(str, enum.Enum):
     PENDING = 'PENDING'
+    DONE = 'DONE'
+    IGNORE = 'IGNORE'
+    SOLD = 'SOLD'
+    NOT_ABLE_TO_MATCH_THE_PRICE = 'NOT_ABLE_TO_MATCH_THE_PRICE'
     CONVERTED_TO_SALE = 'CONVERTED_TO_SALE'
     BUYER_REJECTED = 'BUYER_REJECTED'
     SELLER_REJECTED = 'SELLER_REJECTED'
@@ -73,10 +79,11 @@ class OfferManagementEntry(Base):
     counteroffer_price: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
     final_price: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
     buyer_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    status: Mapped[OfferManagementStatus] = mapped_column(Enum(OfferManagementStatus, name='offer_management_status'), nullable=False, default=OfferManagementStatus.NEW)
+    status: Mapped[OfferManagementStatus] = mapped_column(Enum(OfferManagementStatus, name='offer_management_status'), nullable=False, default=OfferManagementStatus.OPEN)
     outcome: Mapped[OfferManagementOutcome] = mapped_column(Enum(OfferManagementOutcome, name='offer_management_outcome'), nullable=False, default=OfferManagementOutcome.PENDING)
     is_high_value: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     is_vip_lead: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    next_offer_followup: Mapped[date | None] = mapped_column(Date, nullable=True)
     follow_up_1_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     follow_up_2_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     remarks: Mapped[str | None] = mapped_column(Text, nullable=True)

@@ -49,6 +49,10 @@ function formatPercent(value) {
   return Number(value || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })
 }
 
+function formatScore(value) {
+  return Number(value || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })
+}
+
 function parentTaskLabel(label) {
   const parts = String(label || '').split(' - ')
   if (parts.length > 2) return parts[parts.length - 2]
@@ -149,7 +153,7 @@ function DetailModal({ entry, onClose }) {
       <section className="modal-panel dailyEntry-detail-modal" role="dialog" aria-modal="true">
         <div className="modal-header"><h2>{entry.user_name} - {entry.entry_date}</h2><button className="icon-button" type="button" onClick={onClose}>x</button></div>
         <div className="dailyEntry-score-grid">
-          {displayItems.map((item) => <p key={item.key}><span>{item.label}</span><strong>{item.status === 'ENTERED' ? `${item.value} / ${item.max_score}` : 'N/A'}</strong></p>)}
+          {displayItems.map((item) => <p key={item.key}><span>{item.label}</span><strong>{item.status === 'ENTERED' ? `${formatScore(item.value)} / ${formatScore(item.max_score)}` : 'N/A'}</strong></p>)}
           <p><span>SLA Score</span><strong>{entry.sla_score}/{SLA_MAX}</strong></p>
           <p><span>Final Score</span><strong>{entry.final_score_percent}%</strong></p>
           <p><span>Error</span><strong>{ERROR_LEVELS.find(([value]) => value === entry.error_level)?.[1] || entry.error_level}</strong></p>
@@ -269,7 +273,7 @@ function SubtaskChildrenInfo({ children }) {
                   <span>{childTaskLabel(item.label)}</span>
                   <strong>{item.activity_count ?? 0} handled</strong>
                 </div>
-                <p className="dailyEntry-info-popover-empty">{item.value} / {item.max_score}</p>
+                <p className="dailyEntry-info-popover-empty">{formatScore(item.value)} / {formatScore(item.max_score)}</p>
               </li>
             ))}
           </ul>
@@ -502,6 +506,7 @@ function AgentCard({ row, onChange, onReviewSla }) {
                 <input
                   type="number"
                   min="0"
+                  step="0.01"
                   max={item.max_score}
                   disabled={isDisabled}
                   value={isMajor ? 0 : item.value}
@@ -510,7 +515,7 @@ function AgentCard({ row, onChange, onReviewSla }) {
                     updateDisplayItemScore(item, value)
                   }}
                 />
-                <span className="dailyEntry-score-max">/ {item.max_score} · {isTaskIncluded(item) ? `${formatPercent(taskPerformancePercent(item))}%` : 'N/A'}</span>
+                <span className="dailyEntry-score-max">/ {formatScore(item.max_score)} · {isTaskIncluded(item) ? `${formatPercent(taskPerformancePercent(item))}%` : 'N/A'}</span>
               </div>
               <button
                 type="button"

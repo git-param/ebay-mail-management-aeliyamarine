@@ -20,8 +20,8 @@ class DailyEntryScoreBreakdownItem(BaseModel):
 class DailyEntryScoreItem(BaseModel):
     key: str
     label: str
-    value: int = Field(default=0, ge=0)
-    max_score: int = Field(default=10, ge=1)
+    value: float = Field(default=0, ge=0)
+    max_score: float = Field(default=10, gt=0)
     status: str = 'NOT_ENTERED'
     source: str = 'MANUAL'
     activity_count: int | None = None

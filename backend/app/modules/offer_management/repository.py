@@ -96,6 +96,11 @@ class OfferManagementRepository:
             query = query.filter(OfferManagementEntry.offer_date >= filters['from_date'])
         if filters.get('to_date'):
             query = query.filter(OfferManagementEntry.offer_date <= filters['to_date'])
+        if filters.get('next_offer_followup'):
+            query = query.filter(
+                OfferManagementEntry.next_offer_followup
+                == filters['next_offer_followup']
+            )
         for key in ['ebay_account_id', 'status', 'outcome', 'buyer_id', 'sku', 'listing_id', 'is_high_value', 'currency']:
             value = filters.get(key)
             if value not in (None, ''):
@@ -168,6 +173,7 @@ class OfferManagementRepository:
         return {
             'total_entries': len(items),
             'open_offers': sum(1 for x in items if x.status not in {
+                OfferManagementStatus.CLOSED,
                 OfferManagementStatus.SOLD,
                 OfferManagementStatus.CANCELLED,
                 OfferManagementStatus.CLOSED_PRICE_NOT_MATCHED,
@@ -175,9 +181,25 @@ class OfferManagementRepository:
                 OfferManagementStatus.CLOSED_BUYER_PURCHASED_ELSEWHERE,
                 OfferManagementStatus.CLOSED_OUT_OF_STOCK,
             }),
-            'follow_ups_due': sum(1 for x in items if x.follow_up_1_notes or x.follow_up_2_notes),
+            'follow_ups_due': sum(
+                1
+                for x in items
+                if (
+                    x.status == OfferManagementStatus.OPEN
+                    and x.next_offer_followup
+                    and x.next_offer_followup <= today
+                )
+            ),
             'awaiting_payment': sum(1 for x in items if x.status == OfferManagementStatus.AWAITING_PAYMENT),
-            'sold': sum(1 for x in items if x.status == OfferManagementStatus.SOLD),
+            'sold': sum(
+                1
+                for x in items
+                if (
+                    x.status == OfferManagementStatus.SOLD
+                    or str(x.outcome.value if hasattr(x.outcome, 'value') else x.outcome)
+                    == 'SOLD'
+                )
+            ),
             'high_value_offers': sum(1 for x in items if x.is_high_value),
         }
 

@@ -42,6 +42,7 @@ def collect_filters(
     ebay_account_id: UUID | None = None,
     status: OfferManagementStatus | None = None,
     outcome: OfferManagementOutcome | None = None,
+    next_offer_followup: date | None = None,
     buyer_id: str | None = None,
     sku: str | None = None,
     listing_id: str | None = None,
@@ -94,8 +95,17 @@ def summary(db: Session = Depends(get_db), current_user=Depends(get_current_user
 def lookups(current_user=Depends(get_current_user)):
     _ = current_user
     return {
-        'statuses': [item.value for item in OfferManagementStatus],
-        'outcomes': [item.value for item in OfferManagementOutcome],
+        'statuses': [
+            OfferManagementStatus.OPEN.value,
+            OfferManagementStatus.CLOSED.value,
+        ],
+        'outcomes': [
+            OfferManagementOutcome.PENDING.value,
+            OfferManagementOutcome.DONE.value,
+            OfferManagementOutcome.IGNORE.value,
+            OfferManagementOutcome.SOLD.value,
+            OfferManagementOutcome.NOT_ABLE_TO_MATCH_THE_PRICE.value,
+        ],
         'currencies': ['GBP', 'USD', 'EUR', 'INR', 'CAD', 'AUD', 'OTHER'],
     }
 

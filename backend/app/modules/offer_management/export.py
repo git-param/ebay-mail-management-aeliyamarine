@@ -29,6 +29,7 @@ EXPORT_COLUMNS = [
     ('Outcome', 'outcome'),
     ('High Value', 'is_high_value'),
     ('VIP Lead', 'is_vip_lead'),
+    ('Next Offer Follow-up', 'next_offer_followup'),
     ('Follow-up 1', 'follow_up_1_notes'),
     ('Follow-up 2', 'follow_up_2_notes'),
     ('Remarks', 'remarks'),
