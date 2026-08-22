@@ -495,6 +495,24 @@
    PMS TABLES
    ========================================================================== */
 
+.secondary-button-compact-action
+{
+  background-color: #8dd569;
+  border: 1px solid #2e332b;
+  border-radius: 7px;
+  font-size: 15px;
+  font-weight: 750;
+}
+.secondary-button-compact-action:hover
+{
+  background-color: #7cc45a;
+}
+.secondary-button-compact-action:active
+{
+  background-color: #6bb44c;
+}
+
+
 .pmsModule-page .users-table {
   width: 100%;
   min-width: 650px;
