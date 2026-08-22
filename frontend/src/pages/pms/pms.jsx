@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from "react";
 
-import AppLayout, { Icon } from '../../layouts/app_layout'
+import AppLayout, { Icon } from "../../layouts/app_layout";
 import {
   createPmsConfig,
   deletePmsConfig,
@@ -14,197 +14,165 @@ import {
   resolvePmsEmployeeOfMonth,
   savePmsMonthly,
   updatePmsConfig,
-} from '../../services/pmsApi'
-import { normalizeRole } from '../../utils/roles'
+} from "../../services/pmsApi";
+import { normalizeRole } from "../../utils/roles";
 
-import './pms.css'
+import "./pms.css";
 
 const MONTH_NAMES = [
-  'January',
-  'February',
-  'March',
-  'April',
-  'May',
-  'June',
-  'July',
-  'August',
-  'September',
-  'October',
-  'November',
-  'December',
-]
-const TARGET_ACHIEVEMENT_KEY = 'target_achievement'
-const TARGET_ACHIEVEMENT_STORAGE_KEY = 'pms.targetAchievementByMonth'
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
+const TARGET_ACHIEVEMENT_KEY = "target_achievement";
+const TARGET_ACHIEVEMENT_STORAGE_KEY = "pms.targetAchievementByMonth";
 
 function monthLabel(year, month) {
-  return `${MONTH_NAMES[month - 1]} ${year}`
+  return `${MONTH_NAMES[month - 1]} ${year}`;
 }
 
 // Last 24 months, most recent first.
 // Admin/Ops Manager can navigate previous months without limiting editing.
 function buildMonthOptions() {
-  const options = []
-  const now = new Date()
+  const options = [];
+  const now = new Date();
 
   for (let i = 0; i < 24; i += 1) {
-    const d = new Date(
-      now.getFullYear(),
-      now.getMonth() - i,
-      1,
-    )
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
 
     options.push({
       year: d.getFullYear(),
       month: d.getMonth() + 1,
-      label: monthLabel(
-        d.getFullYear(),
-        d.getMonth() + 1,
-      ),
-    })
+      label: monthLabel(d.getFullYear(), d.getMonth() + 1),
+    });
   }
 
-  return options
+  return options;
 }
 
 function fmt(value, decimals = 1) {
-  if (
-    value === null
-    || value === undefined
-    || Number.isNaN(Number(value))
-  ) {
-    return '-'
+  if (value === null || value === undefined || Number.isNaN(Number(value))) {
+    return "-";
   }
 
-  return Number(value)
-    .toFixed(decimals)
-    .replace(/\.0$/, '')
+  return Number(value).toFixed(decimals).replace(/\.0$/, "");
 }
 
 function roundScore(value) {
-  if (
-    value === null
-    || value === undefined
-    || Number.isNaN(Number(value))
-  ) {
-    return null
+  if (value === null || value === undefined || Number.isNaN(Number(value))) {
+    return null;
   }
 
-  const numeric = Number(value)
-  const base = Math.floor(numeric)
-  return base + (numeric - base > 0.4 ? 1 : 0)
+  const numeric = Number(value);
+  const base = Math.floor(numeric);
+  return base + (numeric - base > 0.4 ? 1 : 0);
 }
 
 function fmtScore(value) {
-  const rounded = roundScore(value)
-  return rounded === null ? '-' : String(rounded)
+  const rounded = roundScore(value);
+  return rounded === null ? "-" : String(rounded);
 }
 
 function clampNumber(value, max) {
-  const n = Number(value)
+  const n = Number(value);
 
   if (Number.isNaN(n)) {
-    return 0
+    return 0;
   }
 
-  return Math.max(
-    0,
-    Math.min(n, max),
-  )
+  return Math.max(0, Math.min(n, max));
 }
 
 function statusBadgeClass(status) {
-  if (status === 'COMPLETED') {
-    return 'pmsModule-badge pmsModule-badge-completed'
+  if (status === "COMPLETED") {
+    return "pmsModule-badge pmsModule-badge-completed";
   }
 
-  if (status === 'DRAFT') {
-    return 'pmsModule-badge pmsModule-badge-draft'
+  if (status === "DRAFT") {
+    return "pmsModule-badge pmsModule-badge-draft";
   }
 
-  return 'pmsModule-badge pmsModule-badge-pending'
+  return "pmsModule-badge pmsModule-badge-pending";
 }
 
 function metricTooltip(metric) {
-  const meta = metric.calc_meta
+  const meta = metric.calc_meta;
 
   if (!meta) {
-    return null
+    return null;
   }
 
-  if (
-    metric.source_snapshot === 'QUALITY_AUTO'
-  ) {
+  if (metric.source_snapshot === "QUALITY_AUTO") {
     return (
-      `${meta.formula || ''} `
-      + `Based on ${meta.working_days ?? 0} working day(s) - `
-      + `SLA avg ${fmt(meta.sla_avg_pct)}% - `
-      + `${meta.major_error_days ?? 0} Major, `
-      + `${meta.minor_error_days ?? 0} Minor error day(s).`
-    )
+      `${meta.formula || ""} ` +
+      `Based on ${meta.working_days ?? 0} working day(s) - ` +
+      `SLA avg ${fmt(meta.sla_avg_pct)}% - ` +
+      `${meta.major_error_days ?? 0} Major, ` +
+      `${meta.minor_error_days ?? 0} Minor error day(s).`
+    );
   }
 
-  if (
-    metric.source_snapshot
-    === 'PRODUCTIVITY_AUTO'
-  ) {
+  if (metric.source_snapshot === "PRODUCTIVITY_AUTO") {
     return (
-      `${meta.formula || ''} `
-      + `Based on ${meta.working_days ?? 0} working day(s) - `
-      + `task completion avg ${fmt(meta.task_completion_avg_pct)}%.`
-    )
+      `${meta.formula || ""} ` +
+      `Based on ${meta.working_days ?? 0} working day(s) - ` +
+      `task completion avg ${fmt(meta.task_completion_avg_pct)}%.`
+    );
   }
 
-  return meta.formula || null
+  return meta.formula || null;
 }
 
-function initials(name = '') {
-  return name
-    .split(' ')
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0])
-    .join('')
-    .toUpperCase()
-    || 'P'
+function initials(name = "") {
+  return (
+    name
+      .split(" ")
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0])
+      .join("")
+      .toUpperCase() || "P"
+  );
 }
 
 function scorePercent(value, max) {
-  const score = Number(value)
-  const maximum = Number(max)
+  const score = Number(value);
+  const maximum = Number(max);
 
-  if (
-    Number.isNaN(score)
-    || Number.isNaN(maximum)
-    || maximum <= 0
-  ) {
-    return 0
+  if (Number.isNaN(score) || Number.isNaN(maximum) || maximum <= 0) {
+    return 0;
   }
 
-  return Math.max(
-    0,
-    Math.min(
-      100,
-      (score / maximum) * 100,
-    ),
-  )
+  return Math.max(0, Math.min(100, (score / maximum) * 100));
 }
 
 function monthKey(year, month) {
-  return `${year}-${String(month).padStart(2, '0')}`
+  return `${year}-${String(month).padStart(2, "0")}`;
 }
 
 function loadTargetAchievementByMonth() {
   try {
-    return JSON.parse(window.localStorage.getItem(TARGET_ACHIEVEMENT_STORAGE_KEY) || '{}')
+    return JSON.parse(
+      window.localStorage.getItem(TARGET_ACHIEVEMENT_STORAGE_KEY) || "{}",
+    );
   } catch {
-    return {}
+    return {};
   }
 }
 
 function sameRoundedScore(left, right) {
-  const leftScore = roundScore(left)
-  const rightScore = roundScore(right)
-  return leftScore !== null && rightScore !== null && leftScore === rightScore
+  const leftScore = roundScore(left);
+  const rightScore = roundScore(right);
+  return leftScore !== null && rightScore !== null && leftScore === rightScore;
 }
 
 /**
@@ -213,378 +181,338 @@ function sameRoundedScore(left, right) {
  */
 async function copyTextToClipboard(text) {
   if (
-    navigator.clipboard
-    && typeof navigator.clipboard.writeText === 'function'
+    navigator.clipboard &&
+    typeof navigator.clipboard.writeText === "function"
   ) {
     try {
-      await navigator.clipboard.writeText(text)
-      return
+      await navigator.clipboard.writeText(text);
+      return;
     } catch {
       // Continue to the legacy fallback below.
     }
   }
 
-  const textarea = document.createElement('textarea')
+  const textarea = document.createElement("textarea");
 
-  textarea.value = text
-  textarea.setAttribute('readonly', '')
-  textarea.style.position = 'fixed'
-  textarea.style.left = '-9999px'
-  textarea.style.top = '0'
-  textarea.style.opacity = '0'
+  textarea.value = text;
+  textarea.setAttribute("readonly", "");
+  textarea.style.position = "fixed";
+  textarea.style.left = "-9999px";
+  textarea.style.top = "0";
+  textarea.style.opacity = "0";
 
-  document.body.appendChild(textarea)
+  document.body.appendChild(textarea);
 
-  textarea.focus()
-  textarea.select()
+  textarea.focus();
+  textarea.select();
 
   try {
-    if (!document.execCommand('copy')) {
-      throw new Error('Clipboard copy failed')
+    if (!document.execCommand("copy")) {
+      throw new Error("Clipboard copy failed");
     }
   } finally {
-    document.body.removeChild(textarea)
+    document.body.removeChild(textarea);
   }
 }
 
-export function PMS({
-  currentUser,
-  onLogout,
-}) {
-  const role = normalizeRole(
-    currentUser?.role,
-  )
+export function PMS({ currentUser, onLogout }) {
+  const role = normalizeRole(currentUser?.role);
 
-  const isAdmin = role === 'ADMIN'
-  const isOpsManager = role === 'OPS_MANAGER'
-  const isAgent = role === 'AGENT'
+  const isAdmin = role === "ADMIN";
+  const isOpsManager = role === "OPS_MANAGER";
+  const isAgent = role === "AGENT";
 
-  const canViewAll = (
-    isAdmin
-    || isOpsManager
-  )
+  const canViewAll = isAdmin || isOpsManager;
 
-  const monthOptions = useMemo(
-    () => buildMonthOptions(),
-    [],
-  )
+  const monthOptions = useMemo(() => buildMonthOptions(), []);
 
-  const [selectedYear, setSelectedYear] = useState(
-    monthOptions[0].year,
-  )
+  const [selectedYear, setSelectedYear] = useState(monthOptions[0].year);
 
-  const [selectedMonth, setSelectedMonth] = useState(
-    monthOptions[0].month,
-  )
+  const [selectedMonth, setSelectedMonth] = useState(monthOptions[0].month);
 
-  const [activeTab, setActiveTab] = useState('monthly')
-  const [search, setSearch] = useState('')
-  const [targetAchievementByMonth, setTargetAchievementByMonth] = useState(loadTargetAchievementByMonth)
-  const [targetAchievementDraft, setTargetAchievementDraft] = useState('100')
-  const currentTargetAchievementKey = monthKey(selectedYear, selectedMonth)
-  const targetAchievementPercent = targetAchievementByMonth[currentTargetAchievementKey] ?? 100
+  const [activeTab, setActiveTab] = useState("monthly");
+  const [search, setSearch] = useState("");
+  const [targetAchievementByMonth, setTargetAchievementByMonth] = useState(
+    loadTargetAchievementByMonth,
+  );
+  const [targetAchievementDraft, setTargetAchievementDraft] = useState("100");
+  const currentTargetAchievementKey = monthKey(selectedYear, selectedMonth);
+  const targetAchievementPercent =
+    targetAchievementByMonth[currentTargetAchievementKey] ?? 100;
 
-  const [tableData, setTableData] = useState(null)
-  const [tableLoading, setTableLoading] = useState(false)
-  const [tableError, setTableError] = useState(null)
+  const [tableData, setTableData] = useState(null);
+  const [tableLoading, setTableLoading] = useState(false);
+  const [tableError, setTableError] = useState(null);
 
   // Employee of the Month has its own loading/error state.
   // Previously every API error was silently converted to eomData=null,
   // making a backend failure look exactly like "no completed PMS records".
-  const [eomData, setEomData] = useState(null)
-  const [eomLoading, setEomLoading] = useState(false)
-  const [eomError, setEomError] = useState(null)
+  const [eomData, setEomData] = useState(null);
+  const [eomLoading, setEomLoading] = useState(false);
+  const [eomError, setEomError] = useState(null);
 
-  const [copyState, setCopyState] = useState('idle')
+  const [copyState, setCopyState] = useState("idle");
 
-  const [agentRecord, setAgentRecord] = useState(null)
-  const [agentLoading, setAgentLoading] = useState(false)
+  const [agentRecord, setAgentRecord] = useState(null);
+  const [agentLoading, setAgentLoading] = useState(false);
 
-  const [editorUser, setEditorUser] = useState(null)
-  const [editorRecord, setEditorRecord] = useState(null)
-  const [editorMetrics, setEditorMetrics] = useState([])
-  const [editorRemarks, setEditorRemarks] = useState('')
-  const [editorLoading, setEditorLoading] = useState(false)
-  const [editorSaving, setEditorSaving] = useState(false)
-  const [editorError, setEditorError] = useState(null)
-  const [editorRefreshing, setEditorRefreshing] = useState(false)
+  const [editorUser, setEditorUser] = useState(null);
+  const [editorRecord, setEditorRecord] = useState(null);
+  const [editorMetrics, setEditorMetrics] = useState([]);
+  const [editorRemarks, setEditorRemarks] = useState("");
+  const [editorLoading, setEditorLoading] = useState(false);
+  const [editorSaving, setEditorSaving] = useState(false);
+  const [editorError, setEditorError] = useState(null);
+  const [editorRefreshing, setEditorRefreshing] = useState(false);
 
-  const [configItems, setConfigItems] = useState([])
-  const [configTotalWeight, setConfigTotalWeight] = useState(0)
-  const [configLoading, setConfigLoading] = useState(false)
-  const [configError, setConfigError] = useState(null)
-  const [newMetricOpen, setNewMetricOpen] = useState(false)
+  const [configItems, setConfigItems] = useState([]);
+  const [configTotalWeight, setConfigTotalWeight] = useState(0);
+  const [configLoading, setConfigLoading] = useState(false);
+  const [configError, setConfigError] = useState(null);
+  const [newMetricOpen, setNewMetricOpen] = useState(false);
 
   const [historyFilters, setHistoryFilters] = useState({
-    year: '',
-    month: '',
-    search: '',
-    status: '',
-  })
+    year: "",
+    month: "",
+    search: "",
+    status: "",
+  });
 
-  const [historyData, setHistoryData] = useState(null)
-  const [historyLoading, setHistoryLoading] = useState(false)
-  const [historyDetail, setHistoryDetail] = useState(null)
-  const [eomStatsData, setEomStatsData] = useState(null)
-  const [eomStatsLoading, setEomStatsLoading] = useState(false)
-  const [selectedEomEmployeeId, setSelectedEomEmployeeId] = useState('')
+  const [historyData, setHistoryData] = useState(null);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyDetail, setHistoryDetail] = useState(null);
+  const [eomStatsData, setEomStatsData] = useState(null);
+  const [eomStatsLoading, setEomStatsLoading] = useState(false);
+  const [selectedEomEmployeeId, setSelectedEomEmployeeId] = useState("");
 
-  const copyResetRef = useRef(null)
+  const copyResetRef = useRef(null);
 
-  const leaderboardRows = useMemo(
-    () => {
-      const items = (tableData?.items || []).map(adjustedRow)
+  const leaderboardRows = useMemo(() => {
+    const items = (tableData?.items || []).map(adjustedRow);
 
-      return [...items].sort((a, b) => {
-        const scoreA = Number(a.final_score) || 0
-        const scoreB = Number(b.final_score) || 0
+    return [...items].sort((a, b) => {
+      const scoreA = Number(a.final_score) || 0;
+      const scoreB = Number(b.final_score) || 0;
 
-        return scoreB - scoreA
-      })
-    },
-    [tableData, targetAchievementPercent],
-  )
+      return scoreB - scoreA;
+    });
+  }, [tableData, targetAchievementPercent]);
 
   function targetMetricValue(metric, percent = targetAchievementPercent) {
-    return roundScore(clampNumber(
-      (Number(metric.weight_snapshot) || 0) * (Number(percent) || 0) / 100,
-      Number(metric.weight_snapshot) || 0,
-    ))
+    return roundScore(
+      clampNumber(
+        ((Number(metric.weight_snapshot) || 0) * (Number(percent) || 0)) / 100,
+        Number(metric.weight_snapshot) || 0,
+      ),
+    );
   }
 
   function applyTargetAchievement(metrics, percent = targetAchievementPercent) {
     return metrics.map((metric) => {
       if (metric.metric_key !== TARGET_ACHIEVEMENT_KEY) {
-        return metric
+        return metric;
       }
 
       return {
         ...metric,
         final_value: targetMetricValue(metric, percent),
-      }
-    })
+      };
+    });
   }
 
   function adjustedRow(row) {
     const targetMetric = (row.metrics || []).find(
       (metric) => metric.metric_key === TARGET_ACHIEVEMENT_KEY,
-    )
+    );
 
-    if (!targetMetric || row.final_score === null || row.final_score === undefined) {
-      return row
+    if (
+      !targetMetric ||
+      row.final_score === null ||
+      row.final_score === undefined
+    ) {
+      return row;
     }
 
-    const currentTargetValue = Number(targetMetric.final_value) || 0
-    const sharedTargetValue = targetMetricValue(targetMetric)
+    const currentTargetValue = Number(targetMetric.final_value) || 0;
+    const sharedTargetValue = targetMetricValue(targetMetric);
     const finalScore = Math.max(
       0,
       (Number(row.final_score) || 0) - currentTargetValue + sharedTargetValue,
-    )
+    );
 
     return {
       ...row,
       final_score: finalScore,
       metrics: applyTargetAchievement(row.metrics || []),
-    }
+    };
   }
 
   function submitTargetAchievement(event) {
-    event.preventDefault()
-    const nextPercent = clampNumber(targetAchievementDraft, 100)
+    event.preventDefault();
+    const nextPercent = clampNumber(targetAchievementDraft, 100);
     setTargetAchievementByMonth((current) => {
       const next = {
         ...current,
         [currentTargetAchievementKey]: nextPercent,
-      }
-      window.localStorage.setItem(TARGET_ACHIEVEMENT_STORAGE_KEY, JSON.stringify(next))
-      return next
-    })
-    setTargetAchievementDraft(String(nextPercent))
+      };
+      window.localStorage.setItem(
+        TARGET_ACHIEVEMENT_STORAGE_KEY,
+        JSON.stringify(next),
+      );
+      return next;
+    });
+    setTargetAchievementDraft(String(nextPercent));
   }
 
-  const displayedTopPerformer = useMemo(
-    () => {
-      const hasSelectedMonthWinner = (
-        eomData?.winner
-        && eomData.year === selectedYear
-        && eomData.month === selectedMonth
-      )
+  const displayedTopPerformer = useMemo(() => {
+    const hasSelectedMonthWinner =
+      eomData?.winner &&
+      eomData.year === selectedYear &&
+      eomData.month === selectedMonth;
 
-      if (hasSelectedMonthWinner) {
-        return {
-          name: eomData.winner.user_name,
-          score: adjustedRow(eomData.winner).final_score,
-        }
-      }
-
-      const completedRows = leaderboardRows.filter(
-        (row) => row.status === 'COMPLETED' && row.final_score !== null,
-      )
-      const topRow = completedRows[0]
-
+    if (hasSelectedMonthWinner) {
       return {
-        name: topRow?.user_name || tableData?.top_performer_name || '',
-        score: topRow?.final_score ?? tableData?.top_performer_score ?? null,
-      }
-    },
-    [eomData, leaderboardRows, selectedMonth, selectedYear, tableData],
-  )
+        name: eomData.winner.user_name,
+        score: adjustedRow(eomData.winner).final_score,
+      };
+    }
 
-  const roundedTopRows = useMemo(
-    () => {
-      const completedRows = leaderboardRows.filter(
-        (row) => row.status === 'COMPLETED' && row.final_score !== null,
-      )
-      const topRow = completedRows[0]
-      if (!topRow) return []
-      return completedRows.filter(
-        (row) => sameRoundedScore(row.final_score, topRow.final_score),
-      )
-    },
-    [leaderboardRows],
-  )
+    const completedRows = leaderboardRows.filter(
+      (row) => row.status === "COMPLETED" && row.final_score !== null,
+    );
+    const topRow = completedRows[0];
 
-  const dashboardInsights = useMemo(
-    () => {
-      if (!tableData) {
-        return []
-      }
+    return {
+      name: topRow?.user_name || tableData?.top_performer_name || "",
+      score: topRow?.final_score ?? tableData?.top_performer_score ?? null,
+    };
+  }, [eomData, leaderboardRows, selectedMonth, selectedYear, tableData]);
 
-      const items = leaderboardRows
-      const completed = Number(tableData.completed_count) || 0
-      const total = items.length
-      const aboveNinety = items.filter(
-        (item) => (
-          scorePercent(
-            item.final_score,
-            item.maximum_score,
-          ) >= 90
-        ),
-      ).length
+  const roundedTopRows = useMemo(() => {
+    const completedRows = leaderboardRows.filter(
+      (row) => row.status === "COMPLETED" && row.final_score !== null,
+    );
+    const topRow = completedRows[0];
+    if (!topRow) return [];
+    return completedRows.filter((row) =>
+      sameRoundedScore(row.final_score, topRow.final_score),
+    );
+  }, [leaderboardRows]);
 
-      return [
-        `${completed} of ${total} evaluations are completed.`,
-        `${aboveNinety} employee${aboveNinety === 1 ? '' : 's'} scored at or above 90%.`,
-        displayedTopPerformer.name
-          ? `${displayedTopPerformer.name} is the selected top performer.`
-          : 'No top performer has been published yet.',
-      ]
-    },
-    [displayedTopPerformer.name, leaderboardRows, tableData],
-  )
+  const dashboardInsights = useMemo(() => {
+    if (!tableData) {
+      return [];
+    }
+
+    const items = leaderboardRows;
+    const completed = Number(tableData.completed_count) || 0;
+    const total = items.length;
+    const aboveNinety = items.filter(
+      (item) => scorePercent(item.final_score, item.maximum_score) >= 90,
+    ).length;
+
+    return [
+      `${completed} of ${total} evaluations are completed.`,
+      `${aboveNinety} employee${aboveNinety === 1 ? "" : "s"} scored at or above 90%.`,
+      displayedTopPerformer.name
+        ? `${displayedTopPerformer.name} is the selected top performer.`
+        : "No top performer has been published yet.",
+    ];
+  }, [displayedTopPerformer.name, leaderboardRows, tableData]);
 
   useEffect(
     () => () => {
       if (copyResetRef.current) {
-        window.clearTimeout(copyResetRef.current)
+        window.clearTimeout(copyResetRef.current);
       }
     },
     [],
-  )
+  );
 
   // ------------------------------------------------------------------
   // Loaders
   // ------------------------------------------------------------------
 
   async function loadMonthlyTable() {
-    setTableLoading(true)
-    setTableError(null)
+    setTableLoading(true);
+    setTableError(null);
 
     try {
       const data = await fetchPmsMonthlyTable({
         year: selectedYear,
         month: selectedMonth,
         search: search || undefined,
-      })
+      });
 
-      setTableData(data)
+      setTableData(data);
     } catch (err) {
-      setTableError(
-        err?.message
-        || 'Failed to load PMS for this month.',
-      )
+      setTableError(err?.message || "Failed to load PMS for this month.");
     } finally {
-      setTableLoading(false)
+      setTableLoading(false);
     }
   }
 
   async function loadEmployeeOfMonth() {
-    setEomLoading(true)
-    setEomError(null)
+    setEomLoading(true);
+    setEomError(null);
 
     try {
       const data = await fetchPmsEmployeeOfMonth({
         year: selectedYear,
         month: selectedMonth,
-      })
+      });
 
-      setEomData(data)
+      setEomData(data);
     } catch (err) {
-      setEomData(null)
+      setEomData(null);
 
       // Do not hide a backend/API error behind the "no records" message.
-      setEomError(
-        err?.message
-        || 'Failed to load Employee of the Month.',
-      )
+      setEomError(err?.message || "Failed to load Employee of the Month.");
     } finally {
-      setEomLoading(false)
+      setEomLoading(false);
     }
   }
 
   async function loadAgentRecord() {
-    if (
-      !isAgent
-      || !currentUser?.id
-    ) {
-      return
+    if (!isAgent || !currentUser?.id) {
+      return;
     }
 
-    setAgentLoading(true)
+    setAgentLoading(true);
 
     try {
-      const data = await fetchPmsMonthlyRecord(
-        currentUser.id,
-        {
-          year: selectedYear,
-          month: selectedMonth,
-        },
-      )
+      const data = await fetchPmsMonthlyRecord(currentUser.id, {
+        year: selectedYear,
+        month: selectedMonth,
+      });
 
-      setAgentRecord(data)
+      setAgentRecord(data);
     } catch {
-      setAgentRecord(null)
+      setAgentRecord(null);
     } finally {
-      setAgentLoading(false)
+      setAgentLoading(false);
     }
   }
 
   async function loadConfig() {
-    setConfigLoading(true)
-    setConfigError(null)
+    setConfigLoading(true);
+    setConfigError(null);
 
     try {
-      const data = await fetchPmsConfig()
+      const data = await fetchPmsConfig();
 
-      setConfigItems(
-        data.items || [],
-      )
+      setConfigItems(data.items || []);
 
-      setConfigTotalWeight(
-        data.total_active_weight || 0,
-      )
+      setConfigTotalWeight(data.total_active_weight || 0);
     } catch (err) {
-      setConfigError(
-        err?.message
-        || 'Failed to load PMS configuration.',
-      )
+      setConfigError(err?.message || "Failed to load PMS configuration.");
     } finally {
-      setConfigLoading(false)
+      setConfigLoading(false);
     }
   }
 
   async function loadHistory() {
-    setHistoryLoading(true)
+    setHistoryLoading(true);
 
     try {
       const data = await fetchPmsHistory({
@@ -592,258 +520,218 @@ export function PMS({
         month: historyFilters.month || undefined,
         search: historyFilters.search || undefined,
         status: historyFilters.status || undefined,
-      })
+      });
 
-      setHistoryData(data)
+      setHistoryData(data);
     } catch {
-      setHistoryData(null)
+      setHistoryData(null);
     } finally {
-      setHistoryLoading(false)
+      setHistoryLoading(false);
     }
   }
 
   async function loadEmployeeOfMonthStats() {
-    setEomStatsLoading(true)
+    setEomStatsLoading(true);
 
     try {
-      const data = await fetchPmsEmployeeOfMonthStats()
-      setEomStatsData(data)
-      setSelectedEomEmployeeId((current) => current || data.items?.[0]?.user_id || '')
+      const data = await fetchPmsEmployeeOfMonthStats();
+      setEomStatsData(data);
+      setSelectedEomEmployeeId(
+        (current) => current || data.items?.[0]?.user_id || "",
+      );
     } catch {
-      setEomStatsData(null)
+      setEomStatsData(null);
     } finally {
-      setEomStatsLoading(false)
+      setEomStatsLoading(false);
     }
   }
 
   useEffect(() => {
     if (canViewAll) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      loadMonthlyTable()
+      loadMonthlyTable();
     }
 
-    loadEmployeeOfMonth()
+    loadEmployeeOfMonth();
 
     if (isAgent) {
-      loadAgentRecord()
+      loadAgentRecord();
     }
 
     // A copy-success message from a previous month should never remain
     // visible after the Admin selects a different month.
-    setCopyState('idle')
+    setCopyState("idle");
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    selectedYear,
-    selectedMonth,
-  ])
+  }, [selectedYear, selectedMonth]);
 
   useEffect(() => {
     if (!canViewAll) {
-      return undefined
+      return undefined;
     }
 
-    const timeout = window.setTimeout(
-      loadMonthlyTable,
-      300,
-    )
+    const timeout = window.setTimeout(loadMonthlyTable, 300);
 
     return () => {
-      window.clearTimeout(timeout)
-    }
+      window.clearTimeout(timeout);
+    };
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search])
+  }, [search]);
 
   useEffect(() => {
-    if (
-      activeTab === 'config'
-      && isAdmin
-    ) {
+    if (activeTab === "config" && isAdmin) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      loadConfig()
+      loadConfig();
     }
 
-    if (
-      activeTab === 'history'
-    ) {
-      loadHistory()
+    if (activeTab === "history") {
+      loadHistory();
     }
 
-    if (
-      activeTab === 'employee-of-month'
-    ) {
-      loadEmployeeOfMonthStats()
+    if (activeTab === "employee-of-month") {
+      loadEmployeeOfMonthStats();
     }
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab])
+  }, [activeTab]);
 
   useEffect(() => {
-    if (
-      activeTab === 'history'
-    ) {
+    if (activeTab === "history") {
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      loadHistory()
+      loadHistory();
     }
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [historyFilters])
+  }, [historyFilters]);
 
   useEffect(() => {
-    setEditorMetrics((items) => applyTargetAchievement(items))
+    setEditorMetrics((items) => applyTargetAchievement(items));
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [targetAchievementPercent])
+  }, [targetAchievementPercent]);
 
   useEffect(() => {
-    setTargetAchievementDraft(String(targetAchievementPercent))
-  }, [targetAchievementPercent])
+    setTargetAchievementDraft(String(targetAchievementPercent));
+  }, [targetAchievementPercent]);
 
   // ------------------------------------------------------------------
   // Editor drawer
   // ------------------------------------------------------------------
 
   async function openEditor(user) {
-    setEditorUser(user)
-    setEditorError(null)
-    setEditorLoading(true)
+    setEditorUser(user);
+    setEditorError(null);
+    setEditorLoading(true);
 
     try {
-      const record = await fetchPmsMonthlyRecord(
-        user.user_id,
-        {
-          year: selectedYear,
-          month: selectedMonth,
-        },
-      )
+      const record = await fetchPmsMonthlyRecord(user.user_id, {
+        year: selectedYear,
+        month: selectedMonth,
+      });
 
-      setEditorRecord(record)
+      setEditorRecord(record);
 
       setEditorMetrics(
-        applyTargetAchievement(record.metrics.map(
-          (metric) => ({
+        applyTargetAchievement(
+          record.metrics.map((metric) => ({
             ...metric,
-          }),
-        )),
-      )
+          })),
+        ),
+      );
 
-      setEditorRemarks(
-        record.remarks || '',
-      )
+      setEditorRemarks(record.remarks || "");
     } catch (err) {
-      setEditorError(
-        err?.message
-        || "Failed to load this employee's PMS.",
-      )
+      setEditorError(err?.message || "Failed to load this employee's PMS.");
     } finally {
-      setEditorLoading(false)
+      setEditorLoading(false);
     }
   }
 
   function closeEditor() {
-    setEditorUser(null)
-    setEditorRecord(null)
-    setEditorMetrics([])
-    setEditorError(null)
+    setEditorUser(null);
+    setEditorRecord(null);
+    setEditorMetrics([]);
+    setEditorError(null);
   }
 
-  function updateMetricValue(
-    key,
-    value,
-  ) {
-    setEditorMetrics(
-      (items) => items.map(
-        (item) => {
-          if (
-            item.metric_key !== key
-            || item.metric_key === TARGET_ACHIEVEMENT_KEY
-          ) {
-            return item
-          }
+  function updateMetricValue(key, value) {
+    setEditorMetrics((items) =>
+      items.map((item) => {
+        if (
+          item.metric_key !== key ||
+          item.metric_key === TARGET_ACHIEVEMENT_KEY
+        ) {
+          return item;
+        }
 
-          const clamped = clampNumber(
-            value,
-            item.weight_snapshot,
-          )
+        const clamped = clampNumber(value, item.weight_snapshot);
 
-          return {
-            ...item,
-            final_value: clamped,
-          }
-        },
-      ),
-    )
+        return {
+          ...item,
+          final_value: clamped,
+        };
+      }),
+    );
   }
 
   const editorFinalScore = useMemo(
-    () => editorMetrics.reduce(
-      (sum, item) => (
-        sum
-        + (
-          Number(item.final_value)
-          || 0
-        )
+    () =>
+      editorMetrics.reduce(
+        (sum, item) => sum + (Number(item.final_value) || 0),
+        0,
       ),
-      0,
-    ),
     [editorMetrics],
-  )
+  );
 
   const editorMaxScore = useMemo(
-    () => editorMetrics.reduce(
-      (sum, item) => (
-        sum
-        + (
-          Number(item.weight_snapshot)
-          || 0
-        )
+    () =>
+      editorMetrics.reduce(
+        (sum, item) => sum + (Number(item.weight_snapshot) || 0),
+        0,
       ),
-      0,
-    ),
     [editorMetrics],
-  )
+  );
 
   async function refreshEditorAutoValues() {
     if (!editorUser) {
-      return
+      return;
     }
 
-    setEditorRefreshing(true)
+    setEditorRefreshing(true);
 
     try {
       const record = await refreshPmsAutoValues({
         user_id: editorUser.user_id,
         year: selectedYear,
         month: selectedMonth,
-      })
+      });
 
-      setEditorRecord(record)
+      setEditorRecord(record);
 
       setEditorMetrics(
-        applyTargetAchievement(record.metrics.map(
-          (metric) => ({
+        applyTargetAchievement(
+          record.metrics.map((metric) => ({
             ...metric,
-          }),
-        )),
-      )
+          })),
+        ),
+      );
     } catch (err) {
       setEditorError(
-        err?.message
-        || 'Failed to refresh auto-calculated values.',
-      )
+        err?.message || "Failed to refresh auto-calculated values.",
+      );
     } finally {
-      setEditorRefreshing(false)
+      setEditorRefreshing(false);
     }
   }
 
   async function saveEditor(status) {
     if (!editorUser) {
-      return
+      return;
     }
 
-    setEditorSaving(true)
-    setEditorError(null)
+    setEditorSaving(true);
+    setEditorError(null);
 
     try {
       const payload = {
@@ -852,30 +740,25 @@ export function PMS({
         month: selectedMonth,
         remarks: editorRemarks || null,
         status,
-        metrics: editorMetrics.map(
-          (metric) => ({
-            metric_key: metric.metric_key,
-            final_value:
-              metric.metric_key === TARGET_ACHIEVEMENT_KEY
-                ? targetMetricValue(metric)
-                : Number(metric.final_value) || 0,
-          }),
-        ),
-      }
+        metrics: editorMetrics.map((metric) => ({
+          metric_key: metric.metric_key,
+          final_value:
+            metric.metric_key === TARGET_ACHIEVEMENT_KEY
+              ? targetMetricValue(metric)
+              : Number(metric.final_value) || 0,
+        })),
+      };
 
-      await savePmsMonthly(payload)
+      await savePmsMonthly(payload);
 
-      closeEditor()
+      closeEditor();
 
-      await loadMonthlyTable()
-      await loadEmployeeOfMonth()
+      await loadMonthlyTable();
+      await loadEmployeeOfMonth();
     } catch (err) {
-      setEditorError(
-        err?.message
-        || 'Failed to save PMS.',
-      )
+      setEditorError(err?.message || "Failed to save PMS.");
     } finally {
-      setEditorSaving(false)
+      setEditorSaving(false);
     }
   }
 
@@ -886,97 +769,68 @@ export function PMS({
   async function deleteConfigItem(item) {
     const confirmed = window.confirm(
       `Delete "${item.name}" from PMS Configuration?`,
-    )
+    );
 
     if (!confirmed) {
-      return
+      return;
     }
 
     try {
-      await deletePmsConfig(
-        item.id,
-      )
+      await deletePmsConfig(item.id);
 
-      setConfigItems(
-        (items) => items.filter(
-          (existing) => existing.id !== item.id,
-        ),
-      )
+      setConfigItems((items) =>
+        items.filter((existing) => existing.id !== item.id),
+      );
 
-      loadConfig()
+      loadConfig();
     } catch (err) {
-      setConfigError(
-        err?.message
-        || 'Failed to delete metric.',
-      )
+      setConfigError(err?.message || "Failed to delete metric.");
     }
   }
 
-  async function saveConfigWeight(
-    item,
-    weight,
-  ) {
+  async function saveConfigWeight(item, weight) {
     try {
-      const updated = await updatePmsConfig(
-        item.id,
-        {
-          weight: Number(weight),
-        },
-      )
+      const updated = await updatePmsConfig(item.id, {
+        weight: Number(weight),
+      });
 
-      setConfigItems(
-        (items) => items.map(
-          (existing) => (
-            existing.id === item.id
-              ? updated
-              : existing
-          ),
-        ),
-      )
+      setConfigItems((items) =>
+        items.map((existing) => (existing.id === item.id ? updated : existing)),
+      );
 
-      loadConfig()
+      loadConfig();
     } catch (err) {
-      setConfigError(
-        err?.message
-        || 'Failed to update weight.',
-      )
+      setConfigError(err?.message || "Failed to update weight.");
     }
   }
 
   async function submitNewMetric(event) {
-    event.preventDefault()
+    event.preventDefault();
 
-    const form = event.target
+    const form = event.target;
 
     const payload = {
       key: form.key.value.trim(),
       name: form.name.value.trim(),
-      weight:
-        Number(form.weight.value) || 0,
-      source: 'MANUAL',
+      weight: Number(form.weight.value) || 0,
+      source: "MANUAL",
       is_auto_calculated: false,
       is_manually_editable: true,
       is_active: true,
-      display_order:
-        configItems.length + 1,
-      description:
-        form.description.value.trim()
-        || null,
-    }
+      display_order: configItems.length + 1,
+      description: form.description.value.trim() || null,
+    };
 
     try {
-      await createPmsConfig(payload)
+      await createPmsConfig(payload);
 
-      setNewMetricOpen(false)
+      setNewMetricOpen(false);
 
-      form.reset()
+      form.reset();
 
-      loadConfig()
+      loadConfig();
     } catch (err) {
-      setConfigError(
-        err?.message
-        || 'Failed to create metric.',
-      )
+      setConfigError(err?.message || "Failed to create metric.");
     }
   }
 
@@ -986,53 +840,46 @@ export function PMS({
 
   async function copyEmployeeOfMonth() {
     if (!eomData?.winner) {
-      return
+      return;
     }
 
-    const winner = adjustedRow(eomData.winner)
+    const winner = adjustedRow(eomData.winner);
 
-    const label = monthLabel(
-      eomData.year,
-      eomData.month,
-    )
+    const label = monthLabel(eomData.year, eomData.month);
 
     const lines = [
       `🏆 Employee of the Month - ${label}`,
-      '',
+      "",
       `Congratulations to ${winner.user_name} for achieving the highest PMS score for ${label}.`,
-      '',
+      "",
       `Final Score: ${fmtScore(winner.final_score)}/${fmtScore(winner.maximum_score)}`,
-      '',
-      'Performance Breakdown:',
+      "",
+      "Performance Breakdown:",
       ...winner.metrics.map(
-        (metric) => (
-          `- ${metric.metric_name_snapshot}: ${fmtScore(metric.final_value)}/${fmtScore(metric.weight_snapshot)}`
-        ),
+        (metric) =>
+          `- ${metric.metric_name_snapshot}: ${fmtScore(metric.final_value)}/${fmtScore(metric.weight_snapshot)}`,
       ),
-      '',
-      'Excellent performance and contribution throughout the month.',
-    ]
+      "",
+      "Excellent performance and contribution throughout the month.",
+    ];
 
-    const text = lines.join('\n')
+    const text = lines.join("\n");
 
     try {
-      await copyTextToClipboard(text)
+      await copyTextToClipboard(text);
 
-      setCopyState('copied')
+      setCopyState("copied");
     } catch {
-      setCopyState('failed')
+      setCopyState("failed");
     } finally {
       if (copyResetRef.current) {
-        window.clearTimeout(copyResetRef.current)
+        window.clearTimeout(copyResetRef.current);
       }
 
-      copyResetRef.current = window.setTimeout(
-        () => {
-          setCopyState('idle')
-          copyResetRef.current = null
-        },
-        1600,
-      )
+      copyResetRef.current = window.setTimeout(() => {
+        setCopyState("idle");
+        copyResetRef.current = null;
+      }, 1600);
     }
   }
 
@@ -1042,16 +889,13 @@ export function PMS({
         year: selectedYear,
         month: selectedMonth,
         selected_user_id: userId,
-      })
+      });
 
-      setEomData(data)
-      setEomError(null)
-      setCopyState('idle')
+      setEomData(data);
+      setEomError(null);
+      setCopyState("idle");
     } catch (err) {
-      setEomError(
-        err?.message
-        || 'Failed to select Employee of the Month.',
-      )
+      setEomError(err?.message || "Failed to select Employee of the Month.");
     }
   }
 
@@ -1065,14 +909,10 @@ export function PMS({
         className="pmsModule-month-select"
         value={`${selectedYear}-${selectedMonth}`}
         onChange={(event) => {
-          const [year, month] = (
-            event.target.value
-              .split('-')
-              .map(Number)
-          )
+          const [year, month] = event.target.value.split("-").map(Number);
 
-          setSelectedYear(year)
-          setSelectedMonth(month)
+          setSelectedYear(year);
+          setSelectedMonth(month);
         }}
       >
         {monthOptions.map((option) => (
@@ -1084,34 +924,34 @@ export function PMS({
           </option>
         ))}
       </select>
-    )
+    );
   }
 
   function renderSummaryCards() {
     if (!tableData) {
-      return null
+      return null;
     }
 
-    const employeeCount = tableData.items.length
+    const employeeCount = tableData.items.length;
     const completedPercent = employeeCount
       ? (tableData.completed_count / employeeCount) * 100
-      : 0
+      : 0;
     const pendingPercent = employeeCount
       ? (tableData.pending_count / employeeCount) * 100
-      : 0
+      : 0;
     const completedRows = leaderboardRows.filter(
-      (row) => row.status === 'COMPLETED' && row.final_score !== null,
-    )
+      (row) => row.status === "COMPLETED" && row.final_score !== null,
+    );
     const adjustedAverageScore = completedRows.length
       ? completedRows.reduce(
-        (sum, row) => sum + (Number(row.final_score) || 0),
-        0,
-      ) / completedRows.length
-      : null
+          (sum, row) => sum + (Number(row.final_score) || 0),
+          0,
+        ) / completedRows.length
+      : null;
     const averagePercent = scorePercent(
       adjustedAverageScore,
       tableData.total_active_weight || 100,
-    )
+    );
 
     return (
       <section className="pmsModule-overview-panel">
@@ -1126,7 +966,7 @@ export function PMS({
             <span>Employees</span>
             <strong>{employeeCount}</strong>
             <div className="pmsModule-mini-meter">
-              <i style={{ width: '100%' }} />
+              <i style={{ width: "100%" }} />
             </div>
           </div>
 
@@ -1151,7 +991,7 @@ export function PMS({
             <strong>
               {adjustedAverageScore !== null
                 ? fmtScore(adjustedAverageScore)
-                : '-'}
+                : "-"}
             </strong>
             <div className="pmsModule-mini-meter">
               <i style={{ width: `${averagePercent}%` }} />
@@ -1160,7 +1000,7 @@ export function PMS({
 
           <div className="pmsModule-summary-card pmsModule-summary-card-highlight">
             <span>Top Performer</span>
-            <strong>{displayedTopPerformer.name || '-'}</strong>
+            <strong>{displayedTopPerformer.name || "-"}</strong>
             {displayedTopPerformer.score !== null ? (
               <small>{fmtScore(displayedTopPerformer.score)}</small>
             ) : null}
@@ -1183,7 +1023,7 @@ export function PMS({
           ))}
         </div>
       </section>
-    )
+    );
   }
   function renderEmployeeOfMonth() {
     if (eomLoading) {
@@ -1193,12 +1033,12 @@ export function PMS({
           <div>
             <h3>Winner Spotlight</h3>
             <p>
-              Loading Employee of the Month for{' '}
+              Loading Employee of the Month for{" "}
               {monthLabel(selectedYear, selectedMonth)}...
             </p>
           </div>
         </section>
-      )
+      );
     }
 
     if (eomError) {
@@ -1217,34 +1057,41 @@ export function PMS({
             </button>
           </div>
         </section>
-      )
+      );
     }
 
-    if (!eomData || (!eomData.winner && !eomData.is_tie && roundedTopRows.length < 2)) {
+    if (
+      !eomData ||
+      (!eomData.winner && !eomData.is_tie && roundedTopRows.length < 2)
+    ) {
       return (
         <section className="pmsModule-eom-card pmsModule-eom-empty">
           <div className="pmsModule-award-outline" />
           <div>
             <h3>Winner Spotlight</h3>
             <p>
-              No completed PMS records yet for{' '}
+              No completed PMS records yet for{" "}
               {monthLabel(selectedYear, selectedMonth)}.
             </p>
           </div>
         </section>
-      )
+      );
     }
 
-    if ((eomData.is_tie && !eomData.winner) || (roundedTopRows.length > 1 && !eomData?.winner)) {
-      const candidates = roundedTopRows.length > 1 ? roundedTopRows : eomData.candidates
+    if (
+      (eomData.is_tie && !eomData.winner) ||
+      (roundedTopRows.length > 1 && !eomData?.winner)
+    ) {
+      const candidates =
+        roundedTopRows.length > 1 ? roundedTopRows : eomData.candidates;
       return (
         <section className="pmsModule-eom-card pmsModule-eom-tie">
           <div className="pmsModule-eom-copy">
             <span className="pmsModule-eyebrow">Winner Decision</span>
             <h3>Joint Top Performers</h3>
             <p>
-              {candidates.length}{' '}
-              employees are tied for the highest rounded score this month.
+              {candidates.length} employees are tied for the highest rounded
+              score this month.
             </p>
           </div>
 
@@ -1267,26 +1114,21 @@ export function PMS({
             ))}
           </ul>
         </section>
-      )
+      );
     }
 
-    const winner = eomData.winner
-    const percent = scorePercent(
-      winner.final_score,
-      winner.maximum_score,
-    )
+    const winner = eomData.winner;
+    const percent = scorePercent(winner.final_score, winner.maximum_score);
 
     return (
       <section className="pmsModule-eom-card pmsModule-winner-spotlight">
         <div className="pmsModule-eom-copy">
           <span className="pmsModule-eyebrow">
-            Employee of the Month{eomData.is_tie ? ' - tie resolved' : ''}
+            Employee of the Month{eomData.is_tie ? " - tie resolved" : ""}
           </span>
 
           <div className="pmsModule-winner-identity">
-            <div className="pmsModule-avatar">
-              {initials(winner.user_name)}
-            </div>
+            <div className="pmsModule-avatar">{initials(winner.user_name)}</div>
 
             <div>
               <h3>{winner.user_name}</h3>
@@ -1309,14 +1151,14 @@ export function PMS({
           <div className="pmsModule-eom-actions">
             <button
               type="button"
-              className={`secondary-button ${copyState === 'copied' ? 'pmsModule-button-success' : ''}`}
+              className={`secondary-button ${copyState === "copied" ? "pmsModule-button-success" : ""}`}
               onClick={copyEmployeeOfMonth}
             >
-              <Icon name={copyState === 'copied' ? 'activate' : 'copy'} />
-              {copyState === 'copied' ? 'Copied' : 'Copy to Clipboard'}
+              <Icon name={copyState === "copied" ? "activate" : "copy"} />
+              {copyState === "copied" ? "Copied" : "Copy to Clipboard"}
             </button>
 
-            {copyState === 'failed' ? (
+            {copyState === "failed" ? (
               <span className="pmsModule-copy-feedback error">
                 Couldn't copy to clipboard.
               </span>
@@ -1337,23 +1179,24 @@ export function PMS({
             const metricPercent = scorePercent(
               metric.final_value,
               metric.weight_snapshot,
-            )
+            );
 
             return (
               <div key={metric.metric_key}>
                 <span>{metric.metric_name_snapshot}</span>
                 <strong>
-                  {fmtScore(metric.final_value)} / {fmtScore(metric.weight_snapshot)}
+                  {fmtScore(metric.final_value)} /{" "}
+                  {fmtScore(metric.weight_snapshot)}
                 </strong>
                 <div className="pmsModule-metric-bar">
                   <i style={{ width: `${metricPercent}%` }} />
                 </div>
               </div>
-            )
+            );
           })}
         </div>
       </section>
-    )
+    );
   }
   function renderMonthlyTable() {
     if (tableLoading) {
@@ -1361,19 +1204,19 @@ export function PMS({
         <div className="pmsModule-empty-state pmsModule-skeleton-panel">
           Loading PMS for {monthLabel(selectedYear, selectedMonth)}...
         </div>
-      )
+      );
     }
 
     if (tableError) {
-      return <div className="pmsModule-empty-state error">{tableError}</div>
+      return <div className="pmsModule-empty-state error">{tableError}</div>;
     }
 
     if (!tableData || tableData.items.length === 0) {
       return (
         <div className="pmsModule-empty-state">
-          No PMS-eligible employees found{search ? ' for that search.' : '.'}
+          No PMS-eligible employees found{search ? " for that search." : "."}
         </div>
-      )
+      );
     }
 
     return (
@@ -1385,7 +1228,10 @@ export function PMS({
           </div>
           <div className="pmsModule-leaderboard-controls">
             {isAdmin ? (
-              <form className="pmsModule-target-achievement-field" onSubmit={submitTargetAchievement}>
+              <form
+                className="pmsModule-target-achievement-field"
+                onSubmit={submitTargetAchievement}
+              >
                 <label htmlFor="pms-target-achievement">
                   Target Achievement
                 </label>
@@ -1396,12 +1242,15 @@ export function PMS({
                   max={100}
                   step="0.1"
                   value={targetAchievementDraft}
-                  onChange={(event) => (
+                  onChange={(event) =>
                     setTargetAchievementDraft(event.target.value)
-                  )}
+                  }
                 />
                 <strong>%</strong>
-                <button type="submit" className="secondary-button-compact-action">
+                <button
+                  type="submit"
+                  className="secondary-button-compact-action"
+                >
                   Submit
                 </button>
               </form>
@@ -1427,18 +1276,16 @@ export function PMS({
                 const percent = scorePercent(
                   row.final_score,
                   row.maximum_score,
-                )
-                const rank = index + 1
+                );
+                const rank = index + 1;
 
                 return (
                   <tr
                     key={row.user_id}
-                    className={rank <= 3 ? `pmsModule-rank-${rank}` : ''}
+                    className={rank <= 3 ? `pmsModule-rank-${rank}` : ""}
                   >
                     <td>
-                      <span className="pmsModule-rank-badge">
-                        {rank}
-                      </span>
+                      <span className="pmsModule-rank-badge">{rank}</span>
                     </td>
 
                     <td>
@@ -1462,7 +1309,7 @@ export function PMS({
                         <strong>
                           {row.final_score !== null
                             ? `${fmtScore(row.final_score)} / ${fmtScore(row.maximum_score)}`
-                            : '-'}
+                            : "-"}
                         </strong>
                         <div className="pmsModule-score-track">
                           <i style={{ width: `${percent}%` }} />
@@ -1471,8 +1318,10 @@ export function PMS({
                     </td>
 
                     <td>
-                      <span className={statusBadgeClass(row.status || 'PENDING')}>
-                        {row.status || 'Not started'}
+                      <span
+                        className={statusBadgeClass(row.status || "PENDING")}
+                      >
+                        {row.status || "Not started"}
                       </span>
                     </td>
 
@@ -1483,7 +1332,7 @@ export function PMS({
                           className="secondary-button compact-action"
                           onClick={() => openEditor(row)}
                         >
-                          {row.record_id ? 'Edit PMS' : 'Enter PMS'}
+                          {row.record_id ? "Edit PMS" : "Enter PMS"}
                         </button>
                       ) : (
                         <button
@@ -1497,42 +1346,30 @@ export function PMS({
                       )}
                     </td>
                   </tr>
-                )
+                );
               })}
             </tbody>
           </table>
         </div>
       </section>
-    )
+    );
   }
   function renderEditorDrawer() {
     if (!editorUser) {
-      return null
+      return null;
     }
 
     return (
-      <div
-        className="drawer-backdrop"
-        onClick={closeEditor}
-      >
+      <div className="drawer-backdrop" onClick={closeEditor}>
         <div
           className="modal-panel pmsModule-editor-drawer"
-          onClick={(event) => (
-            event.stopPropagation()
-          )}
+          onClick={(event) => event.stopPropagation()}
         >
           <div className="drawer-header">
             <div>
-              <strong>
-                {editorUser.user_name}
-              </strong>
+              <strong>{editorUser.user_name}</strong>
 
-              <p>
-                {monthLabel(
-                  selectedYear,
-                  selectedMonth,
-                )}
-              </p>
+              <p>{monthLabel(selectedYear, selectedMonth)}</p>
             </div>
 
             <button
@@ -1546,152 +1383,113 @@ export function PMS({
           </div>
 
           {editorLoading ? (
-            <div className="pmsModule-empty-state">
-              Loading...
-            </div>
+            <div className="pmsModule-empty-state">Loading...</div>
           ) : (
             <>
               {editorError ? (
-                <div className="form-message error">
-                  {editorError}
-                </div>
+                <div className="form-message error">{editorError}</div>
               ) : null}
 
               <div className="pmsModule-editor-metrics">
-                {editorMetrics.map(
-                  (metric) => {
-                    const isAuto = (
-                      metric.is_auto_calculated_snapshot
-                    )
-                    const isTargetAchievement = (
-                      metric.metric_key === TARGET_ACHIEVEMENT_KEY
-                    )
+                {editorMetrics.map((metric) => {
+                  const isAuto = metric.is_auto_calculated_snapshot;
+                  const isTargetAchievement =
+                    metric.metric_key === TARGET_ACHIEVEMENT_KEY;
 
-                    const tooltip = metricTooltip(
-                      metric,
-                    )
+                  const tooltip = metricTooltip(metric);
 
-                    const overridden = (
-                      isAuto
-                      && Number(
-                        metric.final_value,
-                      )
-                      !== Number(
-                        metric.auto_value,
-                      )
-                    )
+                  const overridden =
+                    isAuto &&
+                    Number(metric.final_value) !== Number(metric.auto_value);
 
-                    return (
-                      <div
-                        className="pmsModule-editor-metric-row"
-                        key={metric.metric_key}
-                      >
-                        <div className="pmsModule-editor-metric-label">
-                          <div className="pmsModule-editor-metric-title">
-                            <strong>
-                              {metric.metric_name_snapshot}
-                            </strong>
-
-                            {isAuto ? (
-                              <span
-                                className={`source-badge ${
-                                  overridden
-                                    ? 'source-manual'
-                                    : 'source-auto'
-                                }`}
-                              >
-                                {overridden
-                                  ? 'OVERRIDDEN'
-                                  : 'AUTO'}
-                              </span>
-                            ) : null}
-
-                            {tooltip ? (
-                              <span className="pmsModule-info-trigger">
-                                i
-
-                                <span className="pmsModule-tooltip">
-                                  {tooltip}
-                                </span>
-                              </span>
-                            ) : null}
-                          </div>
+                  return (
+                    <div
+                      className="pmsModule-editor-metric-row"
+                      key={metric.metric_key}
+                    >
+                      <div className="pmsModule-editor-metric-label">
+                        <div className="pmsModule-editor-metric-title">
+                          <strong>{metric.metric_name_snapshot}</strong>
 
                           {isAuto ? (
-                            <small className="pmsModule-auto-value">
-                              Auto calculated:{' '}
-                              {metric.auto_value !== null
-                                ? fmtScore(metric.auto_value)
-                                : '-'}
-                              {' / '}
-                              {fmtScore(metric.weight_snapshot)}
-                            </small>
-                          ) : isTargetAchievement ? (
-                            <small className="pmsModule-auto-value">
-                              Shared target:{' '}
-                              {fmt(targetAchievementPercent)}
-                              % of{' '}
-                              {fmtScore(metric.weight_snapshot)}
-                            </small>
+                            <span
+                              className={`source-badge ${
+                                overridden ? "source-manual" : "source-auto"
+                              }`}
+                            >
+                              {overridden ? "OVERRIDDEN" : "AUTO"}
+                            </span>
+                          ) : null}
+
+                          {tooltip ? (
+                            <span className="pmsModule-info-trigger">
+                              i
+                              <span className="pmsModule-tooltip">
+                                {tooltip}
+                              </span>
+                            </span>
                           ) : null}
                         </div>
 
-                        <div className="pmsModule-editor-metric-score">
-                          <input
-                            type="number"
-                            min={0}
-                            max={metric.weight_snapshot}
-                            step="0.1"
-                            disabled={
-                              isTargetAchievement
-                            }
-                            value={metric.final_value}
-                            onChange={(event) => (
-                              updateMetricValue(
-                                metric.metric_key,
-                                event.target.value,
-                              )
-                            )}
-                          />
-
-                          <span className="pmsModule-score-max">
-                            /{' '}
-                            {fmtScore(
-                              metric.weight_snapshot,
-                            )}
-                          </span>
-                        </div>
+                        {isAuto ? (
+                          <small className="pmsModule-auto-value">
+                            Auto calculated:{" "}
+                            {metric.auto_value !== null
+                              ? fmtScore(metric.auto_value)
+                              : "-"}
+                            {" / "}
+                            {fmtScore(metric.weight_snapshot)}
+                          </small>
+                        ) : isTargetAchievement ? (
+                          <small className="pmsModule-auto-value">
+                            Shared target: {fmt(targetAchievementPercent)}% of{" "}
+                            {fmtScore(metric.weight_snapshot)}
+                          </small>
+                        ) : null}
                       </div>
-                    )
-                  },
-                )}
+
+                      <div className="pmsModule-editor-metric-score">
+                        <input
+                          type="number"
+                          min={0}
+                          max={metric.weight_snapshot}
+                          step="0.1"
+                          disabled={isTargetAchievement}
+                          value={metric.final_value}
+                          onChange={(event) =>
+                            updateMetricValue(
+                              metric.metric_key,
+                              event.target.value,
+                            )
+                          }
+                        />
+
+                        <span className="pmsModule-score-max">
+                          / {fmtScore(metric.weight_snapshot)}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
 
               <div className="pmsModule-editor-final-row">
-                <span>
-                  Final Score
-                </span>
+                <span>Final Score</span>
 
                 <strong>
                   {fmtScore(editorFinalScore)}
-                  {' / '}
+                  {" / "}
                   {fmtScore(editorMaxScore)}
                 </strong>
               </div>
 
               <div className="field">
-                <label htmlFor="pms-remarks">
-                  Remarks
-                </label>
+                <label htmlFor="pms-remarks">Remarks</label>
 
                 <textarea
                   id="pms-remarks"
                   value={editorRemarks}
-                  onChange={(event) => (
-                    setEditorRemarks(
-                      event.target.value,
-                    )
-                  )}
+                  onChange={(event) => setEditorRemarks(event.target.value)}
                   rows={3}
                 />
               </div>
@@ -1704,20 +1502,15 @@ export function PMS({
                     onClick={refreshEditorAutoValues}
                     disabled={editorRefreshing}
                   >
-                    <Icon name="refresh" />
-                    {' '}
-                    {editorRefreshing
-                      ? 'Refreshing...'
-                      : 'Refresh Auto Values'}
+                    <Icon name="refresh" />{" "}
+                    {editorRefreshing ? "Refreshing..." : "Refresh Auto Values"}
                   </button>
 
                   <div className="pmsModule-editor-save-group">
                     <button
                       type="button"
                       className="secondary-button"
-                      onClick={() => (
-                        saveEditor('DRAFT')
-                      )}
+                      onClick={() => saveEditor("DRAFT")}
                       disabled={editorSaving}
                     >
                       Save as Draft
@@ -1726,14 +1519,10 @@ export function PMS({
                     <button
                       type="button"
                       className="primary-button"
-                      onClick={() => (
-                        saveEditor('COMPLETED')
-                      )}
+                      onClick={() => saveEditor("COMPLETED")}
                       disabled={editorSaving}
                     >
-                      {editorSaving
-                        ? 'Saving...'
-                        : 'Save PMS'}
+                      {editorSaving ? "Saving..." : "Save PMS"}
                     </button>
                   </div>
                 </div>
@@ -1752,7 +1541,7 @@ export function PMS({
           )}
         </div>
       </div>
-    )
+    );
   }
 
   function renderConfigTab() {
@@ -1761,21 +1550,17 @@ export function PMS({
         <div className="pmsModule-empty-state">
           Only Admins can manage PMS configuration.
         </div>
-      )
+      );
     }
 
     return (
       <div className="pmsModule-config-card">
         {configError ? (
-          <div className="form-message error">
-            {configError}
-          </div>
+          <div className="form-message error">{configError}</div>
         ) : null}
 
         {configLoading ? (
-          <div className="pmsModule-empty-state">
-            Loading configuration...
-          </div>
+          <div className="pmsModule-empty-state">Loading configuration...</div>
         ) : (
           <>
             <div className="table-scroll">
@@ -1790,79 +1575,65 @@ export function PMS({
                 </thead>
 
                 <tbody>
-                  {configItems.map(
-                    (item) => (
-                      <tr key={item.id}>
-                        <td>
-                          <strong>
-                            {item.name}
-                          </strong>
+                  {configItems.map((item) => (
+                    <tr key={item.id}>
+                      <td>
+                        <strong>{item.name}</strong>
 
-                          {item.description ? (
-                            <small className="pmsModule-table-subtext">
-                              {item.description}
-                            </small>
-                          ) : null}
-                        </td>
+                        {item.description ? (
+                          <small className="pmsModule-table-subtext">
+                            {item.description}
+                          </small>
+                        ) : null}
+                      </td>
 
-                        <td>
-                          {item.source === 'MANUAL'
-                            ? 'Manual'
-                            : item.source === 'PRODUCTIVITY_AUTO'
-                              ? 'Productivity (Daily Data)'
-                              : item.source === 'QUALITY_AUTO'
-                                ? 'Quality (Daily Data)'
-                                : 'Custom'}
-                        </td>
+                      <td>
+                        {item.source === "MANUAL"
+                          ? "Manual"
+                          : item.source === "PRODUCTIVITY_AUTO"
+                            ? "Productivity (Daily Data)"
+                            : item.source === "QUALITY_AUTO"
+                              ? "Quality (Daily Data)"
+                              : "Custom"}
+                      </td>
 
-                        <td>
-                          <input
-                            type="number"
-                            min={0}
-                            className="pmsModule-config-weight-input"
-                            defaultValue={item.weight}
-                            onBlur={(event) => {
-                              if (
-                                Number(event.target.value)
-                                !== item.weight
-                              ) {
-                                saveConfigWeight(
-                                  item,
-                                  event.target.value,
-                                )
-                              }
-                            }}
-                          />
-                        </td>
+                      <td>
+                        <input
+                          type="number"
+                          min={0}
+                          className="pmsModule-config-weight-input"
+                          defaultValue={item.weight}
+                          onBlur={(event) => {
+                            if (Number(event.target.value) !== item.weight) {
+                              saveConfigWeight(item, event.target.value);
+                            }
+                          }}
+                        />
+                      </td>
 
-                        <td>
-                          <button
-                            type="button"
-                            className="secondary-button compact-action pmsModule-delete-action"
-                            onClick={() => deleteConfigItem(item)}
-                          >
-                            Delete
-                          </button>
-                        </td>
-                      </tr>
-                    ),
-                  )}
+                      <td>
+                        <button
+                          type="button"
+                          className="secondary-button compact-action pmsModule-delete-action"
+                          onClick={() => deleteConfigItem(item)}
+                        >
+                          Delete
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
 
                 <tfoot>
                   <tr>
                     <td colSpan={2}>
-                      <strong>
-                        Total Weight (active)
-                      </strong>
+                      <strong>Total Weight (active)</strong>
                     </td>
 
                     <td colSpan={2}>
                       <strong>
                         {fmt(configTotalWeight)}
-                        {configTotalWeight !== 100
-                          ? ' warning not 100'
-                          : ''}
+                        {configTotalWeight !== 100 ? " warning not 100" : ""}
                       </strong>
                     </td>
                   </tr>
@@ -1878,9 +1649,7 @@ export function PMS({
                 >
                   <div className="form-row">
                     <div className="field">
-                      <label htmlFor="metric-key">
-                        Key
-                      </label>
+                      <label htmlFor="metric-key">Key</label>
 
                       <input
                         id="metric-key"
@@ -1891,9 +1660,7 @@ export function PMS({
                     </div>
 
                     <div className="field">
-                      <label htmlFor="metric-name">
-                        Name
-                      </label>
+                      <label htmlFor="metric-name">Name</label>
 
                       <input
                         id="metric-name"
@@ -1906,9 +1673,7 @@ export function PMS({
 
                   <div className="form-row">
                     <div className="field">
-                      <label htmlFor="metric-weight">
-                        Weight
-                      </label>
+                      <label htmlFor="metric-weight">Weight</label>
 
                       <input
                         id="metric-weight"
@@ -1921,9 +1686,7 @@ export function PMS({
                     </div>
 
                     <div className="field">
-                      <label htmlFor="metric-description">
-                        Description
-                      </label>
+                      <label htmlFor="metric-description">Description</label>
 
                       <input
                         id="metric-description"
@@ -1937,17 +1700,12 @@ export function PMS({
                     <button
                       type="button"
                       className="secondary-button"
-                      onClick={() => (
-                        setNewMetricOpen(false)
-                      )}
+                      onClick={() => setNewMetricOpen(false)}
                     >
                       Cancel
                     </button>
 
-                    <button
-                      type="submit"
-                      className="primary-button"
-                    >
+                    <button type="submit" className="primary-button">
                       Add Metric
                     </button>
                   </div>
@@ -1956,9 +1714,7 @@ export function PMS({
                 <button
                   type="button"
                   className="secondary-button"
-                  onClick={() => (
-                    setNewMetricOpen(true)
-                  )}
+                  onClick={() => setNewMetricOpen(true)}
                 >
                   + Add Metric
                 </button>
@@ -1966,19 +1722,15 @@ export function PMS({
             </div>
 
             <p className="pmsModule-config-note">
-              New auto-calculated metrics
-              (Productivity/Quality-style)
-              aren&apos;t available from this
-              form yet - only Manual metrics
-              can be added here. Deactivating
-              a metric hides it from future
-              months without touching any
-              historical PMS record.
+              New auto-calculated metrics (Productivity/Quality-style)
+              aren&apos;t available from this form yet - only Manual metrics can
+              be added here. Deactivating a metric hides it from future months
+              without touching any historical PMS record.
             </p>
           </>
         )}
       </div>
-    )
+    );
   }
 
   function renderHistoryTab() {
@@ -1986,124 +1738,88 @@ export function PMS({
       <div className="pms-history-card">
         <div className="dailyEntry-history-filters pmsModule-history-filters">
           <div className="field">
-            <label htmlFor="history-year">
-              Year
-            </label>
+            <label htmlFor="history-year">Year</label>
 
             <input
               id="history-year"
               type="number"
               value={historyFilters.year}
-              onChange={(event) => (
-                setHistoryFilters(
-                  (filters) => ({
-                    ...filters,
-                    year: event.target.value,
-                  }),
-                )
-              )}
+              onChange={(event) =>
+                setHistoryFilters((filters) => ({
+                  ...filters,
+                  year: event.target.value,
+                }))
+              }
               placeholder="e.g. 2026"
             />
           </div>
 
           <div className="field">
-            <label htmlFor="history-month">
-              Month
-            </label>
+            <label htmlFor="history-month">Month</label>
 
             <select
               id="history-month"
               value={historyFilters.month}
-              onChange={(event) => (
-                setHistoryFilters(
-                  (filters) => ({
-                    ...filters,
-                    month: event.target.value,
-                  }),
-                )
-              )}
+              onChange={(event) =>
+                setHistoryFilters((filters) => ({
+                  ...filters,
+                  month: event.target.value,
+                }))
+              }
             >
-              <option value="">
-                All
-              </option>
+              <option value="">All</option>
 
-              {MONTH_NAMES.map(
-                (name, index) => (
-                  <option
-                    key={name}
-                    value={index + 1}
-                  >
-                    {name}
-                  </option>
-                ),
-              )}
+              {MONTH_NAMES.map((name, index) => (
+                <option key={name} value={index + 1}>
+                  {name}
+                </option>
+              ))}
             </select>
           </div>
 
           {canViewAll ? (
             <div className="field">
-              <label htmlFor="history-search">
-                Employee
-              </label>
+              <label htmlFor="history-search">Employee</label>
 
               <input
                 id="history-search"
                 value={historyFilters.search}
-                onChange={(event) => (
-                  setHistoryFilters(
-                    (filters) => ({
-                      ...filters,
-                      search:
-                        event.target.value,
-                    }),
-                  )
-                )}
+                onChange={(event) =>
+                  setHistoryFilters((filters) => ({
+                    ...filters,
+                    search: event.target.value,
+                  }))
+                }
                 placeholder="Search name..."
               />
             </div>
           ) : null}
 
           <div className="field">
-            <label htmlFor="history-status">
-              Status
-            </label>
+            <label htmlFor="history-status">Status</label>
 
             <select
               id="history-status"
               value={historyFilters.status}
-              onChange={(event) => (
-                setHistoryFilters(
-                  (filters) => ({
-                    ...filters,
-                    status:
-                      event.target.value,
-                  }),
-                )
-              )}
+              onChange={(event) =>
+                setHistoryFilters((filters) => ({
+                  ...filters,
+                  status: event.target.value,
+                }))
+              }
             >
-              <option value="">
-                All
-              </option>
+              <option value="">All</option>
 
-              <option value="COMPLETED">
-                Completed
-              </option>
+              <option value="COMPLETED">Completed</option>
 
-              <option value="DRAFT">
-                Draft
-              </option>
+              <option value="DRAFT">Draft</option>
             </select>
           </div>
         </div>
 
         {historyLoading ? (
-          <div className="pmsModule-empty-state">
-            Loading history...
-          </div>
-        ) : (
-          !historyData
-          || historyData.items.length === 0
-        ) ? (
+          <div className="pmsModule-empty-state">Loading history...</div>
+        ) : !historyData || historyData.items.length === 0 ? (
           <div className="pmsModule-empty-state">
             No PMS history matches these filters.
           </div>
@@ -2114,9 +1830,7 @@ export function PMS({
                 <tr>
                   <th>Month</th>
 
-                  {canViewAll ? (
-                    <th>Employee</th>
-                  ) : null}
+                  {canViewAll ? <th>Employee</th> : null}
 
                   <th>Final Score</th>
                   <th>Percentage</th>
@@ -2126,64 +1840,32 @@ export function PMS({
               </thead>
 
               <tbody>
-                {historyData.items.map(
-                  (item) => (
-                    <tr
-                      key={item.record_id}
-                      onClick={() => (
-                        setHistoryDetail(
-                          item,
-                        )
-                      )}
-                    >
-                      <td>
-                        {monthLabel(
-                          item.year,
-                          item.month,
-                        )}
-                      </td>
+                {historyData.items.map((item) => (
+                  <tr
+                    key={item.record_id}
+                    onClick={() => setHistoryDetail(item)}
+                  >
+                    <td>{monthLabel(item.year, item.month)}</td>
 
-                      {canViewAll ? (
-                        <td>
-                          {item.user_name}
-                        </td>
-                      ) : null}
+                    {canViewAll ? <td>{item.user_name}</td> : null}
 
-                      <td>
-                        {fmtScore(
-                          item.final_score,
-                        )}
-                        {' / '}
-                        {fmtScore(
-                          item.maximum_score,
-                        )}
-                      </td>
+                    <td>
+                      {fmtScore(item.final_score)}
+                      {" / "}
+                      {fmtScore(item.maximum_score)}
+                    </td>
 
-                      <td>
-                        {fmt(
-                          item.percentage,
-                        )}
-                        %
-                      </td>
+                    <td>{fmt(item.percentage)}%</td>
 
-                      <td>
-                        <span
-                          className={statusBadgeClass(
-                            item.status,
-                          )}
-                        >
-                          {item.status}
-                        </span>
-                      </td>
+                    <td>
+                      <span className={statusBadgeClass(item.status)}>
+                        {item.status}
+                      </span>
+                    </td>
 
-                      <td>
-                        {new Date(
-                          item.updated_at,
-                        ).toLocaleDateString()}
-                      </td>
-                    </tr>
-                  ),
-                )}
+                    <td>{new Date(item.updated_at).toLocaleDateString()}</td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
@@ -2192,36 +1874,23 @@ export function PMS({
         {historyDetail ? (
           <div
             className="modal-backdrop"
-            onClick={() => (
-              setHistoryDetail(null)
-            )}
+            onClick={() => setHistoryDetail(null)}
           >
             <div
               className="modal-panel"
-              onClick={(event) => (
-                event.stopPropagation()
-              )}
+              onClick={(event) => event.stopPropagation()}
             >
               <div className="drawer-header">
                 <div>
-                  <strong>
-                    {historyDetail.user_name}
-                  </strong>
+                  <strong>{historyDetail.user_name}</strong>
 
-                  <p>
-                    {monthLabel(
-                      historyDetail.year,
-                      historyDetail.month,
-                    )}
-                  </p>
+                  <p>{monthLabel(historyDetail.year, historyDetail.month)}</p>
                 </div>
 
                 <button
                   type="button"
                   className="icon-button"
-                  onClick={() => (
-                    setHistoryDetail(null)
-                  )}
+                  onClick={() => setHistoryDetail(null)}
                   aria-label="Close"
                 >
                   <Icon name="close" />
@@ -2229,22 +1898,14 @@ export function PMS({
               </div>
 
               <p>
-                Final Score:{' '}
-
+                Final Score:{" "}
                 <strong>
-                  {fmtScore(
-                    historyDetail.final_score,
-                  )}
-                  {' / '}
-                  {fmtScore(
-                    historyDetail.maximum_score,
-                  )}
+                  {fmtScore(historyDetail.final_score)}
+                  {" / "}
+                  {fmtScore(historyDetail.maximum_score)}
                 </strong>
-
-                {' ('}
-                {fmt(
-                  historyDetail.percentage,
-                )}
+                {" ("}
+                {fmt(historyDetail.percentage)}
                 %)
               </p>
 
@@ -2252,22 +1913,16 @@ export function PMS({
                 type="button"
                 className="secondary-button"
                 onClick={() => {
-                  setHistoryDetail(null)
+                  setHistoryDetail(null);
 
                   openEditor({
-                    user_id:
-                      historyDetail.user_id,
-                    user_name:
-                      historyDetail.user_name,
-                  })
+                    user_id: historyDetail.user_id,
+                    user_name: historyDetail.user_name,
+                  });
 
-                  setSelectedYear(
-                    historyDetail.year,
-                  )
+                  setSelectedYear(historyDetail.year);
 
-                  setSelectedMonth(
-                    historyDetail.month,
-                  )
+                  setSelectedMonth(historyDetail.month);
                 }}
               >
                 View Full Breakdown
@@ -2276,12 +1931,15 @@ export function PMS({
           </div>
         ) : null}
       </div>
-    )
+    );
   }
 
   function renderEmployeeOfMonthTab() {
-    const items = eomStatsData?.items || []
-    const selectedEmployee = items.find((item) => item.user_id === selectedEomEmployeeId) || items[0] || null
+    const items = eomStatsData?.items || [];
+    const selectedEmployee =
+      items.find((item) => item.user_id === selectedEomEmployeeId) ||
+      items[0] ||
+      null;
 
     return (
       <div className="pms-history-card pmsModule-eom-stats-card">
@@ -2307,7 +1965,7 @@ export function PMS({
               {items.map((item) => (
                 <button
                   type="button"
-                  className={`pmsModule-eom-stat-card${item.user_id === selectedEmployee?.user_id ? ' active' : ''}`}
+                  className={`pmsModule-eom-stat-card${item.user_id === selectedEmployee?.user_id ? " active" : ""}`}
                   key={item.user_id}
                   onClick={() => setSelectedEomEmployeeId(item.user_id)}
                 >
@@ -2329,7 +1987,10 @@ export function PMS({
                 <span>{selectedEmployee?.win_count || 0} wins</span>
               </div>
               {(selectedEmployee?.wins || []).map((win) => (
-                <div className="pmsModule-eom-win-row" key={`${win.year}-${win.month}`}>
+                <div
+                  className="pmsModule-eom-win-row"
+                  key={`${win.year}-${win.month}`}
+                >
                   <span>{monthLabel(win.year, win.month)}</span>
                   <strong>{fmtScore(win.final_score)}</strong>
                 </div>
@@ -2338,89 +1999,63 @@ export function PMS({
           </div>
         )}
       </div>
-    )
+    );
   }
 
   function renderAgentOwnRecord() {
     if (agentLoading) {
-      return (
-        <div className="pmsModule-empty-state">
-          Loading your PMS...
-        </div>
-      )
+      return <div className="pmsModule-empty-state">Loading your PMS...</div>;
     }
 
-    if (
-      !agentRecord
-      || !agentRecord.id
-    ) {
+    if (!agentRecord || !agentRecord.id) {
       return (
         <div className="pmsModule-empty-state">
-          Your PMS for{' '}
-          {monthLabel(
-            selectedYear,
-            selectedMonth,
-          )}{' '}
-          has not been published yet.
+          Your PMS for {monthLabel(selectedYear, selectedMonth)} has not been
+          published yet.
         </div>
-      )
+      );
     }
 
     return (
       <div className="pms-entry-card pmsModule-agent-record">
         <div className="pmsModule-editor-final-row">
-          <span>
-            Final Score
-          </span>
+          <span>Final Score</span>
 
           <strong>
-            {fmtScore(
-              agentRecord.final_score,
-            )}
-            {' / '}
-            {fmtScore(
-              agentRecord.maximum_score,
-            )}
+            {fmtScore(agentRecord.final_score)}
+            {" / "}
+            {fmtScore(agentRecord.maximum_score)}
           </strong>
         </div>
 
         <div className="pmsModule-editor-metrics">
-          {agentRecord.metrics.map(
-            (metric) => (
-              <div
-                className="pmsModule-editor-metric-row"
-                key={metric.metric_key}
-              >
-                <div className="pmsModule-editor-metric-label">
-                  <strong>
-                    {metric.metric_name_snapshot}
-                  </strong>
-                </div>
-
-                <div className="pmsModule-editor-metric-score">
-                  <span>
-                    {fmtScore(
-                      metric.final_value,
-                    )}
-                    {' / '}
-                    {fmtScore(
-                      metric.weight_snapshot,
-                    )}
-                  </span>
-                </div>
+          {agentRecord.metrics.map((metric) => (
+            <div
+              className="pmsModule-editor-metric-row"
+              key={metric.metric_key}
+            >
+              <div className="pmsModule-editor-metric-label">
+                <strong>{metric.metric_name_snapshot}</strong>
               </div>
-            ),
-          )}
+
+              <div className="pmsModule-editor-metric-score">
+                <span>
+                  {fmtScore(metric.final_value)}
+                  {" / "}
+                  {fmtScore(metric.weight_snapshot)}
+                </span>
+              </div>
+            </div>
+          ))}
         </div>
 
         {agentRecord.remarks ? (
           <p className="pmsModule-remarks-readout">
-            Remarks:{' '}
-            {agentRecord.remarks}
+            Remarks: {agentRecord.remarks}
           </p>
         ) : null}
       </div>
-    )
+    );
   }
 
   // ------------------------------------------------------------------
@@ -2428,11 +2063,7 @@ export function PMS({
   // ------------------------------------------------------------------
 
   return (
-    <AppLayout
-      activePage="PMS"
-      currentUser={currentUser}
-      onLogout={onLogout}
-    >
+    <AppLayout activePage="PMS" currentUser={currentUser} onLogout={onLogout}>
       <div className="pmsModule-page">
         <div className="page-header pmsModule-header">
           <div className="pmsModule-header-content">
@@ -2442,18 +2073,14 @@ export function PMS({
 
             <h1>PMS</h1>
 
-            <p>
-              Monitor achievement, productivity and team performance.
-            </p>
+            <p>Monitor achievement, productivity and team performance.</p>
 
             <div className="pmsModule-header-stats">
-              <span>
-                {monthLabel(selectedYear, selectedMonth)}
-              </span>
+              <span>{monthLabel(selectedYear, selectedMonth)}</span>
               <span>
                 {canViewAll
                   ? `${leaderboardRows.length} employees`
-                  : 'Personal view'}
+                  : "Personal view"}
               </span>
             </div>
           </div>
@@ -2471,11 +2098,7 @@ export function PMS({
                 className="pmsModule-search-input"
                 placeholder="Search employee..."
                 value={search}
-                onChange={(event) => (
-                  setSearch(
-                    event.target.value,
-                  )
-                )}
+                onChange={(event) => setSearch(event.target.value)}
               />
             ) : null}
           </div>
@@ -2484,28 +2107,16 @@ export function PMS({
         <nav className="pmsModule-tabs">
           <button
             type="button"
-            className={
-              activeTab === 'monthly'
-                ? 'active'
-                : ''
-            }
-            onClick={() => (
-              setActiveTab('monthly')
-            )}
+            className={activeTab === "monthly" ? "active" : ""}
+            onClick={() => setActiveTab("monthly")}
           >
             Monthly
           </button>
 
           <button
             type="button"
-            className={
-              activeTab === 'history'
-                ? 'active'
-                : ''
-            }
-            onClick={() => (
-              setActiveTab('history')
-            )}
+            className={activeTab === "history" ? "active" : ""}
+            onClick={() => setActiveTab("history")}
           >
             History
           </button>
@@ -2513,14 +2124,8 @@ export function PMS({
           {canViewAll ? (
             <button
               type="button"
-              className={
-                activeTab === 'employee-of-month'
-                  ? 'active'
-                  : ''
-              }
-              onClick={() => (
-                setActiveTab('employee-of-month')
-              )}
+              className={activeTab === "employee-of-month" ? "active" : ""}
+              onClick={() => setActiveTab("employee-of-month")}
             >
               Employee of the Month
             </button>
@@ -2529,21 +2134,15 @@ export function PMS({
           {isAdmin ? (
             <button
               type="button"
-              className={
-                activeTab === 'config'
-                  ? 'active'
-                  : ''
-              }
-              onClick={() => (
-                setActiveTab('config')
-              )}
+              className={activeTab === "config" ? "active" : ""}
+              onClick={() => setActiveTab("config")}
             >
               PMS Configuration
             </button>
           ) : null}
         </nav>
 
-        {activeTab === 'monthly' ? (
+        {activeTab === "monthly" ? (
           <>
             {canViewAll ? (
               <>
@@ -2551,9 +2150,7 @@ export function PMS({
 
                 {renderSummaryCards()}
 
-                <div className="pms-history-card">
-                  {renderMonthlyTable()}
-                </div>
+                <div className="pms-history-card">{renderMonthlyTable()}</div>
               </>
             ) : (
               renderAgentOwnRecord()
@@ -2561,22 +2158,16 @@ export function PMS({
           </>
         ) : null}
 
-        {activeTab === 'history'
-          ? renderHistoryTab()
-          : null}
+        {activeTab === "history" ? renderHistoryTab() : null}
 
-        {activeTab === 'employee-of-month'
-          ? renderEmployeeOfMonthTab()
-          : null}
+        {activeTab === "employee-of-month" ? renderEmployeeOfMonthTab() : null}
 
-        {activeTab === 'config'
-          ? renderConfigTab()
-          : null}
+        {activeTab === "config" ? renderConfigTab() : null}
 
         {renderEditorDrawer()}
       </div>
     </AppLayout>
-  )
+  );
 }
 
-export default PMS
+export default PMS;
