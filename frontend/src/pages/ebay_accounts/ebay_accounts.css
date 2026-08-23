@@ -33,6 +33,32 @@
   font-weight: 850;
 }
 
+.auto-sync-interval {
+  display: grid;
+  grid-template-columns: repeat(2, 86px);
+  gap: 8px;
+  align-items: end;
+}
+
+.auto-sync-interval label {
+  display: grid;
+  gap: 4px;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 850;
+}
+
+.auto-sync-interval input {
+  width: 100%;
+  min-width: 0;
+  height: 36px;
+  border: 1px solid #dbe7f6;
+  border-radius: 8px;
+  padding: 0 10px;
+  color: #061426;
+  font-weight: 800;
+}
+
 .api-usage-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -244,6 +270,16 @@ html[data-theme="dark"] .auto-sync-active {
   border-color: #14532d;
   background: #052e1a;
   color: #86efac;
+}
+
+html[data-theme="dark"] .auto-sync-interval label {
+  color: #94a3b8;
+}
+
+html[data-theme="dark"] .auto-sync-interval input {
+  border-color: #243247;
+  background: #111827;
+  color: #f8fafc;
 }
 
 html[data-theme="dark"] .api-usage-card {

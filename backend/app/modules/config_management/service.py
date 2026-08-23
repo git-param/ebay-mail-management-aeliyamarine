@@ -9,7 +9,11 @@ from app.models.app_config import AppConfigSetting
 from app.models.ebay_account import EbayAccount
 from app.modules.config_management.defaults import DEFAULT_CONFIGS
 
-HIDDEN_CONFIG_KEYS = {'api.ebay_daily_api_limit', 'api.ebay_auto_sync_enabled'}
+HIDDEN_CONFIG_KEYS = {
+    'api.ebay_daily_api_limit',
+    'api.ebay_auto_sync_enabled',
+    'api.ebay_auto_sync_interval_hours',
+}
 
 
 class ConfigService:

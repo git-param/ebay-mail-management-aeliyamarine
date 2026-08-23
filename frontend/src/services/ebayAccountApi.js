@@ -86,10 +86,10 @@ export function fetchEbayAutoSyncStatus() {
   return request('/integrations/ebay/auto-sync')
 }
 
-export function updateEbayAutoSyncStatus(enabled) {
+export function updateEbayAutoSyncStatus(enabled, intervalMinutes) {
   return request('/integrations/ebay/auto-sync', {
     method: 'PATCH',
-    body: JSON.stringify({ enabled }),
+    body: JSON.stringify({ enabled, interval_minutes: intervalMinutes }),
   })
 }
 

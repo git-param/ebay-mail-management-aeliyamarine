@@ -42,7 +42,7 @@ const EMPTY_API_USAGE = {
 
 const EMPTY_AUTO_SYNC_STATUS = {
   enabled: false,
-  intervalHours: 0,
+  intervalMinutes: 360,
   latestSyncAt: '',
   nextRunAt: '',
 }
@@ -144,12 +144,26 @@ function normalizeAutoSyncStatus(status) {
   if (!status) {
     return EMPTY_AUTO_SYNC_STATUS
   }
+  const intervalMinutes = Number(status.interval_minutes) || (Number(status.interval_hours) || 0) * 60 || 360
   return {
     enabled: Boolean(status.enabled),
-    intervalHours: Number(status.interval_hours) || 0,
+    intervalMinutes,
     latestSyncAt: status.latest_sync_at || '',
     nextRunAt: status.next_run_at || '',
   }
+}
+
+function formatIntervalMinutes(totalMinutes) {
+  const normalized = Math.max(Number(totalMinutes) || 0, 2)
+  const hours = Math.floor(normalized / 60)
+  const minutes = normalized % 60
+  if (hours && minutes) {
+    return `${hours}h ${minutes}m`
+  }
+  if (hours) {
+    return `${hours}h`
+  }
+  return `${minutes}m`
 }
 
 function formatElapsed(value) {
@@ -429,6 +443,7 @@ function EbayAccounts({ currentUser, onLogout }) {
   const [syncResults, setSyncResults] = useState([])
   const [apiUsages, setApiUsages] = useState(() => API_USAGE_TYPES.map((type) => ({ ...EMPTY_API_USAGE, apiName: type.key })))
   const [autoSyncStatus, setAutoSyncStatus] = useState(EMPTY_AUTO_SYNC_STATUS)
+  const [autoSyncDraft, setAutoSyncDraft] = useState({ hours: '6', minutes: '0' })
   const [isTogglingAutoSync, setIsTogglingAutoSync] = useState(false)
   const [connectingAccountId, setConnectingAccountId] = useState('')
   const [syncingAction, setSyncingAction] = useState('')
@@ -506,6 +521,14 @@ function EbayAccounts({ currentUser, onLogout }) {
     loadAutoSyncStatus()
     window.history.replaceState({}, document.title, window.location.pathname)
   }, [])
+
+  useEffect(() => {
+    const intervalMinutes = Math.max(Number(autoSyncStatus.intervalMinutes) || 360, 2)
+    setAutoSyncDraft({
+      hours: String(Math.floor(intervalMinutes / 60)),
+      minutes: String(intervalMinutes % 60),
+    })
+  }, [autoSyncStatus.intervalMinutes])
 
   const filteredAccounts = useMemo(() => {
     return accounts.filter((account) => {
@@ -908,15 +931,53 @@ function EbayAccounts({ currentUser, onLogout }) {
     await runSync('all', syncAllEbayAccounts)
   }
 
+  function updateAutoSyncDraft(field, value) {
+    const maxValue = field === 'minutes' ? 59 : Number.MAX_SAFE_INTEGER
+    const normalized = value === '' ? '' : String(Math.min(Math.max(Number(value) || 0, 0), maxValue))
+    setAutoSyncDraft((current) => ({ ...current, [field]: normalized }))
+  }
+
+  function getAutoSyncDraftMinutes() {
+    return (Number(autoSyncDraft.hours) || 0) * 60 + (Number(autoSyncDraft.minutes) || 0)
+  }
+
   async function toggleAutoSync() {
+    const intervalMinutes = getAutoSyncDraftMinutes()
+    if (intervalMinutes < 2) {
+      setError('Auto sync interval must be at least 2 minutes.')
+      return
+    }
+
     setIsTogglingAutoSync(true)
     setError('')
 
     try {
-      const response = await updateEbayAutoSyncStatus(!autoSyncStatus.enabled)
+      const response = await updateEbayAutoSyncStatus(!autoSyncStatus.enabled, intervalMinutes)
       const status = normalizeAutoSyncStatus(response)
       setAutoSyncStatus(status)
       showNotification(status.enabled ? 'Auto sync started.' : 'Auto sync stopped.')
+    } catch (caughtError) {
+      showError(caughtError)
+    } finally {
+      setIsTogglingAutoSync(false)
+    }
+  }
+
+  async function saveAutoSyncInterval() {
+    const intervalMinutes = getAutoSyncDraftMinutes()
+    if (intervalMinutes < 2) {
+      setError('Auto sync interval must be at least 2 minutes.')
+      return
+    }
+
+    setIsTogglingAutoSync(true)
+    setError('')
+
+    try {
+      const response = await updateEbayAutoSyncStatus(autoSyncStatus.enabled, intervalMinutes)
+      const status = normalizeAutoSyncStatus(response)
+      setAutoSyncStatus(status)
+      showNotification(`Auto sync interval saved: ${formatIntervalMinutes(status.intervalMinutes)}.`)
     } catch (caughtError) {
       showError(caughtError)
     } finally {
@@ -985,10 +1046,39 @@ function EbayAccounts({ currentUser, onLogout }) {
             >
               {isTogglingAutoSync ? 'Updating...' : autoSyncStatus.enabled ? 'Stop Auto Sync' : 'Start Auto Sync'}
             </button>
+            <div className="auto-sync-interval" aria-label="Auto sync interval">
+              <label>
+                <span>Hours</span>
+                <input
+                  type="number"
+                  min="0"
+                  value={autoSyncDraft.hours}
+                  onChange={(event) => updateAutoSyncDraft('hours', event.target.value)}
+                />
+              </label>
+              <label>
+                <span>Minutes</span>
+                <input
+                  type="number"
+                  min="0"
+                  max="59"
+                  value={autoSyncDraft.minutes}
+                  onChange={(event) => updateAutoSyncDraft('minutes', event.target.value)}
+                />
+              </label>
+            </div>
+            <button
+              className="secondary-button"
+              type="button"
+              disabled={isTogglingAutoSync}
+              onClick={saveAutoSyncInterval}
+            >
+              Save Interval
+            </button>
             <span className="auto-sync-status">
               {autoSyncStatus.enabled
-                ? `Every ${autoSyncStatus.intervalHours || '-'}h${autoSyncStatus.nextRunAt ? ` · next ${formatDate(autoSyncStatus.nextRunAt)}` : ''}`
-                : `Off${autoSyncStatus.intervalHours ? ` · interval ${autoSyncStatus.intervalHours}h` : ''}`}
+                ? `Every ${formatIntervalMinutes(autoSyncStatus.intervalMinutes)}${autoSyncStatus.nextRunAt ? ` · next ${formatDate(autoSyncStatus.nextRunAt)}` : ''}`
+                : `Off · interval ${formatIntervalMinutes(autoSyncStatus.intervalMinutes)}`}
             </span>
           </section>
         ) : null}
