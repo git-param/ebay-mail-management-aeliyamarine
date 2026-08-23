@@ -360,6 +360,55 @@ function EditSoldPostingModal({
   );
 }
 
+function SoldConfirmModal({
+  title,
+  message,
+  detail,
+  confirmLabel,
+  saving,
+  onCancel,
+  onConfirm,
+}) {
+  return (
+    <div className="modal-backdrop" role="presentation">
+      <section
+        className="modal-panel sold-confirm-modal"
+        role="dialog"
+        aria-modal="true"
+      >
+        <div className="modal-header">
+          <h2>{title}</h2>
+          <button className="icon-button" type="button" onClick={onCancel}>
+            <Icon name="close" />
+          </button>
+        </div>
+        <div className="sold-confirm-body">
+          <p className="confirm-message">{message}</p>
+          {detail ? <p className="sold-confirm-detail">{detail}</p> : null}
+          <div className="modal-actions">
+            <button
+              className="secondary-button"
+              type="button"
+              onClick={onCancel}
+              disabled={saving}
+            >
+              Cancel
+            </button>
+            <button
+              className="primary-button"
+              type="button"
+              onClick={onConfirm}
+              disabled={saving}
+            >
+              {saving ? "Working..." : confirmLabel}
+            </button>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
+
 export default function SoldPosting({ currentUser, onLogout }) {
   const isAdmin = normalizeRole(currentUser?.role) === "ADMIN";
   const [period, setPeriod] = useState("90");
@@ -391,6 +440,11 @@ export default function SoldPosting({ currentUser, onLogout }) {
   const [savingEdit, setSavingEdit] = useState(false);
   const [copiedToastId, setCopiedToastId] = useState(null);
   const [partialError, setPartialError] = useState("");
+  const [pendingCopyRow, setPendingCopyRow] = useState(null);
+  const [savingCopy, setSavingCopy] = useState(false);
+  const [conditionDrafts, setConditionDrafts] = useState({});
+  const [pendingConditionRow, setPendingConditionRow] = useState(null);
+  const [savingConditionId, setSavingConditionId] = useState(null);
   const activeFilters = useMemo(() => filters, [filters]);
 
   const load = useCallback(
@@ -558,6 +612,12 @@ export default function SoldPosting({ currentUser, onLogout }) {
   }
   async function copySoldReference(row, event) {
     event.stopPropagation();
+    setPendingCopyRow(row);
+  }
+  async function confirmCopySoldReference() {
+    const row = pendingCopyRow;
+    if (!row) return;
+    setSavingCopy(true);
     try {
       await writeClipboard(soldReferenceText(row));
       const updated = await markSoldPostingCopied(row.id);
@@ -573,8 +633,55 @@ export default function SoldPosting({ currentUser, onLogout }) {
           setCopiedToastId((current) => (current === row.id ? null : current)),
         1400,
       );
+      setPendingCopyRow(null);
     } catch (err) {
       setError(err.message || "Could not copy sold reference");
+    } finally {
+      setSavingCopy(false);
+    }
+  }
+  function updateConditionDraft(row, value, event) {
+    event.stopPropagation();
+    setConditionDrafts((current) => ({ ...current, [row.id]: value }));
+  }
+  function resetConditionDraft(row, event) {
+    event.stopPropagation();
+    setConditionDrafts((current) => {
+      const next = { ...current };
+      delete next[row.id];
+      return next;
+    });
+  }
+  function requestConditionSave(row, event) {
+    event.stopPropagation();
+    setPendingConditionRow(row);
+  }
+  async function confirmConditionSave() {
+    const row = pendingConditionRow;
+    if (!row) return;
+    const nextCondition = conditionDrafts[row.id] ?? "";
+    setSavingConditionId(row.id);
+    setError("");
+    try {
+      const updated = await updateSoldPostingLineItem(row.id, {
+        condition: nextCondition.trim() || null,
+      });
+      setData((current) => ({
+        ...current,
+        items: (current.items || []).map((item) =>
+          item.id === row.id ? { ...item, ...updated } : item,
+        ),
+      }));
+      setConditionDrafts((current) => {
+        const next = { ...current };
+        delete next[row.id];
+        return next;
+      });
+      setPendingConditionRow(null);
+    } catch (err) {
+      setError(err.message || "Could not update sold condition");
+    } finally {
+      setSavingConditionId(null);
     }
   }
 
@@ -836,7 +943,50 @@ export default function SoldPosting({ currentUser, onLogout }) {
                       <td className="sold-title">
                         <span>{row.product || "-"}</span>
                       </td>
-                      <td>{row.condition || "-"}</td>
+                      <td>
+                        <div
+                          className="sold-condition-editor"
+                          onClick={(event) => event.stopPropagation()}
+                        >
+                          <input
+                            type="text"
+                            value={
+                              Object.prototype.hasOwnProperty.call(conditionDrafts, row.id)
+                                ? conditionDrafts[row.id]
+                                : row.condition || ""
+                            }
+                            placeholder="Condition"
+                            onChange={(event) =>
+                              updateConditionDraft(row, event.target.value, event)
+                            }
+                          />
+                          {Object.prototype.hasOwnProperty.call(conditionDrafts, row.id) &&
+                          (conditionDrafts[row.id] || "") !== (row.condition || "") ? (
+                            <span className="sold-condition-actions">
+                              <button
+                                className="sold-condition-save"
+                                type="button"
+                                title="Save condition"
+                                aria-label="Save condition"
+                                disabled={savingConditionId === row.id}
+                                onClick={(event) => requestConditionSave(row, event)}
+                              >
+                                <Icon name="activate" />
+                              </button>
+                              <button
+                                className="sold-condition-reset"
+                                type="button"
+                                title="Discard condition change"
+                                aria-label="Discard condition change"
+                                disabled={savingConditionId === row.id}
+                                onClick={(event) => resetConditionDraft(row, event)}
+                              >
+                                <Icon name="close" />
+                              </button>
+                            </span>
+                          ) : null}
+                        </div>
+                      </td>
                       <td>{row.buyer_username || "-"}</td>
                       <td>{row.quantity || 0}</td>
                       <td>{money(row.item_price, row.currency)}</td>
@@ -917,6 +1067,30 @@ export default function SoldPosting({ currentUser, onLogout }) {
         onCancel={() => setEditTarget(null)}
         onSave={saveEdit}
       />
+      {pendingCopyRow ? (
+        <SoldConfirmModal
+          title="Copy Sold Posting"
+          message="Do you want to copy this sold posting reference?"
+          detail={soldReferenceText(pendingCopyRow)}
+          confirmLabel="Copy"
+          saving={savingCopy}
+          onCancel={() => {
+            if (!savingCopy) setPendingCopyRow(null);
+          }}
+          onConfirm={confirmCopySoldReference}
+        />
+      ) : null}
+      {pendingConditionRow ? (
+        <SoldConfirmModal
+          title="Update Condition"
+          message="Do you want to update this sold posting condition?"
+          detail={`${pendingConditionRow.sku || pendingConditionRow.item_id || pendingConditionRow.order_id}: ${pendingConditionRow.condition || "-"} -> ${conditionDrafts[pendingConditionRow.id] || "-"}`}
+          confirmLabel="Update"
+          saving={Boolean(savingConditionId)}
+          onCancel={() => setPendingConditionRow(null)}
+          onConfirm={confirmConditionSave}
+        />
+      ) : null}
     </AppLayout>
   );
 }

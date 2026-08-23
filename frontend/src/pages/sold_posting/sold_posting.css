@@ -544,7 +544,7 @@ a .sold-thumb:hover {
 
 .sold-table {
   table-layout: fixed;
-  min-width: 1760px;
+  min-width: 1848px;
 }
 
 .sold-table thead th {
@@ -667,6 +667,96 @@ a .sold-thumb:hover {
 }
 
 /* ==========================================================================
+   INLINE CONDITION EDITOR
+   ========================================================================== */
+
+.sold-condition-editor {
+  align-items: center;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px;
+  min-width: 0;
+}
+
+.sold-condition-editor input {
+  width: 100%;
+  min-width: 0;
+  height: 32px;
+  padding: 0 9px;
+  border: 1px solid #c9d8ea;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #17324d;
+  font: inherit;
+  font-weight: 750;
+}
+
+.sold-condition-editor input:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+  outline: 0;
+}
+
+.sold-condition-actions {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.sold-condition-save,
+.sold-condition-reset {
+  align-items: center;
+  display: inline-flex;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  cursor: pointer;
+}
+
+.sold-condition-save {
+  border: 1px solid #86efac;
+  background: #ecfdf5;
+  color: #15803d;
+}
+
+.sold-condition-reset {
+  border: 1px solid #bfdbfe;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.sold-condition-save:disabled,
+.sold-condition-reset:disabled {
+  cursor: wait;
+  opacity: 0.58;
+}
+
+.modal-panel.sold-confirm-modal {
+  width: min(460px, calc(100vw - 28px));
+  padding: 0;
+  overflow: hidden;
+}
+
+.sold-confirm-body {
+  display: grid;
+  gap: 14px;
+  padding: 18px 22px 20px;
+}
+
+.sold-confirm-detail {
+  margin: 0;
+  padding: 12px;
+  border: 1px solid #dbe6f3;
+  border-radius: 8px;
+  background: #f8fbff;
+  color: #17324d;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.45;
+  white-space: normal;
+}
+
+/* ==========================================================================
    TABLE COLUMN WIDTHS
    ========================================================================== */
 
@@ -712,7 +802,7 @@ a .sold-thumb:hover {
 
 .sold-table th:nth-child(8),
 .sold-table td:nth-child(8) {
-  width: 132px;
+  width: 220px;
 }
 
 .sold-table th:nth-child(9),
