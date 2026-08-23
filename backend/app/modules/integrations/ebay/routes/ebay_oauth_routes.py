@@ -32,7 +32,11 @@ from app.modules.integrations.ebay.schemas.oauth_schemas import (
 )
 from app.modules.integrations.ebay.services.ebay_sync_service import EbaySyncResult, EbaySyncService
 from app.modules.config_management.service import ConfigService
-from app.services.ebay_auto_sync_service import AUTO_SYNC_ENABLED_KEY, AUTO_SYNC_INTERVAL_KEY
+from app.services.ebay_auto_sync_service import (
+    AUTO_SYNC_ENABLED_KEY,
+    AUTO_SYNC_INTERVAL_MINUTES_KEY,
+    get_auto_sync_interval_minutes,
+)
 from app.services.audit_service import AuditService
 from app.services.ebay_api_usage_service import EbayApiUsageService, EbayApiUsageSummary
 from app.services.ebay_sync_worker import spawn_ebay_sync_processes
@@ -186,7 +190,7 @@ def get_ebay_api_usage(
 def auto_sync_status(db: Session) -> EbayAutoSyncStatusResponse:
     config = ConfigService(db)
     enabled = config.get_bool(AUTO_SYNC_ENABLED_KEY, False)
-    interval_hours = max(config.get_int(AUTO_SYNC_INTERVAL_KEY, 6), 1)
+    interval_minutes = get_auto_sync_interval_minutes(config)
     latest_sync_at = db.scalar(
         select(func.max(EbayAccount.last_sync_at))
         .where(EbayAccount.connection_status == EbayConnectionStatus.CONNECTED)
@@ -194,10 +198,11 @@ def auto_sync_status(db: Session) -> EbayAutoSyncStatusResponse:
     )
     if latest_sync_at and latest_sync_at.tzinfo is None:
         latest_sync_at = latest_sync_at.replace(tzinfo=UTC)
-    next_run_at = latest_sync_at + timedelta(hours=interval_hours) if latest_sync_at else None
+    next_run_at = latest_sync_at + timedelta(minutes=interval_minutes) if latest_sync_at else None
     return EbayAutoSyncStatusResponse(
         enabled=enabled,
-        interval_hours=interval_hours,
+        interval_minutes=interval_minutes,
+        interval_hours=max(round(interval_minutes / 60), 1),
         latest_sync_at=latest_sync_at,
         next_run_at=next_run_at,
     )
@@ -218,13 +223,16 @@ def set_ebay_auto_sync_status(
     db: Session = Depends(get_db),
     current_user=Depends(require_ebay_sync_access),
 ) -> EbayAutoSyncStatusResponse:
-    ConfigService(db).set_value(AUTO_SYNC_ENABLED_KEY, 'true' if payload.enabled else 'false', current_user)
+    config = ConfigService(db)
+    config.set_value(AUTO_SYNC_ENABLED_KEY, 'true' if payload.enabled else 'false', current_user)
+    if payload.interval_minutes is not None:
+        config.set_value(AUTO_SYNC_INTERVAL_MINUTES_KEY, str(payload.interval_minutes), current_user)
     AuditService(db).log(
         action='EBAY_AUTO_SYNC_ENABLED' if payload.enabled else 'EBAY_AUTO_SYNC_DISABLED',
         user_id=current_user.id,
         entity_type='EBAY_AUTO_SYNC',
         category='SYNC',
-        metadata={'enabled': payload.enabled},
+        metadata={'enabled': payload.enabled, 'interval_minutes': payload.interval_minutes},
     )
     db.commit()
     return auto_sync_status(db)

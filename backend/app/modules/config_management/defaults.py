@@ -37,7 +37,16 @@ DEFAULT_CONFIGS = [
         'label': 'eBay auto sync interval',
         'value': '6',
         'value_type': 'integer',
-        'description': 'Hours to wait after the latest eBay sync before auto sync runs again.',
+        'description': 'Legacy hour interval used when minute interval is not configured.',
+        'is_editable': False,
+    },
+    {
+        'section': 'api',
+        'config_key': 'api.ebay_auto_sync_interval_minutes',
+        'label': 'eBay auto sync interval',
+        'value': '360',
+        'value_type': 'integer',
+        'description': 'Minutes to wait after the latest eBay sync before auto sync runs again. Minimum 2 minutes.',
     },
     {
         'section': 'api',

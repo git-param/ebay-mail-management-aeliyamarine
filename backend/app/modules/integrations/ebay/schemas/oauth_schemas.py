@@ -57,6 +57,7 @@ class EbayApiUsageListResponse(BaseModel):
 
 class EbayAutoSyncStatusResponse(BaseModel):
     enabled: bool
+    interval_minutes: int
     interval_hours: int
     latest_sync_at: datetime | None = None
     next_run_at: datetime | None = None
@@ -64,6 +65,7 @@ class EbayAutoSyncStatusResponse(BaseModel):
 
 class EbayAutoSyncToggleRequest(BaseModel):
     enabled: bool
+    interval_minutes: int | None = Field(default=None, ge=2)
 
 
 class EbaySyncResultResponse(BaseModel):

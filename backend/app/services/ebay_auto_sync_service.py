@@ -13,8 +13,17 @@ from app.services.ebay_sync_worker import spawn_ebay_sync_processes
 logger = logging.getLogger(__name__)
 
 AUTO_SYNC_ENABLED_KEY = 'api.ebay_auto_sync_enabled'
-AUTO_SYNC_INTERVAL_KEY = 'api.ebay_auto_sync_interval_hours'
+AUTO_SYNC_INTERVAL_HOURS_KEY = 'api.ebay_auto_sync_interval_hours'
+AUTO_SYNC_INTERVAL_MINUTES_KEY = 'api.ebay_auto_sync_interval_minutes'
 AUTO_SYNC_CHECK_SECONDS = 60
+MIN_AUTO_SYNC_INTERVAL_MINUTES = 2
+
+
+def get_auto_sync_interval_minutes(config: ConfigService) -> int:
+    interval_minutes = config.get_int(AUTO_SYNC_INTERVAL_MINUTES_KEY, 0)
+    if interval_minutes:
+        return max(interval_minutes, MIN_AUTO_SYNC_INTERVAL_MINUTES)
+    return max(config.get_int(AUTO_SYNC_INTERVAL_HOURS_KEY, 6) * 60, MIN_AUTO_SYNC_INTERVAL_MINUTES)
 
 
 async def ebay_auto_sync_loop() -> None:
@@ -37,7 +46,7 @@ def run_due_ebay_auto_sync() -> None:
         if not config.get_bool(AUTO_SYNC_ENABLED_KEY, False):
             return
 
-        interval_hours = max(config.get_int(AUTO_SYNC_INTERVAL_KEY, 6), 1)
+        interval_minutes = get_auto_sync_interval_minutes(config)
         latest_sync_at = db.scalar(
             select(func.max(EbayAccount.last_sync_at))
             .where(EbayAccount.connection_status == EbayConnectionStatus.CONNECTED)
@@ -50,7 +59,7 @@ def run_due_ebay_auto_sync() -> None:
                 if latest_sync_at.tzinfo
                 else latest_sync_at.replace(tzinfo=UTC)
             )
-            if latest_sync_at + timedelta(hours=interval_hours) > now:
+            if latest_sync_at + timedelta(minutes=interval_minutes) > now:
                 return
 
         connected_count = db.scalar(
