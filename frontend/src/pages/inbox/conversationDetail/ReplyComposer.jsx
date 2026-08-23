@@ -26,7 +26,7 @@ export default function ReplyComposer({ conversationId, suggestedMessageTypeId, 
   const [isValidating, setIsValidating] = useState(false)
   const [categoryId, setCategoryId] = useState('')
   const [subtypeId, setSubtypeId] = useState('')
-  const [sendCopyToEmail, setSendCopyToEmail] = useState(false)
+  const [sendCopyToEmail, setSendCopyToEmail] = useState(true)
   const category = messageTypes.find((item) => item.id === categoryId)
   const selectedTypeId = category?.children?.length ? subtypeId : categoryId
 
@@ -77,7 +77,7 @@ export default function ReplyComposer({ conversationId, suggestedMessageTypeId, 
       await onSendReply(trimmedBody, files, selectedTypeId, sendCopyToEmail)
       setBody('')
       setFiles([])
-      setSendCopyToEmail(false)
+      setSendCopyToEmail(true)
       setDraftMessage('')
       setFileInputKey((current) => current + 1)
       setCategoryId('')
