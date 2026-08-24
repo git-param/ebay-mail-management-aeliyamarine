@@ -158,6 +158,7 @@
 }
 
 .leaveModule-primary,
+.leaveModule-secondary,
 .leaveModule-row-actions button,
 .leaveModule-table td > button {
   min-height: 36px;
@@ -170,17 +171,39 @@
   cursor: pointer;
 }
 
-.leaveModule-primary {
+.leaveModule-primary,
+.leaveModule-secondary {
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  margin-top: 14px;
   padding: 8px 13px;
 }
 
-.leaveModule-primary svg {
+.leaveModule-primary svg,
+.leaveModule-secondary svg {
   width: 15px;
   height: 15px;
+}
+
+.leaveModule-secondary {
+  border-color: #d9dfe9;
+  background: #fff;
+  color: #3c4760;
+}
+
+.leaveModule-form-actions {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+
+.leaveModule-copy-feedback {
+  margin: 8px 0 0;
+  color: #a93640;
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .leaveModule-filters {
