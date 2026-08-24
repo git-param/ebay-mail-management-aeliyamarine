@@ -1246,7 +1246,7 @@ async def reply_to_conversation(
     request: Request,
     body: str | None = Form(default=None),
     message_type_id: UUID | None = Form(default=None),
-    send_copy_to_email: bool = Form(default=False),
+    send_copy_to_email: bool = Form(default=True),
     attachments: list[UploadFile] | None = File(default=None),
     db: Session = Depends(get_db),
     current_user=Depends(require_conversation_access),
@@ -1262,7 +1262,7 @@ async def reply_to_conversation(
     if not reply_body and request.headers.get('content-type', '').startswith('application/json'):
         payload = await request.json()
         reply_body = str(payload.get('body') or '')
-        raw_send_copy = payload.get('send_copy_to_email', False)
+        raw_send_copy = payload.get('send_copy_to_email', True)
         if not isinstance(raw_send_copy, bool):
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='send_copy_to_email must be a boolean')
         send_copy_to_email = raw_send_copy

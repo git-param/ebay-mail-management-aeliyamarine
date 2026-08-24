@@ -83,7 +83,7 @@ class EbayReplyService:
         body: str,
         actor_id: UUID,
         message_type_id: UUID,
-        send_copy_to_email: bool = False,
+        send_copy_to_email: bool = True,
         attachments: list[UploadFile] | None = None,
     ) -> Message:
         """
@@ -247,6 +247,7 @@ class EbayReplyService:
                 conversation_type=send_context['conversation_type'],
                 message_body=body,
                 message_media=message_media or None,
+                email_copy_to_sender=send_copy_to_email,
             )
 
         logger.warning(
