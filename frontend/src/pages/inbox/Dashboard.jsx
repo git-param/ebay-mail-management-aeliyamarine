@@ -913,7 +913,7 @@ function Dashboard({
     body,
     files = [],
     messageTypeId,
-    sendCopyToEmail = false,
+    sendCopyToEmail = true,
   ) {
     if (!selectedConversationId) {
       return

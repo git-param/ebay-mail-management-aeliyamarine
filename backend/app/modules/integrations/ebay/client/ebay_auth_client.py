@@ -515,6 +515,7 @@ class EbayAuthClient:
         message_body: str,
         conversation_type: str = 'FROM_MEMBERS',
         message_media: list[dict] | None = None,
+        email_copy_to_sender: bool = True,
     ) -> EbayRawApiResponse:
         """Send a conversation reply through the eBay Message API."""
         request_url = self.conversations_url.replace('/conversation', '/send_message')
@@ -522,6 +523,7 @@ class EbayAuthClient:
             'conversationId': conversation_id,
             'conversationType': conversation_type,
             'messageText': self._message_body_for_send(message_body, has_media=bool(message_media)),
+            'emailCopyToSender': bool(email_copy_to_sender),
         }
         if message_media:
             payload['messageMedia'] = message_media
