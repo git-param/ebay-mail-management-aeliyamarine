@@ -74,7 +74,7 @@ function roundScore(value) {
 
   const numeric = Number(value);
   const base = Math.floor(numeric);
-  return base + (numeric - base > 0.4 ? 1 : 0);
+  return base + (numeric - base >= 0.5 ? 1 : 0);
 }
 
 function fmtScore(value) {

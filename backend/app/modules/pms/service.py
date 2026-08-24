@@ -620,17 +620,16 @@ class PmsService:
                 metric.source_snapshot = PmsMetricSource.CUSTOM.value
                 metric.is_auto_calculated_snapshot = True
                 metric.auto_value = value
-                metric.final_value = value
-                metric.was_overridden = False
+                if not metric.was_overridden:
+                    metric.final_value = value
                 metric.calc_meta = meta
                 changed = True
 
         if not changed:
             return None
 
-        record.final_score = round(
+        record.final_score = self._round_final_score(
             sum(float(metric.final_value) for metric in record.metrics),
-            2,
         )
         record.updated_by_user_id = current_user.id
         self._recalculate_employee_of_month(year, month)
@@ -847,9 +846,9 @@ class PmsService:
                 metric.source_snapshot = PmsMetricSource.CUSTOM.value
                 metric.is_auto_calculated_snapshot = True
                 metric.auto_value = value
-                metric.final_value = value
-                metric.was_overridden = False
                 metric.calc_meta = meta
+                if not metric.was_overridden:
+                    metric.final_value = value
                 continue
 
             if (
@@ -883,12 +882,11 @@ class PmsService:
             if not metric.was_overridden:
                 metric.final_value = value
 
-        record.final_score = round(
+        record.final_score = self._round_final_score(
             sum(
                 float(metric.final_value)
                 for metric in record.metrics
             ),
-            2,
         )
 
         record.updated_by_user_id = current_user.id
@@ -1014,8 +1012,16 @@ class PmsService:
 
             if leave_value:
                 auto_value, meta = leave_value
-                final_value = auto_value
-                was_overridden = False
+                final_value = (
+                    entered_value
+                    if entered_value is not None
+                    else auto_value
+                )
+                was_overridden = (
+                    entered_value is not None
+                    and round(float(entered_value), 2)
+                    != round(float(auto_value), 2)
+                )
                 source_snapshot = PmsMetricSource.CUSTOM.value
                 is_auto_calculated = True
 
@@ -1121,10 +1127,7 @@ class PmsService:
         record.status = PmsMonthlyStatus(
             payload.status
         )
-        record.final_score = round(
-            final_score,
-            2,
-        )
+        record.final_score = self._round_final_score(final_score)
         record.maximum_score = total_active_weight
         record.updated_by_user_id = current_user.id
 
@@ -1250,8 +1253,12 @@ class PmsService:
                         source_snapshot=PmsMetricSource.CUSTOM.value,
                         is_auto_calculated_snapshot=True,
                         auto_value=value,
-                        final_value=value,
-                        was_overridden=False,
+                        final_value=(
+                            float(saved_metric.final_value)
+                            if saved_metric and saved_metric.was_overridden
+                            else value
+                        ),
+                        was_overridden=bool(saved_metric and saved_metric.was_overridden),
                         calc_meta=meta,
                     )
                 )
@@ -1366,9 +1373,9 @@ class PmsService:
                 metric.source_snapshot = PmsMetricSource.CUSTOM.value
                 metric.is_auto_calculated_snapshot = True
                 metric.auto_value = value
-                metric.final_value = value
-                metric.was_overridden = False
                 metric.calc_meta = meta
+                if not metric.was_overridden:
+                    metric.final_value = value
                 continue
 
             if (metric.source_snapshot== PmsMetricSource.PRODUCTIVITY_AUTO.value):
@@ -1396,12 +1403,11 @@ class PmsService:
             if not metric.was_overridden:
                 metric.final_value = value
 
-        record.final_score = round(
+        record.final_score = self._round_final_score(
             sum(
                 float(metric.final_value)
                 for metric in record.metrics
             ),
-            2,
         )
 
         record.updated_by_user_id = current_user.id
@@ -1528,8 +1534,16 @@ class PmsService:
 
             if leave_value:
                 auto_value, meta = leave_value
-                final_value = auto_value
-                was_overridden = False
+                final_value = (
+                    entered_value
+                    if entered_value is not None
+                    else auto_value
+                )
+                was_overridden = (
+                    entered_value is not None
+                    and round(float(entered_value), 2)
+                    != round(float(auto_value), 2)
+                )
                 source_snapshot = PmsMetricSource.CUSTOM.value
                 is_auto_calculated = True
             elif config.source in (
@@ -1634,10 +1648,7 @@ class PmsService:
         record.status = PmsMonthlyStatus(
             payload.status
         )
-        record.final_score = round(
-            final_score,
-            2,
-        )
+        record.final_score = self._round_final_score(final_score)
         record.maximum_score = total_active_weight
         record.updated_by_user_id = current_user.id
 
@@ -2405,9 +2416,12 @@ class PmsService:
     # Authorization helpers
     # ------------------------------------------------------------------
     def _rounded_score(self, value) -> int:
+        return self._round_final_score(value)
+
+    def _round_final_score(self, value) -> int:
         numeric = float(value or 0)
         base = int(numeric)
-        return base + (1 if numeric - base > 0.4 else 0)
+        return base + (1 if numeric - base >= 0.5 else 0)
 
     def _require_admin(
         self,
