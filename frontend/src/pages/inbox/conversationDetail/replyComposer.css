@@ -551,3 +551,89 @@
     animation-iteration-count: 1 !important;
   }
 }
+
+/* Composer neutral workspace polish */
+
+.reply-composer {
+  border-color: var(--inbox-border, #dce4f0);
+  border-radius: 14px;
+  background: #ffffff;
+  box-shadow: 0 12px 32px rgba(17, 24, 39, 0.08);
+}
+
+.reply-composer .composer-select-control > span,
+.reply-composer .composer-editor > span,
+.reply-composer .email-copy-checkbox {
+  color: #344054;
+}
+
+.reply-composer .composer-select-control select,
+.reply-composer .composer-editor textarea,
+.reply-composer .reply-attachment-chip {
+  border-color: rgba(203, 213, 225, 0.88);
+  border-radius: 12px;
+  background: #ffffff;
+  color: #172033;
+}
+
+.reply-composer .composer-select-control select:focus,
+.reply-composer .composer-editor textarea:focus {
+  border-color: rgba(103, 94, 232, 0.68);
+  box-shadow: 0 0 0 4px rgba(103, 94, 232, 0.12);
+}
+
+.reply-composer .composer-attachment-action > label {
+  border-color: rgba(203, 213, 225, 0.88);
+  border-radius: 11px;
+  background: #f6f7fa;
+}
+
+.reply-composer .composer-attachment-action > label:hover {
+  border-color: rgba(103, 94, 232, 0.36);
+  background: #f2f1ff;
+  color: #675ee8;
+}
+
+.reply-composer .primary-button {
+  border-color: transparent;
+  background: linear-gradient(135deg, #675ee8 0%, #8677f5 100%);
+  box-shadow: 0 10px 22px rgba(103, 94, 232, 0.24);
+}
+
+.reply-composer .primary-button:hover:not(:disabled) {
+  background: linear-gradient(135deg, #5c52df 0%, #7868ee 100%);
+}
+
+.reply-composer .secondary-button {
+  border-color: rgba(203, 213, 225, 0.88);
+  background: #ffffff;
+  color: #344054;
+}
+
+html[data-theme='dark'] .reply-composer {
+  border-color: var(--inbox-border, rgba(78, 91, 113, 0.74));
+  background: #151a22;
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.32);
+}
+
+html[data-theme='dark'] .reply-composer .composer-select-control > span,
+html[data-theme='dark'] .reply-composer .composer-editor > span,
+html[data-theme='dark'] .reply-composer .email-copy-checkbox,
+html[data-theme='dark'] .reply-composer .composer-attachment-action small {
+  color: #aab4c3;
+}
+
+html[data-theme='dark'] .reply-composer .composer-select-control select,
+html[data-theme='dark'] .reply-composer .composer-editor textarea,
+html[data-theme='dark'] .reply-composer .reply-attachment-chip,
+html[data-theme='dark'] .reply-composer .secondary-button {
+  border-color: var(--inbox-border, rgba(78, 91, 113, 0.74));
+  background: #0f141d;
+  color: #f5f7fb;
+}
+
+html[data-theme='dark'] .reply-composer .composer-attachment-action > label {
+  border-color: var(--inbox-border, rgba(78, 91, 113, 0.74));
+  background: #1d232d;
+  color: #dbe3ef;
+}

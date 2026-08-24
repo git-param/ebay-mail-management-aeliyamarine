@@ -797,6 +797,77 @@
   flex-wrap: wrap;
 }
 
+.inbox-page.conversation-open .inbox-header {
+  min-height: auto;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px;
+}
+
+.inbox-page.conversation-open .inbox-header h1 {
+  font-size: 28px;
+}
+
+.inbox-page.conversation-open .inbox-header-actions {
+  width: 100%;
+  flex-wrap: wrap;
+}
+
+.inbox-page.conversation-open .inbox-header-actions .compact-action {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.inbox-page.conversation-open .inbox-search-bar {
+  grid-template-columns: 1fr;
+  padding: 12px;
+}
+
+.inbox-page.conversation-open .inbox-search-input input {
+  min-height: 42px;
+}
+
+.inbox-page.conversation-open .conversation-table-scroll {
+  overflow-x: hidden;
+}
+
+.inbox-page.conversation-open .conversation-row {
+  min-height: 92px;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+  padding: 14px 16px;
+}
+
+.inbox-page.conversation-open .ticket-username,
+.inbox-page.conversation-open .ticket-message {
+  min-width: 0;
+}
+
+.inbox-page.conversation-open .ticket-message {
+  grid-column: 1;
+  padding-left: 48px;
+}
+
+.inbox-page.conversation-open .conversation-preview {
+  max-width: 100%;
+}
+
+.inbox-page.conversation-open .pagination-bar {
+  grid-template-columns: 1fr;
+  margin: 10px;
+  text-align: center;
+}
+
+.inbox-page.conversation-open .pagination-summary,
+.inbox-page.conversation-open .pagination-size {
+  justify-content: center;
+  text-align: center;
+}
+
+.inbox-page.conversation-open .pagination-pages {
+  display: none;
+}
+
 /* Dark mode */
 
 html[data-theme='dark'] .inbox-page .inbox-header,
@@ -988,4 +1059,266 @@ html[data-theme='dark'] .inbox-page .ticket-deadline-urgent strong {
   .filters-drawer {
     width: 100%;
   }
+}
+
+/* Charcoal/white Inbox list polish */
+
+.inbox-page .inbox-header {
+  border-bottom-color: var(--inbox-border);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(250, 251, 253, 0.94));
+}
+
+.inbox-page .inbox-header h1 {
+  color: var(--inbox-text);
+  letter-spacing: 0;
+}
+
+.inbox-page .inbox-header p,
+.inbox-page .pagination-summary,
+.inbox-page .pagination-size,
+.inbox-page .ticket-last {
+  color: var(--inbox-muted);
+}
+
+.inbox-page .inbox-kicker {
+  color: #334155 !important;
+}
+
+.inbox-page .inbox-header-actions .compact-action,
+.inbox-page .pagination-button,
+.inbox-page .pagination-page,
+.inbox-page .pagination-size select {
+  border-color: var(--inbox-border);
+  border-radius: 12px;
+  background: #ffffff;
+  color: #253041;
+  box-shadow: 0 2px 8px rgba(17, 24, 39, 0.04);
+}
+
+.inbox-page .inbox-header-actions .compact-action:hover:not(:disabled),
+.inbox-page .pagination-button:hover:not(:disabled),
+.inbox-page .pagination-page:hover:not(:disabled) {
+  border-color: rgba(103, 94, 232, 0.36);
+  color: var(--inbox-primary);
+  background: #fbfbfd;
+  box-shadow: 0 10px 22px rgba(17, 24, 39, 0.08);
+}
+
+.inbox-page .near-due-button {
+  border-color: rgba(199, 119, 0, 0.28) !important;
+  background: rgba(255, 251, 235, 0.92) !important;
+  color: #8a5207 !important;
+}
+
+.inbox-page .near-due-button.active {
+  background: linear-gradient(135deg, #f6c453 0%, #e69b20 100%) !important;
+}
+
+.inbox-page .filter-count,
+.inbox-page .pagination-page.active {
+  border-color: transparent;
+  background: linear-gradient(135deg, #675ee8, #7c6cfd);
+  color: #ffffff;
+}
+
+.inbox-page .inbox-search-bar,
+.inbox-page .bulk-assignment-bar,
+.inbox-page .pagination-bar {
+  border-color: var(--inbox-border);
+  background: #fbfcfe;
+}
+
+.inbox-page .inbox-search-input input,
+.inbox-page .bulk-assignment-bar select {
+  border-color: var(--inbox-border);
+  border-radius: 12px;
+  background: #ffffff;
+  color: var(--inbox-text);
+}
+
+.inbox-page .inbox-search-input input:focus,
+.inbox-page .bulk-assignment-bar select:focus,
+.inbox-page .pagination-size select:focus {
+  border-color: rgba(103, 94, 232, 0.68);
+  box-shadow: 0 0 0 4px rgba(103, 94, 232, 0.12);
+}
+
+.inbox-page .conversation-table-head {
+  border-color: var(--inbox-border);
+  background: #f4f6f9;
+  color: #6b7280;
+}
+
+.inbox-page .conversation-row {
+  border-bottom-color: rgba(226, 232, 240, 0.88);
+  background: #ffffff;
+  color: var(--inbox-text);
+}
+
+.inbox-page .conversation-row-unread {
+  background:
+    linear-gradient(90deg, rgba(103, 94, 232, 0.045), transparent 28%),
+    #ffffff;
+}
+
+.inbox-page .conversation-row:hover,
+.inbox-page .conversation-row.active,
+.inbox-page .conversation-row:focus-visible {
+  background: #f7f8fb;
+  box-shadow: inset 4px 0 0 #675ee8;
+}
+
+.inbox-page .unread-dot {
+  background: #675ee8;
+  box-shadow: 0 0 0 3px rgba(103, 94, 232, 0.12);
+}
+
+.inbox-page .conversation-avatar {
+  border-radius: 12px;
+  background: linear-gradient(135deg, #eef2ff, #e0f2fe);
+  color: #2563eb;
+}
+
+.inbox-page .ticket-username strong,
+.inbox-page .ticket-seller-account strong,
+.inbox-page .conversation-preview,
+.inbox-page .pagination-summary strong,
+.inbox-page .inbox-empty h2,
+.inbox-page .bulk-assignment-bar strong {
+  color: var(--inbox-text);
+}
+
+.inbox-page .ticket-username small {
+  color: #4b5563;
+}
+
+.inbox-page .conversation-badge,
+.inbox-page .ticket-count {
+  border-color: rgba(203, 213, 225, 0.8);
+  background: #f4f6f9;
+  color: #374151;
+}
+
+.inbox-page .conversation-badge-category {
+  background: #ffffff;
+  color: #111827;
+}
+
+.filters-drawer,
+.filters-drawer .drawer-header,
+.filters-form .modal-actions {
+  border-color: var(--inbox-border);
+  background: var(--inbox-surface);
+}
+
+html[data-theme='dark'] .inbox-page .inbox-header,
+html[data-theme='dark'] .inbox-page .inbox-search-bar,
+html[data-theme='dark'] .inbox-page .conversation-list,
+html[data-theme='dark'] .inbox-page .conversation-row,
+html[data-theme='dark'] .inbox-page .pagination-bar,
+html[data-theme='dark'] .inbox-page .bulk-assignment-bar,
+html[data-theme='dark'] .filters-drawer,
+html[data-theme='dark'] .filters-drawer .drawer-header,
+html[data-theme='dark'] .filters-form .modal-actions {
+  border-color: var(--inbox-border);
+  background: var(--inbox-surface);
+}
+
+html[data-theme='dark'] .inbox-page .conversation-table-head {
+  border-color: var(--inbox-border);
+  background: #1d232d;
+  color: #aab4c3;
+}
+
+html[data-theme='dark'] .inbox-page .conversation-row-unread {
+  background:
+    linear-gradient(90deg, rgba(124, 108, 253, 0.14), transparent 30%),
+    var(--inbox-surface);
+}
+
+html[data-theme='dark'] .inbox-page .conversation-row:hover,
+html[data-theme='dark'] .inbox-page .conversation-row.active {
+  background: #22262e;
+  box-shadow: inset 4px 0 0 #f5f7fb;
+}
+
+html[data-theme='dark'] .inbox-page .inbox-kicker,
+html[data-theme='dark'] .inbox-page .inbox-header h1,
+html[data-theme='dark'] .inbox-page .ticket-username strong,
+html[data-theme='dark'] .inbox-page .ticket-seller-account strong,
+html[data-theme='dark'] .inbox-page .conversation-preview,
+html[data-theme='dark'] .inbox-page .pagination-summary strong,
+html[data-theme='dark'] .inbox-page .inbox-empty h2,
+html[data-theme='dark'] .inbox-page .bulk-assignment-bar strong {
+  color: #f5f7fb !important;
+}
+
+html[data-theme='dark'] .inbox-page .inbox-header p,
+html[data-theme='dark'] .inbox-page .ticket-username small,
+html[data-theme='dark'] .inbox-page .ticket-last,
+html[data-theme='dark'] .inbox-page .inbox-empty,
+html[data-theme='dark'] .inbox-page .pagination-summary,
+html[data-theme='dark'] .inbox-page .pagination-size {
+  color: #aab4c3;
+}
+
+html[data-theme='dark'] .inbox-page .inbox-search-input input,
+html[data-theme='dark'] .inbox-page .bulk-assignment-bar select,
+html[data-theme='dark'] .inbox-page .pagination-button,
+html[data-theme='dark'] .inbox-page .pagination-page,
+html[data-theme='dark'] .inbox-page .pagination-size select,
+html[data-theme='dark'] .filters-drawer input,
+html[data-theme='dark'] .filters-drawer select {
+  border-color: var(--inbox-border);
+  background: #0f141d;
+  color: #f5f7fb;
+}
+
+html[data-theme='dark'] .inbox-page .conversation-badge,
+html[data-theme='dark'] .inbox-page .ticket-count,
+html[data-theme='dark'] .inbox-page .conversation-badge-category {
+  border-color: rgba(78, 91, 113, 0.74);
+  background: #1d232d;
+  color: #e7ebf2;
+}
+
+html[data-theme='dark'] .inbox-page .ticket-deadline {
+  color: #f7f8fb;
+}
+
+html[data-theme='dark'] .inbox-page .ticket-deadline small {
+  color: #d7dce5;
+  font-weight: 900;
+}
+
+html[data-theme='dark'] .inbox-page .ticket-deadline-neutral strong {
+  background: #e5e7eb;
+  color: #111827;
+}
+
+html[data-theme='dark'] .inbox-page .ticket-deadline-good strong {
+  background: #bbf7d0;
+  color: #14532d;
+}
+
+html[data-theme='dark'] .inbox-page .ticket-deadline-warning strong {
+  background: #fde68a;
+  color: #713f12;
+}
+
+html[data-theme='dark'] .inbox-page .ticket-deadline-danger strong {
+  background: #fecaca;
+  color: #7f1d1d;
+}
+
+html[data-theme='dark'] .inbox-page .conversation-row-unread {
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.055), transparent 30%),
+    var(--inbox-surface);
+}
+
+html[data-theme='dark'] .inbox-page .unread-dot {
+  background: #f5f7fb;
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.1);
 }

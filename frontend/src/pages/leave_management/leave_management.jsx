@@ -64,6 +64,13 @@ function statusClass(status) {
   return `leaveModule-status leaveModule-status-${String(status || '').toLowerCase()}`
 }
 
+function percentValue(used, total) {
+  const usedValue = Number(used || 0)
+  const totalValue = Number(total || 0)
+  if (!Number.isFinite(usedValue) || !Number.isFinite(totalValue) || totalValue <= 0) return 0
+  return Math.max(0, Math.min(100, (usedValue / totalValue) * 100))
+}
+
 function leaveLabel(value) {
   return String(value || '').replaceAll('_', ' ').toLowerCase().replace(/\b\w/g, (letter) => letter.toUpperCase())
 }
@@ -326,6 +333,11 @@ function LeaveManagement({ currentUser, onLogout }) {
   }, [isAdmin, carryForwardUserId, selectedMonth.year, selectedMonth.month])
 
   const myBalance = balances[0]
+  const paidPool = Number(myBalance?.paid_accrued || 0)
+  const paidUsed = Number(myBalance?.paid_used || 0)
+  const instanceLimit = Number(policy?.instance_limit || 0)
+  const shortLeaveLimit = Number(policy?.short_leave_limit || 0)
+  const pmsImpact = (myBalance?.pms_attendance_deduction || 0) + (myBalance?.pms_punctuality_deduction || 0)
 
   function updateForm(key, value) {
     setForm((current) => ({ ...current, [key]: value }))
@@ -492,6 +504,7 @@ function LeaveManagement({ currentUser, onLogout }) {
       <main className="leaveModule-page">
         <header className="leaveModule-header">
           <div>
+            <span className="leaveModule-eyebrow">People Operations</span>
             <h1>Leave Management</h1>
             <p>Integrated leave tracking for balances, approval flow, audit, and PMS attendance impact.</p>
           </div>
@@ -504,24 +517,45 @@ function LeaveManagement({ currentUser, onLogout }) {
         {message ? <div className="leaveModule-message success">{message}</div> : null}
 
         <section className="leaveModule-summary">
-          <div>
-            <span>Paid Available</span>
+          <div className="leaveModule-kpi leaveModule-kpi-paid">
+            <div className="leaveModule-kpi-topline">
+              <span>Paid Available</span>
+              <b><Icon name="calendar" /></b>
+            </div>
             <strong>{fmt(myBalance?.paid_available)}</strong>
             <small>{fmt(myBalance?.paid_used)} used from {fmt(myBalance?.paid_accrued)} available pool</small>
+            <div className="leaveModule-progress" aria-hidden="true">
+              <span style={{ width: `${percentValue(paidUsed, paidPool)}%` }} />
+            </div>
           </div>
-          <div>
-            <span>Instances</span>
+          <div className="leaveModule-kpi leaveModule-kpi-instance">
+            <div className="leaveModule-kpi-topline">
+              <span>Instances</span>
+              <b><Icon name="clock" /></b>
+            </div>
             <strong>{myBalance?.instance_used ?? 0}</strong>
             <small>{myBalance?.instance_remaining ?? 0} without PMS penalty left</small>
+            <div className="leaveModule-progress" aria-hidden="true">
+              <span style={{ width: `${percentValue(myBalance?.instance_used, instanceLimit)}%` }} />
+            </div>
           </div>
-          <div>
-            <span>Short Leave</span>
+          <div className="leaveModule-kpi leaveModule-kpi-short">
+            <div className="leaveModule-kpi-topline">
+              <span>Short Leave</span>
+              <b><Icon name="reply" /></b>
+            </div>
             <strong>{myBalance?.short_used ?? 0}</strong>
             <small>{myBalance?.short_remaining ?? 0} left this month</small>
+            <div className="leaveModule-progress" aria-hidden="true">
+              <span style={{ width: `${percentValue(myBalance?.short_used, shortLeaveLimit)}%` }} />
+            </div>
           </div>
-          <div>
-            <span>PMS Impact</span>
-            <strong>{fmt((myBalance?.pms_attendance_deduction || 0) + (myBalance?.pms_punctuality_deduction || 0))}</strong>
+          <div className="leaveModule-kpi leaveModule-kpi-pms">
+            <div className="leaveModule-kpi-topline">
+              <span>PMS Impact</span>
+              <b><Icon name="pms" /></b>
+            </div>
+            <strong>{fmt(pmsImpact)}</strong>
             <small>Attendance & punctuality only</small>
           </div>
         </section>
@@ -668,8 +702,18 @@ function LeaveManagement({ currentUser, onLogout }) {
                     </tr>
                   ))}
                   {!requests.length ? (
-                    <tr>
-                      <td colSpan={isAdmin ? 7 : 6}>{loading ? 'Loading...' : 'No leave requests found.'}</td>
+                    <tr className="leaveModule-empty-row">
+                      <td colSpan={isAdmin ? 7 : 6}>
+                        {loading ? (
+                          <div className="leaveModule-skeleton">Loading leave requests...</div>
+                        ) : (
+                          <div className="leaveModule-empty-state">
+                            <Icon name="calendar" />
+                            <strong>No leave requests yet</strong>
+                            <span>Approved and pending requests will appear here.</span>
+                          </div>
+                        )}
+                      </td>
                     </tr>
                   ) : null}
                 </tbody>
