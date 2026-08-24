@@ -2764,6 +2764,7 @@ html[data-theme="dark"] .pmsModule-skeleton-panel {
 
 html[data-theme="dark"] .pmsModule-eom-breakdown > div,
 html[data-theme="dark"] .pmsModule-editor-drawer .modal-header,
+html[data-theme="dark"] .pmsModule-editor-drawer .drawer-header,
 html[data-theme="dark"] .pmsModule-editor-drawer .modal-actions,
 html[data-theme="dark"] .pmsModule-editor-drawer > .pmsModule-editor-metrics,
 html[data-theme="dark"] .pmsModule-editor-drawer > .pmsModule-editor-final-row,
@@ -2789,11 +2790,22 @@ html[data-theme="dark"] .pmsModule-target-achievement-field strong {
 html[data-theme="dark"] .pmsModule-editor-metric-title strong,
 html[data-theme="dark"] .pmsModule-editor-metric-label > strong,
 html[data-theme="dark"] .pmsModule-editor-drawer .modal-header h2,
+html[data-theme="dark"] .pmsModule-editor-drawer .drawer-header strong,
 html[data-theme="dark"] .pmsModule-section-heading h2,
 html[data-theme="dark"] .pmsModule-eom-copy h3,
 html[data-theme="dark"] .pmsModule-eom-name,
 html[data-theme="dark"] .pmsModule-eom-score strong {
   color: #ffffff !important;
+}
+
+html[data-theme="dark"] .pmsModule-editor-drawer .drawer-header {
+  border-color: #343b46 !important;
+  background: rgba(21, 24, 29, 0.98) !important;
+  backdrop-filter: blur(10px);
+}
+
+html[data-theme="dark"] .pmsModule-editor-drawer .drawer-header p {
+  color: #aab4c3 !important;
 }
 
 html[data-theme="dark"] .pmsModule-editor-metric-score input,

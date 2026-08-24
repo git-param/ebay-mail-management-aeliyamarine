@@ -103,6 +103,7 @@ class PmsMonthlyTableResponse(BaseModel):
 class PmsMonthlyMetricInput(BaseModel):
     metric_key: str
     final_value: float = Field(ge=0)
+    target_percent: float | None = Field(default=None, ge=0, le=100)
 
 
 class PmsMonthlySaveRequest(BaseModel):

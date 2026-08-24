@@ -298,12 +298,73 @@ export function PMS({ currentUser, onLogout }) {
     });
   }, [tableData, targetAchievementPercent]);
 
+  const historyItems = useMemo(
+    () => (historyData?.items || []).map(adjustedHistoryRecord),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [historyData, targetAchievementByMonth],
+  );
+
+  const visibleHistoryDetail = useMemo(
+    () => (historyDetail ? adjustedHistoryRecord(historyDetail) : null),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [historyDetail, targetAchievementByMonth],
+  );
+
+  function targetAchievementPercentFor(year, month) {
+    return targetAchievementByMonth[monthKey(year, month)] ?? 100;
+  }
+
+  function targetAchievementPercentForMetric(metric, year, month) {
+    const savedPercent = Number(metric?.calc_meta?.target_percent);
+
+    if (!Number.isNaN(savedPercent)) {
+      return clampNumber(savedPercent, 100);
+    }
+
+    const finalValue = Number(metric?.final_value);
+    const weight = Number(metric?.weight_snapshot);
+
+    if (!Number.isNaN(finalValue) && !Number.isNaN(weight) && weight > 0) {
+      return clampNumber((finalValue / weight) * 100, 100);
+    }
+
+    return targetAchievementPercentFor(year, month);
+  }
+
+  function editorTargetAchievementPercent() {
+    const targetMetric = editorMetrics.find(
+      (metric) => metric.metric_key === TARGET_ACHIEVEMENT_KEY,
+    );
+    const recordYear = editorRecord?.year ?? selectedYear;
+    const recordMonth = editorRecord?.month ?? selectedMonth;
+
+    return targetAchievementPercentForMetric(
+      targetMetric,
+      recordYear,
+      recordMonth,
+    );
+  }
+
   function targetMetricValue(metric, percent = targetAchievementPercent) {
     return roundScore(
       clampNumber(
         ((Number(metric.weight_snapshot) || 0) * (Number(percent) || 0)) / 100,
         Number(metric.weight_snapshot) || 0,
       ),
+    );
+  }
+
+  function metricsFinalScore(metrics) {
+    return metrics.reduce(
+      (sum, metric) => sum + (Number(metric.final_value) || 0),
+      0,
+    );
+  }
+
+  function metricsMaxScore(metrics) {
+    return metrics.reduce(
+      (sum, metric) => sum + (Number(metric.weight_snapshot) || 0),
+      0,
     );
   }
 
@@ -344,6 +405,34 @@ export function PMS({ currentUser, onLogout }) {
       ...row,
       final_score: finalScore,
       metrics: applyTargetAchievement(row.metrics || []),
+    };
+  }
+
+  function adjustedHistoryRecord(record) {
+    const metrics = record.metrics || [];
+    const targetMetric = metrics.find(
+      (metric) => metric.metric_key === TARGET_ACHIEVEMENT_KEY,
+    );
+
+    if (!targetMetric) {
+      return record;
+    }
+
+    const adjustedMetrics = applyTargetAchievement(
+      metrics,
+      targetAchievementPercentForMetric(targetMetric, record.year, record.month),
+    );
+    const finalScore = metricsFinalScore(adjustedMetrics);
+    const maximumScore =
+      Number(record.maximum_score) || metricsMaxScore(adjustedMetrics);
+
+    return {
+      ...record,
+      metrics: adjustedMetrics,
+      final_score: finalScore,
+      maximum_score: maximumScore,
+      percentage:
+        maximumScore > 0 ? Math.min(100, (finalScore / maximumScore) * 100) : 0,
     };
   }
 
@@ -606,10 +695,21 @@ export function PMS({ currentUser, onLogout }) {
   }, [historyFilters]);
 
   useEffect(() => {
-    setEditorMetrics((items) => applyTargetAchievement(items));
+    const recordYear = editorRecord?.year ?? selectedYear;
+    const recordMonth = editorRecord?.month ?? selectedMonth;
+    setEditorMetrics((items) => {
+      const targetMetric = items.find(
+        (metric) => metric.metric_key === TARGET_ACHIEVEMENT_KEY,
+      );
+
+      return applyTargetAchievement(
+        items,
+        targetAchievementPercentForMetric(targetMetric, recordYear, recordMonth),
+      );
+    });
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [targetAchievementPercent]);
+  }, [targetAchievementPercent, editorRecord?.year, editorRecord?.month]);
 
   useEffect(() => {
     setTargetAchievementDraft(String(targetAchievementPercent));
@@ -619,24 +719,35 @@ export function PMS({ currentUser, onLogout }) {
   // Editor drawer
   // ------------------------------------------------------------------
 
-  async function openEditor(user) {
+  async function openEditor(user, period = {}) {
+    const recordYear = period.year ?? selectedYear;
+    const recordMonth = period.month ?? selectedMonth;
     setEditorUser(user);
     setEditorError(null);
     setEditorLoading(true);
 
     try {
       const record = await fetchPmsMonthlyRecord(user.user_id, {
-        year: selectedYear,
-        month: selectedMonth,
+        year: recordYear,
+        month: recordMonth,
       });
 
       setEditorRecord(record);
+      const targetMetric = (record.metrics || []).find(
+        (metric) => metric.metric_key === TARGET_ACHIEVEMENT_KEY,
+      );
+      const recordTargetPercent = targetAchievementPercentForMetric(
+        targetMetric,
+        recordYear,
+        recordMonth,
+      );
 
       setEditorMetrics(
         applyTargetAchievement(
           record.metrics.map((metric) => ({
             ...metric,
           })),
+          recordTargetPercent,
         ),
       );
 
@@ -701,19 +812,30 @@ export function PMS({ currentUser, onLogout }) {
     setEditorRefreshing(true);
 
     try {
+      const recordYear = editorRecord?.year ?? selectedYear;
+      const recordMonth = editorRecord?.month ?? selectedMonth;
       const record = await refreshPmsAutoValues({
         user_id: editorUser.user_id,
-        year: selectedYear,
-        month: selectedMonth,
+        year: recordYear,
+        month: recordMonth,
       });
 
       setEditorRecord(record);
+      const targetMetric = (record.metrics || []).find(
+        (metric) => metric.metric_key === TARGET_ACHIEVEMENT_KEY,
+      );
+      const recordTargetPercent = targetAchievementPercentForMetric(
+        targetMetric,
+        recordYear,
+        recordMonth,
+      );
 
       setEditorMetrics(
         applyTargetAchievement(
           record.metrics.map((metric) => ({
             ...metric,
           })),
+          recordTargetPercent,
         ),
       );
     } catch (err) {
@@ -734,17 +856,24 @@ export function PMS({ currentUser, onLogout }) {
     setEditorError(null);
 
     try {
+      const recordYear = editorRecord?.year ?? selectedYear;
+      const recordMonth = editorRecord?.month ?? selectedMonth;
+      const recordTargetPercent = editorTargetAchievementPercent();
       const payload = {
         user_id: editorUser.user_id,
-        year: selectedYear,
-        month: selectedMonth,
+        year: recordYear,
+        month: recordMonth,
         remarks: editorRemarks || null,
         status,
         metrics: editorMetrics.map((metric) => ({
           metric_key: metric.metric_key,
+          target_percent:
+            metric.metric_key === TARGET_ACHIEVEMENT_KEY
+              ? recordTargetPercent
+              : undefined,
           final_value:
             metric.metric_key === TARGET_ACHIEVEMENT_KEY
-              ? targetMetricValue(metric)
+              ? targetMetricValue(metric, recordTargetPercent)
               : Number(metric.final_value) || 0,
         })),
       };
@@ -1442,7 +1571,10 @@ export function PMS({ currentUser, onLogout }) {
                           </small>
                         ) : isTargetAchievement ? (
                           <small className="pmsModule-auto-value">
-                            Shared target: {fmt(targetAchievementPercent)}% of{" "}
+                            Shared target: {fmt(
+                              editorTargetAchievementPercent(),
+                            )}
+                            % of{" "}
                             {fmtScore(metric.weight_snapshot)}
                           </small>
                         ) : null}
@@ -1819,7 +1951,7 @@ export function PMS({ currentUser, onLogout }) {
 
         {historyLoading ? (
           <div className="pmsModule-empty-state">Loading history...</div>
-        ) : !historyData || historyData.items.length === 0 ? (
+        ) : !historyData || historyItems.length === 0 ? (
           <div className="pmsModule-empty-state">
             No PMS history matches these filters.
           </div>
@@ -1840,7 +1972,7 @@ export function PMS({ currentUser, onLogout }) {
               </thead>
 
               <tbody>
-                {historyData.items.map((item) => (
+                {historyItems.map((item) => (
                   <tr
                     key={item.record_id}
                     onClick={() => setHistoryDetail(item)}
@@ -1871,7 +2003,7 @@ export function PMS({ currentUser, onLogout }) {
           </div>
         )}
 
-        {historyDetail ? (
+        {visibleHistoryDetail ? (
           <div
             className="modal-backdrop"
             onClick={() => setHistoryDetail(null)}
@@ -1882,9 +2014,14 @@ export function PMS({ currentUser, onLogout }) {
             >
               <div className="drawer-header">
                 <div>
-                  <strong>{historyDetail.user_name}</strong>
+                  <strong>{visibleHistoryDetail.user_name}</strong>
 
-                  <p>{monthLabel(historyDetail.year, historyDetail.month)}</p>
+                  <p>
+                    {monthLabel(
+                      visibleHistoryDetail.year,
+                      visibleHistoryDetail.month,
+                    )}
+                  </p>
                 </div>
 
                 <button
@@ -1900,12 +2037,12 @@ export function PMS({ currentUser, onLogout }) {
               <p>
                 Final Score:{" "}
                 <strong>
-                  {fmtScore(historyDetail.final_score)}
+                  {fmtScore(visibleHistoryDetail.final_score)}
                   {" / "}
-                  {fmtScore(historyDetail.maximum_score)}
+                  {fmtScore(visibleHistoryDetail.maximum_score)}
                 </strong>
                 {" ("}
-                {fmt(historyDetail.percentage)}
+                {fmt(visibleHistoryDetail.percentage)}
                 %)
               </p>
 
@@ -1915,14 +2052,20 @@ export function PMS({ currentUser, onLogout }) {
                 onClick={() => {
                   setHistoryDetail(null);
 
-                  openEditor({
-                    user_id: historyDetail.user_id,
-                    user_name: historyDetail.user_name,
-                  });
+                  setSelectedYear(visibleHistoryDetail.year);
 
-                  setSelectedYear(historyDetail.year);
+                  setSelectedMonth(visibleHistoryDetail.month);
 
-                  setSelectedMonth(historyDetail.month);
+                  openEditor(
+                    {
+                      user_id: visibleHistoryDetail.user_id,
+                      user_name: visibleHistoryDetail.user_name,
+                    },
+                    {
+                      year: visibleHistoryDetail.year,
+                      month: visibleHistoryDetail.month,
+                    },
+                  );
                 }}
               >
                 View Full Breakdown

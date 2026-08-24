@@ -1592,6 +1592,24 @@ class PmsService:
 
                 was_overridden = False
 
+            if config.key == 'target_achievement':
+                meta = {
+                    **(meta or {}),
+                    'target_percent': (
+                        entered.target_percent
+                        if entered is not None
+                        and entered.target_percent is not None
+                        else round(
+                            (
+                                (float(final_value) / weight) * 100
+                                if weight > 0
+                                else 0
+                            ),
+                            2,
+                        )
+                    ),
+                }
+
             final_value = round(
                 max(
                     0.0,
