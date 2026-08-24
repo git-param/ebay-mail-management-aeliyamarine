@@ -249,3 +249,94 @@
     width: 100%;
   }
 }
+
+/* Dark theme */
+
+html[data-theme="dark"] .cross-search-page {
+  color: #f7f8fb;
+}
+
+html[data-theme="dark"] .cross-search-header h1 {
+  color: #ffffff;
+}
+
+html[data-theme="dark"] .cross-search-header p,
+html[data-theme="dark"] .cross-search-page .inbox-kicker,
+html[data-theme="dark"] .cross-search-page .field span {
+  color: #cbd5e1;
+}
+
+html[data-theme="dark"] .cross-search-form,
+html[data-theme="dark"] .platform-column {
+  border-color: #3b424d;
+  background: linear-gradient(180deg, #171b22 0%, #12151b 100%);
+  box-shadow: 0 18px 46px rgba(0, 0, 0, 0.28);
+}
+
+html[data-theme="dark"] .cross-search-page :is(input, select) {
+  border-color: #4b5563;
+  background: #0f1217;
+  color: #f7f8fb;
+}
+
+html[data-theme="dark"] .cross-search-page :is(input, select)::placeholder {
+  color: #9aa3af;
+}
+
+html[data-theme="dark"] .platform-column-header {
+  border-bottom-color: #3b424d;
+}
+
+html[data-theme="dark"] .platform-column-header h2,
+html[data-theme="dark"] .product-result-body strong {
+  color: #f7f8fb;
+}
+
+html[data-theme="dark"] .platform-column-header span {
+  background: #172033;
+  color: #bfdbfe;
+}
+
+html[data-theme="dark"] .platform-state,
+html[data-theme="dark"] .platform-error,
+html[data-theme="dark"] .product-result-card {
+  border-color: #3b424d;
+  background: #15181d;
+  color: #cbd5e1;
+}
+
+html[data-theme="dark"] .product-result-card:hover {
+  border-color: #6b7280;
+  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.24);
+}
+
+html[data-theme="dark"] .product-thumb,
+html[data-theme="dark"] .product-thumb-placeholder {
+  border-color: #3b424d;
+  background: #20242c;
+  color: #cbd5e1;
+}
+
+html[data-theme="dark"] .product-sku {
+  color: #93c5fd;
+}
+
+html[data-theme="dark"] .product-meta-list small {
+  color: #b4bac4;
+}
+
+html[data-theme="dark"] .platform-state span {
+  background: #242932;
+}
+
+html[data-theme="dark"] .platform-state-loading span {
+  border-color: #343b46;
+  border-top-color: #60a5fa;
+  background: transparent;
+}
+
+html[data-theme="dark"] .platform-error {
+  border-color: #7f1d1d;
+  background: #35181b;
+  color: #fecaca;
+}

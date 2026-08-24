@@ -87,7 +87,7 @@ function SearchAcrossPlatformsPage({ currentUser, onLogout }) {
               <option value="50">50 each</option>
             </select>
           </label>
-          <button className="primary-button cross-search-button" type="submit" disabled={!query.trim() || isSearching}>
+          <button className="primary-button cross-search-button action-button action-load" type="submit" disabled={!query.trim() || isSearching}>
             <Icon name="search" />
             {isSearching ? 'Searching' : 'Search'}
           </button>

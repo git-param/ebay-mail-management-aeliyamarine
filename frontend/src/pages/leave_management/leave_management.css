@@ -608,8 +608,8 @@
 html[data-theme="dark"] .leaveModule-kpi,
 html[data-theme="dark"] .leaveModule-panel,
 html[data-theme="dark"] .leaveModule-modal {
-  border-color: #2b3950;
-  background: linear-gradient(180deg, rgba(27, 38, 56, 0.96), rgba(17, 24, 39, 0.96));
+  border-color: #3b424d;
+  background: linear-gradient(180deg, #171b22 0%, #12151b 100%);
   box-shadow: 0 18px 48px rgba(0, 0, 0, 0.28);
 }
 
@@ -617,16 +617,69 @@ html[data-theme="dark"] .leaveModule-filters,
 html[data-theme="dark"] .leaveModule-table-wrap,
 html[data-theme="dark"] .leaveModule-detail-grid div,
 html[data-theme="dark"] .leaveModule-reason-box {
-  border-color: #2b3950;
-  background: #111827;
+  border-color: #3b424d;
+  background: #15181d;
 }
 
 html[data-theme="dark"] .leaveModule-table th {
-  background: #172033;
+  background: #20242c;
+  color: #d7dce5;
+}
+
+html[data-theme="dark"] .leaveModule-page,
+html[data-theme="dark"] .leaveModule-page :is(h1, h2, h3, label, strong, td, dd) {
+  color: #f7f8fb;
+}
+
+html[data-theme="dark"] .leaveModule-page :is(p, small, dt, .leaveModule-note, .leaveModule-summary span, .leaveModule-summary small, .leaveModule-header p) {
+  color: #cbd5e1;
+}
+
+html[data-theme="dark"] .leaveModule-table td {
+  border-color: #3b424d;
+  background: #11151b;
+  color: #f7f8fb;
+}
+
+html[data-theme="dark"] .leaveModule-summary-table input,
+html[data-theme="dark"] .leaveModule-page :is(input, select, textarea) {
+  border-color: #4b5563;
+  background: #20242c;
+  color: #f7f8fb;
+}
+
+html[data-theme="dark"] .leaveModule-page :is(input, select, textarea)::placeholder {
+  color: #9aa3af;
+}
+
+html[data-theme="dark"] .leaveModule-primary {
+  border-color: transparent;
+  background: linear-gradient(135deg, #3b82f6, #2563eb);
+  color: #ffffff;
+  box-shadow: 0 12px 24px rgba(37, 99, 235, 0.22);
+}
+
+html[data-theme="dark"] .leaveModule-primary:disabled {
+  border-color: #4b5563;
+  background: #303641;
+  color: #cbd5e1;
+  box-shadow: none;
+  opacity: 1;
+}
+
+html[data-theme="dark"] .leaveModule-form-actions .leaveModule-secondary {
+  border-color: #4c1d95;
+  background: #251b3d;
+  color: #ddd6fe;
+}
+
+html[data-theme="dark"] .leaveModule-copy-feedback,
+html[data-theme="dark"] .leaveModule-override-label {
+  color: #93c5fd;
 }
 
 html[data-theme="dark"] .leaveModule-clickable-row:hover td {
-  background: rgba(124, 108, 253, 0.12);
+  background: #20242c;
 }
 
 html[data-theme="dark"] .leaveModule-secondary,
@@ -634,7 +687,7 @@ html[data-theme="dark"] .leaveModule-row-actions button:last-child,
 html[data-theme="dark"] .leaveModule-modal-actions button:first-child,
 html[data-theme="dark"] .leaveModule-modal-header button {
   border-color: #334155;
-  background: #0f172a;
+  background: #15181d;
   color: #e5e7eb;
 }
 

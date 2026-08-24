@@ -502,6 +502,41 @@ html[data-theme='dark'] .offer-management-page .offer-bulk-bar strong {
   color: var(--offer-text);
 }
 
+html[data-theme='dark'] .offer-management-page .offer-action-preview,
+html[data-theme='dark'] .offer-preview-drawer .offer-action-preview {
+  border-color: #1d4ed8;
+  background: #172033;
+  color: #bfdbfe;
+}
+
+html[data-theme='dark'] .offer-management-page .offer-action-edit,
+html[data-theme='dark'] .offer-preview-drawer .offer-action-edit {
+  border-color: #7c4a18;
+  background: #2d2117;
+  color: #fdba74;
+}
+
+html[data-theme='dark'] .offer-management-page .offer-action-delete,
+html[data-theme='dark'] .offer-preview-drawer .offer-action-delete {
+  border-color: #7f1d1d;
+  background: #35181b;
+  color: #fecaca;
+}
+
+html[data-theme='dark'] .offer-management-page .offer-action-external,
+html[data-theme='dark'] .offer-preview-drawer .offer-action-external {
+  border-color: #0f766e;
+  background: #112d2a;
+  color: #99f6e4;
+}
+
+html[data-theme='dark'] .offer-management-page .offer-action-conversation,
+html[data-theme='dark'] .offer-preview-drawer .offer-action-conversation {
+  border-color: #4c1d95;
+  background: #251b3d;
+  color: #ddd6fe;
+}
+
 /* Responsive */
 @media (max-width: 1280px) {
   .offer-management-page .stats-grid {

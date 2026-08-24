@@ -203,19 +203,64 @@ function Dashboard({
     Math.ceil(total / pageSize),
   )
 
+  const categoryById = useMemo(
+    () =>
+      new Map(
+        categories.map((category) => [
+          category.id,
+          category,
+        ]),
+      ),
+    [categories],
+  )
+
+  const conversationsWithCategoryColors =
+    useMemo(
+      () =>
+        conversations.map((conversation) => {
+          const categoryId =
+            conversation.category?.id ||
+            conversation.category_id
+          const category =
+            categoryId
+              ? categoryById.get(categoryId)
+              : null
+
+          if (
+            !category ||
+            conversation.category?.color
+          ) {
+            return conversation
+          }
+
+          return {
+            ...conversation,
+            category: {
+              ...(conversation.category || {}),
+              id: category.id,
+              name:
+                conversation.category?.name ||
+                category.name,
+              color: category.color,
+            },
+          }
+        }),
+      [categoryById, conversations],
+    )
+
   const hasSelectedConversation =
     Boolean(selectedConversationId)
 
   const selectedConversation =
     useMemo(
       () =>
-        conversations.find(
+        conversationsWithCategoryColors.find(
           (conversation) =>
             conversation.id ===
             selectedConversationId,
         ),
       [
-        conversations,
+        conversationsWithCategoryColors,
         selectedConversationId,
       ],
     )
@@ -1047,7 +1092,7 @@ function Dashboard({
         {isListPaneOpen ||
         !hasSelectedConversation ? (
           <ConversationList
-            conversations={conversations}
+            conversations={conversationsWithCategoryColors}
             total={total}
             page={page}
             pageCount={pageCount}

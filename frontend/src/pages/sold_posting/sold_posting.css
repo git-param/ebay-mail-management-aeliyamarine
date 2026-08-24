@@ -1185,3 +1185,140 @@ a .sold-thumb:hover {
     width: 100%;
   }
 }
+
+/* Final Sold Posting dark theme correction */
+
+html[data-theme="dark"] .sold-posting-page {
+  background: #0a0c10 !important;
+  color: #f7f8fb;
+}
+
+html[data-theme="dark"] .sold-posting-page .page-header,
+html[data-theme="dark"] .sold-posting-page .stat-card,
+html[data-theme="dark"] .sold-filter-bar,
+html[data-theme="dark"] .sold-posting-page .table-card,
+html[data-theme="dark"] .sold-posting-page .pagination-bar,
+html[data-theme="dark"] .modal-panel.sold-edit-modal,
+html[data-theme="dark"] .modal-panel.sold-confirm-modal,
+html[data-theme="dark"] .sold-edit-modal .modal-header,
+html[data-theme="dark"] .sold-edit-form .modal-actions,
+html[data-theme="dark"] .sold-confirm-detail,
+html[data-theme="dark"] .sold-detail-drawer {
+  border-color: #3b424d !important;
+  background:
+    linear-gradient(180deg, #181c22 0%, #13161c 100%) !important;
+  color: #f7f8fb !important;
+  box-shadow: 0 22px 56px rgba(0, 0, 0, 0.34) !important;
+}
+
+html[data-theme="dark"] .sold-posting-page .page-header h1,
+html[data-theme="dark"] .sold-posting-page .stat-card strong,
+html[data-theme="dark"] .sold-posting-page :is(h1, h2, h3, strong, label),
+html[data-theme="dark"] .sold-table td,
+html[data-theme="dark"] .sold-title span,
+html[data-theme="dark"] .copy-chip,
+html[data-theme="dark"] .sold-reset-link,
+html[data-theme="dark"] .sold-search-box button,
+html[data-theme="dark"] .sold-condition-editor input {
+  color: #ffffff !important;
+}
+
+html[data-theme="dark"] .sold-posting-page .page-header p,
+html[data-theme="dark"] .sold-posting-page .stat-card p,
+html[data-theme="dark"] .sold-date-filter span,
+html[data-theme="dark"] .sold-posting-page .pagination-bar span,
+html[data-theme="dark"] .sold-filter-menu button {
+  color: #b4bac4 !important;
+}
+
+html[data-theme="dark"] .sold-filter-trigger,
+html[data-theme="dark"] .sold-search-box,
+html[data-theme="dark"] .sold-search-box input,
+html[data-theme="dark"] .sold-search-box button,
+html[data-theme="dark"] .sold-custom-period,
+html[data-theme="dark"] .sold-date-filter,
+html[data-theme="dark"] .sold-date-filter input,
+html[data-theme="dark"] .sold-filter-menu,
+html[data-theme="dark"] .sold-condition-editor input,
+html[data-theme="dark"] .sold-posting-page .pagination-bar select,
+html[data-theme="dark"] .sold-edit-columns .field input,
+html[data-theme="dark"] .sold-edit-columns .field select,
+html[data-theme="dark"] .sold-edit-columns .field textarea {
+  border-color: #4b5563 !important;
+  background: #0f1217 !important;
+  color: #f7f8fb !important;
+}
+
+html[data-theme="dark"] .sold-filter-menu button:hover,
+html[data-theme="dark"] .sold-filter-menu button.selected {
+  background: #242932 !important;
+  color: #ffffff !important;
+}
+
+html[data-theme="dark"] .sold-table thead th {
+  border-bottom-color: #3b424d !important;
+  background: #20242c !important;
+  color: #d7dce5 !important;
+}
+
+html[data-theme="dark"] .sold-table tbody tr,
+html[data-theme="dark"] .sold-table tbody tr:nth-child(even) {
+  background: #15181d !important;
+}
+
+html[data-theme="dark"] .sold-table tbody tr:hover {
+  background: #242932 !important;
+}
+
+html[data-theme="dark"] .sold-table th,
+html[data-theme="dark"] .sold-table td {
+  border-bottom-color: #343b46 !important;
+}
+
+html[data-theme="dark"] .sold-thumb,
+html[data-theme="dark"] .sold-thumb.placeholder,
+html[data-theme="dark"] .sold-copy-button {
+  border-color: #4b5563 !important;
+  background: #20242c !important;
+  color: #f7f8fb !important;
+}
+
+html[data-theme="dark"] .sold-copy-button:hover {
+  border-color: #6b7280 !important;
+  background: #2f3540 !important;
+}
+
+html[data-theme="dark"] .sold-custom-apply,
+html[data-theme="dark"] .sold-posting-page .primary-button {
+  border-color: #6b7280 !important;
+  background: linear-gradient(135deg, #4b5563, #2f3540) !important;
+  color: #ffffff !important;
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.28) !important;
+}
+
+html[data-theme="dark"] .sold-condition-save {
+  border-color: #22c55e !important;
+  background: #12351f !important;
+  color: #dcfce7 !important;
+}
+
+html[data-theme="dark"] .sold-condition-reset {
+  border-color: #6b7280 !important;
+  background: #20242c !important;
+  color: #f7f8fb !important;
+}
+
+html[data-theme="dark"] .sold-copied-label {
+  border-color: #fda4af !important;
+  background: #3b1219 !important;
+  color: #fecdd3 !important;
+}
+
+html[data-theme="dark"] .sold-table-scroll::-webkit-scrollbar-track {
+  background: #20242c;
+}
+
+html[data-theme="dark"] .sold-table-scroll::-webkit-scrollbar-thumb {
+  background: #6b7280;
+  border-color: #20242c;
+}

@@ -1322,3 +1322,19 @@ html[data-theme='dark'] .inbox-page .unread-dot {
   background: #f5f7fb;
   box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.1);
 }
+
+/* Category badges use the color selected in the Categories page. */
+
+.inbox-page .conversation-badge-category {
+  border-color: color-mix(in srgb, var(--badge-color, #64748b) 58%, #ffffff) !important;
+  border-left-color: var(--badge-color, #64748b) !important;
+  background: color-mix(in srgb, var(--badge-color, #64748b) 14%, #ffffff) !important;
+  color: color-mix(in srgb, var(--badge-color, #64748b) 72%, #111827) !important;
+}
+
+html[data-theme='dark'] .inbox-page .conversation-badge-category {
+  border-color: color-mix(in srgb, var(--badge-color, #94a3b8) 58%, #334155) !important;
+  border-left-color: var(--badge-color, #94a3b8) !important;
+  background: color-mix(in srgb, var(--badge-color, #94a3b8) 22%, #15181d) !important;
+  color: color-mix(in srgb, var(--badge-color, #94a3b8) 42%, #ffffff) !important;
+}

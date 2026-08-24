@@ -2759,3 +2759,83 @@ html[data-theme="dark"] .pmsModule-skeleton-panel {
     linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.08), transparent),
     #1f232a !important;
 }
+
+/* Final PMS contrast pass */
+
+html[data-theme="dark"] .pmsModule-eom-breakdown > div,
+html[data-theme="dark"] .pmsModule-editor-drawer .modal-header,
+html[data-theme="dark"] .pmsModule-editor-drawer .modal-actions,
+html[data-theme="dark"] .pmsModule-editor-drawer > .pmsModule-editor-metrics,
+html[data-theme="dark"] .pmsModule-editor-drawer > .pmsModule-editor-final-row,
+html[data-theme="dark"] .pmsModule-editor-drawer .field,
+html[data-theme="dark"] .pmsModule-target-achievement-field,
+html[data-theme="dark"] .pmsModule-target-achievement-field input,
+html[data-theme="dark"] .pmsModule-leaderboard-controls,
+html[data-theme="dark"] .pmsModule-leaderboard {
+  border-color: #3b424d !important;
+  background: #15181d !important;
+  color: #f7f8fb !important;
+}
+
+html[data-theme="dark"] .pmsModule-eom-breakdown span,
+html[data-theme="dark"] .pmsModule-editor-metric-label small,
+html[data-theme="dark"] .pmsModule-auto-value,
+html[data-theme="dark"] .pmsModule-score-max,
+html[data-theme="dark"] .pmsModule-target-achievement-field label,
+html[data-theme="dark"] .pmsModule-target-achievement-field strong {
+  color: #cbd5e1 !important;
+}
+
+html[data-theme="dark"] .pmsModule-editor-metric-title strong,
+html[data-theme="dark"] .pmsModule-editor-metric-label > strong,
+html[data-theme="dark"] .pmsModule-editor-drawer .modal-header h2,
+html[data-theme="dark"] .pmsModule-section-heading h2,
+html[data-theme="dark"] .pmsModule-eom-copy h3,
+html[data-theme="dark"] .pmsModule-eom-name,
+html[data-theme="dark"] .pmsModule-eom-score strong {
+  color: #ffffff !important;
+}
+
+html[data-theme="dark"] .pmsModule-editor-metric-score input,
+html[data-theme="dark"] .pmsModule-target-achievement-field input,
+html[data-theme="dark"] .pmsModule-editor-drawer textarea {
+  border-color: #4b5563 !important;
+  background: #20242c !important;
+  color: #f7f8fb !important;
+}
+
+html[data-theme="dark"] .pmsModule-editor-final-row {
+  background: linear-gradient(135deg, #251b3d, #172033) !important;
+  color: #ffffff !important;
+}
+
+html[data-theme="dark"] .pmsModule-page .action-button.action-edit {
+  border-color: #7c4a18 !important;
+  background: #2d2117 !important;
+  color: #fdba74 !important;
+}
+
+html[data-theme="dark"] .pmsModule-page .action-button.action-load,
+html[data-theme="dark"] .pmsModule-page .action-button.action-refresh {
+  border-color: #1d4ed8 !important;
+  background: linear-gradient(135deg, #3b82f6, #2563eb) !important;
+  color: #ffffff !important;
+}
+
+html[data-theme="dark"] .pmsModule-page .action-button.action-save {
+  border-color: #64748b !important;
+  background: linear-gradient(135deg, #64748b, #475569) !important;
+  color: #ffffff !important;
+}
+
+html[data-theme="dark"] .pmsModule-page .action-button.action-upload {
+  border-color: #16a34a !important;
+  background: linear-gradient(135deg, #22c55e, #15803d) !important;
+  color: #04130a !important;
+}
+
+html[data-theme="dark"] .pmsModule-page .secondary-button-compact-action.action-button.action-upload {
+  border-color: #16a34a !important;
+  background: linear-gradient(135deg, #22c55e, #15803d) !important;
+  color: #04130a !important;
+}

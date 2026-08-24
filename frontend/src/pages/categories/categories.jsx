@@ -529,7 +529,7 @@ function Categories({ currentUser, onLogout }) {
             <p>Manage conversation categories and keyword rules</p>
           </div>
           {canManage ? (
-            <button className="primary-button compact" type="button" onClick={() => openModal('create')}>
+            <button className="primary-button compact action-button action-create category-create-button" type="button" onClick={() => openModal('create')}>
               <Icon name="plus" />
               Create Category
             </button>
@@ -675,7 +675,7 @@ function Categories({ currentUser, onLogout }) {
             <div className="empty-state">
               <h2>No categories found</h2>
               {canManage ? (
-                <button className="primary-button compact" type="button" onClick={() => openModal('create')}>
+                <button className="primary-button compact action-button action-create category-create-button" type="button" onClick={() => openModal('create')}>
                   Create Category
                 </button>
               ) : null}

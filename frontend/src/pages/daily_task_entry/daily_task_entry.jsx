@@ -699,20 +699,20 @@ export default function DailyTaskEntry({ currentUser, onLogout }) {
               <p className="field-help">Only Agent-role users are loaded here. Operations Managers and Admins are not included.</p>
               <div className="dailyEntry-form-row dailyEntry-load-controls">
                 <label className="field"><span>Date</span><input type="date" value={entryDate} onChange={(event) => setEntryDate(event.target.value)} /></label>
-                <button className="primary-button compact-action" type="button" onClick={loadDailyEntries} disabled={loading}>{loading ? 'Loading...' : 'Load Daily Entries'}</button>
+                <button className="primary-button compact-action action-button action-load dailyEntry-load-button" type="button" onClick={loadDailyEntries} disabled={loading}>{loading ? 'Loading...' : 'Load Daily Entries'}</button>
               </div>
 
               {loaded ? (
                 <>
                   <div className="dailyEntry-bulk-actions">
                     <div className="dailyEntry-bulk-actions-select">
-                      <button className="secondary-button compact-action" type="button" onClick={() => selectAll(true)}>Select All</button>
-                      <button className="secondary-button compact-action" type="button" onClick={() => selectAll(false)}>Deselect All</button>
+                      <button className="secondary-button compact-action action-button action-select" type="button" onClick={() => selectAll(true)}>Select All</button>
+                      <button className="secondary-button compact-action action-button action-clear" type="button" onClick={() => selectAll(false)}>Deselect All</button>
                       <span className="field-help dailyEntry-select-count">{selectedCount} of {eligibleRows.length} selected{lockedCount ? ` \u00b7 ${lockedCount} already uploaded` : ''}</span>
                     </div>
                     <div className="dailyEntry-bulk-actions-upload">
-                      <button className="primary-button compact-action" type="button" onClick={() => upload('selected')} disabled={uploading || !selectedCount}>{uploading ? 'Uploading...' : 'Upload Selected'}</button>
-                      <button className="primary-button compact-action" type="button" onClick={() => upload('all')} disabled={uploading || !eligibleRows.length}>{uploading ? 'Uploading...' : 'Upload All'}</button>
+                      <button className="primary-button compact-action action-button action-upload" type="button" onClick={() => upload('selected')} disabled={uploading || !selectedCount}>{uploading ? 'Uploading...' : 'Upload Selected'}</button>
+                      <button className="primary-button compact-action action-button action-upload" type="button" onClick={() => upload('all')} disabled={uploading || !eligibleRows.length}>{uploading ? 'Uploading...' : 'Upload All'}</button>
                     </div>
                   </div>
                   {rows.length === 0 ? <p className="field-help dailyEntry-empty-state">No active agents found for this selection.</p> : null}
@@ -732,7 +732,7 @@ export default function DailyTaskEntry({ currentUser, onLogout }) {
               </label>
               <label className="field"><span>To</span><input type="date" value={filters.date_to} onChange={(event) => setFilters((current) => ({ ...current, date_to: event.target.value }))} /></label>
               {isAdmin ? <label className="field"><span>User</span><select value={filters.user_id} onChange={(event) => setFilters((current) => ({ ...current, user_id: event.target.value }))}><option value="">All</option>{users.map((user) => <option key={user.id} value={user.id}>{user.full_name || user.email}</option>)}</select></label> : null}
-              <button className="secondary-button compact-action" type="submit">Apply</button>
+              <button className="secondary-button compact-action action-button action-apply" type="submit">Apply</button>
             </form>
             <div className="table-scroll">
               <table className="users-table">
