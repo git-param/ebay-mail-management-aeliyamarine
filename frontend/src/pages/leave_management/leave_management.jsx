@@ -72,16 +72,151 @@ function dateTimeLabel(value) {
   return value ? new Date(value).toLocaleString() : '-'
 }
 
+function formatLeaveDate(value) {
+  if (!value) return '[Date]'
+  const [year, month, day] = value.split('-')
+  return `${day}/${month}/${year}`
+}
+
+function leaveDateText(form) {
+  const startDate = formatLeaveDate(form.start_date)
+  const endDate = formatLeaveDate(form.end_date)
+
+  if (form.leave_type === 'PAID' && form.end_date && form.end_date !== form.start_date) {
+    return `${startDate} - ${endDate}`
+  }
+
+  return startDate
+}
+
+function formatTime(value) {
+  if (!value) return ''
+  const [hours, minutes] = value.split(':').map(Number)
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return value
+  const date = new Date()
+  date.setHours(hours, minutes, 0, 0)
+  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+}
+
+function officeTimeRange(policy) {
+  const start = formatTime(policy?.office_start_time) || '09:30 AM'
+  const end = formatTime(policy?.office_end_time) || '06:30 PM'
+  return `${start} - ${end}`
+}
+
+function shortLeaveTimeRange(pattern) {
+  if (pattern === 'EARLY_EXIT_WITHOUT_BREAK') 
+    return '03:30 PM - 06:30 PM'
+  if (pattern === 'EARLY_EXIT_WITH_BREAK') 
+    return '04:30 PM - 06:30 PM'
+  return '09:30 AM - 11:30 AM'
+}
+
+function leaveEmailDetails(form, policy) {
+  const fullDayTime = officeTimeRange(policy)
+  const firstHalfEnd = formatTime(policy?.first_half_end_time) || '01:30 PM'
+  const secondHalfStart = formatTime(policy?.second_half_start_time) || '02:30 PM'
+  const officeEnd = formatTime(policy?.office_end_time) || '06:30 PM'
+  const officeStart = formatTime(policy?.office_start_time) || '09:30 AM'
+
+  if (form.leave_type === 'SHORT') {
+    return {
+      type: 'Short Leave',
+      time: shortLeaveTimeRange(form.short_leave_pattern),
+    }
+  }
+
+  if (form.leave_type === 'INSTANCE') {
+    if (form.instance_kind === 'EARLY_DEPARTURE') {
+      return {
+        type: 'Second Half Leave',
+        time: `${secondHalfStart} - ${officeEnd}`,
+      }
+    }
+
+    return {
+      type: 'First Half Leave',
+      time: `${officeStart} - ${firstHalfEnd}`,
+    }
+  }
+
+  if (form.day_part === 'HALF') {
+    if (form.half_day_part === 'SECOND') {
+      return {
+        type: 'Second Half Leave',
+        time: `${secondHalfStart} - ${officeEnd}`,
+      }
+    }
+
+    return {
+      type: 'First Half Leave',
+      time: `${officeStart} - ${firstHalfEnd}`,
+    }
+  }
+
+  return {
+    type: 'Full Day Leave',
+    time: fullDayTime,
+  }
+}
+
+function buildLeaveEmailTemplate(form, policy) {
+  const details = leaveEmailDetails(form, policy)
+  const date = leaveDateText(form)
+  const leaveType = form.leave_type === 'PAID' && form.day_part === 'FULL' && form.end_date && form.end_date !== form.start_date
+    ? 'Full Day Leaves'
+    : details.type
+  const reason = form.reason.trim() || '[reason - optional]'
+
+  return [
+    `Subject: ${leaveType} (${details.time}) - ${date}`,
+    '',
+    'Dear [Manager\'s Name / Team],',
+    '',
+    `I would like to request a ${leaveType} on ${date}, ${details.time} due to ${reason}.`,
+    '',
+    'Please let me know if any further information is required. I will ensure all responsibilities are managed accordingly.',
+  ].join('\n')
+}
+
+async function copyTextToClipboard(text) {
+  if (navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(text)
+      return
+    } catch {
+      // Fall back for blocked Clipboard API contexts.
+    }
+  }
+
+  const textarea = document.createElement('textarea')
+  textarea.value = text
+  textarea.setAttribute('readonly', '')
+  textarea.style.position = 'fixed'
+  textarea.style.left = '-9999px'
+  textarea.style.top = '0'
+  document.body.appendChild(textarea)
+  textarea.focus()
+  textarea.select()
+
+  try {
+    if (!document.execCommand('copy')) {
+      throw new Error('Clipboard copy failed')
+    }
+  } finally {
+    document.body.removeChild(textarea)
+  }
+}
+
 function emptyForm() {
   return {
     leave_type: 'PAID',
     start_date: '',
     end_date: '',
     day_part: 'FULL',
+    half_day_part: 'FIRST',
     instance_kind: 'LATE_ARRIVAL',
     short_leave_pattern: 'LATE_LOGIN',
-    start_time: '',
-    end_time: '',
     reason: '',
   }
 }
@@ -103,10 +238,12 @@ function LeaveManagement({ currentUser, onLogout }) {
   const [form, setForm] = useState(emptyForm)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
+  const [copyState, setCopyState] = useState('idle')
   const [selectedRequest, setSelectedRequest] = useState(null)
   const [loading, setLoading] = useState(true)
   const [summarySaving, setSummarySaving] = useState(false)
-  const options = useMemo(monthOptions, [])
+  const options = useMemo(() => monthOptions(), [])
+  const leaveEmailTemplate = useMemo(() => buildLeaveEmailTemplate(form, policy), [form, policy])
 
   async function loadData() {
     setLoading(true)
@@ -192,6 +329,7 @@ function LeaveManagement({ currentUser, onLogout }) {
 
   function updateForm(key, value) {
     setForm((current) => ({ ...current, [key]: value }))
+    setCopyState('idle')
   }
 
   function updateSummaryRow(userId, key, value) {
@@ -233,6 +371,18 @@ function LeaveManagement({ currentUser, onLogout }) {
       await loadData()
     } catch (err) {
       setError(err?.message || 'Failed to submit leave request.')
+    }
+  }
+
+  async function copyLeaveEmailTemplate() {
+    setError('')
+    try {
+      await copyTextToClipboard(leaveEmailTemplate)
+      setCopyState('copied')
+      window.setTimeout(() => setCopyState('idle'), 2500)
+    } catch (err) {
+      setCopyState('failed')
+      setError(err?.message || 'Unable to copy leave email template.')
     }
   }
 
@@ -399,6 +549,15 @@ function LeaveManagement({ currentUser, onLogout }) {
                   </select>
                 </label>
               ) : null}
+              {form.leave_type === 'PAID' && form.day_part === 'HALF' ? (
+                <label>
+                  Half
+                  <select value={form.half_day_part} onChange={(event) => updateForm('half_day_part', event.target.value)}>
+                    <option value="FIRST">First half</option>
+                    <option value="SECOND">Second half</option>
+                  </select>
+                </label>
+              ) : null}
               {form.leave_type === 'INSTANCE' ? (
                 <label>
                   Instance
@@ -414,7 +573,7 @@ function LeaveManagement({ currentUser, onLogout }) {
                   <select value={form.short_leave_pattern} onChange={(event) => updateForm('short_leave_pattern', event.target.value)}>
                     <option value="LATE_LOGIN">Late login</option>
                     <option value="MID_DAY_LEAVE">Mid-day leave</option>
-                    <option value="EARLY_EXIT">Early exit</option>
+                    <option value="EARLY_EXIT_WITHOUT_BREAK">Early exit without break</option>
                     <option value="EARLY_EXIT_WITH_BREAK">Early exit with break</option>
                   </select>
                 </label>
@@ -434,7 +593,14 @@ function LeaveManagement({ currentUser, onLogout }) {
                 <textarea value={form.reason} onChange={(event) => updateForm('reason', event.target.value)} required />
               </label>
             </div>
-            <button className="leaveModule-primary" type="submit"><Icon name="plus" /> Submit Request</button>
+            <div className="leaveModule-form-actions">
+              <button className="leaveModule-primary" type="submit"><Icon name="plus" /> Submit Request</button>
+              <button className="leaveModule-secondary" type="button" onClick={copyLeaveEmailTemplate}>
+                <Icon name={copyState === 'copied' ? 'activate' : 'copy'} />
+                {copyState === 'copied' ? 'Copied' : 'Copy Email'}
+              </button>
+            </div>
+            {copyState === 'failed' ? <p className="leaveModule-copy-feedback">Could not copy email template.</p> : null}
           </form>
 
           <section className="leaveModule-panel">
