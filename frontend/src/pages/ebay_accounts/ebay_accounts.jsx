@@ -316,7 +316,7 @@ function AccountForm({ initialValues, isSubmitting, submitLabel, onCancel, onSub
         <button className="secondary-button" type="button" onClick={onCancel}>
           Cancel
         </button>
-        <button className="primary-button compact" type="submit" disabled={isSubmitting}>
+        <button className="primary-button compact action-button action-save" type="submit" disabled={isSubmitting}>
           {isSubmitting ? 'Saving...' : submitLabel}
         </button>
       </div>
@@ -333,7 +333,7 @@ function ConfirmModal({ title, message, actionLabel, danger, isSubmitting, onCan
           Cancel
         </button>
         <button
-          className={danger ? 'danger-button' : 'primary-button compact'}
+          className={danger ? 'danger-button' : 'primary-button compact action-button action-save'}
           type="button"
           onClick={onConfirm}
           disabled={isSubmitting}
@@ -999,7 +999,7 @@ function EbayAccounts({ currentUser, onLogout }) {
             <h1>eBay Accounts</h1>
             <p>Manage connected eBay seller accounts</p>
           </div>
-          <button className="primary-button compact" type="button" onClick={() => openModal('create')}>
+          <button className="primary-button compact action-button action-create" type="button" onClick={() => openModal('create')}>
             <Icon name="plus" />
             Add Account
           </button>
@@ -1023,7 +1023,7 @@ function EbayAccounts({ currentUser, onLogout }) {
         {isAdmin ? (
           <section className="sync-controls" aria-label="eBay sync controls">
             <button
-              className="secondary-button"
+              className="secondary-button action-button action-sync"
               type="button"
               disabled={!selectedConnectedAccountIds.length || Boolean(syncingAction) || syncingAccountIds.size > 0}
               onClick={syncSelectedAccounts}
@@ -1031,7 +1031,7 @@ function EbayAccounts({ currentUser, onLogout }) {
               {syncingAction === 'selected' ? 'Syncing...' : `Sync Selected (${selectedConnectedAccountIds.length})`}
             </button>
             <button
-              className="secondary-button"
+              className="secondary-button action-button action-sync"
               type="button"
               disabled={!connectedAccounts.length || Boolean(syncingAction) || syncingAccountIds.size > 0}
               onClick={syncAllConnectedAccounts}
@@ -1039,7 +1039,7 @@ function EbayAccounts({ currentUser, onLogout }) {
               {syncingAction === 'all' ? 'Syncing...' : 'Sync All Connected'}
             </button>
             <button
-              className={autoSyncStatus.enabled ? 'secondary-button auto-sync-active' : 'secondary-button'}
+              className={autoSyncStatus.enabled ? 'secondary-button auto-sync-active action-button action-warning' : 'secondary-button action-button action-sync'}
               type="button"
               disabled={isTogglingAutoSync}
               onClick={toggleAutoSync}
@@ -1068,7 +1068,7 @@ function EbayAccounts({ currentUser, onLogout }) {
               </label>
             </div>
             <button
-              className="secondary-button"
+              className="secondary-button action-button action-save"
               type="button"
               disabled={isTogglingAutoSync}
               onClick={saveAutoSyncInterval}
@@ -1097,7 +1097,7 @@ function EbayAccounts({ currentUser, onLogout }) {
               <h2>Connected Seller Accounts</h2>
               <p>{filteredAccounts.length} account{filteredAccounts.length === 1 ? '' : 's'} match your filters</p>
             </div>
-            <button className="secondary-button compact-action" type="button" onClick={loadAccounts}>
+            <button className="secondary-button compact-action action-button action-refresh" type="button" onClick={loadAccounts}>
               Refresh List
             </button>
           </div>
@@ -1194,7 +1194,7 @@ function EbayAccounts({ currentUser, onLogout }) {
                       <td className="actions-cell">
                         {account.connectionStatus !== 'CONNECTED' ? (
                           <button
-                            className="secondary-button compact-action"
+                            className="secondary-button compact-action action-button action-connect"
                             type="button"
                             onClick={() => connectAccount(account)}
                             disabled={connectingAccountId === account.id}
@@ -1204,7 +1204,7 @@ function EbayAccounts({ currentUser, onLogout }) {
                         ) : null}
                         {isAdmin && account.connectionStatus === 'CONNECTED' ? (
                           <button
-                            className="secondary-button compact-action"
+                            className="secondary-button compact-action action-button action-sync"
                             type="button"
                             onClick={() => syncSingleAccount(account)}
                             disabled={Boolean(syncingAction) || isSyncInProgress(account.id)}
@@ -1268,7 +1268,7 @@ function EbayAccounts({ currentUser, onLogout }) {
           ) : (
             <div className="empty-state">
               <h2>No eBay accounts found</h2>
-              <button className="primary-button compact" type="button" onClick={() => openModal('create')}>
+              <button className="primary-button compact action-button action-create" type="button" onClick={() => openModal('create')}>
                 Add Account
               </button>
             </div>
@@ -1304,7 +1304,7 @@ function EbayAccounts({ currentUser, onLogout }) {
                     </select>
                   </label>
                   <button
-                    className="primary-button compact"
+                    className="primary-button compact action-button action-connect"
                     type="button"
                     onClick={generateManualConnectLink}
                     disabled={!manualAccountId || Boolean(connectingAccountId)}
@@ -1317,10 +1317,10 @@ function EbayAccounts({ currentUser, onLogout }) {
               {manualConnectUrl ? (
                 <div className="oauth-link-box">
                   <input value={manualConnectUrl} readOnly />
-                  <button className="secondary-button compact-action" type="button" onClick={copyManualLink}>
+                  <button className="secondary-button compact-action action-button action-copy" type="button" onClick={copyManualLink}>
                     Copy
                   </button>
-                  <a className="secondary-button compact-action" href={manualConnectUrl} target="_blank" rel="noreferrer">
+                  <a className="secondary-button compact-action action-button action-open" href={manualConnectUrl} target="_blank" rel="noreferrer">
                     Open
                   </a>
                 </div>
@@ -1341,7 +1341,7 @@ function EbayAccounts({ currentUser, onLogout }) {
                     </label>
                   </div>
                   <div className="modal-actions">
-                    <button className="primary-button compact" type="submit" disabled={isSubmitting || !manualState || !manualCode}>
+                    <button className="primary-button compact action-button action-save" type="submit" disabled={isSubmitting || !manualState || !manualCode}>
                       {isSubmitting ? 'Submitting...' : 'Submit Callback'}
                     </button>
                   </div>

@@ -1665,3 +1665,445 @@ html[data-theme="dark"] .reply-composer-actions small {
   }
 
 }
+
+/* --------------------------------------------------------------------
+   ACES polish layer - shared contrast, motion, and surface refinements
+   -------------------------------------------------------------------- */
+
+:root {
+  --aces-bg: #f4f7fc;
+  --aces-surface: #ffffff;
+  --aces-surface-soft: #f8fafc;
+  --aces-text: #111827;
+  --aces-muted: #667085;
+  --aces-border: rgba(203, 213, 225, 0.82);
+  --aces-primary: #6657e8;
+  --aces-primary-strong: #5745d9;
+  --aces-cyan: #12b6cb;
+  --aces-success: #0f9f6e;
+  --aces-warning: #c77700;
+  --aces-danger: #d03345;
+  --aces-radius-card: 16px;
+  --aces-radius-control: 12px;
+  --aces-shadow-card: 0 16px 44px rgba(15, 23, 42, 0.08);
+  --aces-shadow-hover: 0 22px 54px rgba(15, 23, 42, 0.12);
+  --aces-fast: 180ms ease;
+}
+
+html[data-theme="dark"] {
+  --aces-bg: #090d14;
+  --aces-surface: #141a24;
+  --aces-surface-soft: #1b2330;
+  --aces-text: #f5f7fb;
+  --aces-muted: #aab4c3;
+  --aces-border: rgba(78, 91, 113, 0.78);
+  --aces-primary: #9b8cff;
+  --aces-primary-strong: #b5aaff;
+  --aces-cyan: #4dd4e7;
+  --aces-success: #45c990;
+  --aces-warning: #f3b552;
+  --aces-danger: #ff7180;
+  --aces-shadow-card: 0 20px 54px rgba(0, 0, 0, 0.32);
+  --aces-shadow-hover: 0 24px 62px rgba(0, 0, 0, 0.42);
+}
+
+html,
+body {
+  background: var(--aces-bg);
+}
+
+.page-header {
+  animation: acesPageIn var(--aces-fast);
+}
+
+.page-header h1 {
+  color: var(--aces-text);
+  font-size: clamp(26px, 2.4vw, 32px);
+  letter-spacing: 0;
+}
+
+.page-header p,
+.page-subtitle {
+  color: var(--aces-muted);
+}
+
+:is(.dashboard-card, .stat-card, .content-panel, .table-card, .management-panel, .analytics-panel, .filter-panel) {
+  border-color: var(--aces-border);
+  border-radius: var(--aces-radius-card);
+  background: var(--aces-surface);
+  box-shadow: var(--aces-shadow-card);
+}
+
+:is(.dashboard-card, .stat-card, .content-panel, .table-card, .management-panel, .analytics-panel):hover {
+  border-color: rgba(109, 93, 252, 0.26);
+}
+
+.primary-button {
+  background: linear-gradient(135deg, var(--aces-primary), #7c6cfd);
+}
+
+.primary-button:hover {
+  background: linear-gradient(135deg, var(--aces-primary-strong), #7261f5);
+}
+
+:is(.secondary-button, .icon-button, .profile-button) {
+  border-color: var(--aces-border);
+  background: color-mix(in srgb, var(--aces-surface) 92%, transparent);
+  color: var(--aces-text);
+}
+
+:is(.secondary-button, .icon-button, .profile-button):hover {
+  border-color: rgba(109, 93, 252, 0.38);
+  color: var(--aces-primary);
+}
+
+:is(.field input, .field select, .field textarea, .inbox-search-bar input, .template-picker):focus {
+  border-color: rgba(109, 93, 252, 0.68);
+  box-shadow: 0 0 0 4px rgba(109, 93, 252, 0.14);
+}
+
+.users-table th {
+  background: var(--aces-surface-soft);
+  color: var(--aces-muted);
+  letter-spacing: 0.04em;
+}
+
+.users-table td,
+.users-table td strong {
+  color: var(--aces-text);
+}
+
+.users-table tbody tr:hover {
+  background: rgba(109, 93, 252, 0.055);
+}
+
+.form-message,
+.toast {
+  border-radius: 12px;
+}
+
+html[data-theme="dark"] :is(
+  .dashboard-card, .stat-card, .content-panel, .table-card, .management-panel,
+  .analytics-panel, .filter-panel, .modal-panel, .user-drawer, .profile-menu,
+  .notification-menu, .pagination-bar
+) {
+  border-color: var(--aces-border);
+  background: var(--aces-surface);
+  color: var(--aces-text);
+}
+
+html[data-theme="dark"] :is(.field input, .field select, .field textarea, .inbox-search-bar input, .template-picker) {
+  border-color: var(--aces-border);
+  background: #0f141d;
+  color: var(--aces-text);
+}
+
+html[data-theme="dark"] .users-table th {
+  background: var(--aces-surface-soft);
+  color: var(--aces-muted);
+}
+
+@keyframes acesPageIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Final dark theme correction: charcoal/white, not navy/purple */
+
+html[data-theme="dark"] {
+  --ui-bg: #0a0c10;
+  --ui-surface: #15181d;
+  --ui-surface-soft: #1f232a;
+  --ui-surface-raised: #242932;
+  --ui-text: #f7f8fb;
+  --ui-text-muted: #b4bac4;
+  --ui-border: #3b424d;
+  --ui-accent: #f7f8fb;
+  --ui-accent-soft: #2b3038;
+  --saas-bg: #0a0c10;
+  --saas-card: #15181d;
+  --saas-sidebar: #171b22;
+  --saas-text: #f7f8fb;
+  --saas-muted: #b4bac4;
+  --saas-border: #3b424d;
+  --saas-primary: #f7f8fb;
+  --saas-primary-2: #d8dde6;
+  --aces-bg: #0a0c10;
+  --aces-surface: #15181d;
+  --aces-surface-soft: #1f232a;
+  --aces-text: #f7f8fb;
+  --aces-muted: #b4bac4;
+  --aces-border: rgba(108, 117, 131, 0.72);
+  --aces-primary: #f7f8fb;
+  --aces-primary-strong: #ffffff;
+  --aces-shadow-card: 0 20px 54px rgba(0, 0, 0, 0.36);
+  background: #0a0c10;
+}
+
+html[data-theme="dark"] body {
+  background: #0a0c10;
+  color: #f7f8fb;
+}
+
+html[data-theme="dark"] :is(.primary-button, .pagination-page.active) {
+  background: linear-gradient(135deg, #4b5563, #2f3540);
+  color: #ffffff;
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.28);
+}
+
+html[data-theme="dark"] :is(.secondary-button, .icon-button, .profile-button, .pagination-button, .pagination-page) {
+  border-color: #3b424d;
+  background: #15181d;
+  color: #f7f8fb;
+}
+
+html[data-theme="dark"] :is(.secondary-button, .icon-button, .profile-button, .pagination-button, .pagination-page):hover {
+  border-color: #6b7280;
+  background: #20242c;
+  color: #ffffff;
+}
+
+html[data-theme="dark"] :is(input, select, textarea) {
+  border-color: #3b424d;
+  background-color: #0f1217;
+  color: #f7f8fb;
+}
+
+/* Semantic action colors */
+
+.action-button {
+  border: 0;
+  color: #ffffff;
+  font-weight: 800;
+}
+
+.action-button.action-load,
+.action-button.action-apply,
+.action-button.action-refresh {
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  box-shadow: 0 12px 24px rgba(37, 99, 235, 0.22);
+}
+
+.action-button.action-sync,
+.action-button.action-export {
+  background: linear-gradient(135deg, #0891b2, #0f766e);
+  box-shadow: 0 12px 24px rgba(8, 145, 178, 0.22);
+}
+
+.action-button.action-upload {
+  background: linear-gradient(135deg, #16a34a, #15803d);
+  box-shadow: 0 12px 24px rgba(22, 163, 74, 0.22);
+}
+
+.action-button.action-create,
+.action-button.action-preview {
+  background: linear-gradient(135deg, #7c3aed, #4f46e5);
+  box-shadow: 0 12px 24px rgba(124, 58, 237, 0.22);
+}
+
+.action-button.action-save {
+  background: linear-gradient(135deg, #475569, #334155);
+  box-shadow: 0 12px 24px rgba(51, 65, 85, 0.22);
+}
+
+.action-button.action-connect,
+.action-button.action-open {
+  background: linear-gradient(135deg, #0d9488, #0f766e);
+  box-shadow: 0 12px 24px rgba(13, 148, 136, 0.2);
+}
+
+.action-button.action-copy {
+  border: 1px solid #ddd6fe;
+  background: #f5f3ff;
+  color: #6d28d9;
+  box-shadow: none;
+}
+
+.action-button.action-edit {
+  border: 1px solid #fed7aa;
+  background: #fff7ed;
+  color: #c2410c;
+  box-shadow: none;
+}
+
+.action-button.action-warning {
+  border: 1px solid #fde68a;
+  background: #fffbeb;
+  color: #92400e;
+  box-shadow: none;
+}
+
+.action-button.action-danger {
+  border: 1px solid #fecaca;
+  background: #fef2f2;
+  color: #b91c1c;
+  box-shadow: none;
+}
+
+.action-button.action-select {
+  border: 1px solid #bfdbfe;
+  background: #eff6ff;
+  color: #1d4ed8;
+  box-shadow: none;
+}
+
+.action-button.action-clear {
+  border: 1px solid #d1d5db;
+  background: #f8fafc;
+  color: #374151;
+  box-shadow: none;
+}
+
+.action-button:hover:not(:disabled) {
+  filter: brightness(1.04);
+  transform: translateY(-1px);
+}
+
+html[data-theme="dark"] .action-button.action-load,
+html[data-theme="dark"] .action-button.action-apply,
+html[data-theme="dark"] .action-button.action-refresh,
+html[data-theme="dark"] :is(.management-page, .sold-posting-page, .offer-management-page, .ebay-list-section, .oauth-helper-panel) .action-button.action-load,
+html[data-theme="dark"] :is(.management-page, .sold-posting-page, .offer-management-page, .ebay-list-section, .oauth-helper-panel) .action-button.action-apply,
+html[data-theme="dark"] :is(.management-page, .sold-posting-page, .offer-management-page, .ebay-list-section, .oauth-helper-panel) .action-button.action-refresh {
+  background: linear-gradient(135deg, #3b82f6, #2563eb);
+  color: #ffffff;
+}
+
+html[data-theme="dark"] .action-button.action-sync,
+html[data-theme="dark"] .action-button.action-export,
+html[data-theme="dark"] :is(.management-page, .sold-posting-page, .offer-management-page, .ebay-list-section, .oauth-helper-panel) .action-button.action-sync,
+html[data-theme="dark"] :is(.management-page, .sold-posting-page, .offer-management-page, .ebay-list-section, .oauth-helper-panel) .action-button.action-export {
+  background: linear-gradient(135deg, #22d3ee, #0f766e);
+  color: #051014;
+}
+
+html[data-theme="dark"] .action-button.action-upload {
+  background: linear-gradient(135deg, #22c55e, #15803d);
+  color: #04130a;
+}
+
+html[data-theme="dark"] .action-button.action-create,
+html[data-theme="dark"] .action-button.action-preview,
+html[data-theme="dark"] :is(.management-page, .sold-posting-page, .offer-management-page, .ebay-list-section, .oauth-helper-panel) .action-button.action-create,
+html[data-theme="dark"] :is(.management-page, .sold-posting-page, .offer-management-page, .ebay-list-section, .oauth-helper-panel) .action-button.action-preview {
+  background: linear-gradient(135deg, #8b5cf6, #4f46e5);
+  color: #ffffff;
+}
+
+html[data-theme="dark"] .action-button.action-save,
+html[data-theme="dark"] :is(.management-page, .sold-posting-page, .offer-management-page, .ebay-list-section, .oauth-helper-panel) .action-button.action-save {
+  background: linear-gradient(135deg, #64748b, #475569);
+  color: #ffffff;
+}
+
+html[data-theme="dark"] .action-button.action-connect,
+html[data-theme="dark"] .action-button.action-open,
+html[data-theme="dark"] :is(.management-page, .sold-posting-page, .offer-management-page, .ebay-list-section, .oauth-helper-panel) .action-button.action-connect,
+html[data-theme="dark"] :is(.management-page, .sold-posting-page, .offer-management-page, .ebay-list-section, .oauth-helper-panel) .action-button.action-open {
+  background: linear-gradient(135deg, #2dd4bf, #0f766e);
+  color: #04110f;
+}
+
+html[data-theme="dark"] .action-button.action-copy,
+html[data-theme="dark"] :is(.management-page, .sold-posting-page, .offer-management-page, .ebay-list-section, .oauth-helper-panel) .action-button.action-copy {
+  border-color: #4c1d95;
+  background: #251b3d;
+  color: #ddd6fe;
+}
+
+html[data-theme="dark"] .action-button.action-edit,
+html[data-theme="dark"] :is(.management-page, .sold-posting-page, .offer-management-page, .ebay-list-section, .oauth-helper-panel) .action-button.action-edit {
+  border-color: #7c4a18;
+  background: #2d2117;
+  color: #fdba74;
+}
+
+html[data-theme="dark"] .action-button.action-warning,
+html[data-theme="dark"] :is(.management-page, .sold-posting-page, .offer-management-page, .ebay-list-section, .oauth-helper-panel) .action-button.action-warning {
+  border-color: #854d0e;
+  background: #30240f;
+  color: #fde68a;
+}
+
+html[data-theme="dark"] .action-button.action-danger,
+html[data-theme="dark"] :is(.management-page, .sold-posting-page, .offer-management-page, .ebay-list-section, .oauth-helper-panel) .action-button.action-danger {
+  border-color: #7f1d1d;
+  background: #35181b;
+  color: #fecaca;
+}
+
+html[data-theme="dark"] .user-drawer .detail-grid div {
+  border-color: #4b5563;
+  background: #15181d;
+}
+
+html[data-theme="dark"] .user-drawer .detail-grid dt,
+html[data-theme="dark"] .user-drawer .drawer-section h3 {
+  color: #d7dce5;
+}
+
+html[data-theme="dark"] .user-drawer .detail-grid dd,
+html[data-theme="dark"] .user-drawer .drawer-profile h3 {
+  color: #f7f8fb;
+}
+
+html[data-theme="dark"] .user-drawer .drawer-profile p,
+html[data-theme="dark"] .user-drawer .drawer-note,
+html[data-theme="dark"] .user-drawer .drawer-section p {
+  color: #cbd5e1;
+}
+
+html[data-theme="dark"] .management-page .analytics-panel .report-table-wrap :is(table, td) {
+  color: #f7f8fb;
+}
+
+html[data-theme="dark"] .management-page .analytics-panel .report-table-wrap th {
+  color: #d7dce5;
+}
+
+html[data-theme="dark"] .management-page .analytics-panel .report-table-wrap td .secondary-button:nth-child(1) {
+  border-color: #7c4a18;
+  background: #2d2117;
+  color: #fdba74;
+}
+
+html[data-theme="dark"] .management-page .analytics-panel .report-table-wrap td .secondary-button:nth-child(2) {
+  border-color: #854d0e;
+  background: #30240f;
+  color: #fde68a;
+}
+
+html[data-theme="dark"] .management-page .analytics-panel .report-table-wrap td .secondary-button:nth-child(3) {
+  border-color: #7f1d1d;
+  background: #35181b;
+  color: #fecaca;
+}
+
+html[data-theme="dark"] .action-button.action-select {
+  border-color: #334155;
+  background: #172033;
+  color: #bfdbfe;
+}
+
+html[data-theme="dark"] .action-button.action-clear {
+  border-color: #4b5563;
+  background: #20242c;
+  color: #e5e7eb;
+}

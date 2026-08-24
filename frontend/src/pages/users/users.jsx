@@ -606,7 +606,7 @@ function Users({ currentUser, onLogout }) {
             <h1>Users</h1>
             <p>Manage platform users and permissions</p>
           </div>
-          <button className="primary-button compact" type="button" onClick={() => openModal('create')}>
+          <button className="primary-button compact action-button action-create" type="button" onClick={() => openModal('create')}>
             <Icon name="plus" />
             Create User
           </button>
@@ -762,7 +762,7 @@ function Users({ currentUser, onLogout }) {
           ) : (
             <div className="empty-state">
               <h2>No users found</h2>
-              <button className="primary-button compact" type="button" onClick={() => openModal('create')}>
+              <button className="primary-button compact action-button action-create" type="button" onClick={() => openModal('create')}>
                 Create User
               </button>
             </div>

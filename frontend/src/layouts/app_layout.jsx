@@ -186,6 +186,7 @@ function AppLayout({ activePage, children, currentUser, onLogout }) {
   const [unreadCount, setUnreadCount] = useState(0)
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'light')
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
   const userRole = normalizeRole(currentUser?.role)
   const visibleItems = NAV_ITEMS.filter((item) => item.roles.includes(userRole))
   const displayName = currentUser?.full_name || currentUser?.fullName || currentUser?.email || 'User'
@@ -289,13 +290,22 @@ function AppLayout({ activePage, children, currentUser, onLogout }) {
   }
 
   return (
-    <div className={`app-shell ${isSidebarOpen ? 'sidebar-is-open' : ''}`}>
+    <div className={`app-shell ${isSidebarOpen ? 'sidebar-is-open' : ''} ${isSidebarCollapsed ? 'sidebar-is-collapsed' : ''}`}>
       <button
         className="sidebar-backdrop"
         type="button"
         aria-label="Close navigation"
         onClick={() => setIsSidebarOpen(false)}
       />
+      <button
+        className="sidebar-collapse-toggle"
+        type="button"
+        aria-label={isSidebarCollapsed ? 'Open sidebar' : 'Collapse sidebar'}
+        aria-expanded={!isSidebarCollapsed}
+        onClick={() => setIsSidebarCollapsed((current) => !current)}
+      >
+        {isSidebarCollapsed ? '>>' : '<<'}
+      </button>
       <aside className="sidebar" aria-label="Application navigation">
         <div className="sidebar-brand">
           <span>AM</span>

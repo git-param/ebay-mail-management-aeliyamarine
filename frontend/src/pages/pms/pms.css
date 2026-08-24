@@ -2399,3 +2399,443 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+/* PMS premium operations polish */
+
+.pmsModule-page {
+  background:
+    radial-gradient(circle at 18% 0%, rgba(109, 93, 252, 0.1), transparent 30%),
+    radial-gradient(circle at 98% 4%, rgba(18, 182, 203, 0.08), transparent 26%),
+    transparent;
+}
+
+.pmsModule-header {
+  border-color: var(--aces-border, rgba(203, 213, 225, 0.82));
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.94), rgba(248, 250, 252, 0.86)),
+    radial-gradient(circle at 82% 20%, rgba(109, 93, 252, 0.12), transparent 34%);
+  box-shadow: var(--aces-shadow-card, 0 16px 44px rgba(15, 23, 42, 0.08));
+}
+
+.pmsModule-header h1 {
+  font-size: clamp(34px, 4vw, 48px);
+}
+
+.pmsModule-header-art {
+  opacity: 0.62;
+  filter: saturate(0.82);
+}
+
+.pmsModule-header-stats span,
+.pmsModule-header-controls,
+.pmsModule-tabs,
+.pms-history-card,
+.pms-entry-card,
+.pmsModule-config-card,
+.pmsModule-eom-card,
+.pmsModule-summary-card {
+  border-color: var(--aces-border, rgba(203, 213, 225, 0.82));
+}
+
+.pmsModule-header-controls,
+.pmsModule-tabs {
+  background: color-mix(in srgb, var(--aces-surface, #ffffff) 82%, transparent);
+  backdrop-filter: blur(16px);
+}
+
+.pmsModule-month-select,
+.pmsModule-search-input,
+.pmsModule-page .field input,
+.pmsModule-page .field select,
+.pmsModule-page .field textarea,
+.pmsModule-config-weight-input {
+  border-color: var(--aces-border, rgba(203, 213, 225, 0.82));
+  background: var(--aces-surface, #ffffff);
+  color: var(--aces-text, #111827);
+}
+
+.pmsModule-month-select:focus,
+.pmsModule-search-input:focus,
+.pmsModule-page .field input:focus,
+.pmsModule-page .field select:focus,
+.pmsModule-page .field textarea:focus,
+.pmsModule-config-weight-input:focus {
+  border-color: rgba(109, 93, 252, 0.68);
+  box-shadow: 0 0 0 4px rgba(109, 93, 252, 0.13);
+}
+
+.pmsModule-tabs button.active {
+  background: linear-gradient(135deg, rgba(109, 93, 252, 0.13), rgba(18, 182, 203, 0.08)), var(--aces-surface, #ffffff);
+  color: var(--aces-primary, #6657e8);
+}
+
+.pms-history-card,
+.pms-entry-card,
+.pmsModule-config-card,
+.pmsModule-eom-card,
+.pmsModule-summary-card {
+  background: var(--aces-surface, #ffffff);
+  box-shadow: var(--aces-shadow-card, 0 16px 44px rgba(15, 23, 42, 0.08));
+}
+
+.pmsModule-summary-card {
+  isolation: isolate;
+}
+
+.pmsModule-summary-card::after {
+  content: "";
+  position: absolute;
+  right: -22px;
+  bottom: -30px;
+  width: 86px;
+  height: 86px;
+  border-radius: 50%;
+  background: rgba(109, 93, 252, 0.08);
+  z-index: -1;
+}
+
+.pmsModule-page .users-table thead th {
+  background: var(--aces-surface-soft, #f8fafc);
+  color: var(--aces-muted, #667085);
+}
+
+.pmsModule-page .users-table tbody tr:hover {
+  background: rgba(109, 93, 252, 0.055);
+}
+
+.pmsModule-badge,
+.pmsModule-rank-badge,
+.pmsModule-score-pill {
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
+}
+
+.pmsModule-eom-stat-card,
+.pmsModule-eom-win-list {
+  border-color: var(--aces-border, rgba(203, 213, 225, 0.82));
+  background: var(--aces-surface, #ffffff);
+}
+
+.pmsModule-eom-stat-card:hover,
+.pmsModule-eom-stat-card.active {
+  transform: translateY(-1px);
+  border-color: rgba(109, 93, 252, 0.34);
+  box-shadow: 0 14px 28px rgba(109, 93, 252, 0.12);
+}
+
+html[data-theme="dark"] .pmsModule-page {
+  background:
+    radial-gradient(circle at 20% -2%, rgba(109, 93, 252, 0.14), transparent 32%),
+    radial-gradient(circle at 100% 4%, rgba(18, 182, 203, 0.08), transparent 26%),
+    transparent;
+}
+
+html[data-theme="dark"] .pmsModule-header {
+  border-color: rgba(78, 91, 113, 0.72);
+  background:
+    linear-gradient(135deg, rgba(27, 35, 48, 0.94), rgba(14, 20, 30, 0.92)),
+    radial-gradient(circle at 82% 20%, rgba(109, 93, 252, 0.14), transparent 34%);
+  box-shadow: 0 22px 58px rgba(0, 0, 0, 0.34);
+}
+
+html[data-theme="dark"] .pmsModule-header h1,
+html[data-theme="dark"] .pmsModule-summary-card strong,
+html[data-theme="dark"] .pmsModule-page .users-table td strong,
+html[data-theme="dark"] .pmsModule-table-score strong,
+html[data-theme="dark"] .pmsModule-eom-win-row strong {
+  color: #f5f7fb;
+}
+
+html[data-theme="dark"] .pmsModule-header p,
+html[data-theme="dark"] .pmsModule-summary-card small,
+html[data-theme="dark"] .pmsModule-summary-card span,
+html[data-theme="dark"] .pmsModule-eom-stat-card small,
+html[data-theme="dark"] .pmsModule-eom-win-list-header span,
+html[data-theme="dark"] .pmsModule-eom-win-row span {
+  color: #aab4c3;
+}
+
+html[data-theme="dark"] .pmsModule-header-stats span,
+html[data-theme="dark"] .pmsModule-header-controls,
+html[data-theme="dark"] .pmsModule-tabs,
+html[data-theme="dark"] .pms-history-card,
+html[data-theme="dark"] .pms-entry-card,
+html[data-theme="dark"] .pmsModule-config-card,
+html[data-theme="dark"] .pmsModule-eom-card,
+html[data-theme="dark"] .pmsModule-summary-card,
+html[data-theme="dark"] .pmsModule-eom-stat-card,
+html[data-theme="dark"] .pmsModule-eom-win-list,
+html[data-theme="dark"] .pmsModule-page .modal-panel {
+  border-color: rgba(78, 91, 113, 0.72);
+  background: #141a24;
+  color: #f5f7fb;
+}
+
+html[data-theme="dark"] .pmsModule-month-select,
+html[data-theme="dark"] .pmsModule-search-input,
+html[data-theme="dark"] .pmsModule-page .field input,
+html[data-theme="dark"] .pmsModule-page .field select,
+html[data-theme="dark"] .pmsModule-page .field textarea,
+html[data-theme="dark"] .pmsModule-config-weight-input {
+  border-color: rgba(78, 91, 113, 0.72);
+  background: #0f141d;
+  color: #f5f7fb;
+}
+
+html[data-theme="dark"] .pmsModule-tabs button.active,
+html[data-theme="dark"] .pmsModule-eom-stat-card:hover,
+html[data-theme="dark"] .pmsModule-eom-stat-card.active {
+  background: rgba(109, 93, 252, 0.14);
+  color: #b5aaff;
+}
+
+html[data-theme="dark"] .pmsModule-page .users-table thead th,
+html[data-theme="dark"] .pmsModule-eom-win-list-header {
+  background: #1b2330;
+  color: #aab4c3;
+}
+
+html[data-theme="dark"] .pmsModule-page .users-table tbody td {
+  color: #dbe3ef;
+}
+
+/* Final PMS dark theme correction: charcoal + white contrast */
+
+html[data-theme="dark"] .pmsModule-page {
+  background: #0a0c10 !important;
+  color: #f7f8fb;
+}
+
+html[data-theme="dark"] .pmsModule-header,
+html[data-theme="dark"] .pmsModule-overview-panel,
+html[data-theme="dark"] .pmsModule-winner-spotlight,
+html[data-theme="dark"] .pmsModule-dashboard-panel,
+html[data-theme="dark"] .pms-history-card,
+html[data-theme="dark"] .pms-entry-card,
+html[data-theme="dark"] .pmsModule-config-card,
+html[data-theme="dark"] .pmsModule-eom-card,
+html[data-theme="dark"] .pmsModule-summary-card,
+html[data-theme="dark"] .pmsModule-eom-stat-card,
+html[data-theme="dark"] .pmsModule-eom-win-list,
+html[data-theme="dark"] .pmsModule-page .modal-panel,
+html[data-theme="dark"] .pmsModule-page .user-drawer {
+  border-color: #3b424d !important;
+  background:
+    linear-gradient(180deg, #181c22 0%, #13161c 100%) !important;
+  color: #f7f8fb !important;
+  box-shadow: 0 22px 56px rgba(0, 0, 0, 0.36) !important;
+}
+
+html[data-theme="dark"] .pmsModule-header::before,
+html[data-theme="dark"] .pmsModule-summary-card::after,
+html[data-theme="dark"] .pmsModule-glass-plane,
+html[data-theme="dark"] .pmsModule-orbit-ring,
+html[data-theme="dark"] .pmsModule-performance-core {
+  opacity: 0.12 !important;
+  filter: grayscale(1) saturate(0.2) !important;
+}
+
+html[data-theme="dark"] .pmsModule-header-controls,
+html[data-theme="dark"] .pmsModule-tabs,
+html[data-theme="dark"] .pmsModule-header-stats span,
+html[data-theme="dark"] .pmsModule-insight-chip,
+html[data-theme="dark"] .pmsModule-eom-win-list-header,
+html[data-theme="dark"] .pmsModule-page .users-table thead th,
+html[data-theme="dark"] .pmsModule-page .users-table tfoot td {
+  border-color: #3b424d !important;
+  background: #20242c !important;
+  color: #c8ced8 !important;
+}
+
+html[data-theme="dark"] .pmsModule-page .users-table,
+html[data-theme="dark"] .pmsModule-page .table-scroll,
+html[data-theme="dark"] .pmsModule-monthly-table,
+html[data-theme="dark"] .pmsModule-editor-metrics,
+html[data-theme="dark"] .pmsModule-editor-metric-row,
+html[data-theme="dark"] .pmsModule-metric-card,
+html[data-theme="dark"] .pmsModule-eom-win-row,
+html[data-theme="dark"] .pmsModule-agent-record,
+html[data-theme="dark"] .pmsModule-section-heading {
+  border-color: #343b46 !important;
+  background: #15181d !important;
+  color: #f7f8fb !important;
+}
+
+html[data-theme="dark"] .pmsModule-page .users-table tbody tr,
+html[data-theme="dark"] .pmsModule-eom-win-row {
+  border-color: #343b46 !important;
+  background: #15181d !important;
+}
+
+html[data-theme="dark"] .pmsModule-page .users-table tbody tr:hover,
+html[data-theme="dark"] .pmsModule-eom-stat-card:hover,
+html[data-theme="dark"] .pmsModule-eom-stat-card.active {
+  background: #242932 !important;
+}
+
+html[data-theme="dark"] .pmsModule-page :is(h1, h2, h3, h4, strong, label),
+html[data-theme="dark"] .pmsModule-header h1,
+html[data-theme="dark"] .pmsModule-summary-card strong,
+html[data-theme="dark"] .pmsModule-table-score strong,
+html[data-theme="dark"] .pmsModule-page .users-table td strong,
+html[data-theme="dark"] .pmsModule-eom-win-row strong,
+html[data-theme="dark"] .pmsModule-employee-cell strong,
+html[data-theme="dark"] .pmsModule-editor-final-row strong {
+  color: #ffffff !important;
+}
+
+html[data-theme="dark"] .pmsModule-page :is(p, small, span),
+html[data-theme="dark"] .pmsModule-header p,
+html[data-theme="dark"] .pmsModule-summary-card small,
+html[data-theme="dark"] .pmsModule-summary-card span,
+html[data-theme="dark"] .pmsModule-eom-stat-card small,
+html[data-theme="dark"] .pmsModule-eom-win-list-header span,
+html[data-theme="dark"] .pmsModule-eom-win-row span,
+html[data-theme="dark"] .pmsModule-table-subtext,
+html[data-theme="dark"] .pmsModule-remarks-readout {
+  color: #b4bac4 !important;
+}
+
+html[data-theme="dark"] .pmsModule-month-select,
+html[data-theme="dark"] .pmsModule-search-input,
+html[data-theme="dark"] .pmsModule-page .field input,
+html[data-theme="dark"] .pmsModule-page .field select,
+html[data-theme="dark"] .pmsModule-page .field textarea,
+html[data-theme="dark"] .pmsModule-config-weight-input,
+html[data-theme="dark"] .pmsModule-target-form input {
+  border-color: #4b5563 !important;
+  background: #0f1217 !important;
+  color: #f7f8fb !important;
+}
+
+html[data-theme="dark"] .pmsModule-page .primary-button,
+html[data-theme="dark"] .pmsModule-target-form button,
+html[data-theme="dark"] .pmsModule-page .secondary-button:hover:not(:disabled),
+html[data-theme="dark"] .pmsModule-tabs button.active {
+  border-color: #6b7280 !important;
+  background: linear-gradient(135deg, #4b5563, #2f3540) !important;
+  color: #ffffff !important;
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.28) !important;
+}
+
+html[data-theme="dark"] .pmsModule-page .secondary-button,
+html[data-theme="dark"] .pmsModule-tabs button,
+html[data-theme="dark"] .pmsModule-page .compact-action,
+html[data-theme="dark"] .pmsModule-page .icon-button {
+  border-color: #3b424d !important;
+  background: #15181d !important;
+  color: #f7f8fb !important;
+}
+
+html[data-theme="dark"] .pmsModule-progress-track,
+html[data-theme="dark"] .pmsModule-score-track,
+html[data-theme="dark"] .pmsModule-page progress,
+html[data-theme="dark"] .pmsModule-summary-card .pmsModule-progress {
+  background: #343b46 !important;
+}
+
+html[data-theme="dark"] .pmsModule-progress-fill,
+html[data-theme="dark"] .pmsModule-score-fill,
+html[data-theme="dark"] .pmsModule-page progress::-webkit-progress-value {
+  background: linear-gradient(90deg, #ffffff, #9ca3af) !important;
+}
+
+html[data-theme="dark"] .pmsModule-rank-badge,
+html[data-theme="dark"] .pmsModule-avatar,
+html[data-theme="dark"] .pmsModule-avatar-small {
+  background: linear-gradient(135deg, #4b5563, #111827) !important;
+  color: #ffffff !important;
+}
+
+html[data-theme="dark"] .pmsModule-badge,
+html[data-theme="dark"] .pmsModule-score-pill,
+html[data-theme="dark"] .pmsModule-eom-stat-card b {
+  border-color: #4b5563 !important;
+  background: #242932 !important;
+  color: #f7f8fb !important;
+}
+
+html[data-theme="dark"] .pmsModule-skeleton-panel {
+  background:
+    linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.08), transparent),
+    #1f232a !important;
+}
+
+/* Final PMS contrast pass */
+
+html[data-theme="dark"] .pmsModule-eom-breakdown > div,
+html[data-theme="dark"] .pmsModule-editor-drawer .modal-header,
+html[data-theme="dark"] .pmsModule-editor-drawer .modal-actions,
+html[data-theme="dark"] .pmsModule-editor-drawer > .pmsModule-editor-metrics,
+html[data-theme="dark"] .pmsModule-editor-drawer > .pmsModule-editor-final-row,
+html[data-theme="dark"] .pmsModule-editor-drawer .field,
+html[data-theme="dark"] .pmsModule-target-achievement-field,
+html[data-theme="dark"] .pmsModule-target-achievement-field input,
+html[data-theme="dark"] .pmsModule-leaderboard-controls,
+html[data-theme="dark"] .pmsModule-leaderboard {
+  border-color: #3b424d !important;
+  background: #15181d !important;
+  color: #f7f8fb !important;
+}
+
+html[data-theme="dark"] .pmsModule-eom-breakdown span,
+html[data-theme="dark"] .pmsModule-editor-metric-label small,
+html[data-theme="dark"] .pmsModule-auto-value,
+html[data-theme="dark"] .pmsModule-score-max,
+html[data-theme="dark"] .pmsModule-target-achievement-field label,
+html[data-theme="dark"] .pmsModule-target-achievement-field strong {
+  color: #cbd5e1 !important;
+}
+
+html[data-theme="dark"] .pmsModule-editor-metric-title strong,
+html[data-theme="dark"] .pmsModule-editor-metric-label > strong,
+html[data-theme="dark"] .pmsModule-editor-drawer .modal-header h2,
+html[data-theme="dark"] .pmsModule-section-heading h2,
+html[data-theme="dark"] .pmsModule-eom-copy h3,
+html[data-theme="dark"] .pmsModule-eom-name,
+html[data-theme="dark"] .pmsModule-eom-score strong {
+  color: #ffffff !important;
+}
+
+html[data-theme="dark"] .pmsModule-editor-metric-score input,
+html[data-theme="dark"] .pmsModule-target-achievement-field input,
+html[data-theme="dark"] .pmsModule-editor-drawer textarea {
+  border-color: #4b5563 !important;
+  background: #20242c !important;
+  color: #f7f8fb !important;
+}
+
+html[data-theme="dark"] .pmsModule-editor-final-row {
+  background: linear-gradient(135deg, #251b3d, #172033) !important;
+  color: #ffffff !important;
+}
+
+html[data-theme="dark"] .pmsModule-page .action-button.action-edit {
+  border-color: #7c4a18 !important;
+  background: #2d2117 !important;
+  color: #fdba74 !important;
+}
+
+html[data-theme="dark"] .pmsModule-page .action-button.action-load,
+html[data-theme="dark"] .pmsModule-page .action-button.action-refresh {
+  border-color: #1d4ed8 !important;
+  background: linear-gradient(135deg, #3b82f6, #2563eb) !important;
+  color: #ffffff !important;
+}
+
+html[data-theme="dark"] .pmsModule-page .action-button.action-save {
+  border-color: #64748b !important;
+  background: linear-gradient(135deg, #64748b, #475569) !important;
+  color: #ffffff !important;
+}
+
+html[data-theme="dark"] .pmsModule-page .action-button.action-upload {
+  border-color: #16a34a !important;
+  background: linear-gradient(135deg, #22c55e, #15803d) !important;
+  color: #04130a !important;
+}
+
+html[data-theme="dark"] .pmsModule-page .secondary-button-compact-action.action-button.action-upload {
+  border-color: #16a34a !important;
+  background: linear-gradient(135deg, #22c55e, #15803d) !important;
+  color: #04130a !important;
+}

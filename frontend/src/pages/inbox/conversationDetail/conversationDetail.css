@@ -33,6 +33,10 @@
   gap: 8px;
 }
 
+.inbox-page .list-pane-toggle {
+  min-width: 82px;
+}
+
 .inbox-page .thread-panel {
   min-width: 0;
   min-height: 0;
@@ -737,4 +741,256 @@ html[data-theme='dark'] .inbox-page .note-form textarea {
   .inbox-page .metadata-list > div {
     grid-template-columns: 100px minmax(0, 1fr);
   }
+}
+
+/* Conversation workspace charcoal/white polish */
+
+.inbox-page .conversation-detail {
+  background: #f5f6f8;
+}
+
+.inbox-page .detail-header,
+.inbox-page .product-context-banner,
+.inbox-page .side-detail-panel,
+.inbox-page .detail-section {
+  border-color: var(--inbox-border);
+  background: #ffffff;
+}
+
+.inbox-page .thread-panel {
+  background:
+    radial-gradient(circle at 14% 0%, rgba(148, 163, 184, 0.16), transparent 30%),
+    linear-gradient(180deg, #f7f8fa 0%, #eef1f5 100%);
+}
+
+.inbox-page .product-context-thumb {
+  border-color: var(--inbox-border);
+  border-radius: 12px;
+  background: #f5f6f8;
+  color: #64748b;
+}
+
+.inbox-page .product-context-body > strong,
+.inbox-page .product-context-body > a,
+.inbox-page .section-heading h3,
+.inbox-page .metadata-list dd,
+.inbox-page .history-item strong,
+.inbox-page .note-item p,
+.inbox-page .offer-chat-amount {
+  color: var(--inbox-text);
+}
+
+.inbox-page .product-context-identifiers,
+.inbox-page .metadata-list dt,
+.inbox-page .detail-muted,
+.inbox-page .history-item span,
+.inbox-page .history-item small,
+.inbox-page .note-item span {
+  color: var(--inbox-muted);
+}
+
+.inbox-page .message-bubble {
+  border-color: rgba(203, 213, 225, 0.84);
+  border-radius: 14px;
+  box-shadow: 0 10px 26px rgba(17, 24, 39, 0.07);
+}
+
+.inbox-page .message-bubble.inbound,
+.inbox-page .message-bubble.system,
+.inbox-page .offer-buyer-message-bubble,
+.inbox-page .offer-chat-card-incoming {
+  background: #ffffff;
+  color: #172033;
+}
+
+.inbox-page .message-bubble.outbound,
+.inbox-page .offer-chat-card-outgoing,
+.inbox-page .offer-seller-message-bubble {
+  border-color: rgba(103, 94, 232, 0.24);
+  background: #f0efff;
+  color: #27215f;
+}
+
+.inbox-page .message-bubble.system {
+  background: #f7f8fb;
+}
+
+.inbox-page .message-meta,
+.inbox-page .message-status,
+.inbox-page .offer-chat-label,
+.inbox-page .offer-chat-status,
+.inbox-page .offer-chat-time {
+  color: #6b7280;
+}
+
+.inbox-page .attachment-card,
+.inbox-page .history-item,
+.inbox-page .note-item,
+.inbox-page .offer-chat-card {
+  border-color: rgba(203, 213, 225, 0.84);
+  border-radius: 12px;
+  background: #ffffff;
+}
+
+.inbox-page .attachment-preview {
+  background: #f4f6f9;
+}
+
+.inbox-page .assignment-form select,
+.inbox-page .note-form textarea,
+.inbox-page .compact-field select {
+  border-color: var(--inbox-border);
+  border-radius: 12px;
+  background: #ffffff;
+  color: var(--inbox-text);
+}
+
+.inbox-page .assignment-form select:focus,
+.inbox-page .note-form textarea:focus,
+.inbox-page .compact-field select:focus {
+  border-color: rgba(103, 94, 232, 0.68);
+  box-shadow: 0 0 0 4px rgba(103, 94, 232, 0.12);
+}
+
+.inbox-page .metadata-list > div {
+  border-bottom-color: rgba(226, 232, 240, 0.88);
+}
+
+html[data-theme='dark'] .inbox-page .conversation-detail,
+html[data-theme='dark'] .inbox-page .thread-panel {
+  background:
+    radial-gradient(circle at 14% 0%, rgba(255, 255, 255, 0.04), transparent 30%),
+    linear-gradient(180deg, #101318 0%, #0b0e13 100%);
+}
+
+html[data-theme='dark'] .inbox-page .detail-header,
+html[data-theme='dark'] .inbox-page .product-context-banner,
+html[data-theme='dark'] .inbox-page .side-detail-panel,
+html[data-theme='dark'] .inbox-page .detail-section {
+  border-color: var(--inbox-border);
+  background: var(--inbox-surface);
+}
+
+html[data-theme='dark'] .inbox-page .message-bubble.inbound,
+html[data-theme='dark'] .inbox-page .message-bubble.system,
+html[data-theme='dark'] .inbox-page .attachment-card,
+html[data-theme='dark'] .inbox-page .offer-buyer-message-bubble,
+html[data-theme='dark'] .inbox-page .offer-chat-card-incoming,
+html[data-theme='dark'] .inbox-page .history-item,
+html[data-theme='dark'] .inbox-page .note-item {
+  border-color: var(--inbox-border);
+  background: #20242c;
+  color: #edf1f7;
+}
+
+html[data-theme='dark'] .inbox-page .message-bubble.outbound,
+html[data-theme='dark'] .inbox-page .offer-chat-card-outgoing,
+html[data-theme='dark'] .inbox-page .offer-seller-message-bubble {
+  border-color: rgba(255, 255, 255, 0.16);
+  background: #2a2f38;
+  color: #f5f7fb;
+}
+
+html[data-theme='dark'] .inbox-page .product-context-thumb,
+html[data-theme='dark'] .inbox-page .attachment-preview {
+  border-color: var(--inbox-border);
+  background: #111821;
+}
+
+html[data-theme='dark'] .inbox-page .assignment-form select,
+html[data-theme='dark'] .inbox-page .note-form textarea,
+html[data-theme='dark'] .inbox-page .compact-field select {
+  border-color: var(--inbox-border);
+  background: #0f141d;
+  color: #f5f7fb;
+}
+
+html[data-theme='dark'] .inbox-page .message-meta,
+html[data-theme='dark'] .inbox-page .message-status,
+html[data-theme='dark'] .inbox-page .product-context-identifiers,
+html[data-theme='dark'] .inbox-page .metadata-list dt,
+html[data-theme='dark'] .inbox-page .detail-muted {
+  color: #aab4c3;
+}
+
+/* Final message/offer contrast corrections */
+
+.inbox-page .offer-chat-card-accepted,
+.inbox-page .offer-chat-card-accepted.offer-chat-card-incoming,
+.inbox-page .offer-chat-card-accepted.offer-chat-card-outgoing {
+  border-color: #86efac !important;
+  background: #ecfdf3 !important;
+  color: #14532d !important;
+}
+
+.inbox-page .offer-chat-card-accepted .offer-chat-label,
+.inbox-page .offer-chat-card-accepted .offer-chat-amount,
+.inbox-page .offer-chat-card-accepted .offer-chat-status {
+  color: #14532d !important;
+}
+
+.inbox-page .offer-avatar-accepted {
+  background: #bbf7d0 !important;
+  color: #14532d !important;
+}
+
+.inbox-page .offer-avatar-accepted .offer-check-mark {
+  border-color: #15803d !important;
+}
+
+html[data-theme='dark'] .inbox-page .message-bubble.inbound,
+html[data-theme='dark'] .inbox-page .offer-buyer-message-bubble,
+html[data-theme='dark'] .inbox-page .offer-chat-card-incoming:not(.offer-chat-card-accepted) {
+  border-color: #3b424d !important;
+  background: #1b1f26 !important;
+  color: #f7f8fb !important;
+}
+
+html[data-theme='dark'] .inbox-page .message-bubble.outbound,
+html[data-theme='dark'] .inbox-page .offer-seller-message-bubble,
+html[data-theme='dark'] .inbox-page .offer-chat-card-outgoing:not(.offer-chat-card-accepted) {
+  border-color: #536173 !important;
+  background: #2d3542 !important;
+  color: #ffffff !important;
+}
+
+html[data-theme='dark'] .inbox-page .message-bubble.outbound .message-meta,
+html[data-theme='dark'] .inbox-page .message-bubble.outbound .message-status,
+html[data-theme='dark'] .inbox-page .offer-seller-message-bubble,
+html[data-theme='dark'] .inbox-page .offer-chat-card-outgoing .offer-chat-label,
+html[data-theme='dark'] .inbox-page .offer-chat-card-outgoing .offer-chat-status,
+html[data-theme='dark'] .inbox-page .offer-chat-card-outgoing .offer-chat-time {
+  color: #dbe3ef !important;
+}
+
+html[data-theme='dark'] .inbox-page .offer-chat-card-accepted,
+html[data-theme='dark'] .inbox-page .offer-chat-card-accepted.offer-chat-card-incoming,
+html[data-theme='dark'] .inbox-page .offer-chat-card-accepted.offer-chat-card-outgoing {
+  border-color: #22c55e !important;
+  background: #12351f !important;
+  color: #dcfce7 !important;
+}
+
+html[data-theme='dark'] .inbox-page .offer-chat-card-accepted .offer-chat-label,
+html[data-theme='dark'] .inbox-page .offer-chat-card-accepted .offer-chat-amount,
+html[data-theme='dark'] .inbox-page .offer-chat-card-accepted .offer-chat-status {
+  color: #dcfce7 !important;
+}
+
+html[data-theme='dark'] .inbox-page .offer-avatar-accepted {
+  background: #166534 !important;
+  color: #dcfce7 !important;
+}
+
+html[data-theme='dark'] .inbox-page .offer-avatar-accepted .offer-check-mark {
+  border-color: #dcfce7 !important;
+}
+
+html[data-theme='dark'] .inbox-page .thread-back-button {
+  color: #d7dce5;
+}
+
+html[data-theme='dark'] .inbox-page .thread-back-button:hover,
+html[data-theme='dark'] .inbox-page .thread-back-button:focus-visible {
+  color: #ffffff;
 }

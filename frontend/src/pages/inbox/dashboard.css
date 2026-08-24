@@ -72,6 +72,18 @@
     minmax(280px, var(--inbox-details-width, 340px));
 }
 
+.inbox-page.conversation-open.list-pane-hidden {
+  grid-template-columns:
+    minmax(420px, 1fr);
+}
+
+.inbox-page.conversation-open.details-open.list-pane-hidden {
+  grid-template-columns:
+    minmax(420px, 1fr)
+    8px
+    minmax(280px, var(--inbox-details-width, 340px));
+}
+
 .inbox-list-panel,
 .inbox-detail-panel,
 .side-detail-panel {
@@ -98,6 +110,14 @@
 .conversation-open .inbox-list-panel {
   height: 100%;
   border-radius: 14px 0 0 14px;
+}
+
+.list-pane-hidden .inbox-detail-panel {
+  border-radius: 14px 0 0 14px;
+}
+
+.list-pane-hidden.details-collapsed .inbox-detail-panel {
+  border-radius: 14px;
 }
 
 .inbox-detail-panel {
@@ -344,4 +364,61 @@ html[data-theme='dark']
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
   }
+}
+
+/* Inbox charcoal/white redesign layer */
+
+.inbox-page {
+  --inbox-border: rgba(203, 213, 225, 0.82);
+  --inbox-surface: #ffffff;
+  --inbox-surface-soft: #f6f7fa;
+  --inbox-text: #111827;
+  --inbox-muted: #667085;
+  --inbox-primary: #675ee8;
+  --inbox-shadow: 0 20px 54px rgba(17, 24, 39, 0.1);
+  background:
+    radial-gradient(circle at 18% -6%, rgba(148, 163, 184, 0.2), transparent 32%),
+    radial-gradient(circle at 96% 6%, rgba(124, 108, 253, 0.11), transparent 26%),
+    linear-gradient(180deg, #f3f5f8 0%, #e9edf3 100%);
+}
+
+.inbox-list-panel,
+.inbox-detail-panel,
+.side-detail-panel {
+  border-color: var(--inbox-border);
+  background: var(--inbox-surface);
+  box-shadow: var(--inbox-shadow);
+}
+
+.list-only .inbox-list-panel {
+  box-shadow: 0 24px 70px rgba(17, 24, 39, 0.12);
+}
+
+.resize-handle::before {
+  background: #aeb7c5;
+}
+
+.resize-handle:hover::before,
+.resize-handle:focus-visible::before {
+  background: var(--inbox-primary);
+}
+
+.thread-back-button {
+  color: #334155;
+}
+
+.thread-back-button:hover {
+  color: var(--inbox-primary);
+}
+
+html[data-theme='dark'] .inbox-page {
+  --inbox-border: rgba(78, 91, 113, 0.74);
+  --inbox-surface: #151a22;
+  --inbox-surface-soft: #1d232d;
+  --inbox-text: #f5f7fb;
+  --inbox-muted: #aab4c3;
+  --inbox-shadow: 0 24px 66px rgba(0, 0, 0, 0.34);
+  background:
+    radial-gradient(circle at 18% -6%, rgba(255, 255, 255, 0.055), transparent 32%),
+    linear-gradient(180deg, #0d1015 0%, #080b10 100%);
 }

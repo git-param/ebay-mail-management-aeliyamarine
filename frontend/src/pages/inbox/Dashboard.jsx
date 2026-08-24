@@ -59,6 +59,9 @@ const EMPTY_FILTERS = {
   sla_due_within_hours: '',
 }
 
+const LIST_PANE_OPEN_KEY =
+  'inbox.listPaneOpen'
+
 function Dashboard({
   currentUser,
   onLogout,
@@ -144,6 +147,16 @@ function Dashboard({
   ] = useState(true)
 
   const [
+    isListPaneOpen,
+    setIsListPaneOpen,
+  ] = useState(
+    () =>
+      localStorage.getItem(
+        LIST_PANE_OPEN_KEY,
+      ) !== 'false',
+  )
+
+  const [
     isFiltersOpen,
     setIsFiltersOpen,
   ] = useState(false)
@@ -190,19 +203,64 @@ function Dashboard({
     Math.ceil(total / pageSize),
   )
 
+  const categoryById = useMemo(
+    () =>
+      new Map(
+        categories.map((category) => [
+          category.id,
+          category,
+        ]),
+      ),
+    [categories],
+  )
+
+  const conversationsWithCategoryColors =
+    useMemo(
+      () =>
+        conversations.map((conversation) => {
+          const categoryId =
+            conversation.category?.id ||
+            conversation.category_id
+          const category =
+            categoryId
+              ? categoryById.get(categoryId)
+              : null
+
+          if (
+            !category ||
+            conversation.category?.color
+          ) {
+            return conversation
+          }
+
+          return {
+            ...conversation,
+            category: {
+              ...(conversation.category || {}),
+              id: category.id,
+              name:
+                conversation.category?.name ||
+                category.name,
+              color: category.color,
+            },
+          }
+        }),
+      [categoryById, conversations],
+    )
+
   const hasSelectedConversation =
     Boolean(selectedConversationId)
 
   const selectedConversation =
     useMemo(
       () =>
-        conversations.find(
+        conversationsWithCategoryColors.find(
           (conversation) =>
             conversation.id ===
             selectedConversationId,
         ),
       [
-        conversations,
+        conversationsWithCategoryColors,
         selectedConversationId,
       ],
     )
@@ -243,8 +301,13 @@ function Dashboard({
     hasSelectedConversation
       ? {
           gridTemplateColumns:
-            isDetailsOpen &&
-            visibleConversation
+            !isListPaneOpen
+              ? isDetailsOpen &&
+                visibleConversation
+                ? `minmax(0, 1fr) 8px ${detailsWidth}px`
+                : 'minmax(0, 1fr)'
+              : isDetailsOpen &&
+                visibleConversation
               ? `${listWidth}px 8px minmax(0, 1fr) 8px ${detailsWidth}px`
               : `${listWidth}px 8px minmax(0, 1fr)`,
         }
@@ -536,15 +599,31 @@ function Dashboard({
     )
   }, [detailsWidth])
 
+  useEffect(() => {
+    localStorage.setItem(
+      LIST_PANE_OPEN_KEY,
+      String(isListPaneOpen),
+    )
+  }, [isListPaneOpen])
+
   function beginListResize(event) {
     event.preventDefault()
+    const workspaceLeft =
+      event.currentTarget
+        .closest('.inbox-page')
+        ?.getBoundingClientRect()
+        .left || 0
 
     function move(mouseEvent) {
       setListWidth(
         clamp(
-          mouseEvent.clientX - 272,
-          280,
-          560,
+          mouseEvent.clientX -
+            workspaceLeft,
+          320,
+          Math.min(
+            620,
+            window.innerWidth * 0.42,
+          ),
         ),
       )
     }
@@ -990,6 +1069,11 @@ function Dashboard({
     visibleConversation
       ? 'details-open'
       : 'details-collapsed',
+
+    !isListPaneOpen &&
+    hasSelectedConversation
+      ? 'list-pane-hidden'
+      : '',
   ]
     .filter(Boolean)
     .join(' ')
@@ -1005,86 +1089,89 @@ function Dashboard({
         style={workspaceStyle}
         data-mobile-pane={mobilePane}
       >
-        <ConversationList
-          conversations={conversations}
-          total={total}
-          page={page}
-          pageCount={pageCount}
-          pageSize={pageSize}
-          selectedConversationId={
-            selectedConversationId
-          }
-          selectedConversationIds={
-            bulkSelectedIds
-          }
-          selectedBulkUserId={
-            bulkAssignedUserId
-          }
-          users={
-            canManageAssignments
-              ? users
-              : []
-          }
-          usersError={
-            canManageAssignments
-              ? usersError
-              : ''
-          }
-          bulkAssignError={
-            actionError
-          }
-          isLoading={
-            isListLoading
-          }
-          isBulkAssigning={
-            isSubmitting
-          }
-          search={filters.search}
-          activeFilterCount={
-            activeFilterCount
-          }
-          nearDueActive={
-            Number(
-              filters.sla_due_within_hours,
-            ) === 2
-          }
-          onSearch={(searchValue) =>
-            changeFilter(
-              'search',
-              searchValue.trim(),
-            )
-          }
-          onToggleNearDue={
-            toggleNearDueSla
-          }
-          onRefresh={
-            loadConversations
-          }
-          onOpenFilters={() =>
-            setIsFiltersOpen(true)
-          }
-          onSelectConversation={
-            selectConversation
-          }
-          onToggleBulk={
-            canManageAssignments
-              ? toggleBulkSelection
-              : () => {}
-          }
-          onBulkUserChange={
-            setBulkAssignedUserId
-          }
-          onBulkAssign={
-            handleBulkAssign
-          }
-          onClearBulkSelection={
-            clearBulkSelection
-          }
-          onPageChange={setPage}
-          onPageSizeChange={
-            changePageSize
-          }
-        />
+        {isListPaneOpen ||
+        !hasSelectedConversation ? (
+          <ConversationList
+            conversations={conversationsWithCategoryColors}
+            total={total}
+            page={page}
+            pageCount={pageCount}
+            pageSize={pageSize}
+            selectedConversationId={
+              selectedConversationId
+            }
+            selectedConversationIds={
+              bulkSelectedIds
+            }
+            selectedBulkUserId={
+              bulkAssignedUserId
+            }
+            users={
+              canManageAssignments
+                ? users
+                : []
+            }
+            usersError={
+              canManageAssignments
+                ? usersError
+                : ''
+            }
+            bulkAssignError={
+              actionError
+            }
+            isLoading={
+              isListLoading
+            }
+            isBulkAssigning={
+              isSubmitting
+            }
+            search={filters.search}
+            activeFilterCount={
+              activeFilterCount
+            }
+            nearDueActive={
+              Number(
+                filters.sla_due_within_hours,
+              ) === 2
+            }
+            onSearch={(searchValue) =>
+              changeFilter(
+                'search',
+                searchValue.trim(),
+              )
+            }
+            onToggleNearDue={
+              toggleNearDueSla
+            }
+            onRefresh={
+              loadConversations
+            }
+            onOpenFilters={() =>
+              setIsFiltersOpen(true)
+            }
+            onSelectConversation={
+              selectConversation
+            }
+            onToggleBulk={
+              canManageAssignments
+                ? toggleBulkSelection
+                : () => {}
+            }
+            onBulkUserChange={
+              setBulkAssignedUserId
+            }
+            onBulkAssign={
+              handleBulkAssign
+            }
+            onClearBulkSelection={
+              clearBulkSelection
+            }
+            onPageChange={setPage}
+            onPageSizeChange={
+              changePageSize
+            }
+          />
+        ) : null}
 
         {listError ? (
           <p
@@ -1097,14 +1184,16 @@ function Dashboard({
 
         {hasSelectedConversation ? (
           <>
-            <button
-              className="resize-handle"
-              type="button"
-              onMouseDown={
-                beginListResize
-              }
-              aria-label="Resize conversation list"
-            />
+            {isListPaneOpen ? (
+              <button
+                className="resize-handle"
+                type="button"
+                onMouseDown={
+                  beginListResize
+                }
+                aria-label="Resize conversation list"
+              />
+            ) : null}
 
             <section className="inbox-detail-panel">
               {detailError ? (
@@ -1147,6 +1236,15 @@ function Dashboard({
                     mobilePane
                   }
                   onBack={returnToList}
+                  isListPaneOpen={
+                    isListPaneOpen
+                  }
+                  onToggleListPane={() =>
+                    setIsListPaneOpen(
+                      (current) =>
+                        !current,
+                    )
+                  }
                   onOpenDetails={
                     openDetails
                   }

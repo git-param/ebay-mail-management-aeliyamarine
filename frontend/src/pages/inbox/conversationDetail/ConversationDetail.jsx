@@ -43,8 +43,10 @@ function ConversationDetail({
   actionError,
   isSubmitting,
   isDetailsOpen,
+  isListPaneOpen,
   mobilePane,
   onBack,
+  onToggleListPane,
   onOpenDetails,
   onHideDetails,
   onCloseDetails,
@@ -119,6 +121,16 @@ function ConversationDetail({
         </div>
 
         <div className="detail-header-actions">
+          <button
+            className="secondary-button compact-action list-pane-toggle"
+            type="button"
+            onClick={onToggleListPane}
+          >
+            {isListPaneOpen
+              ? 'Hide List'
+              : 'Show List'}
+          </button>
+
           <ConversationBadge
             tone={providerStatusTone}
           >

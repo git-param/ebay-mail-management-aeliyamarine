@@ -703,7 +703,7 @@ export default function SoldPosting({ currentUser, onLogout }) {
             </p>
           </div>
           <button
-            className="primary-button compact-action"
+            className="primary-button compact-action action-button action-sync sold-sync-button"
             type="button"
             disabled={syncing || data.sync?.is_running}
             onClick={syncLatest}

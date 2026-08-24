@@ -1249,7 +1249,7 @@ export function PMS({ currentUser, onLogout }) {
                 <strong>%</strong>
                 <button
                   type="submit"
-                  className="secondary-button-compact-action"
+                  className="secondary-button-compact-action action-button action-upload"
                 >
                   Submit
                 </button>
@@ -1329,7 +1329,7 @@ export function PMS({ currentUser, onLogout }) {
                       {isAdmin ? (
                         <button
                           type="button"
-                          className="secondary-button compact-action"
+                          className="secondary-button compact-action action-button action-edit"
                           onClick={() => openEditor(row)}
                         >
                           {row.record_id ? "Edit PMS" : "Enter PMS"}
@@ -1337,7 +1337,7 @@ export function PMS({ currentUser, onLogout }) {
                       ) : (
                         <button
                           type="button"
-                          className="secondary-button compact-action"
+                          className="secondary-button compact-action action-button action-load"
                           onClick={() => openEditor(row)}
                           disabled={!row.record_id}
                         >
@@ -1498,7 +1498,7 @@ export function PMS({ currentUser, onLogout }) {
                 <div className="modal-actions pmsModule-editor-actions">
                   <button
                     type="button"
-                    className="secondary-button"
+                    className="secondary-button action-button action-refresh"
                     onClick={refreshEditorAutoValues}
                     disabled={editorRefreshing}
                   >
@@ -1509,7 +1509,7 @@ export function PMS({ currentUser, onLogout }) {
                   <div className="pmsModule-editor-save-group">
                     <button
                       type="button"
-                      className="secondary-button"
+                      className="secondary-button action-button action-save"
                       onClick={() => saveEditor("DRAFT")}
                       disabled={editorSaving}
                     >
@@ -1518,7 +1518,7 @@ export function PMS({ currentUser, onLogout }) {
 
                     <button
                       type="button"
-                      className="primary-button"
+                      className="primary-button action-button action-upload"
                       onClick={() => saveEditor("COMPLETED")}
                       disabled={editorSaving}
                     >
