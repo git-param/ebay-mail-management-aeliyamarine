@@ -28,3 +28,28 @@ def test_delete_local_files_removes_file_and_clears_local_download(tmp_path):
     assert attachment.download_url is None
     assert attachment.media_url == 'https://i.ebayimg.com/uploaded/reply-image.png'
     assert attachment.raw_payload['local_file_deleted'] is True
+
+
+def test_extract_ebay_media_url_prefers_max_dimension_image_url():
+    service = ReplyAttachmentService.__new__(ReplyAttachmentService)
+
+    media_url = service._extract_ebay_media_url(
+        {
+            'imageUrl': 'https://i.ebayimg.com/images/g/abc/s-l64.jpg',
+            'maxDimensionImageUrl': 'https://i.ebayimg.com/images/g/abc/s-l1600.jpg',
+        }
+    )
+
+    assert media_url == 'https://i.ebayimg.com/images/g/abc/s-l1600.jpg'
+
+
+def test_extract_ebay_media_url_normalizes_thumbnail_url():
+    service = ReplyAttachmentService.__new__(ReplyAttachmentService)
+
+    media_url = service._extract_ebay_media_url(
+        {
+            'mediaUrl': 'https://i.ebayimg.com/images/g/abc/s-l64.jpg',
+        }
+    )
+
+    assert media_url == 'https://i.ebayimg.com/images/g/abc/s-l1600.jpg'

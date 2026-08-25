@@ -92,7 +92,7 @@ def upload_message_media(
         # eBay Media API commonly returns imageUrl.
         # Your ReplyAttachmentService expects mediaUrl, so normalize it.
         if isinstance(payload, dict):
-            image_url = payload.get("imageUrl") or payload.get("maxDimensionImageUrl")
+            image_url = payload.get("maxDimensionImageUrl") or payload.get("imageUrl")
             if image_url:
                 payload.setdefault("mediaUrl", image_url)
 

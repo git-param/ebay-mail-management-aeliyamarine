@@ -17,6 +17,7 @@ Rejected types (rejected immediately, no fallback):
 """
 
 import logging
+import re
 from pathlib import Path
 from uuid import UUID, uuid4
 
@@ -68,6 +69,15 @@ class ReplyAttachmentService:
     All public methods that communicate with eBay require an ``access_token``
     argument so the service remains stateless with respect to authentication.
     """
+
+    EBAY_LEGACY_IMAGE_URL_PATTERN = re.compile(
+        r'^https://i\.ebayimg\.com/00/s/[^/]+/z/(?P<image_id>[^/]+)/\$_\d+\.[^/?#]+(?:[?#].*)?$',
+        re.IGNORECASE,
+    )
+    EBAY_SIZED_IMAGE_URL_PATTERN = re.compile(
+        r'(?P<prefix>^https://i\.ebayimg\.com/images/g/[^/]+/)s-l\d+(?:\.[^/?#]+)?(?P<suffix>[?#].*)?$',
+        re.IGNORECASE,
+    )
 
     def __init__(self) -> None:
         self.settings = get_settings()
@@ -468,13 +478,27 @@ class ReplyAttachmentService:
         if not isinstance(payload, dict):
             return None
 
-        # Try known eBay response keys in priority order.
-        for key in ('mediaUrl', 'media_url', 'imageUrl', 'maxDimensionImageUrl', 'url'):
+        # Prefer the largest eBay variant when the media API provides several URLs.
+        for key in ('maxDimensionImageUrl', 'mediaUrl', 'media_url', 'imageUrl', 'url'):
             value = payload.get(key)
             if isinstance(value, str) and value.strip():
-                return value.strip()
+                return self._clear_ebay_image_url(value.strip())
 
         return None
+
+    def _clear_ebay_image_url(self, media_url: str) -> str:
+        """
+        Convert known eBay thumbnail URL shapes to the inspectable full-size URL.
+        """
+        legacy_match = self.EBAY_LEGACY_IMAGE_URL_PATTERN.match(media_url)
+        if legacy_match:
+            return f'https://i.ebayimg.com/images/g/{legacy_match.group("image_id")}/s-l1600.jpg'
+
+        sized_match = self.EBAY_SIZED_IMAGE_URL_PATTERN.match(media_url)
+        if sized_match:
+            return f'{sized_match.group("prefix")}s-l1600.jpg{sized_match.group("suffix") or ""}'
+
+        return media_url
 
     def _upload_error_detail(self, payload: object, media_name: str) -> str:
         """

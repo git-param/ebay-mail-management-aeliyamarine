@@ -833,8 +833,8 @@ class EbayAuthClient:
 
             # Sometimes imageUrl may already be present.
             image_url = (
-                final_payload.get("imageUrl")
-                or final_payload.get("maxDimensionImageUrl")
+                final_payload.get("maxDimensionImageUrl")
+                or final_payload.get("imageUrl")
                 or final_payload.get("mediaUrl")
             )
 
@@ -864,8 +864,8 @@ class EbayAuthClient:
                 if isinstance(get_payload, dict):
                     final_payload.update(get_payload)
                     image_url = (
-                        get_payload.get("imageUrl")
-                        or get_payload.get("maxDimensionImageUrl")
+                        get_payload.get("maxDimensionImageUrl")
+                        or get_payload.get("imageUrl")
                         or get_payload.get("mediaUrl")
                     )
 
