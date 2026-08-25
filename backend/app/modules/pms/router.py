@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.api.dependencies import get_current_user, require_admin, require_operations_manager_or_admin
 from app.db.session import get_db
-from app.modules.pms.export import export_monthly_table, fiscal_year_label
+from app.modules.pms.export import export_monthly_table, export_monthly_tables, fiscal_year_label, month_token
 from app.modules.pms.schema import (
     PmsEmployeeOfMonthResolveRequest,
     PmsEmployeeOfMonthResponse,
@@ -60,6 +60,16 @@ def delete_config(config_id: UUID, db: Session = Depends(get_db), current_user=D
 # Monthly PMS
 # ----------------------------------------------------------------------
 
+@router.get('/monthly/available-periods')
+def get_monthly_available_periods(
+    search: str | None = Query(default=None),
+    db: Session = Depends(get_db),
+    current_user=Depends(require_operations_manager_or_admin),
+):
+    service = PmsService(db)
+    return {'items': service.get_available_monthly_periods(current_user, search=search)}
+
+
 @router.get('/monthly', response_model=PmsMonthlyTableResponse)
 def get_monthly_table(
     year: int = Query(...),
@@ -74,17 +84,46 @@ def get_monthly_table(
 
 @router.get('/monthly/export')
 def export_monthly_table_excel(
-    year: int = Query(...),
-    month: int = Query(..., ge=1, le=12),
+    year: int | None = Query(default=None),
+    month: int | None = Query(default=None, ge=1, le=12),
+    from_year: int | None = Query(default=None),
+    from_month: int | None = Query(default=None, ge=1, le=12),
+    to_year: int | None = Query(default=None),
+    to_month: int | None = Query(default=None, ge=1, le=12),
     search: str | None = Query(default=None),
     target_achievement_percent: float | None = Query(default=None, ge=0, le=100),
     db: Session = Depends(get_db),
     current_user=Depends(require_operations_manager_or_admin),
 ):
     service = PmsService(db)
-    table = service.get_monthly_table(current_user, year, month, search)
-    output = export_monthly_table(table, target_achievement_percent=target_achievement_percent)
-    filename = f'PMS_Monthly_Data_{fiscal_year_label(year, month)}.xlsx'
+    if from_year and from_month and to_year and to_month:
+        start_index = from_year * 12 + from_month
+        end_index = to_year * 12 + to_month
+        if start_index > end_index:
+            from fastapi import HTTPException
+            raise HTTPException(status_code=422, detail='From month must be before or equal to To month')
+        if end_index - start_index > 59:
+            from fastapi import HTTPException
+            raise HTTPException(status_code=422, detail='PMS export range cannot exceed 60 months')
+
+        tables = []
+        current_year = from_year
+        current_month = from_month
+        while current_year * 12 + current_month <= end_index:
+            tables.append(service.get_monthly_table(current_user, current_year, current_month, search))
+            current_month += 1
+            if current_month > 12:
+                current_month = 1
+                current_year += 1
+        output = export_monthly_tables(tables)
+        filename = f'PMS_Monthly_Data_{month_token(from_year, from_month)}_to_{month_token(to_year, to_month)}.xlsx'.replace("'", '')
+    else:
+        if year is None or month is None:
+            from fastapi import HTTPException
+            raise HTTPException(status_code=422, detail='Either year/month or from/to month range is required')
+        table = service.get_monthly_table(current_user, year, month, search)
+        output = export_monthly_table(table, target_achievement_percent=target_achievement_percent)
+        filename = f'PMS_Monthly_Data_{fiscal_year_label(year, month)}.xlsx'
     return StreamingResponse(
         output,
         media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',

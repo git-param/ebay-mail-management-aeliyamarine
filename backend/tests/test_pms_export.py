@@ -1,6 +1,6 @@
 from openpyxl import load_workbook
 
-from app.modules.pms.export import export_monthly_table
+from app.modules.pms.export import export_monthly_table, export_monthly_tables
 from app.modules.pms.schema import PmsMonthlyMetricSchema, PmsMonthlyTableResponse, PmsMonthlyTableRow
 
 
@@ -61,3 +61,47 @@ def test_pms_export_matches_reference_structure_and_blank_doj():
     assert sheet['N5'].value == 4
     assert sheet['O5'].value == '=SUM(I5:N5)'
     assert sheet['P5'].value == 'Solid month'
+
+
+def test_pms_export_supports_multiple_months_with_continuous_serial_numbers():
+    first = PmsMonthlyTableResponse(
+        year=2026,
+        month=4,
+        total_active_weight=100,
+        completed_count=1,
+        pending_count=0,
+        items=[
+            PmsMonthlyTableRow(
+                user_id='11111111-1111-1111-1111-111111111111',
+                user_name='April User',
+                final_score=71,
+                maximum_score=100,
+                metrics=[metric('target_achievement', 45, 65)],
+            )
+        ],
+    )
+    second = PmsMonthlyTableResponse(
+        year=2026,
+        month=5,
+        total_active_weight=100,
+        completed_count=1,
+        pending_count=0,
+        items=[
+            PmsMonthlyTableRow(
+                user_id='22222222-2222-2222-2222-222222222222',
+                user_name='May User',
+                final_score=72,
+                maximum_score=100,
+                metrics=[metric('target_achievement', 46, 65)],
+            )
+        ],
+    )
+
+    workbook = load_workbook(export_monthly_tables([first, second]), data_only=False)
+    sheet = workbook.active
+
+    assert sheet['A1'].value == "PMS Monthly Data Apr'26 to May'26 For L-1 & L-2"
+    assert sheet['A5'].value == 1
+    assert sheet['H5'].value == "Apr'26"
+    assert sheet['A6'].value == 2
+    assert sheet['H6'].value == "May'26"

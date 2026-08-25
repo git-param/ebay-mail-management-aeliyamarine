@@ -41,6 +41,10 @@ export function fetchPmsMonthlyTable(params) {
   return apiRequest(`/pms/monthly${qs(params)}`)
 }
 
+export function fetchPmsAvailablePeriods(params) {
+  return apiRequest(`/pms/monthly/available-periods${qs(params)}`)
+}
+
 export async function exportPmsMonthlyTable(params) {
   const response = await apiFetch(`/pms/monthly/export${qs(params)}`)
   if (!response.ok) {

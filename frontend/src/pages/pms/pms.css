@@ -99,6 +99,45 @@
   box-shadow: 0 0 0 3px rgba(115, 92, 244, 0.1);
 }
 
+.pmsModule-export-controls {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 7px;
+  flex-wrap: wrap;
+  min-height: 42px;
+  padding: 5px;
+  border: 1px solid #dbe4ef;
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+.pmsModule-export-controls label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #65738a;
+  font-size: 11px;
+  font-weight: 850;
+}
+
+.pmsModule-export-controls select {
+  height: 30px;
+  min-width: 132px;
+  border: 1px solid #cbd8e8;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #17213a;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.pmsModule-export-controls .compact-action {
+  min-height: 30px;
+  padding: 0 9px;
+  font-size: 11px;
+}
+
 
 /* ==========================================================================
    TABS
@@ -2771,6 +2810,8 @@ html[data-theme="dark"] .pmsModule-editor-drawer > .pmsModule-editor-final-row,
 html[data-theme="dark"] .pmsModule-editor-drawer .field,
 html[data-theme="dark"] .pmsModule-target-achievement-field,
 html[data-theme="dark"] .pmsModule-target-achievement-field input,
+html[data-theme="dark"] .pmsModule-export-controls,
+html[data-theme="dark"] .pmsModule-export-controls select,
 html[data-theme="dark"] .pmsModule-leaderboard-controls,
 html[data-theme="dark"] .pmsModule-leaderboard {
   border-color: #3b424d !important;
@@ -2783,6 +2824,7 @@ html[data-theme="dark"] .pmsModule-editor-metric-label small,
 html[data-theme="dark"] .pmsModule-auto-value,
 html[data-theme="dark"] .pmsModule-score-max,
 html[data-theme="dark"] .pmsModule-target-achievement-field label,
+html[data-theme="dark"] .pmsModule-export-controls label,
 html[data-theme="dark"] .pmsModule-target-achievement-field strong {
   color: #cbd5e1 !important;
 }

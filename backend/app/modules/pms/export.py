@@ -60,7 +60,11 @@ def month_token(year: int, month: int) -> str:
     return f"{['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][month - 1]}'{str(year)[-2:]}"
 
 
-def export_monthly_table(table, *, target_achievement_percent: float | None = None) -> BytesIO:
+def export_monthly_tables(tables, *, target_achievement_percent_by_period: dict[tuple[int, int], float] | None = None) -> BytesIO:
+    tables = list(tables)
+    if not tables:
+        raise ValueError('At least one PMS table is required')
+
     workbook = Workbook()
     workbook.calculation.fullCalcOnLoad = True
     workbook.calculation.forceFullCalc = True
@@ -68,7 +72,13 @@ def export_monthly_table(table, *, target_achievement_percent: float | None = No
     sheet.title = 'PMS Monthly Data'
     sheet.sheet_view.showGridLines = False
 
-    title = f'PMS Monthly Data {fiscal_year_label(table.year, table.month, compact=True)} For L-1 & L-2'
+    first_table = tables[0]
+    last_table = tables[-1]
+    if first_table.year == last_table.year and first_table.month == last_table.month:
+        period_label = fiscal_year_label(first_table.year, first_table.month, compact=True)
+    else:
+        period_label = f'{month_token(first_table.year, first_table.month)} to {month_token(last_table.year, last_table.month)}'
+    title = f'PMS Monthly Data {period_label} For L-1 & L-2'
     sheet.merge_cells('A1:P1')
     sheet['A1'] = title
 
@@ -155,38 +165,45 @@ def export_monthly_table(table, *, target_achievement_percent: float | None = No
         cell.fill = PatternFill('solid', fgColor=TITLE_FILL)
         cell.border = medium_border
 
-    for row_index, row in enumerate(table.items, start=5):
-        values = {
-            'A': row_index - 4,
-            'B': '',
-            'C': row.user_name or '',
-            'D': 'Operations',
-            'E': '',
-            'F': '',
-            'G': '',
-            'H': month_token(table.year, table.month),
-            'I': metric_value(row, 'target_achievement', target_achievement_percent),
-            'J': metric_value(row, 'productivity'),
-            'K': metric_value(row, 'quality'),
-            'L': metric_value(row, 'punctuality'),
-            'M': metric_value(row, 'attendance'),
-            'N': metric_value(row, 'competency'),
-            'O': f'=SUM(I{row_index}:N{row_index})',
-            'P': getattr(row, 'remarks', None) or '',
-        }
-        for column, value in values.items():
-            cell = sheet[f'{column}{row_index}']
-            cell.value = '' if value is None else value
-            cell.font = Font(name='Times New Roman', size=10, color=BLACK)
-            cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
-            cell.border = thin_border
-        sheet[f'C{row_index}'].alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
-        sheet[f'P{row_index}'].alignment = Alignment(horizontal='left', vertical='top', wrap_text=True)
-        sheet[f'G{row_index}'].fill = PatternFill('solid', fgColor=TENURE_FILL)
-        sheet[f'O{row_index}'].fill = PatternFill('solid', fgColor=TOTAL_FILL)
-        sheet.row_dimensions[row_index].height = 20
+    row_index = 5
+    serial_number = 1
+    target_achievement_percent_by_period = target_achievement_percent_by_period or {}
+    for table in tables:
+        target_achievement_percent = target_achievement_percent_by_period.get((table.year, table.month))
+        for row in table.items:
+            values = {
+                'A': serial_number,
+                'B': '',
+                'C': row.user_name or '',
+                'D': 'Operations',
+                'E': '',
+                'F': '',
+                'G': '',
+                'H': month_token(table.year, table.month),
+                'I': metric_value(row, 'target_achievement', target_achievement_percent),
+                'J': metric_value(row, 'productivity'),
+                'K': metric_value(row, 'quality'),
+                'L': metric_value(row, 'punctuality'),
+                'M': metric_value(row, 'attendance'),
+                'N': metric_value(row, 'competency'),
+                'O': f'=SUM(I{row_index}:N{row_index})',
+                'P': getattr(row, 'remarks', None) or '',
+            }
+            for column, value in values.items():
+                cell = sheet[f'{column}{row_index}']
+                cell.value = '' if value is None else value
+                cell.font = Font(name='Times New Roman', size=10, color=BLACK)
+                cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+                cell.border = thin_border
+            sheet[f'C{row_index}'].alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+            sheet[f'P{row_index}'].alignment = Alignment(horizontal='left', vertical='top', wrap_text=True)
+            sheet[f'G{row_index}'].fill = PatternFill('solid', fgColor=TENURE_FILL)
+            sheet[f'O{row_index}'].fill = PatternFill('solid', fgColor=TOTAL_FILL)
+            sheet.row_dimensions[row_index].height = 20
+            row_index += 1
+            serial_number += 1
 
-    last_row = max(len(table.items) + 4, 5)
+    last_row = max(row_index - 1, 5)
     for row in sheet.iter_rows(min_row=1, max_row=last_row, min_col=1, max_col=16):
         for cell in row:
             if cell.row == 1:
@@ -212,3 +229,12 @@ def export_monthly_table(table, *, target_achievement_percent: float | None = No
     workbook.save(output)
     output.seek(0)
     return output
+
+
+def export_monthly_table(table, *, target_achievement_percent: float | None = None) -> BytesIO:
+    percent_by_period = (
+        {(table.year, table.month): target_achievement_percent}
+        if target_achievement_percent is not None
+        else None
+    )
+    return export_monthly_tables([table], target_achievement_percent_by_period=percent_by_period)

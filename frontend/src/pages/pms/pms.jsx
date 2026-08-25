@@ -5,6 +5,7 @@ import {
   createPmsConfig,
   deletePmsConfig,
   exportPmsMonthlyTable,
+  fetchPmsAvailablePeriods,
   fetchPmsConfig,
   fetchPmsEmployeeOfMonth,
   fetchPmsEmployeeOfMonthStats,
@@ -226,10 +227,15 @@ export function PMS({ currentUser, onLogout }) {
   const canViewAll = isAdmin || isOpsManager;
 
   const monthOptions = useMemo(() => buildMonthOptions(), []);
-
   const [selectedYear, setSelectedYear] = useState(monthOptions[0].year);
 
   const [selectedMonth, setSelectedMonth] = useState(monthOptions[0].month);
+  const [exportFromPeriod, setExportFromPeriod] = useState(() =>
+    monthKey(monthOptions[0].year, monthOptions[0].month),
+  );
+  const [exportToPeriod, setExportToPeriod] = useState(() =>
+    monthKey(monthOptions[0].year, monthOptions[0].month),
+  );
 
   const [activeTab, setActiveTab] = useState("monthly");
   const [search, setSearch] = useState("");
@@ -244,6 +250,8 @@ export function PMS({ currentUser, onLogout }) {
   const [tableData, setTableData] = useState(null);
   const [tableLoading, setTableLoading] = useState(false);
   const [tableError, setTableError] = useState(null);
+  const [availablePeriods, setAvailablePeriods] = useState([]);
+  const [availablePeriodsLoading, setAvailablePeriodsLoading] = useState(false);
   const [exportLoading, setExportLoading] = useState(false);
   const [exportError, setExportError] = useState(null);
 
@@ -544,8 +552,89 @@ export function PMS({ currentUser, onLogout }) {
     }
   }
 
+  async function loadAvailablePeriods() {
+    if (!canViewAll) {
+      setAvailablePeriods([]);
+      return;
+    }
+
+    setAvailablePeriodsLoading(true);
+
+    try {
+      const data = await fetchPmsAvailablePeriods({
+        search: search || undefined,
+      });
+      const items = data.items || [];
+      setAvailablePeriods(items);
+      setExportFromPeriod((current) =>
+        items.some((item) => item.key === current)
+          ? current
+          : items[items.length - 1]?.key || "",
+      );
+      setExportToPeriod((current) =>
+        items.some((item) => item.key === current)
+          ? current
+          : items[0]?.key || "",
+      );
+    } catch {
+      setAvailablePeriods([]);
+    } finally {
+      setAvailablePeriodsLoading(false);
+    }
+  }
+
+  function parsePeriodKey(value) {
+    const [yearValue, monthValue] = String(value || "").split("-");
+    return {
+      year: Number(yearValue),
+      month: Number(monthValue),
+    };
+  }
+
+  function selectedFiscalYearRange() {
+    const startYear = selectedMonth >= 4 ? selectedYear : selectedYear - 1;
+    return {
+      from: monthKey(startYear, 4),
+      to: monthKey(startYear + 1, 3),
+    };
+  }
+
+  function selectCurrentMonthExportRange() {
+    const current = monthKey(selectedYear, selectedMonth);
+    if (!availablePeriods.some((item) => item.key === current)) {
+      return;
+    }
+    setExportFromPeriod(current);
+    setExportToPeriod(current);
+  }
+
+  function selectYearlyExportRange() {
+    const range = selectedFiscalYearRange();
+    const fiscalPeriods = availablePeriods.filter((item) => {
+      const index = item.year * 12 + item.month;
+      const from = parsePeriodKey(range.from);
+      const to = parsePeriodKey(range.to);
+      return index >= from.year * 12 + from.month && index <= to.year * 12 + to.month;
+    });
+    if (!fiscalPeriods.length) {
+      return;
+    }
+    setExportFromPeriod(fiscalPeriods[fiscalPeriods.length - 1].key);
+    setExportToPeriod(fiscalPeriods[0].key);
+  }
+
+  function selectAllExportRange() {
+    const oldest = availablePeriods[availablePeriods.length - 1];
+    const newest = availablePeriods[0];
+    if (!oldest || !newest) {
+      return;
+    }
+    setExportFromPeriod(monthKey(oldest.year, oldest.month));
+    setExportToPeriod(monthKey(newest.year, newest.month));
+  }
+
   async function handleExportExcel() {
-    if (!canViewAll || exportLoading) {
+    if (!canViewAll || exportLoading || !availablePeriods.length) {
       return;
     }
 
@@ -553,20 +642,37 @@ export function PMS({ currentUser, onLogout }) {
     setExportError(null);
 
     try {
+      const parsedFromPeriod = parsePeriodKey(exportFromPeriod);
+      const parsedToPeriod = parsePeriodKey(exportToPeriod);
+      if (
+        parsedFromPeriod.year * 12 + parsedFromPeriod.month >
+        parsedToPeriod.year * 12 + parsedToPeriod.month
+      ) {
+        throw new Error("From month must be before or equal to To month.");
+      }
       const blob = await exportPmsMonthlyTable({
-        year: selectedYear,
-        month: selectedMonth,
+        from_year: parsedFromPeriod.year,
+        from_month: parsedFromPeriod.month,
+        to_year: parsedToPeriod.year,
+        to_month: parsedToPeriod.month,
         search: search || undefined,
-        target_achievement_percent: targetAchievementPercent,
+        ...(exportFromPeriod === exportToPeriod &&
+        exportFromPeriod === monthKey(selectedYear, selectedMonth)
+          ? { target_achievement_percent: targetAchievementPercent }
+          : {}),
       });
       const href = URL.createObjectURL(blob);
       const link = document.createElement("a");
+      const fromPeriod = parsePeriodKey(exportFromPeriod);
       const fiscalStart =
-        selectedMonth >= 4 ? selectedYear : selectedYear - 1;
+        fromPeriod.month >= 4 ? fromPeriod.year : fromPeriod.year - 1;
       link.href = href;
-      link.download = `PMS_Monthly_Data_${fiscalStart}-${String(
-        fiscalStart + 1,
-      ).slice(-2)}.xlsx`;
+      link.download =
+        exportFromPeriod === exportToPeriod
+          ? `PMS_Monthly_Data_${fiscalStart}-${String(
+              fiscalStart + 1,
+            ).slice(-2)}.xlsx`
+          : `PMS_Monthly_Data_${exportFromPeriod}_to_${exportToPeriod}.xlsx`;
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -696,7 +802,10 @@ export function PMS({ currentUser, onLogout }) {
       return undefined;
     }
 
-    const timeout = window.setTimeout(loadMonthlyTable, 300);
+    const timeout = window.setTimeout(() => {
+      loadMonthlyTable();
+      loadAvailablePeriods();
+    }, 300);
 
     return () => {
       window.clearTimeout(timeout);
@@ -704,6 +813,15 @@ export function PMS({ currentUser, onLogout }) {
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search]);
+
+  useEffect(() => {
+    if (canViewAll) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      loadAvailablePeriods();
+    }
+
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canViewAll]);
 
   useEffect(() => {
     if (activeTab === "config" && isAdmin) {
@@ -2283,15 +2401,88 @@ export function PMS({ currentUser, onLogout }) {
             ) : null}
 
             {canViewAll ? (
-              <button
-                type="button"
-                className="secondary-button compact-action action-button action-export"
-                onClick={handleExportExcel}
-                disabled={exportLoading}
-              >
-                <Icon name="download" />
-                {exportLoading ? "Exporting..." : "Export Excel"}
-              </button>
+              <div className="pmsModule-export-controls">
+                <label>
+                  <span>From</span>
+                  <select
+                    value={exportFromPeriod}
+                    onChange={(event) => setExportFromPeriod(event.target.value)}
+                    disabled={availablePeriodsLoading || !availablePeriods.length}
+                  >
+                    {availablePeriods.map((option) => (
+                      <option
+                        key={`from-${option.year}-${option.month}`}
+                        value={monthKey(option.year, option.month)}
+                      >
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label>
+                  <span>To</span>
+                  <select
+                    value={exportToPeriod}
+                    onChange={(event) => setExportToPeriod(event.target.value)}
+                    disabled={availablePeriodsLoading || !availablePeriods.length}
+                  >
+                    {availablePeriods.map((option) => (
+                      <option
+                        key={`to-${option.year}-${option.month}`}
+                        value={monthKey(option.year, option.month)}
+                      >
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <button
+                  type="button"
+                  className="secondary-button compact-action"
+                  onClick={selectCurrentMonthExportRange}
+                  disabled={
+                    !availablePeriods.some(
+                      (item) => item.key === monthKey(selectedYear, selectedMonth),
+                    )
+                  }
+                >
+                  Current
+                </button>
+
+                <button
+                  type="button"
+                  className="secondary-button compact-action"
+                  onClick={selectYearlyExportRange}
+                  disabled={!availablePeriods.length}
+                >
+                  Yearly
+                </button>
+
+                <button
+                  type="button"
+                  className="secondary-button compact-action"
+                  onClick={selectAllExportRange}
+                  disabled={!availablePeriods.length}
+                >
+                  All
+                </button>
+
+                <button
+                  type="button"
+                  className="secondary-button compact-action action-button action-export"
+                  onClick={handleExportExcel}
+                  disabled={exportLoading || availablePeriodsLoading || !availablePeriods.length}
+                >
+                  <Icon name="download" />
+                  {exportLoading
+                    ? "Exporting..."
+                    : availablePeriodsLoading
+                      ? "Loading..."
+                      : "Export Excel"}
+                </button>
+              </div>
             ) : null}
           </div>
         </div>

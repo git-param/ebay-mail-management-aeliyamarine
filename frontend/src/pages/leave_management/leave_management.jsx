@@ -167,18 +167,19 @@ function leaveEmailDetails(form, policy) {
   }
 }
 
-function buildLeaveEmailTemplate(form, policy) {
+function buildLeaveEmailTemplate(form, policy, managerName = '') {
   const details = leaveEmailDetails(form, policy)
   const date = leaveDateText(form)
   const leaveType = form.leave_type === 'PAID' && form.day_part === 'FULL' && form.end_date && form.end_date !== form.start_date
     ? 'Full Day Leaves'
     : details.type
   const reason = form.reason.trim() || '[reason - optional]'
+  const greetingName = managerName.trim() || '[Manager\'s Name / Team]'
 
   return [
     `Subject: ${leaveType} (${details.time}) - ${date}`,
     '',
-    'Dear [Manager\'s Name / Team],',
+    `Dear ${greetingName},`,
     '',
     `I would like to request a ${leaveType} on ${date}, ${details.time} due to ${reason}.`,
     '',
@@ -243,6 +244,7 @@ function LeaveManagement({ currentUser, onLogout }) {
   const [carryForwardSaving, setCarryForwardSaving] = useState(false)
   const [filters, setFilters] = useState({ leave_type: '', status: '', user_id: '' })
   const [form, setForm] = useState(emptyForm)
+  const [managerName, setManagerName] = useState('')
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
   const [copyState, setCopyState] = useState('idle')
@@ -250,7 +252,7 @@ function LeaveManagement({ currentUser, onLogout }) {
   const [loading, setLoading] = useState(true)
   const [summarySaving, setSummarySaving] = useState(false)
   const options = useMemo(() => monthOptions(), [])
-  const leaveEmailTemplate = useMemo(() => buildLeaveEmailTemplate(form, policy), [form, policy])
+  const leaveEmailTemplate = useMemo(() => buildLeaveEmailTemplate(form, policy, managerName), [form, policy, managerName])
 
   async function loadData() {
     setLoading(true)
@@ -341,6 +343,11 @@ function LeaveManagement({ currentUser, onLogout }) {
 
   function updateForm(key, value) {
     setForm((current) => ({ ...current, [key]: value }))
+    setCopyState('idle')
+  }
+
+  function updateManagerName(value) {
+    setManagerName(value)
     setCopyState('idle')
   }
 
@@ -625,6 +632,15 @@ function LeaveManagement({ currentUser, onLogout }) {
               <label className="leaveModule-span">
                 Reason
                 <textarea value={form.reason} onChange={(event) => updateForm('reason', event.target.value)} required />
+              </label>
+              <label className="leaveModule-span">
+                Manager&apos;s Name
+                <input
+                  type="text"
+                  value={managerName}
+                  onChange={(event) => updateManagerName(event.target.value)}
+                  placeholder="Enter manager name for copied email"
+                />
               </label>
             </div>
             <div className="leaveModule-form-actions">

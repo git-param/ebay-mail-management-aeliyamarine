@@ -1948,6 +1948,65 @@ class PmsService:
             ),
         )
 
+    def get_available_monthly_periods(
+        self,
+        current_user,
+        *,
+        search: str | None = None,
+    ) -> list[dict[str, int | str]]:
+        self._require_view_all(
+            current_user
+        )
+
+        users = self._eligible_users()
+
+        if search:
+            needle = search.lower()
+            users = [
+                user
+                for user in users
+                if (
+                    needle in (
+                        user.full_name or ''
+                    ).lower()
+                    or needle in (
+                        user.email or ''
+                    ).lower()
+                )
+            ]
+
+        if not users:
+            return []
+
+        rows = list(
+            self.db.execute(
+                select(
+                    PmsMonthlyRecord.year,
+                    PmsMonthlyRecord.month,
+                )
+                .where(
+                    PmsMonthlyRecord.user_id.in_(
+                        [user.id for user in users]
+                    )
+                )
+                .distinct()
+                .order_by(
+                    PmsMonthlyRecord.year.desc(),
+                    PmsMonthlyRecord.month.desc(),
+                )
+            )
+        )
+
+        return [
+            {
+                'year': year,
+                'month': month,
+                'key': f'{year}-{str(month).zfill(2)}',
+                'label': f'{calendar.month_name[month]} {year}',
+            }
+            for year, month in rows
+        ]
+
     # ------------------------------------------------------------------
     # History
     # ------------------------------------------------------------------
