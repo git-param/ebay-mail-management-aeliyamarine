@@ -52,6 +52,8 @@ function ConversationDetail({
   onCloseDetails,
   onAssign,
   onAddNote,
+  onUpdateNote,
+  onDeleteNote,
   onCategoryChange,
   onStatusChange,
   onSendReply,
@@ -168,6 +170,8 @@ function ConversationDetail({
           isSubmitting={isSubmitting}
           onAssign={onAssign}
           onAddNote={onAddNote}
+          onUpdateNote={onUpdateNote}
+          onDeleteNote={onDeleteNote}
           onCategoryChange={onCategoryChange}
           onStatusChange={onStatusChange}
         />

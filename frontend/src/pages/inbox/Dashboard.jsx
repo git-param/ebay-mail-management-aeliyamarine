@@ -11,12 +11,14 @@ import {
   assignConversation,
   bulkUpdateConversations,
   createConversationNote,
+  deleteConversationNote,
   fetchConversation,
   fetchConversationNotes,
   fetchConversations,
   sendConversationReply,
   sendConversationReplyWithAttachments,
   updateConversationCategory,
+  updateConversationNote,
   updateConversationStatus,
 } from '../../services/conversationApi'
 import { fetchEbayAccounts } from '../../services/ebayAccountApi'
@@ -928,6 +930,81 @@ function Dashboard({
     }
   }
 
+  async function handleUpdateNote(noteId, body) {
+    if (!selectedConversationId) {
+      return
+    }
+
+    setIsSubmitting(true)
+    setActionError('')
+
+    try {
+      await updateConversationNote(
+        selectedConversationId,
+        noteId,
+        body,
+      )
+
+      await Promise.all([
+        loadNotes(
+          selectedConversationId,
+        ),
+
+        loadConversationDetail(
+          selectedConversationId,
+        ),
+
+        loadConversations(),
+      ])
+    } catch (caughtError) {
+      setActionError(
+        caughtError.message ||
+          'Unable to update note.',
+      )
+
+      throw caughtError
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  async function handleDeleteNote(noteId) {
+    if (!selectedConversationId) {
+      return
+    }
+
+    setIsSubmitting(true)
+    setActionError('')
+
+    try {
+      await deleteConversationNote(
+        selectedConversationId,
+        noteId,
+      )
+
+      await Promise.all([
+        loadNotes(
+          selectedConversationId,
+        ),
+
+        loadConversationDetail(
+          selectedConversationId,
+        ),
+
+        loadConversations(),
+      ])
+    } catch (caughtError) {
+      setActionError(
+        caughtError.message ||
+          'Unable to delete note.',
+      )
+
+      throw caughtError
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
   async function handleCategoryChange(
     categoryId,
   ) {
@@ -1260,6 +1337,12 @@ function Dashboard({
                   onAddNote={
                     handleAddNote
                   }
+                  onUpdateNote={
+                    handleUpdateNote
+                  }
+                  onDeleteNote={
+                    handleDeleteNote
+                  }
                   onCategoryChange={
                     handleCategoryChange
                   }
@@ -1309,6 +1392,12 @@ function Dashboard({
                   }
                   onAddNote={
                     handleAddNote
+                  }
+                  onUpdateNote={
+                    handleUpdateNote
+                  }
+                  onDeleteNote={
+                    handleDeleteNote
                   }
                   onCategoryChange={
                     handleCategoryChange

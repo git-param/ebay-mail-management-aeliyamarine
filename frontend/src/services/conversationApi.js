@@ -77,6 +77,19 @@ export function createConversationNote(conversationId, body) {
   })
 }
 
+export function updateConversationNote(conversationId, noteId, body) {
+  return request(`/conversations/${conversationId}/notes/${noteId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ body }),
+  })
+}
+
+export function deleteConversationNote(conversationId, noteId) {
+  return request(`/conversations/${conversationId}/notes/${noteId}`, {
+    method: 'DELETE',
+  })
+}
+
 export function updateConversationCategory(conversationId, categoryId) {
   return request(`/conversations/${conversationId}/category`, {
     method: 'PATCH',

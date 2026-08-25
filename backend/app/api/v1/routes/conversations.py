@@ -25,6 +25,7 @@ from app.schemas.conversation import (
     ConversationDetailResponse,
     ConversationNoteCreateRequest,
     ConversationNoteResponse,
+    ConversationNoteUpdateRequest,
     ConversationPageResponse,
     ConversationProductContextResponse,
     ConversationSummaryResponse,
@@ -247,7 +248,7 @@ def serialize_conversation(
         messages=[serialize_message(message) for message in conversation.messages],
         offers=offers or [],
         assignments=assignments,
-        notes=[serialize_note(note) for note in conversation.notes],
+        notes=[serialize_note(note) for note in conversation.notes if note.deleted_at is None],
         product_context=product_context,
         order_context=serialize_order_context(order_context) if order_context else None,
         suggested_message_type_id=suggested_message_type_id,
@@ -1352,6 +1353,42 @@ def list_conversation_notes(
         conversation_id,
     )
     return [serialize_note(note) for note in ConversationNoteService(db).list_notes(conversation_id)]
+
+
+@router.patch('/{conversation_id}/notes/{note_id}', response_model=ConversationNoteResponse)
+def update_conversation_note(
+    conversation_id: UUID,
+    note_id: UUID,
+    payload: ConversationNoteUpdateRequest,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_conversation_access),
+) -> ConversationNoteResponse:
+    conversation = ConversationService(db).get_conversation(
+        conversation_id,
+    )
+    if conversation.status == ConversationStatus.CLOSED:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail='Closed conversations cannot have notes edited')
+    note = ConversationNoteService(db).update_note(
+        conversation_id=conversation_id,
+        note_id=note_id,
+        editor_id=current_user.id,
+        body=payload.body,
+    )
+    return serialize_note(note)
+
+
+@router.delete('/{conversation_id}/notes/{note_id}', status_code=status.HTTP_204_NO_CONTENT)
+def delete_conversation_note(
+    conversation_id: UUID,
+    note_id: UUID,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_conversation_access),
+) -> None:
+    ConversationNoteService(db).delete_note(
+        conversation_id=conversation_id,
+        note_id=note_id,
+        deleted_by=current_user.id,
+    )
 
 
 @router.patch('/{conversation_id}/status', response_model=ConversationDetailResponse)

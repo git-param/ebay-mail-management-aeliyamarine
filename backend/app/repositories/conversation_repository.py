@@ -333,6 +333,22 @@ class ConversationRepository:
                 )
             )
 
+            note_match = exists(
+                select(ConversationNote.id)
+                .where(
+                    ConversationNote.conversation_id
+                    == Conversation.id
+                )
+                .where(
+                    ConversationNote.deleted_at.is_(None)
+                )
+                .where(
+                    ConversationNote.body.ilike(
+                        normalized_search
+                    )
+                )
+            )
+
             statement = statement.where(
                 or_(
                     Conversation.subject.ilike(
@@ -348,6 +364,7 @@ class ConversationRepository:
                         normalized_search
                     ),
                     message_match,
+                    note_match,
                 )
             )
 

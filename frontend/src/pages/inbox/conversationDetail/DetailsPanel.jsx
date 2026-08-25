@@ -14,6 +14,8 @@ function DetailsPanel({
   isSubmitting,
   onAssign,
   onAddNote,
+  onUpdateNote,
+  onDeleteNote,
   onCategoryChange,
   onStatusChange,
 }) {
@@ -48,6 +50,8 @@ function DetailsPanel({
         isLoading={notesLoading}
         isSubmitting={isSubmitting}
         onAddNote={onAddNote}
+        onUpdateNote={onUpdateNote}
+        onDeleteNote={onDeleteNote}
       />
     </aside>
   )

@@ -595,6 +595,51 @@
   white-space: pre-wrap;
 }
 
+.inbox-page .note-item-header {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: start;
+}
+
+.inbox-page .note-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.inbox-page .note-actions .icon-button {
+  width: 30px;
+  height: 30px;
+}
+
+.inbox-page .note-delete-button {
+  color: #b91c1c;
+}
+
+.inbox-page .note-edit-form {
+  display: grid;
+  gap: 8px;
+}
+
+.inbox-page .note-edit-form textarea {
+  width: 100%;
+  min-height: 88px;
+  padding: 10px 12px;
+  border: 1px solid var(--inbox-border);
+  border-radius: 12px;
+  background: #ffffff;
+  color: var(--inbox-text);
+  font: inherit;
+  resize: vertical;
+}
+
+.inbox-page .note-confirm-modal {
+  max-width: 420px;
+}
+
 .inbox-page .note-form {
   display: grid;
   gap: 8px;
@@ -697,7 +742,8 @@ html[data-theme='dark'] .inbox-page .offer-chat-amount {
 }
 
 html[data-theme='dark'] .inbox-page .assignment-form select,
-html[data-theme='dark'] .inbox-page .note-form textarea {
+html[data-theme='dark'] .inbox-page .note-form textarea,
+html[data-theme='dark'] .inbox-page .note-edit-form textarea {
   border-color: #334155;
   background: #111827;
   color: #e5e7eb;
@@ -838,6 +884,7 @@ html[data-theme='dark'] .inbox-page .note-form textarea {
 
 .inbox-page .assignment-form select,
 .inbox-page .note-form textarea,
+.inbox-page .note-edit-form textarea,
 .inbox-page .compact-field select {
   border-color: var(--inbox-border);
   border-radius: 12px;
@@ -847,6 +894,7 @@ html[data-theme='dark'] .inbox-page .note-form textarea {
 
 .inbox-page .assignment-form select:focus,
 .inbox-page .note-form textarea:focus,
+.inbox-page .note-edit-form textarea:focus,
 .inbox-page .compact-field select:focus {
   border-color: rgba(103, 94, 232, 0.68);
   box-shadow: 0 0 0 4px rgba(103, 94, 232, 0.12);
@@ -899,6 +947,7 @@ html[data-theme='dark'] .inbox-page .attachment-preview {
 
 html[data-theme='dark'] .inbox-page .assignment-form select,
 html[data-theme='dark'] .inbox-page .note-form textarea,
+html[data-theme='dark'] .inbox-page .note-edit-form textarea,
 html[data-theme='dark'] .inbox-page .compact-field select {
   border-color: var(--inbox-border);
   background: #0f141d;
