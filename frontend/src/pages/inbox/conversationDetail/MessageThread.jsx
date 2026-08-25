@@ -145,10 +145,14 @@ function MessageTranslation({
   translation,
   isTranslating,
   onTranslate,
+  onToggleOriginal,
 }) {
   if (!message.body) {
     return null
   }
+
+  const hasTranslation =
+    Boolean(translation?.text)
 
   return (
     <div className="message-translation">
@@ -156,21 +160,24 @@ function MessageTranslation({
         className="translation-button"
         type="button"
         disabled={isTranslating}
-        onClick={() =>
+        onClick={() => {
+          if (hasTranslation) {
+            onToggleOriginal(message.id)
+            return
+          }
+
           onTranslate(message)
-        }
+        }}
       >
         {isTranslating
           ? 'Translating…'
-          : 'Translate to English'}
+          : hasTranslation &&
+              !translation.showOriginal
+            ? 'Show original message'
+            : hasTranslation
+              ? 'Show English translation'
+              : 'Translate to English'}
       </button>
-
-      {translation?.text ? (
-        <p className="translated-copy">
-          <strong>English:</strong>{' '}
-          {translation.text}
-        </p>
-      ) : null}
 
       {translation?.error ? (
         <small role="alert">
@@ -572,6 +579,9 @@ function MessageThread({
               result.translated_text ||
               result.translation ||
               '',
+            originalText:
+              message.body,
+            showOriginal: false,
           },
         }))
       } catch (error) {
@@ -587,6 +597,28 @@ function MessageThread({
       } finally {
         setTranslatingId(null)
       }
+    }, [])
+
+  const toggleOriginalMessage =
+    useCallback((messageId) => {
+      setTranslations((current) => {
+        const translation =
+          current[messageId]
+
+        if (!translation?.text) {
+          return current
+        }
+
+        return {
+          ...current,
+
+          [messageId]: {
+            ...translation,
+            showOriginal:
+              !translation.showOriginal,
+          },
+        }
+      })
     }, [])
 
   useLayoutEffect(() => {
@@ -758,6 +790,15 @@ function MessageThread({
             message.text ||
             ''
 
+          const translation =
+            translations[message.id]
+
+          const displayMessageBody =
+            translation?.text &&
+            !translation.showOriginal
+              ? translation.text
+              : messageBody
+
           const hasBody =
             Boolean(messageBody)
 
@@ -835,7 +876,7 @@ function MessageThread({
                   }
                 />
               ) : (
-                <p>{messageBody}</p>
+                <p>{displayMessageBody}</p>
               )}
 
               {direction ===
@@ -844,9 +885,7 @@ function MessageThread({
                 <MessageTranslation
                   message={message}
                   translation={
-                    translations[
-                      message.id
-                    ]
+                    translation
                   }
                   isTranslating={
                     translatingId ===
@@ -854,6 +893,9 @@ function MessageThread({
                   }
                   onTranslate={
                     translateBuyerMessage
+                  }
+                  onToggleOriginal={
+                    toggleOriginalMessage
                   }
                 />
               ) : null}

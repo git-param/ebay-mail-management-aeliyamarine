@@ -7,6 +7,20 @@ from app.api.v1.routes.conversations import visible_conversation_offers
 from app.services.translation_service import TranslationService
 
 
+def test_translate_to_english_returns_english_text_without_provider(monkeypatch):
+    def fail_post(*args, **kwargs):
+        raise AssertionError('Provider should not be called for English text.')
+
+    monkeypatch.setattr('app.services.translation_service.requests.post', fail_post)
+
+    text = 'Hi Nidhi Patel, please confirm that the deal includes free shipping.'
+
+    assert TranslationService().translate(text, 'en') == {
+        'translated_text': text,
+        'detected_language': 'en',
+    }
+
+
 def test_translate_uses_libretranslate_without_api_key(monkeypatch):
     post_calls = []
 
@@ -15,6 +29,7 @@ def test_translate_uses_libretranslate_without_api_key(monkeypatch):
         lambda: SimpleNamespace(
             translation_api_url='https://libretranslate.com/',
             translation_api_key='',
+            translation_urls=['https://libretranslate.com/'],
         ),
     )
 
@@ -47,6 +62,7 @@ def test_translate_accepts_configured_translate_endpoint(monkeypatch):
         lambda: SimpleNamespace(
             translation_api_url='https://libretranslate.com/translate',
             translation_api_key=' optional-key ',
+            translation_urls=['https://libretranslate.com/translate'],
         ),
     )
 
@@ -69,11 +85,59 @@ def test_translate_accepts_configured_translate_endpoint(monkeypatch):
 def test_translate_rejects_relative_translation_url(monkeypatch):
     monkeypatch.setattr(
         'app.services.translation_service.get_settings',
-        lambda: SimpleNamespace(translation_api_url='/translate', translation_api_key=''),
+        lambda: SimpleNamespace(
+            translation_api_url='/translate',
+            translation_api_key='',
+            translation_urls=['/translate'],
+        ),
     )
 
     with pytest.raises(RuntimeError, match='absolute URL'):
         TranslationService().translate('Hello', 'es')
+
+
+def test_translate_tries_fallback_after_http_error(monkeypatch):
+    post_calls = []
+
+    monkeypatch.setattr(
+        'app.services.translation_service.get_settings',
+        lambda: SimpleNamespace(
+            translation_api_url='https://libretranslate.com/translate',
+            translation_api_key='',
+            translation_urls=[
+                'https://libretranslate.com/translate',
+                'https://translate.terraprint.co/translate',
+            ],
+        ),
+    )
+
+    class FakeResponse:
+        status_code = 403
+        text = '{"error":"API key required"}'
+
+        def raise_for_status(self):
+            raise requests.HTTPError(response=self)
+
+    def fake_post(url, json, timeout):
+        post_calls.append(url)
+        if url == 'https://libretranslate.com/translate':
+            return FakeResponse()
+        return SimpleNamespace(
+            raise_for_status=lambda: None,
+            json=lambda: {'translatedText': 'Hello'},
+        )
+
+    import requests
+
+    monkeypatch.setattr('app.services.translation_service.requests.post', fake_post)
+
+    result = TranslationService().translate('नमस्ते', 'en')
+
+    assert result == {'translated_text': 'Hello', 'detected_language': None}
+    assert post_calls == [
+        'https://libretranslate.com/translate',
+        'https://translate.terraprint.co/translate',
+    ]
 
 
 def test_visible_conversation_offers_keeps_one_accepted_event():

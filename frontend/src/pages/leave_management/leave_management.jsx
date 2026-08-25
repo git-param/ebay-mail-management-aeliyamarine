@@ -630,8 +630,8 @@ function LeaveManagement({ currentUser, onLogout }) {
                 </label>
               ) : null}
               <label className="leaveModule-span">
-                Reason
-                <textarea value={form.reason} onChange={(event) => updateForm('reason', event.target.value)} required />
+                Reason (optional)
+                <textarea value={form.reason} onChange={(event) => updateForm('reason', event.target.value)} />
               </label>
               <label className="leaveModule-span">
                 Manager&apos;s Name

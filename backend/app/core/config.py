@@ -63,8 +63,20 @@ class Settings(BaseSettings):
     )
     reply_attachment_max_bytes: int = Field(default=5 * 1024 * 1024, validation_alias='REPLY_ATTACHMENT_MAX_BYTES')
     reply_attachment_upload_dir: str = Field(default='uploads/reply_attachments', validation_alias='REPLY_ATTACHMENT_UPLOAD_DIR')
-    translation_api_url: str = Field(default='https://libretranslate.com/translate', validation_alias='TRANSLATION_API_URL')
-    translation_api_key: str = Field(default='', validation_alias='TRANSLATION_API_KEY')
+    translation_api_url: str = Field(
+        default='http://127.0.0.1:5001',
+        validation_alias='TRANSLATION_API_URL',
+    )
+
+    translation_api_key: str = Field(
+        default='',
+        validation_alias='TRANSLATION_API_KEY',
+    )
+
+    translation_fallback_api_urls: str = Field(
+        default='',
+        validation_alias='TRANSLATION_FALLBACK_API_URLS',
+    )
     zoho_client_id: str = Field(default='', validation_alias='ZOHO_CLIENT_ID')
     zoho_client_secret: str = Field(default='', validation_alias='ZOHO_CLIENT_SECRET')
     zoho_organization_id: str = Field(default='', validation_alias='ZOHO_ORGANIZATION_ID')
@@ -105,6 +117,18 @@ class Settings(BaseSettings):
     def reply_attachment_public_base_url(self) -> str:
         """Return the public HTTPS backend origin used for eBay media URLs."""
         return self.public_backend_url.rstrip('/')
+
+    @property
+    def translation_urls(self) -> list[str]:
+        urls = [self.translation_api_url]
+        if not self.translation_api_key.strip():
+            urls.extend(self.translation_fallback_api_urls.split(','))
+        seen = set()
+        return [
+            url
+            for raw_url in urls
+            if (url := raw_url.strip()) and not (url in seen or seen.add(url))
+        ]
 
 
 @lru_cache

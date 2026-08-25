@@ -49,7 +49,7 @@ class LeaveRequestCreate(BaseModel):
     short_leave_pattern: str | None = None
     start_time: time | None = None
     end_time: time | None = None
-    reason: str = Field(min_length=2, max_length=2000)
+    reason: str | None = Field(default='', max_length=2000)
 
     @field_validator('leave_type')
     @classmethod
@@ -88,7 +88,7 @@ class LeaveRequestResponse(BaseModel):
     end_time: time | None = None
     duration_days: float
     duration_minutes: int
-    reason: str
+    reason: str | None = None
     status: str
     paid_days: float
     excess_days: float

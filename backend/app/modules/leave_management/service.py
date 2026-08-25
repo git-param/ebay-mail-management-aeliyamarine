@@ -92,7 +92,7 @@ class LeaveManagementService:
             leave_type=payload.leave_type,
             start_date=payload.start_date,
             end_date=end_date,
-            reason=payload.reason.strip(),
+            reason=(payload.reason or '').strip(),
             status='PENDING',
         )
 

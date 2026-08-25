@@ -90,6 +90,7 @@ function formatContextPrice(
 function ContextItemBanner({
   context,
   actionLabel,
+  actionUrl,
   ariaLabel,
 }) {
   if (!context) {
@@ -185,10 +186,10 @@ function ContextItemBanner({
         ) : null}
 
         {actionLabel &&
-        context.item_url ? (
+        (actionUrl || context.item_url) ? (
           <a
             className="primary-button compact-action"
-            href={context.item_url}
+            href={actionUrl || context.item_url}
             target="_blank"
             rel="noreferrer"
           >
@@ -208,12 +209,18 @@ function OrderBanner({ order }) {
   const item =
     order.line_items?.[0] || {}
 
+  const listingId =
+    item.item_id ||
+    item.listing_id
+
   const context = {
     title:
       item.title ||
       `Order ${order.order_id}`,
     image_url: item.image_url,
-    item_url: order.ebay_url,
+    item_url: listingId
+      ? `https://www.ebay.com/itm/${listingId}`
+      : '',
     price: item.price_value,
     currency: item.price_currency,
     order_id: order.order_id,
@@ -227,6 +234,7 @@ function OrderBanner({ order }) {
     <ContextItemBanner
       context={context}
       actionLabel="Open Order"
+      actionUrl={order.ebay_url}
       ariaLabel="Order context"
     />
   )
