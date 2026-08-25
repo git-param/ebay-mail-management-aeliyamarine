@@ -20,6 +20,8 @@ from app.modules.pms.schema import (
     PmsMonthlyRefreshRequest,
     PmsMonthlySaveRequest,
     PmsMonthlyTableResponse,
+    PmsTargetAchievementResponse,
+    PmsTargetAchievementUpdateRequest,
 )
 from app.modules.pms.service import PmsService
 
@@ -82,6 +84,27 @@ def get_monthly_table(
     return service.get_monthly_table(current_user, year, month, search)
 
 
+@router.get('/monthly/target-achievement', response_model=PmsTargetAchievementResponse)
+def get_target_achievement(
+    year: int = Query(...),
+    month: int = Query(..., ge=1, le=12),
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    service = PmsService(db)
+    return service.get_target_achievement(current_user, year, month)
+
+
+@router.put('/monthly/target-achievement', response_model=PmsTargetAchievementResponse)
+def update_target_achievement(
+    payload: PmsTargetAchievementUpdateRequest,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_admin),
+):
+    service = PmsService(db)
+    return service.update_target_achievement(current_user, payload)
+
+
 @router.get('/monthly/export')
 def export_monthly_table_excel(
     year: int | None = Query(default=None),
@@ -109,20 +132,32 @@ def export_monthly_table_excel(
         tables = []
         current_year = from_year
         current_month = from_month
+        target_percent_by_period = {}
         while current_year * 12 + current_month <= end_index:
             tables.append(service.get_monthly_table(current_user, current_year, current_month, search))
+            target_percent_by_period[(current_year, current_month)] = service.get_target_achievement_percent(
+                current_year,
+                current_month,
+            )
             current_month += 1
             if current_month > 12:
                 current_month = 1
                 current_year += 1
-        output = export_monthly_tables(tables)
+        output = export_monthly_tables(tables, target_achievement_percent_by_period=target_percent_by_period)
         filename = f'PMS_Monthly_Data_{month_token(from_year, from_month)}_to_{month_token(to_year, to_month)}.xlsx'.replace("'", '')
     else:
         if year is None or month is None:
             from fastapi import HTTPException
             raise HTTPException(status_code=422, detail='Either year/month or from/to month range is required')
         table = service.get_monthly_table(current_user, year, month, search)
-        output = export_monthly_table(table, target_achievement_percent=target_achievement_percent)
+        output = export_monthly_table(
+            table,
+            target_achievement_percent=(
+                target_achievement_percent
+                if target_achievement_percent is not None
+                else service.get_target_achievement_percent(year, month)
+            ),
+        )
         filename = f'PMS_Monthly_Data_{fiscal_year_label(year, month)}.xlsx'
     return StreamingResponse(
         output,

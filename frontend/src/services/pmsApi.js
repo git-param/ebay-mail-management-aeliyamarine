@@ -41,6 +41,17 @@ export function fetchPmsMonthlyTable(params) {
   return apiRequest(`/pms/monthly${qs(params)}`)
 }
 
+export function fetchPmsTargetAchievement(params) {
+  return apiRequest(`/pms/monthly/target-achievement${qs(params)}`)
+}
+
+export function updatePmsTargetAchievement(payload) {
+  return apiRequest('/pms/monthly/target-achievement', {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  })
+}
+
 export function fetchPmsAvailablePeriods(params) {
   return apiRequest(`/pms/monthly/available-periods${qs(params)}`)
 }

@@ -93,6 +93,7 @@ class PmsMonthlyTableResponse(BaseModel):
     year: int
     month: int
     total_active_weight: float
+    target_achievement_percent: float = 100
     items: list[PmsMonthlyTableRow]
     completed_count: int
     pending_count: int
@@ -127,6 +128,18 @@ class PmsMonthlyRefreshRequest(BaseModel):
     user_id: UUID
     year: int = Field(ge=2000, le=2100)
     month: int = Field(ge=1, le=12)
+
+
+class PmsTargetAchievementResponse(BaseModel):
+    year: int
+    month: int
+    target_achievement_percent: float = 100
+
+
+class PmsTargetAchievementUpdateRequest(BaseModel):
+    year: int = Field(ge=2000, le=2100)
+    month: int = Field(ge=1, le=12)
+    target_achievement_percent: float = Field(ge=0, le=100)
 
 
 # ----------------------------------------------------------------------

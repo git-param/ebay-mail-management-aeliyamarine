@@ -2177,6 +2177,12 @@
   outline: none;
 }
 
+.pmsModule-target-achievement-error {
+  color: #b42318;
+  font-size: 11px;
+  font-weight: 800;
+}
+
 .pmsModule-leaderboard {
   padding: 18px;
 }
@@ -2867,6 +2873,10 @@ html[data-theme="dark"] .pmsModule-page .action-button.action-edit {
   border-color: #7c4a18 !important;
   background: #2d2117 !important;
   color: #fdba74 !important;
+}
+
+html[data-theme="dark"] .pmsModule-target-achievement-error {
+  color: #fca5a5 !important;
 }
 
 html[data-theme="dark"] .pmsModule-page .action-button.action-load,

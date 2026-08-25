@@ -7,6 +7,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session, joinedload, selectinload
 
 from app.api.dependencies import can_manage_operations, is_admin, is_support_agent
+from app.models.app_config import AppConfigSetting
 from app.models.user import User
 from app.modules.daily_task_entry.models import (
     DailyTaskEntry,
@@ -38,6 +39,8 @@ from app.modules.pms.schema import (
     PmsMonthlySaveRequest,
     PmsMonthlyTableResponse,
     PmsMonthlyTableRow,
+    PmsTargetAchievementResponse,
+    PmsTargetAchievementUpdateRequest,
 )
 
 # NOTE: assumed path for the existing shared audit service based on the model
@@ -100,6 +103,8 @@ DEFAULT_METRICS = [
     },
 ]
 
+TARGET_ACHIEVEMENT_SETTING_PREFIX = 'pms.target_achievement'
+
 # Support Agent role name matches the exact string already used by
 # DailyEntryService._target_users, so PMS's "eligible employees" query
 # stays consistent with Daily Task Entry's.
@@ -113,6 +118,99 @@ class PmsService:
     def __init__(self, db: Session):
         self.db = db
         self.audit = AuditService(db)
+
+    # ------------------------------------------------------------------
+    # Monthly target achievement setting
+    # ------------------------------------------------------------------
+    def get_target_achievement(
+        self,
+        current_user,
+        year: int,
+        month: int,
+    ) -> PmsTargetAchievementResponse:
+        if not (can_manage_operations(current_user) or is_support_agent(current_user)):
+            raise HTTPException(
+                status.HTTP_403_FORBIDDEN,
+                'Not authorized',
+            )
+
+        return PmsTargetAchievementResponse(
+            year=year,
+            month=month,
+            target_achievement_percent=self.get_target_achievement_percent(year, month),
+        )
+
+    def update_target_achievement(
+        self,
+        current_user,
+        payload: PmsTargetAchievementUpdateRequest,
+    ) -> PmsTargetAchievementResponse:
+        self._require_admin(current_user)
+
+        percent = round(
+            max(0.0, min(float(payload.target_achievement_percent), 100.0)),
+            2,
+        )
+        key = self._target_achievement_setting_key(payload.year, payload.month)
+        setting = self.db.scalar(
+            select(AppConfigSetting).where(AppConfigSetting.config_key == key)
+        )
+
+        if setting:
+            setting.value = str(percent)
+            setting.updated_by_user_id = current_user.id
+        else:
+            self.db.add(
+                AppConfigSetting(
+                    section='pms',
+                    config_key=key,
+                    label=f'PMS Target Achievement {payload.year}-{payload.month:02d}',
+                    value=str(percent),
+                    value_type='decimal',
+                    description='Monthly target achievement percentage used for PMS score display and export.',
+                    is_editable=True,
+                    updated_by_user_id=current_user.id,
+                )
+            )
+
+        self.audit.log(
+            action='PMS_TARGET_ACHIEVEMENT_UPDATED',
+            user_id=current_user.id,
+            entity_type='PMS_TARGET_ACHIEVEMENT',
+            entity_id=None,
+            category='PMS_MANAGEMENT',
+            metadata={
+                'year': payload.year,
+                'month': payload.month,
+                'target_achievement_percent': percent,
+            },
+        )
+        self.db.commit()
+
+        return PmsTargetAchievementResponse(
+            year=payload.year,
+            month=payload.month,
+            target_achievement_percent=percent,
+        )
+
+    def get_target_achievement_percent(self, year: int, month: int) -> float:
+        setting = self.db.scalar(
+            select(AppConfigSetting).where(
+                AppConfigSetting.config_key
+                == self._target_achievement_setting_key(year, month)
+            )
+        )
+
+        if not setting:
+            return 100.0
+
+        try:
+            return round(max(0.0, min(float(setting.value), 100.0)), 2)
+        except (TypeError, ValueError):
+            return 100.0
+
+    def _target_achievement_setting_key(self, year: int, month: int) -> str:
+        return f'{TARGET_ACHIEVEMENT_SETTING_PREFIX}.{year}.{month:02d}'
 
     # ------------------------------------------------------------------
     # PMS Configuration
@@ -628,8 +726,9 @@ class PmsService:
         if not changed:
             return None
 
-        record.final_score = self._round_final_score(
+        record.final_score = round(
             sum(float(metric.final_value) for metric in record.metrics),
+            2,
         )
         record.updated_by_user_id = current_user.id
         self._recalculate_employee_of_month(year, month)
@@ -882,11 +981,12 @@ class PmsService:
             if not metric.was_overridden:
                 metric.final_value = value
 
-        record.final_score = self._round_final_score(
+        record.final_score = round(
             sum(
                 float(metric.final_value)
                 for metric in record.metrics
             ),
+            2,
         )
 
         record.updated_by_user_id = current_user.id
@@ -1127,7 +1227,7 @@ class PmsService:
         record.status = PmsMonthlyStatus(
             payload.status
         )
-        record.final_score = self._round_final_score(final_score)
+        record.final_score = round(final_score, 2)
         record.maximum_score = total_active_weight
         record.updated_by_user_id = current_user.id
 
@@ -1403,11 +1503,12 @@ class PmsService:
             if not metric.was_overridden:
                 metric.final_value = value
 
-        record.final_score = self._round_final_score(
+        record.final_score = round(
             sum(
                 float(metric.final_value)
                 for metric in record.metrics
             ),
+            2,
         )
 
         record.updated_by_user_id = current_user.id
@@ -1666,7 +1767,7 @@ class PmsService:
         record.status = PmsMonthlyStatus(
             payload.status
         )
-        record.final_score = self._round_final_score(final_score)
+        record.final_score = round(final_score, 2)
         record.maximum_score = total_active_weight
         record.updated_by_user_id = current_user.id
 
@@ -1931,6 +2032,10 @@ class PmsService:
             month=month,
             total_active_weight=(
                 total_active_weight
+            ),
+            target_achievement_percent=self.get_target_achievement_percent(
+                year,
+                month,
             ),
             items=items,
             completed_count=completed_count,

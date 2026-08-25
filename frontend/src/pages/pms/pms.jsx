@@ -12,9 +12,11 @@ import {
   fetchPmsHistory,
   fetchPmsMonthlyRecord,
   fetchPmsMonthlyTable,
+  fetchPmsTargetAchievement,
   refreshPmsAutoValues,
   resolvePmsEmployeeOfMonth,
   savePmsMonthly,
+  updatePmsTargetAchievement,
   updatePmsConfig,
 } from "../../services/pmsApi";
 import { normalizeRole } from "../../utils/roles";
@@ -80,8 +82,11 @@ function roundScore(value) {
 }
 
 function fmtScore(value) {
-  const rounded = roundScore(value);
-  return rounded === null ? "-" : String(rounded);
+  if (value === null || value === undefined || Number.isNaN(Number(value))) {
+    return "-";
+  }
+
+  return Number(value).toFixed(2).replace(/\.?0+$/, "");
 }
 
 function clampNumber(value, max) {
@@ -243,6 +248,8 @@ export function PMS({ currentUser, onLogout }) {
     loadTargetAchievementByMonth,
   );
   const [targetAchievementDraft, setTargetAchievementDraft] = useState("100");
+  const [targetAchievementSaving, setTargetAchievementSaving] = useState(false);
+  const [targetAchievementError, setTargetAchievementError] = useState(null);
   const currentTargetAchievementKey = monthKey(selectedYear, selectedMonth);
   const targetAchievementPercent =
     targetAchievementByMonth[currentTargetAchievementKey] ?? 100;
@@ -325,7 +332,37 @@ export function PMS({ currentUser, onLogout }) {
     return targetAchievementByMonth[monthKey(year, month)] ?? 100;
   }
 
+  function rememberTargetAchievement(year, month, percent) {
+    if (percent === null || percent === undefined || Number.isNaN(Number(percent))) {
+      return targetAchievementPercentFor(year, month);
+    }
+
+    const nextPercent = clampNumber(percent, 100);
+    setTargetAchievementByMonth((current) => {
+      const next = {
+        ...current,
+        [monthKey(year, month)]: nextPercent,
+      };
+      window.localStorage.setItem(
+        TARGET_ACHIEVEMENT_STORAGE_KEY,
+        JSON.stringify(next),
+      );
+      return next;
+    });
+    return nextPercent;
+  }
+
   function targetAchievementPercentForMetric(metric, year, month) {
+    const configuredPercent = targetAchievementByMonth[monthKey(year, month)];
+
+    if (
+      configuredPercent !== null &&
+      configuredPercent !== undefined &&
+      !Number.isNaN(Number(configuredPercent))
+    ) {
+      return clampNumber(configuredPercent, 100);
+    }
+
     const savedPercent = Number(metric?.calc_meta?.target_percent);
 
     if (!Number.isNaN(savedPercent)) {
@@ -357,11 +394,11 @@ export function PMS({ currentUser, onLogout }) {
   }
 
   function targetMetricValue(metric, percent = targetAchievementPercent) {
-    return roundScore(
+    return Number(
       clampNumber(
         ((Number(metric.weight_snapshot) || 0) * (Number(percent) || 0)) / 100,
         Number(metric.weight_snapshot) || 0,
-      ),
+      ).toFixed(2),
     );
   }
 
@@ -405,17 +442,16 @@ export function PMS({ currentUser, onLogout }) {
       return row;
     }
 
-    const currentTargetValue = Number(targetMetric.final_value) || 0;
-    const sharedTargetValue = targetMetricValue(targetMetric);
-    const finalScore = Math.max(
-      0,
-      (Number(row.final_score) || 0) - currentTargetValue + sharedTargetValue,
-    );
+    const adjustedMetrics = applyTargetAchievement(row.metrics || []);
+    const finalScore = metricsFinalScore(adjustedMetrics);
 
     return {
       ...row,
       final_score: finalScore,
-      metrics: applyTargetAchievement(row.metrics || []),
+      maximum_score:
+        Number(row.maximum_score) ||
+        metricsMaxScore(adjustedMetrics),
+      metrics: adjustedMetrics,
     };
   }
 
@@ -447,21 +483,32 @@ export function PMS({ currentUser, onLogout }) {
     };
   }
 
-  function submitTargetAchievement(event) {
+  async function submitTargetAchievement(event) {
     event.preventDefault();
     const nextPercent = clampNumber(targetAchievementDraft, 100);
-    setTargetAchievementByMonth((current) => {
-      const next = {
-        ...current,
-        [currentTargetAchievementKey]: nextPercent,
-      };
-      window.localStorage.setItem(
-        TARGET_ACHIEVEMENT_STORAGE_KEY,
-        JSON.stringify(next),
+    setTargetAchievementSaving(true);
+    setTargetAchievementError(null);
+
+    try {
+      const data = await updatePmsTargetAchievement({
+        year: selectedYear,
+        month: selectedMonth,
+        target_achievement_percent: nextPercent,
+      });
+      const savedPercent = rememberTargetAchievement(
+        selectedYear,
+        selectedMonth,
+        data.target_achievement_percent ?? nextPercent,
       );
-      return next;
-    });
-    setTargetAchievementDraft(String(nextPercent));
+      setTargetAchievementDraft(String(savedPercent));
+      await loadEmployeeOfMonth();
+    } catch (err) {
+      setTargetAchievementError(
+        err?.message || "Failed to save target achievement.",
+      );
+    } finally {
+      setTargetAchievementSaving(false);
+    }
   }
 
   const displayedTopPerformer = useMemo(() => {
@@ -545,10 +592,31 @@ export function PMS({ currentUser, onLogout }) {
       });
 
       setTableData(data);
+      rememberTargetAchievement(
+        data.year,
+        data.month,
+        data.target_achievement_percent,
+      );
     } catch (err) {
       setTableError(err?.message || "Failed to load PMS for this month.");
     } finally {
       setTableLoading(false);
+    }
+  }
+
+  async function loadTargetAchievement() {
+    try {
+      const data = await fetchPmsTargetAchievement({
+        year: selectedYear,
+        month: selectedMonth,
+      });
+      rememberTargetAchievement(
+        data.year,
+        data.month,
+        data.target_achievement_percent,
+      );
+    } catch {
+      // Existing saved metric metadata/local cache is still a valid fallback.
     }
   }
 
@@ -779,6 +847,8 @@ export function PMS({ currentUser, onLogout }) {
   }
 
   useEffect(() => {
+    loadTargetAchievement();
+
     if (canViewAll) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       loadMonthlyTable();
@@ -1534,9 +1604,15 @@ export function PMS({ currentUser, onLogout }) {
                 <button
                   type="submit"
                   className="secondary-button-compact-action action-button action-upload"
+                  disabled={targetAchievementSaving}
                 >
-                  Submit
+                  {targetAchievementSaving ? "Saving..." : "Submit"}
                 </button>
+                {targetAchievementError ? (
+                  <span className="pmsModule-target-achievement-error">
+                    {targetAchievementError}
+                  </span>
+                ) : null}
               </form>
             ) : null}
             <small>{leaderboardRows.length} employees</small>
@@ -2301,11 +2377,15 @@ export function PMS({ currentUser, onLogout }) {
   }
 
   function renderAgentOwnRecord() {
+    const visibleAgentRecord = agentRecord
+      ? adjustedHistoryRecord(agentRecord)
+      : agentRecord;
+
     if (agentLoading) {
       return <div className="pmsModule-empty-state">Loading your PMS...</div>;
     }
 
-    if (!agentRecord || !agentRecord.id) {
+    if (!visibleAgentRecord || !visibleAgentRecord.id) {
       return (
         <div className="pmsModule-empty-state">
           Your PMS for {monthLabel(selectedYear, selectedMonth)} has not been
@@ -2320,14 +2400,14 @@ export function PMS({ currentUser, onLogout }) {
           <span>Final Score</span>
 
           <strong>
-            {fmtScore(agentRecord.final_score)}
+            {fmtScore(visibleAgentRecord.final_score)}
             {" / "}
-            {fmtScore(agentRecord.maximum_score)}
+            {fmtScore(visibleAgentRecord.maximum_score)}
           </strong>
         </div>
 
         <div className="pmsModule-editor-metrics">
-          {agentRecord.metrics.map((metric) => (
+          {visibleAgentRecord.metrics.map((metric) => (
             <div
               className="pmsModule-editor-metric-row"
               key={metric.metric_key}
@@ -2347,9 +2427,9 @@ export function PMS({ currentUser, onLogout }) {
           ))}
         </div>
 
-        {agentRecord.remarks ? (
+        {visibleAgentRecord.remarks ? (
           <p className="pmsModule-remarks-readout">
-            Remarks: {agentRecord.remarks}
+            Remarks: {visibleAgentRecord.remarks}
           </p>
         ) : null}
       </div>

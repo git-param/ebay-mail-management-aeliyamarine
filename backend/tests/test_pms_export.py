@@ -43,7 +43,7 @@ def test_pms_export_matches_reference_structure_and_blank_doj():
         ],
     )
 
-    workbook = load_workbook(export_monthly_table(table), data_only=False)
+    workbook = load_workbook(export_monthly_table(table, target_achievement_percent=63.4), data_only=False)
     sheet = workbook.active
 
     assert sheet['A1'].value == 'PMS Monthly Data 26-27 For L-1 & L-2'
@@ -58,6 +58,7 @@ def test_pms_export_matches_reference_structure_and_blank_doj():
     assert sheet['F5'].value is None
     assert sheet['G5'].value is None
     assert sheet['D5'].value == 'Operations'
+    assert sheet['I5'].value == 41.21
     assert sheet['N5'].value == 4
     assert sheet['O5'].value == '=SUM(I5:N5)'
     assert sheet['P5'].value == 'Solid month'

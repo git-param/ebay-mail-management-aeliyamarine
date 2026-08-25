@@ -52,8 +52,8 @@ def metric_value(row, key: str, target_achievement_percent: float | None = None)
     if key == 'target_achievement' and target_achievement_percent is not None:
         weight = float(metric.weight_snapshot or 0)
         percent = max(0.0, min(float(target_achievement_percent), 100.0))
-        return round(max(0.0, min((weight * percent) / 100, weight)))
-    return round(float(metric.final_value or 0))
+        return round(max(0.0, min((weight * percent) / 100, weight)), 2)
+    return round(float(metric.final_value or 0), 2)
 
 
 def month_token(year: int, month: int) -> str:
