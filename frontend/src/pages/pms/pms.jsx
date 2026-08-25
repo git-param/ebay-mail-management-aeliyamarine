@@ -4,6 +4,7 @@ import AppLayout, { Icon } from "../../layouts/app_layout";
 import {
   createPmsConfig,
   deletePmsConfig,
+  exportPmsMonthlyTable,
   fetchPmsConfig,
   fetchPmsEmployeeOfMonth,
   fetchPmsEmployeeOfMonthStats,
@@ -243,6 +244,8 @@ export function PMS({ currentUser, onLogout }) {
   const [tableData, setTableData] = useState(null);
   const [tableLoading, setTableLoading] = useState(false);
   const [tableError, setTableError] = useState(null);
+  const [exportLoading, setExportLoading] = useState(false);
+  const [exportError, setExportError] = useState(null);
 
   // Employee of the Month has its own loading/error state.
   // Previously every API error was silently converted to eomData=null,
@@ -538,6 +541,40 @@ export function PMS({ currentUser, onLogout }) {
       setTableError(err?.message || "Failed to load PMS for this month.");
     } finally {
       setTableLoading(false);
+    }
+  }
+
+  async function handleExportExcel() {
+    if (!canViewAll || exportLoading) {
+      return;
+    }
+
+    setExportLoading(true);
+    setExportError(null);
+
+    try {
+      const blob = await exportPmsMonthlyTable({
+        year: selectedYear,
+        month: selectedMonth,
+        search: search || undefined,
+        target_achievement_percent: targetAchievementPercent,
+      });
+      const href = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      const fiscalStart =
+        selectedMonth >= 4 ? selectedYear : selectedYear - 1;
+      link.href = href;
+      link.download = `PMS_Monthly_Data_${fiscalStart}-${String(
+        fiscalStart + 1,
+      ).slice(-2)}.xlsx`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(href);
+    } catch (err) {
+      setExportError(err?.message || "Unable to export PMS data.");
+    } finally {
+      setExportLoading(false);
     }
   }
 
@@ -2244,8 +2281,24 @@ export function PMS({ currentUser, onLogout }) {
                 onChange={(event) => setSearch(event.target.value)}
               />
             ) : null}
+
+            {canViewAll ? (
+              <button
+                type="button"
+                className="secondary-button compact-action action-button action-export"
+                onClick={handleExportExcel}
+                disabled={exportLoading}
+              >
+                <Icon name="download" />
+                {exportLoading ? "Exporting..." : "Export Excel"}
+              </button>
+            ) : null}
           </div>
         </div>
+
+        {exportError ? (
+          <div className="form-message error">{exportError}</div>
+        ) : null}
 
         <nav className="pmsModule-tabs">
           <button

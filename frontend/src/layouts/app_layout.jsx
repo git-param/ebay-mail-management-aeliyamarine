@@ -161,6 +161,7 @@ export function Icon({ name }) {
     audit: <path d="M5 4h8l2 2v10H5V4Zm7 0v3h3M7 9h6M7 12h6" />,
     search: <path d="M8.5 14a5.5 5.5 0 1 1 3.9-1.6L16 16l-1.4 1.4-3.6-3.6A5.5 5.5 0 0 1 8.5 14Zm0-2a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" />,
     refresh: <path d="M16 6V3m0 0h-3m3 0-2.3 2.3A6 6 0 1 0 16 11" />,
+    download: <path d="M10 3v8m0 0 3-3m-3 3L7 8M5 14v2h10v-2" />,
     filter: <path d="M3 4h14l-5.5 6v5L8.5 16.5V10L3 4Z" />,
     clock: <path d="M10 3a7 7 0 1 0 0 14 7 7 0 0 0 0-14Zm0 3v4l2.7 1.6" />,
     handshake: <path d="M7 8.5 9.2 6.3a2 2 0 0 1 2.8 0l.7.7H15l2 3-2.5 4.5h-2.2L10 16.2 7.7 14H5.5L3 9.5l2-3h2l.8.8L6.2 9 8 10.8l1.4-1.4M5.5 14.5 3 10m12 4.5 2-4m-5-3.5 2.8 2.8a1.4 1.4 0 0 1 0 2L12 14.5" />,

@@ -85,6 +85,7 @@ class PmsMonthlyTableRow(BaseModel):
     status: str | None = None
     final_score: float | None = None
     maximum_score: float | None = None
+    remarks: str | None = None
     metrics: list[PmsMonthlyMetricSchema] = Field(default_factory=list)
 
 

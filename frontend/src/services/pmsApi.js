@@ -1,4 +1,4 @@
-import { apiRequest } from './http'
+import { apiFetch, apiRequest } from './http'
 
 function qs(params = {}) {
   const search = new URLSearchParams()
@@ -39,6 +39,15 @@ export function deletePmsConfig(configId) {
 
 export function fetchPmsMonthlyTable(params) {
   return apiRequest(`/pms/monthly${qs(params)}`)
+}
+
+export async function exportPmsMonthlyTable(params) {
+  const response = await apiFetch(`/pms/monthly/export${qs(params)}`)
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}))
+    throw new Error(data.detail || data.message || 'Unable to export PMS data.')
+  }
+  return response.blob()
 }
 
 export function fetchPmsMonthlyRecord(userId, params) {

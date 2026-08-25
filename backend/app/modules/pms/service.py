@@ -1864,6 +1864,7 @@ class PmsService:
                         if record
                         else None
                     ),
+                    remarks=record.remarks if record else None,
                     metrics=[
                         PmsMonthlyMetricSchema(
                             metric_key=metric.metric_key,

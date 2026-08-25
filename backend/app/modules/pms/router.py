@@ -1,10 +1,12 @@
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.api.dependencies import get_current_user, require_admin, require_operations_manager_or_admin
 from app.db.session import get_db
+from app.modules.pms.export import export_monthly_table, fiscal_year_label
 from app.modules.pms.schema import (
     PmsEmployeeOfMonthResolveRequest,
     PmsEmployeeOfMonthResponse,
@@ -68,6 +70,26 @@ def get_monthly_table(
 ):
     service = PmsService(db)
     return service.get_monthly_table(current_user, year, month, search)
+
+
+@router.get('/monthly/export')
+def export_monthly_table_excel(
+    year: int = Query(...),
+    month: int = Query(..., ge=1, le=12),
+    search: str | None = Query(default=None),
+    target_achievement_percent: float | None = Query(default=None, ge=0, le=100),
+    db: Session = Depends(get_db),
+    current_user=Depends(require_operations_manager_or_admin),
+):
+    service = PmsService(db)
+    table = service.get_monthly_table(current_user, year, month, search)
+    output = export_monthly_table(table, target_achievement_percent=target_achievement_percent)
+    filename = f'PMS_Monthly_Data_{fiscal_year_label(year, month)}.xlsx'
+    return StreamingResponse(
+        output,
+        media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        headers={'Content-Disposition': f'attachment; filename="{filename}"'},
+    )
 
 
 @router.get('/monthly/{user_id}', response_model=PmsMonthlyRecordResponse)
