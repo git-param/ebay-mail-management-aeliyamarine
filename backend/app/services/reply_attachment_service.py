@@ -358,6 +358,47 @@ class ReplyAttachmentService:
                 'ebay_error': ebay_error,
             }
 
+    def delete_local_files(
+        self,
+        *,
+        attachments: list[MessageAttachment],
+    ) -> None:
+        """
+        Remove local upload files after eBay has accepted and hosted them.
+
+        The MessageAttachment rows are kept for conversation history, but
+        storage_path/download_url are cleared so the app no longer points at
+        files that have intentionally been removed.
+        """
+        for attachment in attachments:
+            raw_payload = attachment.raw_payload or {}
+            storage_path_value = attachment.storage_path
+
+            if storage_path_value:
+                storage_path = Path(storage_path_value)
+                try:
+                    if storage_path.exists():
+                        storage_path.unlink()
+                        raw_payload['local_file_deleted'] = True
+                    else:
+                        raw_payload['local_file_deleted'] = True
+                        raw_payload['local_file_delete_note'] = 'file already missing'
+                except OSError as exc:
+                    logger.warning(
+                        'Could not delete local reply attachment: attachment_id=%s path=%s error=%s',
+                        attachment.id,
+                        storage_path,
+                        exc,
+                    )
+                    raw_payload['local_file_deleted'] = False
+                    raw_payload['local_file_delete_error'] = str(exc)
+                    attachment.raw_payload = raw_payload
+                    continue
+
+            attachment.storage_path = None
+            attachment.download_url = None
+            attachment.raw_payload = raw_payload
+
     # ------------------------------------------------------------------
     # Local file resolution (used by helpdesk download endpoints)
     # ------------------------------------------------------------------

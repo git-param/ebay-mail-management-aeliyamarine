@@ -273,6 +273,9 @@ class EbayReplyService:
                 attachments=saved_attachments,
                 delivery='ebay_sent',
             )
+            self.attachment_service.delete_local_files(
+                attachments=saved_attachments,
+            )
 
         # --- 9. Finalise the message row with the real eBay message ID ---
         provider_message_id = self._provider_message_id(response.payload) or f'local-reply-{uuid4()}'
