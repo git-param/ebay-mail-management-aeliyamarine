@@ -138,6 +138,7 @@ class PmsService:
             year=year,
             month=month,
             target_achievement_percent=self.get_target_achievement_percent(year, month),
+            source=self.get_target_achievement_percent_source(year, month),
         )
 
     def update_target_achievement(
@@ -191,9 +192,24 @@ class PmsService:
             year=payload.year,
             month=payload.month,
             target_achievement_percent=percent,
+            source='setting',
         )
 
-    def get_target_achievement_percent(self, year: int, month: int) -> float:
+    def get_target_achievement_percent(self, year: int, month: int) -> float | None:
+        setting_value = self._target_achievement_setting_value(year, month)
+        if setting_value is not None:
+            return setting_value
+
+        return self._infer_target_achievement_percent(year, month)
+
+    def get_target_achievement_percent_source(self, year: int, month: int) -> str:
+        if self._target_achievement_setting_value(year, month) is not None:
+            return 'setting'
+        if self._infer_target_achievement_percent(year, month) is not None:
+            return 'record'
+        return 'none'
+
+    def _target_achievement_setting_value(self, year: int, month: int) -> float | None:
         setting = self.db.scalar(
             select(AppConfigSetting).where(
                 AppConfigSetting.config_key
@@ -201,16 +217,45 @@ class PmsService:
             )
         )
 
-        if not setting:
-            return 100.0
+        if setting:
+            try:
+                return round(max(0.0, min(float(setting.value), 100.0)), 2)
+            except (TypeError, ValueError):
+                return None
 
-        try:
-            return round(max(0.0, min(float(setting.value), 100.0)), 2)
-        except (TypeError, ValueError):
-            return 100.0
+        return None
 
     def _target_achievement_setting_key(self, year: int, month: int) -> str:
         return f'{TARGET_ACHIEVEMENT_SETTING_PREFIX}.{year}.{month:02d}'
+
+    def _infer_target_achievement_percent(self, year: int, month: int) -> float | None:
+        records = self.db.scalars(
+            select(PmsMonthlyRecord)
+            .options(selectinload(PmsMonthlyRecord.metrics))
+            .where(
+                PmsMonthlyRecord.year == year,
+                PmsMonthlyRecord.month == month,
+            )
+        )
+
+        for record in records:
+            for metric in record.metrics:
+                if metric.metric_key != 'target_achievement':
+                    continue
+
+                meta_percent = (metric.calc_meta or {}).get('target_percent')
+                try:
+                    if meta_percent is not None:
+                        return round(max(0.0, min(float(meta_percent), 100.0)), 2)
+                except (TypeError, ValueError):
+                    pass
+
+                final_value = float(metric.final_value or 0)
+                weight = float(metric.weight_snapshot or 0)
+                if weight > 0:
+                    return round(max(0.0, min((final_value / weight) * 100, 100.0)), 2)
+
+        return None
 
     # ------------------------------------------------------------------
     # PMS Configuration

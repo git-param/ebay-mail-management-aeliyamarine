@@ -247,6 +247,8 @@ export function PMS({ currentUser, onLogout }) {
   const [targetAchievementByMonth, setTargetAchievementByMonth] = useState(
     loadTargetAchievementByMonth,
   );
+  const [targetAchievementSourceByMonth, setTargetAchievementSourceByMonth] =
+    useState({});
   const [targetAchievementDraft, setTargetAchievementDraft] = useState("100");
   const [targetAchievementSaving, setTargetAchievementSaving] = useState(false);
   const [targetAchievementError, setTargetAchievementError] = useState(null);
@@ -332,16 +334,28 @@ export function PMS({ currentUser, onLogout }) {
     return targetAchievementByMonth[monthKey(year, month)] ?? 100;
   }
 
-  function rememberTargetAchievement(year, month, percent) {
+  function rememberTargetAchievement(year, month, percent, options = {}) {
     if (percent === null || percent === undefined || Number.isNaN(Number(percent))) {
       return targetAchievementPercentFor(year, month);
     }
 
     const nextPercent = clampNumber(percent, 100);
+    const key = monthKey(year, month);
     setTargetAchievementByMonth((current) => {
+      if (
+        options.preserveExisting &&
+        current[key] !== null &&
+        current[key] !== undefined &&
+        !Number.isNaN(Number(current[key])) &&
+        (targetAchievementSourceByMonth[key] === "setting" ||
+          Number(current[key]) !== 100)
+      ) {
+        return current;
+      }
+
       const next = {
         ...current,
-        [monthKey(year, month)]: nextPercent,
+        [key]: nextPercent,
       };
       window.localStorage.setItem(
         TARGET_ACHIEVEMENT_STORAGE_KEY,
@@ -349,13 +363,20 @@ export function PMS({ currentUser, onLogout }) {
       );
       return next;
     });
+    setTargetAchievementSourceByMonth((current) => ({
+      ...current,
+      [key]: options.source || "local",
+    }));
     return nextPercent;
   }
 
   function targetAchievementPercentForMetric(metric, year, month) {
-    const configuredPercent = targetAchievementByMonth[monthKey(year, month)];
+    const key = monthKey(year, month);
+    const configuredPercent = targetAchievementByMonth[key];
+    const configuredSource = targetAchievementSourceByMonth[key];
 
     if (
+      (configuredSource === "setting" || Number(configuredPercent) !== 100) &&
       configuredPercent !== null &&
       configuredPercent !== undefined &&
       !Number.isNaN(Number(configuredPercent))
@@ -442,7 +463,14 @@ export function PMS({ currentUser, onLogout }) {
       return row;
     }
 
-    const adjustedMetrics = applyTargetAchievement(row.metrics || []);
+    const adjustedMetrics = applyTargetAchievement(
+      row.metrics || [],
+      targetAchievementPercentForMetric(
+        targetMetric,
+        row.year ?? tableData?.year ?? selectedYear,
+        row.month ?? tableData?.month ?? selectedMonth,
+      ),
+    );
     const finalScore = metricsFinalScore(adjustedMetrics);
 
     return {
@@ -499,6 +527,7 @@ export function PMS({ currentUser, onLogout }) {
         selectedYear,
         selectedMonth,
         data.target_achievement_percent ?? nextPercent,
+        { source: "setting" },
       );
       setTargetAchievementDraft(String(savedPercent));
       await loadEmployeeOfMonth();
@@ -592,11 +621,6 @@ export function PMS({ currentUser, onLogout }) {
       });
 
       setTableData(data);
-      rememberTargetAchievement(
-        data.year,
-        data.month,
-        data.target_achievement_percent,
-      );
     } catch (err) {
       setTableError(err?.message || "Failed to load PMS for this month.");
     } finally {
@@ -614,6 +638,10 @@ export function PMS({ currentUser, onLogout }) {
         data.year,
         data.month,
         data.target_achievement_percent,
+        {
+          preserveExisting: data.source !== "setting",
+          source: data.source,
+        },
       );
     } catch {
       // Existing saved metric metadata/local cache is still a valid fallback.

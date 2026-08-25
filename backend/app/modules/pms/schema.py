@@ -93,7 +93,7 @@ class PmsMonthlyTableResponse(BaseModel):
     year: int
     month: int
     total_active_weight: float
-    target_achievement_percent: float = 100
+    target_achievement_percent: float | None = None
     items: list[PmsMonthlyTableRow]
     completed_count: int
     pending_count: int
@@ -133,7 +133,8 @@ class PmsMonthlyRefreshRequest(BaseModel):
 class PmsTargetAchievementResponse(BaseModel):
     year: int
     month: int
-    target_achievement_percent: float = 100
+    target_achievement_percent: float | None = None
+    source: str = 'none'
 
 
 class PmsTargetAchievementUpdateRequest(BaseModel):
