@@ -182,7 +182,7 @@ def export_monthly_tables(tables, *, target_achievement_percent_by_period: dict[
                 'D': row_value(row, 'department'),
                 'E': row_value(row, 'designation'),
                 'F': getattr(row, 'date_of_joining', None),
-                'G': '',
+                'G': f'=IF(F{row_index}="","",DATEDIF(F{row_index},TODAY(),"Y")&"Yr "&DATEDIF(F{row_index},TODAY(),"YM")&"m")',
                 'H': month_token(table.year, table.month),
                 'I': metric_value(row, 'target_achievement', target_achievement_percent),
                 'J': metric_value(row, 'productivity'),
@@ -190,7 +190,7 @@ def export_monthly_tables(tables, *, target_achievement_percent_by_period: dict[
                 'L': metric_value(row, 'punctuality'),
                 'M': metric_value(row, 'attendance'),
                 'N': metric_value(row, 'competency'),
-                'O': f'=SUM(I{row_index}:N{row_index})',
+                'O': f'=ROUND(SUM(I{row_index}:N{row_index}),0)',
                 'P': getattr(row, 'remarks', None) or '',
             }
             for column, value in values.items():
@@ -200,7 +200,7 @@ def export_monthly_tables(tables, *, target_achievement_percent_by_period: dict[
                 cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
                 cell.border = thin_border
                 if column == 'F' and value:
-                    cell.number_format = 'm/d/yyyy'
+                    cell.number_format = 'dd/mm/yyyy'
             sheet[f'C{row_index}'].alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
             sheet[f'P{row_index}'].alignment = Alignment(horizontal='left', vertical='top', wrap_text=True)
             sheet[f'G{row_index}'].fill = PatternFill('solid', fgColor=TENURE_FILL)

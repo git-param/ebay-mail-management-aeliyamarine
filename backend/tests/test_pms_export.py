@@ -64,11 +64,12 @@ def test_pms_export_matches_reference_structure_and_blank_doj():
     assert sheet['B5'].value == 'EMP-1051'
     assert sheet['E5'].value == 'Operation Executive'
     assert sheet['F5'].value.date() == date(2022, 4, 5)
-    assert sheet['G5'].value is None
+    assert sheet['F5'].number_format == 'dd/mm/yyyy'
+    assert sheet['G5'].value == '=IF(F5="","",DATEDIF(F5,TODAY(),"Y")&"Yr "&DATEDIF(F5,TODAY(),"YM")&"m")'
     assert sheet['D5'].value == 'Operations'
     assert sheet['I5'].value == 41.21
     assert sheet['N5'].value == 4
-    assert sheet['O5'].value == '=SUM(I5:N5)'
+    assert sheet['O5'].value == '=ROUND(SUM(I5:N5),0)'
     assert sheet['P5'].value == 'Solid month'
 
 
