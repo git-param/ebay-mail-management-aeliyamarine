@@ -367,22 +367,33 @@ function isOfferNotificationMessage(
   message,
   structuredOffers,
 ) {
-  if (
-    message?.is_offer_notification
-  ) {
-    return true
+  /*
+   * A message linked to an offer is NOT automatically an eBay notification.
+   * Real buyer/seller chat messages can legitimately be linked to an offer,
+   * so message_id matching must never hide them.
+   *
+   * Only hide rows that are actually system/eBay notification messages.
+   */
+  const senderType = String(
+    message?.sender_type || '',
+  ).toUpperCase()
+
+  const senderIdentifier = String(
+    message?.sender_identifier || '',
+  )
+    .trim()
+    .toLowerCase()
+
+  const isSystemLike =
+    senderType === 'SYSTEM' ||
+    senderIdentifier === 'ebay' ||
+    isEbayNotificationMessage(message)
+
+  if (!isSystemLike) {
+    return false
   }
 
-  const messageId = message?.id
-
-  if (
-    messageId &&
-    structuredOffers.some(
-      (offer) =>
-        offer.message_id ===
-        messageId,
-    )
-  ) {
+  if (message?.is_offer_notification) {
     return true
   }
 
@@ -406,6 +417,9 @@ function isOfferNotificationMessage(
     ) ||
     combined.includes(
       'sent a counteroffer',
+    ) ||
+    combined.includes(
+      'counteroffer submitted to buyer',
     ) ||
     combined.includes(
       'accepted an offer',
@@ -592,8 +606,8 @@ function MessageThread({
   ])
 
   /*
-   * Normalize and deduplicate all structured offers.
-   * This mirrors the original dashboard implementation.
+   * Normalize and deduplicate every structured offer through one helper.
+   * Keep FROM_EBAY system conversations message-only, as before.
    */
   const structuredOffers =
     useMemo(() => {
@@ -606,88 +620,13 @@ function MessageThread({
         return []
       }
 
-      const seen = new Set()
-      const items = []
-
-      function addOffer(
-        offer,
-        sourceMessage = null,
-      ) {
-        if (!offer) {
-          return
-        }
-
-        const key = String(
-          offer.provider_offer_id ||
-            offer.id ||
-            `${
-              sourceMessage?.id ||
-              'top'
-            }:${
-              offer.offer_amount ||
-              offer.amount
-            }:${
-              offer.status
-            }:${
-              offer.direction
-            }:${
-              offerTimestamp(
-                offer,
-              ) ||
-              sourceMessage
-                ?.sent_at ||
-              ''
-            }`,
-        )
-
-        if (seen.has(key)) {
-          return
-        }
-
-        seen.add(key)
-
-        const normalizedTimestamp =
-          offerTimestamp(offer) ||
-          sourceMessage?.sent_at ||
-          sourceMessage?.created_at ||
-          sourceMessage?.created_date
-
-        items.push({
-          ...offer,
-
-          id:
-            offer.id ||
-            `offer-${key}`,
-
-          message_id:
-            offer.message_id ||
-            offer.messageId ||
-            offer.source_message_id ||
-            sourceMessage?.id,
-
-          created_at:
-            normalizedTimestamp,
-
-          created_date:
-            offer.created_date ||
-            normalizedTimestamp,
-
-          buyer_username:
-            offer.buyer_username ||
-            conversation
-              ?.buyer_identifier ||
-            sourceMessage
-              ?.sender_identifier,
-        })
-      }
-
-      ;(offers || []).forEach(
-        (offer) =>
-          addOffer(offer),
+      return collectStructuredOffers(
+        messages,
+        offers,
+        conversation,
       )
-
-      return items
     }, [
+      messages,
       offers,
       conversation,
       isSystemConversation,
@@ -699,70 +638,32 @@ function MessageThread({
    * offers can safely participate in the same sorted timeline as messages.
    */
   const timelineItems =
-    useMemo(() => {
-      const items = [
-        ...messages.map(
-          (message, index) => ({
-            type: 'message',
-            message,
-            index,
-
-            timestamp:
-              message.sent_at ||
-              message.created_at ||
-              message.created_date,
-          }),
+    useMemo(
+      () =>
+        buildTimelineItems(
+          messages,
+          structuredOffers,
         ),
+      [messages, structuredOffers],
+    )
 
-        ...structuredOffers.map(
-          (offer, index) => ({
-            type: 'offer',
-            offer,
-            index,
-
-            timestamp:
-              offerTimestamp(offer),
-          }),
-        ),
-      ]
-
-      return items.sort(
-        (left, right) => {
-          const difference =
-            eventTimeValue(
-              left.timestamp,
-            ) -
-            eventTimeValue(
-              right.timestamp,
-            )
-
-          if (difference !== 0) {
-            return difference
-          }
-
-          /*
-           * Preserve original tie behavior:
-           * offer before message when timestamps match.
-           */
-          if (
-            left.type !== right.type
-          ) {
-            return left.type ===
-              'offer'
-              ? -1
-              : 1
-          }
-
-          return (
-            left.index -
-            right.index
+  const visibleMessageBodies =
+    useMemo(
+      () =>
+        timelineItems
+          .filter(
+            (item) =>
+              item.type === 'message',
           )
-        },
-      )
-    }, [
-      messages,
-      structuredOffers,
-    ])
+          .map(({ message }) =>
+            message.body ||
+            message.message ||
+            message.text ||
+            '',
+          )
+          .filter(Boolean),
+      [timelineItems],
+    )
 
   if (
     !messages.length &&
@@ -800,7 +701,7 @@ function MessageThread({
                   offer
                     .provider_offer_id ||
                   offer.id ||
-                  item.index
+                  item.originalIndex
                 }`}
               >
                 <OfferEvent
@@ -808,15 +709,19 @@ function MessageThread({
                   conversation={
                     conversation
                   }
+                  visibleMessageBodies={
+                    visibleMessageBodies
+                  }
                 />
               </div>
             )
           }
 
-          const {
-            message,
-            index,
-          } = item
+          const message =
+            item.message
+
+          const index =
+            item.originalIndex
 
           const isSystem =
             isEbayNotificationMessage(
@@ -834,14 +739,15 @@ function MessageThread({
             direction === 'outbound'
 
           /*
-           * Backend marked this as an offer notification,
-           * but no structured offer was returned.
-           *
-           * Original code hides the raw notification.
+           * Only true eBay/system offer notifications are hidden.
+           * Buyer and seller chat messages must remain visible even when the
+           * backend linked them to an offer or marked offer metadata on them.
            */
           if (
-            message
-              .is_offer_notification
+            isOfferNotificationMessage(
+              message,
+              structuredOffers,
+            )
           ) {
             return null
           }

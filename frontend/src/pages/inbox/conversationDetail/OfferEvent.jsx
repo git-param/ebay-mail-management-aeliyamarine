@@ -9,6 +9,7 @@ function OfferEvent({
   offer,
   conversation,
   showSellerMessage = true,
+  visibleMessageBodies = [],
 }) {
   const direction = String(
     offer?.direction || '',
@@ -86,27 +87,32 @@ function OfferEvent({
         )
 
   /*
-   * Offer notifications can include both buyer and seller notes.
-   * Status-only records should not repeat fallback raw_text from an earlier
-   * active offer, but explicit provider-side messages are still shown.
+   * Offer rows can carry notes copied from another event in the same offer
+   * sequence. A seller note belongs only to a seller-originated event, and a
+   * buyer note belongs only to a buyer-originated event. Terminal status rows
+   * (accepted / expired / declined) should never replay an earlier note.
    */
-  const shouldShowSellerMessage =
+  const isTerminalStatus =
+    isAccepted ||
+    isExpired ||
+    isDeclined
+
+  const sellerOriginated =
+    isOutgoing ||
+    offerType.includes('SELLER')
+
+  const buyerOriginated =
+    isIncoming ||
+    offerType.includes('BUYER')
+
+  const canShowSellerMessage =
     showSellerMessage &&
-    !isExpired &&
-    !isDeclined &&
-    !isAccepted
+    sellerOriginated &&
+    !isTerminalStatus
 
-  const explicitSellerMessage = String(
-    offer?.seller_message ||
-      offer?.sellerMessage ||
-      '',
-  ).trim()
-
-  const explicitBuyerMessage = String(
-    offer?.buyer_message ||
-      offer?.buyerMessage ||
-      '',
-  ).trim()
+  const canShowBuyerMessage =
+    buyerOriginated &&
+    !isTerminalStatus
 
   const legacyRawText = String(
     offer?.raw_text ||
@@ -114,30 +120,127 @@ function OfferEvent({
       '',
   ).trim()
 
-  const sellerOfferMessage = (
+  const normalizeMessageText = (value) =>
+    String(value || '')
+      .trim()
+      .replace(/\s+/g, ' ')
+
+  const normalizedVisibleBodies =
+    new Set(
+      visibleMessageBodies
+        .map(normalizeMessageText)
+        .filter(Boolean),
+    )
+
+  function isAlreadyVisibleMessage(value) {
+    const normalizedValue =
+      normalizeMessageText(value)
+
+    return (
+      normalizedValue &&
+      normalizedVisibleBodies.has(
+        normalizedValue,
+      )
+    )
+  }
+
+  /*
+   * raw_text is overloaded by the backend: sometimes it is a real buyer/
+   * seller note and sometimes it is an eBay event sentence. Do not turn an
+   * event sentence into a chat bubble.
+   */
+  function isOfferEventText(value) {
+    const normalizedValue =
+      normalizeMessageText(value)
+        .toLowerCase()
+
+    if (!normalizedValue) {
+      return false
+    }
+
+    return [
+      'counteroffer submitted to buyer',
+      'you sent an offer',
+      'you sent a counteroffer',
+      'buyer sent an offer',
+      'buyer made a counteroffer',
+      'you have a new offer',
+      'accepted an offer',
+      'accepted your offer',
+      'offer accepted',
+      'offer declined',
+      'offer expired',
+      'counteroffer accepted',
+      'counteroffer declined',
+      'counteroffer expired',
+    ].some((phrase) =>
+      normalizedValue.includes(phrase),
+    )
+  }
+
+  const rawSellerMessage = String(
+    offer?.seller_message ||
+      offer?.sellerMessage ||
+      '',
+  ).trim()
+
+  const rawBuyerMessage = String(
+    offer?.buyer_message ||
+      offer?.buyerMessage ||
+      '',
+  ).trim()
+
+  const explicitSellerMessage =
+    canShowSellerMessage &&
+    rawSellerMessage &&
+    !isAlreadyVisibleMessage(
+      rawSellerMessage,
+    )
+      ? rawSellerMessage
+      : ''
+
+  const explicitBuyerMessage =
+    canShowBuyerMessage &&
+    rawBuyerMessage &&
+    !isAlreadyVisibleMessage(
+      rawBuyerMessage,
+    )
+      ? rawBuyerMessage
+      : ''
+
+  const canUseLegacyRawText =
+    legacyRawText &&
+    !isOfferEventText(legacyRawText) &&
+    !isAlreadyVisibleMessage(
+      legacyRawText,
+    )
+
+  const sellerOfferMessage =
     explicitSellerMessage ||
     (
-      shouldShowSellerMessage &&
-      isOutgoing
+      canShowSellerMessage &&
+      canUseLegacyRawText
         ? legacyRawText
         : ''
     )
-  )
 
-  const buyerOfferMessage = (
+  const buyerOfferMessage =
     explicitBuyerMessage ||
     (
-      isIncoming &&
-      !explicitSellerMessage
+      canShowBuyerMessage &&
+      canUseLegacyRawText &&
+      legacyRawText !==
+        sellerOfferMessage
         ? legacyRawText
         : ''
     )
-  )
 
-  const showBuyerOfferMessage = (
-    buyerOfferMessage &&
-    buyerOfferMessage !== sellerOfferMessage
-  )
+  const showBuyerOfferMessage =
+    Boolean(
+      buyerOfferMessage &&
+      buyerOfferMessage !==
+        sellerOfferMessage,
+    )
 
   const avatarLabel = String(
     buyerName || 'B',

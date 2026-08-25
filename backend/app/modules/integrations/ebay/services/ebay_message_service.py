@@ -218,6 +218,14 @@ class EbayMessageService:
                 sender_username or ''
             ).strip().lower()
 
+            recipient_normalized = (
+                recipient_username or ''
+            ).strip().lower()
+
+            buyer_normalized = (
+                conversation.buyer_identifier or ''
+            ).strip().lower()
+
             # FROM_EBAY threads and messages sent explicitly by "ebay" are
             # provider/system notifications, not customer support messages.
             is_provider_message = (
@@ -225,10 +233,11 @@ class EbayMessageService:
                 or sender_normalized == 'ebay'
             )
 
-            is_inbound = bool(
-                sender_username
-                and sender_normalized
-                != seller_username
+            is_inbound = self._is_inbound_message(
+                sender_normalized=sender_normalized,
+                recipient_normalized=recipient_normalized,
+                seller_username=seller_username,
+                buyer_normalized=buyer_normalized,
             )
 
             if is_provider_message:
@@ -371,6 +380,22 @@ class EbayMessageService:
             conversation.provider_conversation_type
             or ''
         ).upper() == 'FROM_EBAY'
+
+    def _is_inbound_message(
+        self,
+        *,
+        sender_normalized: str,
+        recipient_normalized: str,
+        seller_username: str,
+        buyer_normalized: str,
+    ) -> bool:
+        if buyer_normalized and sender_normalized == buyer_normalized:
+            return True
+        if buyer_normalized and recipient_normalized == buyer_normalized:
+            return False
+        if seller_username and sender_normalized == seller_username:
+            return False
+        return bool(sender_normalized)
 
     def _messages_from_detail(
         self,

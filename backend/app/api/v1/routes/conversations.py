@@ -366,7 +366,41 @@ def stored_conversation_offers(db: Session, conversation: Conversation) -> list[
     if not conversation.has_offers:
         conversation.has_offers = True
         db.flush()
-    return sorted(offers, key=lambda offer: (offer.created_at_provider or offer.created_at, offer.created_at))
+    return visible_conversation_offers(
+        sorted(offers, key=lambda offer: (offer.created_at_provider or offer.created_at, offer.created_at))
+    )
+
+
+def visible_conversation_offers(offers: list[Offer]) -> list[Offer]:
+    """Collapse duplicate terminal offer notifications for a conversation timeline."""
+    latest_accepted_by_context: dict[tuple[str | None, str | None], Offer] = {}
+
+    for offer in offers:
+        if str(offer.status or "").upper() != "ACCEPTED":
+            continue
+
+        key = (
+            str(offer.listing_id or "").strip() or None,
+            str(offer.buyer_username or "").strip().lower() or None,
+        )
+
+        existing = latest_accepted_by_context.get(key)
+        if not existing or (
+            offer.created_at_provider or offer.created_at,
+            offer.created_at,
+        ) >= (
+            existing.created_at_provider or existing.created_at,
+            existing.created_at,
+        ):
+            latest_accepted_by_context[key] = offer
+
+    accepted_to_keep = {offer.id for offer in latest_accepted_by_context.values()}
+
+    return [
+        offer
+        for offer in offers
+        if str(offer.status or "").upper() != "ACCEPTED" or offer.id in accepted_to_keep
+    ]
 
 
 def link_unattached_conversation_offers(db: Session, conversation: Conversation) -> list[Offer]:

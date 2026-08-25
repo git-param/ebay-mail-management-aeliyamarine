@@ -63,7 +63,7 @@ class Settings(BaseSettings):
     )
     reply_attachment_max_bytes: int = Field(default=5 * 1024 * 1024, validation_alias='REPLY_ATTACHMENT_MAX_BYTES')
     reply_attachment_upload_dir: str = Field(default='uploads/reply_attachments', validation_alias='REPLY_ATTACHMENT_UPLOAD_DIR')
-    translation_api_url: str = Field(default='', validation_alias='TRANSLATION_API_URL')
+    translation_api_url: str = Field(default='https://libretranslate.com/translate', validation_alias='TRANSLATION_API_URL')
     translation_api_key: str = Field(default='', validation_alias='TRANSLATION_API_KEY')
     zoho_client_id: str = Field(default='', validation_alias='ZOHO_CLIENT_ID')
     zoho_client_secret: str = Field(default='', validation_alias='ZOHO_CLIENT_SECRET')
