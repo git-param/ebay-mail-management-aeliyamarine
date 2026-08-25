@@ -60,6 +60,10 @@ def month_token(year: int, month: int) -> str:
     return f"{['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][month - 1]}'{str(year)[-2:]}"
 
 
+def row_value(row, name: str):
+    return getattr(row, name, None) or ''
+
+
 def export_monthly_tables(tables, *, target_achievement_percent_by_period: dict[tuple[int, int], float] | None = None) -> BytesIO:
     tables = list(tables)
     if not tables:
@@ -173,11 +177,11 @@ def export_monthly_tables(tables, *, target_achievement_percent_by_period: dict[
         for row in table.items:
             values = {
                 'A': serial_number,
-                'B': '',
+                'B': row_value(row, 'employee_id'),
                 'C': row.user_name or '',
-                'D': 'Operations',
-                'E': '',
-                'F': '',
+                'D': row_value(row, 'department'),
+                'E': row_value(row, 'designation'),
+                'F': getattr(row, 'date_of_joining', None),
                 'G': '',
                 'H': month_token(table.year, table.month),
                 'I': metric_value(row, 'target_achievement', target_achievement_percent),
@@ -195,6 +199,8 @@ def export_monthly_tables(tables, *, target_achievement_percent_by_period: dict[
                 cell.font = Font(name='Times New Roman', size=10, color=BLACK)
                 cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
                 cell.border = thin_border
+                if column == 'F' and value:
+                    cell.number_format = 'm/d/yyyy'
             sheet[f'C{row_index}'].alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
             sheet[f'P{row_index}'].alignment = Alignment(horizontal='left', vertical='top', wrap_text=True)
             sheet[f'G{row_index}'].fill = PatternFill('solid', fgColor=TENURE_FILL)

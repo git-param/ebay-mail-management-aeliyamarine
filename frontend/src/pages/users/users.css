@@ -10,6 +10,11 @@
   color: #7c3aed;
 }
 
+.menu-delete,
+.menu-delete .ui-icon {
+  color: #b42318;
+}
+
 .category-list {
   display: flex;
   flex-wrap: wrap;

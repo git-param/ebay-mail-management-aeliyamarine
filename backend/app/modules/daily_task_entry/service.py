@@ -96,6 +96,7 @@ class DailyEntryService:
             select(User)
             .where(
                 User.is_active.is_(True),
+                User.deleted_at.is_(None),
                 User.role.has(name="Support Agent"),
             )
             .order_by(User.full_name.asc())

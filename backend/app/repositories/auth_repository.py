@@ -19,11 +19,17 @@ class AuthRepository:
             select(User)
             .options(joinedload(User.role))
             .where(User.email == email.lower().strip())
+            .where(User.deleted_at.is_(None))
         )
         return self.db.scalar(statement)
 
     def get_user_by_id(self, user_id: UUID) -> User | None:
-        statement = select(User).options(joinedload(User.role)).where(User.id == user_id)
+        statement = (
+            select(User)
+            .options(joinedload(User.role))
+            .where(User.id == user_id)
+            .where(User.deleted_at.is_(None))
+        )
         return self.db.scalar(statement)
 
     def store_refresh_token(self, *, user_id: UUID, token_hash: str, jwt_id: str, expires_at: datetime) -> None:

@@ -5,6 +5,7 @@ import { fetchCategories, updateUserCategoryAssignments } from '../../services/c
 import {
   activateUser,
   createUser,
+  deleteUser,
   deactivateUser,
   fetchUser,
   fetchUsers,
@@ -20,6 +21,10 @@ const STATUSES = ['Active', 'Inactive']
 const EMPTY_FORM = {
   fullName: '',
   email: '',
+  employeeId: '',
+  department: '',
+  designation: '',
+  dateOfJoining: '',
   role: 'Agent',
   status: 'Active',
   password: '',
@@ -62,6 +67,23 @@ function formatDate(value) {
   })
 }
 
+function formatDateOnly(value) {
+  if (!value) {
+    return 'Not available'
+  }
+
+  const date = new Date(`${value}T00:00:00`)
+  if (Number.isNaN(date.getTime())) {
+    return value
+  }
+
+  return date.toLocaleDateString(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: '2-digit',
+  })
+}
+
 function formatRole(role) {
   const normalizedRole = String(role || '')
     .trim()
@@ -87,6 +109,11 @@ function normalizeUser(user) {
     id: user.id || user.user_id,
     fullName: user.name || user.full_name || user.fullName || '',
     email: user.email || '',
+    employeeId: user.employee_id || user.employeeId || '',
+    department: user.department || '',
+    designation: user.designation || '',
+    dateOfJoining: user.date_of_joining || user.dateOfJoining || '',
+    dateOfJoiningLabel: formatDateOnly(user.date_of_joining || user.dateOfJoining),
     role: formatRole(user.role),
     status: isActive ? 'Active' : 'Inactive',
     createdDate: formatDate(user.created_at || user.createdDate || user.created_date),
@@ -119,6 +146,10 @@ function toUserPayload(values) {
   return {
     name: values.fullName.trim(),
     email: values.email.trim(),
+    employee_id: values.employeeId.trim() || null,
+    department: values.department.trim() || null,
+    designation: values.designation.trim() || null,
+    date_of_joining: values.dateOfJoining || null,
     role: values.role,
     is_active: values.status === 'Active',
     ...(values.password ? { password: values.password } : {}),
@@ -181,6 +212,18 @@ function UserForm({ mode, initialValues, isSubmitting, onCancel, onSubmit }) {
     } else if (!validateEmail(values.email)) {
       nextErrors.email = 'Enter a valid email address.'
     }
+    if (!values.employeeId.trim()) {
+      nextErrors.employeeId = 'Employee ID is required.'
+    }
+    if (!values.department.trim()) {
+      nextErrors.department = 'Department is required.'
+    }
+    if (!values.designation.trim()) {
+      nextErrors.designation = 'Designation is required.'
+    }
+    if (!values.dateOfJoining) {
+      nextErrors.dateOfJoining = 'Date of joining is required.'
+    }
     if (mode === 'create') {
       if (!values.password) {
         nextErrors.password = 'Password is required.'
@@ -212,6 +255,30 @@ function UserForm({ mode, initialValues, isSubmitting, onCancel, onSubmit }) {
         <span>Email</span>
         <input name="email" type="email" value={values.email} onChange={updateField} />
         {errors.email ? <small>{errors.email}</small> : null}
+      </label>
+
+      <label className="field">
+        <span>Employee ID</span>
+        <input name="employeeId" value={values.employeeId} onChange={updateField} />
+        {errors.employeeId ? <small>{errors.employeeId}</small> : null}
+      </label>
+
+      <label className="field">
+        <span>Department</span>
+        <input name="department" value={values.department} onChange={updateField} />
+        {errors.department ? <small>{errors.department}</small> : null}
+      </label>
+
+      <label className="field">
+        <span>Designation</span>
+        <input name="designation" value={values.designation} onChange={updateField} />
+        {errors.designation ? <small>{errors.designation}</small> : null}
+      </label>
+
+      <label className="field">
+        <span>Date of Joining</span>
+        <input name="dateOfJoining" type="date" value={values.dateOfJoining} onChange={updateField} />
+        {errors.dateOfJoining ? <small>{errors.dateOfJoining}</small> : null}
       </label>
 
       <label className="field">
@@ -297,6 +364,12 @@ function UserDrawer({ user, onClose }) {
     'full_name',
     'fullName',
     'email',
+    'employee_id',
+    'employeeId',
+    'department',
+    'designation',
+    'date_of_joining',
+    'dateOfJoining',
     'role',
     'status',
     'is_active',
@@ -340,6 +413,22 @@ function UserDrawer({ user, onClose }) {
         </div>
 
         <dl className="detail-grid">
+          <div>
+            <dt>Employee ID</dt>
+            <dd>{user.employeeId || 'Not available'}</dd>
+          </div>
+          <div>
+            <dt>Department</dt>
+            <dd>{user.department || 'Not available'}</dd>
+          </div>
+          <div>
+            <dt>Designation</dt>
+            <dd>{user.designation || 'Not available'}</dd>
+          </div>
+          <div>
+            <dt>Date of Joining</dt>
+            <dd>{user.dateOfJoiningLabel}</dd>
+          </div>
           <div>
             <dt>Created Date</dt>
             <dd>{user.createdDate}</dd>
@@ -550,6 +639,26 @@ function Users({ currentUser, onLogout }) {
     }
   }
 
+  async function removeUser() {
+    if (!selectedUser) {
+      return
+    }
+
+    setIsSubmitting(true)
+    setError('')
+
+    try {
+      await deleteUser(selectedUser.id)
+      closeModal()
+      showNotification('User deleted successfully.')
+      await loadUsers()
+    } catch (caughtError) {
+      showError(caughtError)
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
   async function saveCategoryAssignments() {
     if (!selectedUser) {
       return
@@ -674,6 +783,8 @@ function Users({ currentUser, onLogout }) {
                     <th>Avatar</th>
                     <th>Name</th>
                     <th>Email</th>
+                    <th>Employee ID</th>
+                    <th>Department</th>
                     <th>Role</th>
                     <th>Status</th>
                     <th>Created Date</th>
@@ -691,6 +802,8 @@ function Users({ currentUser, onLogout }) {
                         <strong>{user.fullName}</strong>
                       </td>
                       <td>{user.email}</td>
+                      <td>{user.employeeId || '-'}</td>
+                      <td>{user.department || '-'}</td>
                       <td>
                         <Badge type="role" value={user.role} />
                       </td>
@@ -729,6 +842,15 @@ function Users({ currentUser, onLogout }) {
                             <button className="menu-edit" type="button" onClick={() => openModal('categories', user)}>
                               <Icon name="tag" />
                               Assign Categories
+                            </button>
+                            <button
+                              className="menu-delete"
+                              type="button"
+                              onClick={() => openModal('delete', user)}
+                              disabled={isSubmitting || user.id === currentUser?.id}
+                            >
+                              <Icon name="trash" />
+                              Delete User
                             </button>
                             {user.status === 'Active' ? (
                               <button
@@ -791,6 +913,10 @@ function Users({ currentUser, onLogout }) {
             initialValues={{
               fullName: selectedUser.fullName,
               email: selectedUser.email,
+              employeeId: selectedUser.employeeId,
+              department: selectedUser.department,
+              designation: selectedUser.designation,
+              dateOfJoining: selectedUser.dateOfJoining,
               role: selectedUser.role,
               status: selectedUser.status,
             }}
@@ -821,6 +947,18 @@ function Users({ currentUser, onLogout }) {
           isSubmitting={isSubmitting}
           onCancel={closeModal}
           onConfirm={() => setUserStatus(selectedUser, 'Inactive')}
+        />
+      ) : null}
+
+      {modal === 'delete' && selectedUser ? (
+        <ConfirmModal
+          title="Delete User"
+          message={`Delete ${selectedUser.fullName}'s user account? They will be removed from user lists and PMS exports, but existing history will be preserved.`}
+          actionLabel="Delete User"
+          danger
+          isSubmitting={isSubmitting}
+          onCancel={closeModal}
+          onConfirm={removeUser}
         />
       ) : null}
 

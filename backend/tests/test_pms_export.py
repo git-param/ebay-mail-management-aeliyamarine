@@ -1,3 +1,5 @@
+from datetime import date
+
 from openpyxl import load_workbook
 
 from app.modules.pms.export import export_monthly_table, export_monthly_tables
@@ -27,6 +29,10 @@ def test_pms_export_matches_reference_structure_and_blank_doj():
                 user_id='11111111-1111-1111-1111-111111111111',
                 user_name='Sample User',
                 user_email='sample@example.com',
+                employee_id='EMP-1051',
+                department='Operations',
+                designation='Operation Executive',
+                date_of_joining=date(2022, 4, 5),
                 status='COMPLETED',
                 final_score=71,
                 maximum_score=100,
@@ -55,7 +61,9 @@ def test_pms_export_matches_reference_structure_and_blank_doj():
     assert sheet['B2'].fill.fgColor.rgb == '00DCE6F1'
     assert sheet['G5'].fill.fgColor.rgb == '00F2DCDB'
     assert sheet['O5'].fill.fgColor.rgb == '00E2F0C2'
-    assert sheet['F5'].value is None
+    assert sheet['B5'].value == 'EMP-1051'
+    assert sheet['E5'].value == 'Operation Executive'
+    assert sheet['F5'].value.date() == date(2022, 4, 5)
     assert sheet['G5'].value is None
     assert sheet['D5'].value == 'Operations'
     assert sheet['I5'].value == 41.21

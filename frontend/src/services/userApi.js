@@ -42,6 +42,12 @@ export function updateUser(userId, payload) {
   })
 }
 
+export function deleteUser(userId) {
+  return request(`/users/${userId}`, {
+    method: 'DELETE',
+  })
+}
+
 export function activateUser(userId) {
   return request(`/users/${userId}/activate`, {
     method: 'PATCH',

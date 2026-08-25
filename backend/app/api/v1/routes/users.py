@@ -1,7 +1,8 @@
+from datetime import UTC, datetime
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session, joinedload, selectinload
 
 from app.api.dependencies import get_current_user
@@ -9,6 +10,8 @@ from app.core.security import hash_password
 from app.db.session import get_db
 from app.models.audit_log import AuditLog
 from app.models.category import Category, CategoryUserAssignment
+from app.models.password_reset_token import PasswordResetToken
+from app.models.refresh_token import RefreshToken
 from app.models.role import Role
 from app.models.user import User
 from app.schemas.user import UserCreateRequest, UserResponse, UserUpdateRequest
@@ -34,6 +37,7 @@ class UserAuditActions:
     UPDATED = 'USER_UPDATED'
     ACTIVATED = 'USER_ACTIVATED'
     DEACTIVATED = 'USER_DEACTIVATED'
+    DELETED = 'USER_DELETED'
     PASSWORD_RESET_REQUESTED = 'USER_PASSWORD_RESET_REQUESTED'
 
 
@@ -54,6 +58,13 @@ def display_role_name(role_name: str) -> str:
     return role_name
 
 
+def clean_optional_text(value: str | None) -> str | None:
+    if value is None:
+        return None
+    cleaned = value.strip()
+    return cleaned or None
+
+
 def get_role(db: Session, role: str) -> Role:
     role_name = normalize_role_name(role)
     existing_role = db.scalar(select(Role).where(Role.name == role_name))
@@ -62,8 +73,11 @@ def get_role(db: Session, role: str) -> Role:
     return existing_role
 
 
-def get_user_or_404(db: Session, user_id: UUID) -> User:
-    user = db.scalar(select(User).options(joinedload(User.role)).where(User.id == user_id))
+def get_user_or_404(db: Session, user_id: UUID, *, include_deleted: bool = False) -> User:
+    statement = select(User).options(joinedload(User.role)).where(User.id == user_id)
+    if not include_deleted:
+        statement = statement.where(User.deleted_at.is_(None))
+    user = db.scalar(statement)
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='User not found')
     return user
@@ -88,6 +102,10 @@ def serialize_user(user: User) -> UserResponse:
         email=user.email,
         role=display_role_name(user.role.name),
         is_active=user.is_active,
+        employee_id=user.employee_id,
+        department=user.department,
+        designation=user.designation,
+        date_of_joining=user.date_of_joining,
         created_at=user.created_at,
         updated_at=user.updated_at,
         assigned_categories=[category.name for category in assigned_categories],
@@ -111,7 +129,12 @@ def list_users(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ) -> list[UserResponse]:
-    statement = select(User).options(joinedload(User.role)).order_by(User.created_at.desc())
+    statement = (
+        select(User)
+        .options(joinedload(User.role))
+        .where(User.deleted_at.is_(None))
+        .order_by(User.created_at.desc())
+    )
     return [serialize_user(user) for user in db.scalars(statement)]
 
 
@@ -122,7 +145,7 @@ def create_user(
     current_user=Depends(require_admin),
 ) -> UserResponse:
     normalized_email = payload.email.lower().strip()
-    existing_user = db.scalar(select(User).where(User.email == normalized_email))
+    existing_user = db.scalar(select(User).where(User.email == normalized_email).where(User.deleted_at.is_(None)))
     if existing_user:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='A user with this email already exists')
 
@@ -134,6 +157,10 @@ def create_user(
     user = User(
         email=normalized_email,
         full_name=payload.name.strip(),
+        employee_id=clean_optional_text(payload.employee_id),
+        department=clean_optional_text(payload.department),
+        designation=clean_optional_text(payload.designation),
+        date_of_joining=payload.date_of_joining,
         password_hash=hash_password(payload.password),
         role_id=role.id,
         is_active=payload.is_active,
@@ -171,13 +198,22 @@ def update_user(
 ) -> UserResponse:
     user = get_user_or_404(db, user_id)
     normalized_email = payload.email.lower().strip()
-    duplicate_user = db.scalar(select(User).where(User.email == normalized_email).where(User.id != user_id))
+    duplicate_user = db.scalar(
+        select(User)
+        .where(User.email == normalized_email)
+        .where(User.id != user_id)
+        .where(User.deleted_at.is_(None))
+    )
     if duplicate_user:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='A user with this email already exists')
 
     role = get_role(db, payload.role)
     user.full_name = payload.name.strip()
     user.email = normalized_email
+    user.employee_id = clean_optional_text(payload.employee_id)
+    user.department = clean_optional_text(payload.department)
+    user.designation = clean_optional_text(payload.designation)
+    user.date_of_joining = payload.date_of_joining
     user.role_id = role.id
     user.role = role
     user.is_active = payload.is_active
@@ -228,6 +264,37 @@ def deactivate_user(
     db.commit()
     db.refresh(user)
     return serialize_user(user)
+
+
+@router.delete('/{user_id}', status_code=status.HTTP_204_NO_CONTENT)
+def delete_user(
+    user_id: UUID,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_admin),
+) -> None:
+    if str(current_user.id) == str(user_id):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='You cannot delete your own user account')
+
+    user = get_user_or_404(db, user_id)
+    deleted_at = datetime.now(UTC)
+
+    user.is_active = False
+    user.deleted_at = deleted_at
+    user.deleted_by_user_id = current_user.id
+    user.email = f'deleted-{user.id}@deleted.local'
+
+    db.execute(delete(CategoryUserAssignment).where(CategoryUserAssignment.user_id == user.id))
+    db.execute(delete(PasswordResetToken).where(PasswordResetToken.user_id == user.id))
+    for token in db.scalars(select(RefreshToken).where(RefreshToken.user_id == user.id).where(RefreshToken.revoked_at.is_(None))):
+        token.revoked_at = deleted_at
+
+    add_user_audit_log(
+        db,
+        action=UserAuditActions.DELETED,
+        actor_id=current_user.id,
+        target_user_id=user.id,
+    )
+    db.commit()
 
 
 @router.post('/{user_id}/reset-password')

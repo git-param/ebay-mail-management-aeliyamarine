@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator
@@ -81,6 +81,10 @@ class PmsMonthlyTableRow(BaseModel):
     user_id: UUID
     user_name: str
     user_email: str | None = None
+    employee_id: str | None = None
+    department: str | None = None
+    designation: str | None = None
+    date_of_joining: date | None = None
     record_id: UUID | None = None
     status: str | None = None
     final_score: float | None = None

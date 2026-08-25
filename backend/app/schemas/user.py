@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from uuid import UUID
 
 from pydantic import BaseModel, EmailStr, Field
@@ -12,6 +12,10 @@ class UserCreateRequest(BaseModel):
     password: str = Field(min_length=PASSWORD_MIN_LENGTH, max_length=PASSWORD_MAX_LENGTH)
     role: str
     is_active: bool = True
+    employee_id: str = Field(min_length=1, max_length=60)
+    department: str = Field(min_length=1, max_length=120)
+    designation: str = Field(min_length=1, max_length=120)
+    date_of_joining: date
 
 
 class UserUpdateRequest(BaseModel):
@@ -19,6 +23,10 @@ class UserUpdateRequest(BaseModel):
     email: EmailStr
     role: str
     is_active: bool
+    employee_id: str = Field(min_length=1, max_length=60)
+    department: str = Field(min_length=1, max_length=120)
+    designation: str = Field(min_length=1, max_length=120)
+    date_of_joining: date
 
 
 class UserResponse(BaseModel):
@@ -27,6 +35,10 @@ class UserResponse(BaseModel):
     email: EmailStr
     role: str
     is_active: bool
+    employee_id: str | None = None
+    department: str | None = None
+    designation: str | None = None
+    date_of_joining: date | None = None
     created_at: datetime
     updated_at: datetime
     last_login: datetime | None = None

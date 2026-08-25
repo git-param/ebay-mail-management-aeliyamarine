@@ -686,7 +686,11 @@ class LeaveManagementService:
         ledger.created_by_user_id = current_user.id
 
     def _agent_users_statement(self):
-        return select(User).where(User.is_active.is_(True), User.role.has(name=AGENT_ROLE_NAME)).order_by(User.full_name.asc())
+        return select(User).where(
+            User.is_active.is_(True),
+            User.deleted_at.is_(None),
+            User.role.has(name=AGENT_ROLE_NAME),
+        ).order_by(User.full_name.asc())
 
     def _paid_pms_deductions_by_request(self, policy: LeavePolicy, requests: list[LeaveRequest], paid_allowance: float | None = None) -> dict[UUID, int]:
         paid_allowance = float(policy.paid_leave_per_month if paid_allowance is None else paid_allowance)

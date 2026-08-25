@@ -28,11 +28,12 @@ class CategoryAssignmentService:
                 .join(CategoryUserAssignment, CategoryUserAssignment.user_id == User.id)
                 .where(CategoryUserAssignment.category_id == category_id)
                 .where(User.is_active.is_(True))
+                .where(User.deleted_at.is_(None))
             )
         )
 
     def set_user_categories(self, *, user_id: UUID, category_ids: list[UUID], actor_id: UUID) -> list[Category]:
-        user = self.db.get(User, user_id)
+        user = self.db.scalar(select(User).where(User.id == user_id).where(User.deleted_at.is_(None)))
         if not user:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='User not found')
 

@@ -476,6 +476,7 @@ class PmsService:
             select(User)
             .where(
                 User.is_active.is_(True),
+                User.deleted_at.is_(None),
                 User.role.has(name=ELIGIBLE_ROLE_NAME),
             )
             .order_by(User.full_name.asc())
@@ -1990,6 +1991,10 @@ class PmsService:
                         or user.email
                     ),
                     user_email=user.email,
+                    employee_id=user.employee_id,
+                    department=user.department,
+                    designation=user.designation,
+                    date_of_joining=user.date_of_joining,
                     record_id=(
                         record.id
                         if record
