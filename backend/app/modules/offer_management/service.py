@@ -8,7 +8,7 @@ from app.modules.offer_management.models import OfferManagementEntry, OfferManag
 from app.modules.offer_management.permissions import can_view_all_offer_entries, require_offer_entry_access, require_offer_entry_delete_access
 from app.modules.offer_management.repository import OfferManagementRepository
 from app.modules.offer_management.schemas import OfferEntryCreate, OfferEntryUpdate
-from app.modules.offer_management.utils import default_listing_url, extract_listing_id, is_high_value_amount
+from app.modules.offer_management.utils import default_listing_url, extract_listing_id, is_offer_entry_high_value
 from app.modules.config_management.service import ConfigService
 
 
@@ -83,18 +83,14 @@ class OfferManagementService:
         elif merged.get('outcome') is None:
             values['outcome'] = OfferManagementOutcome.PENDING
 
-        threshold = ConfigService(self.db).get_decimal('offer.high_value_amount', default=Decimal('500'))
-        quantity = merged.get('offer_quantity') or merged.get('listing_quantity')
-        values['is_high_value'] = is_high_value_amount(
-            merged.get('listed_price'),
-            merged.get('revised_price'),
-            merged.get('automated_offer_price'),
-            merged.get('buyer_offer_price'),
-            merged.get('counteroffer_price'),
-            merged.get('final_price'),
-            threshold=threshold,
-            quantity=quantity,
-        )
+        if 'is_high_value' not in values:
+            threshold = ConfigService(self.db).get_decimal('offer.high_value_amount', default=Decimal('500'))
+            values['is_high_value'] = is_offer_entry_high_value(
+                merged.get('listed_price'),
+                merged.get('revised_price'),
+                required_quantity=merged.get('offer_quantity'),
+                threshold=threshold,
+            )
         return values
 
     def create(self, payload: OfferEntryCreate, user) -> OfferManagementEntry:

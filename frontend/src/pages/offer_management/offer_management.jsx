@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+﻿import { useEffect, useMemo, useRef, useState } from 'react'
 import AppLayout, { Icon } from '../../layouts/app_layout'
 import { fetchEbayAccounts } from '../../services/ebayAccountApi'
 import { fetchUsers } from '../../services/userApi'
@@ -35,8 +35,6 @@ const blankEntry = {
   automated_offer_price: '',
   buyer_offer_price: '',
   offered_price: '',
-  counteroffer_price: '',
-  final_price: '',
   buyer_id: '',
   status: 'OPEN',
   outcome: 'PENDING',
@@ -55,6 +53,10 @@ const OFFER_OUTCOMES = [
   'IGNORE',
   'SOLD',
   'NOT_ABLE_TO_MATCH_THE_PRICE',
+]
+const HIGH_VALUE_OPTIONS = [
+  { value: 'true', label: 'Yes' },
+  { value: 'false', label: 'No' },
 ]
 
 function normalizeOfferForm(entry) {
@@ -100,12 +102,12 @@ function cleanPayload(form) {
 }
 
 function money(value, currency) {
-  if (value === null || value === undefined || value === '') return '—'
+  if (value === null || value === undefined || value === '') return 'â€”'
   return `${currency || ''} ${Number(value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
 function label(value) {
-  return String(value || '—').replaceAll('_', ' ')
+  return String(value || 'â€”').replaceAll('_', ' ')
 }
 
 function todayDateValue() {
@@ -124,6 +126,102 @@ function ActionIcon({ title, icon, tone = 'neutral', onClick, href, external = f
     return <a className={`icon-button offer-action-icon offer-action-${tone}`} href={href} title={title} aria-label={title} target={external ? '_blank' : undefined} rel={external ? 'noreferrer' : undefined}>{content}</a>
   }
   return <button className={`icon-button offer-action-icon offer-action-${tone}`} type="button" title={title} aria-label={title} onClick={onClick}>{content}</button>
+}
+
+function InlineOfferEditor({
+  entry,
+  field,
+  value,
+  placeholder,
+  type = 'text',
+  drafts,
+  savingKey,
+  onChange,
+  onSave,
+  onReset,
+}) {
+  const key = `${entry.id}:${field}`
+  const hasDraft = Object.prototype.hasOwnProperty.call(drafts, key)
+  const draftValue = hasDraft ? drafts[key] : value ?? ''
+  const changed = String(draftValue ?? '') !== String(value ?? '')
+
+  return (
+    <div className={`offer-inline-editor ${changed ? 'is-editing' : ''}`} onClick={(event) => event.stopPropagation()}>
+      <input
+        type={type === 'number' ? 'text' : type}
+        inputMode={type === 'number' ? 'numeric' : undefined}
+        value={draftValue}
+        placeholder={placeholder}
+        onChange={(event) => onChange(entry, field, event.target.value)}
+      />
+      {changed ? (
+        <span className="offer-inline-actions">
+          <button
+            className="offer-inline-save"
+            type="button"
+            title="Save"
+            aria-label="Save"
+            disabled={savingKey === key}
+            onClick={() => onSave(entry, field)}
+          >
+            <Icon name="activate" />
+          </button>
+          <button
+            className="offer-inline-reset"
+            type="button"
+            title="Discard"
+            aria-label="Discard"
+            disabled={savingKey === key}
+            onClick={() => onReset(entry, field)}
+          >
+            <Icon name="close" />
+          </button>
+        </span>
+      ) : null}
+    </div>
+  )
+}
+
+function InlineOfferSelect({
+  entry,
+  field,
+  value,
+  options,
+  drafts,
+  savingKey,
+  onChange,
+  onSave,
+  onReset,
+}) {
+  const key = `${entry.id}:${field}`
+  const hasDraft = Object.prototype.hasOwnProperty.call(drafts, key)
+  const draftValue = hasDraft ? drafts[key] : value ?? ''
+  const changed = String(draftValue ?? '') !== String(value ?? '')
+
+  return (
+    <div className={`offer-inline-editor ${changed ? 'is-editing' : ''}`} onClick={(event) => event.stopPropagation()}>
+      <select value={draftValue} onChange={(event) => onChange(entry, field, event.target.value)}>
+        {options.map((option) => {
+          const optionValue = typeof option === 'object' ? option.value : option
+          const optionLabel = typeof option === 'object' ? option.label : label(option)
+
+          return (
+            <option key={optionValue} value={optionValue}>{optionLabel}</option>
+          )
+        })}
+      </select>
+      {changed ? (
+        <span className="offer-inline-actions">
+          <button className="offer-inline-save" type="button" title="Save" aria-label="Save" disabled={savingKey === key} onClick={() => onSave(entry, field)}>
+            <Icon name="activate" />
+          </button>
+          <button className="offer-inline-reset" type="button" title="Discard" aria-label="Discard" disabled={savingKey === key} onClick={() => onReset(entry, field)}>
+            <Icon name="close" />
+          </button>
+        </span>
+      ) : null}
+    </div>
+  )
 }
 
 function OfferForm({ entry, lookups, accounts, onCancel, onSaved }) {
@@ -251,7 +349,7 @@ function OfferForm({ entry, lookups, accounts, onCancel, onSaved }) {
               <button className="secondary-button compact-action action-button action-load" type="button" disabled={fetching || !lookupText} onClick={fetchDetails}>{fetching ? 'Fetching...' : 'Fetch Details'}</button>
             </div>
             {error ? <p className="form-message error">{error}</p> : lookupResult ? <p className="form-message success">{lookupResult.message}</p> : null}
-            {lookupResult?.matches?.length > 1 ? <div className="offer-match-list">{lookupResult.matches.map((match) => <button key={match.offer_id} type="button" className="secondary-button compact-action" onClick={() => setForm((current) => ({ ...current, ebay_account_id: match.seller_account_id || current.ebay_account_id, ebay_account_name: match.seller_account || current.ebay_account_name, buyer_id: match.buyer_id || '', buyer_offer_price: match.offer_amount || '', automated_offer_price: match.offer_type === 'OUTGOING' ? match.offer_amount || '' : current.automated_offer_price, currency: match.currency || current.currency, related_offer_id: match.offer_id, related_conversation_id: match.related_conversation_id || current.related_conversation_id }))}>{match.buyer_id || 'Unknown buyer'} · {match.offer_type || 'Offer'} · {money(match.offer_amount, match.currency)} · {match.seller_account || 'Account'} · {match.offer_status}</button>)}</div> : null}
+            {lookupResult?.matches?.length > 1 ? <div className="offer-match-list">{lookupResult.matches.map((match) => <button key={match.offer_id} type="button" className="secondary-button compact-action" onClick={() => setForm((current) => ({ ...current, ebay_account_id: match.seller_account_id || current.ebay_account_id, ebay_account_name: match.seller_account || current.ebay_account_name, buyer_id: match.buyer_id || '', buyer_offer_price: match.offer_amount || '', automated_offer_price: match.offer_type === 'OUTGOING' ? match.offer_amount || '' : current.automated_offer_price, currency: match.currency || current.currency, related_offer_id: match.offer_id, related_conversation_id: match.related_conversation_id || current.related_conversation_id }))}>{match.buyer_id || 'Unknown buyer'} Â· {match.offer_type || 'Offer'} Â· {money(match.offer_amount, match.currency)} Â· {match.seller_account || 'Account'} Â· {match.offer_status}</button>)}</div> : null}
           </section>
           <section className="offer-form-section">
             <h3>Listing Details</h3>
@@ -266,7 +364,7 @@ function OfferForm({ entry, lookups, accounts, onCancel, onSaved }) {
           <section className="offer-form-section">
             <h3>Offer Details</h3>
             <div className="form-grid">
-              {field('offer_date', 'Offer date', 'date')}{field('buyer_id', 'Buyer ID')}{field('offer_quantity', 'Offer quantity', 'number')}{field('automated_offer_price', 'Automated offer', 'number')}{field('buyer_offer_price', 'Buyer offer', 'number')}{field('offered_price', 'Offered price')}{field('revised_price', 'Revised price', 'number')}{field('counteroffer_price', 'Counteroffer/best price', 'number')}{field('final_price', 'Final agreed price', 'number')}
+              {field('offer_date', 'Offer date', 'date')}{field('buyer_id', 'Buyer ID')}{field('offer_quantity', 'Required quantity', 'number')}{field('automated_offer_price', 'Automated offer', 'number')}{field('buyer_offer_price', 'Buyer offer', 'number')}{field('offered_price', 'Offered price')}{field('revised_price', 'Revised price', 'number')}
               <label className="field"><span>Status</span><select value={form.status} onChange={(event) => update('status', event.target.value)}>{OFFER_STATUSES.map((item) => <option key={item} value={item}>{label(item)}</option>)}</select></label>
               <label className="field"><span>Outcome</span><select value={form.outcome || ''} required={form.status === 'CLOSED'} onChange={(event) => update('outcome', event.target.value)}><option value={form.status === 'CLOSED' ? '' : 'PENDING'}>{form.status === 'CLOSED' ? 'Select outcome' : 'Pending'}</option>{OFFER_OUTCOMES.map((item) => <option key={item} value={item}>{label(item)}</option>)}</select></label>
               <label className="field"><span>Next offer follow-up</span><input type="date" value={form.next_offer_followup || ''} disabled={form.status === 'CLOSED'} onChange={(event) => update('next_offer_followup', event.target.value)} /></label>
@@ -284,7 +382,7 @@ function OfferForm({ entry, lookups, accounts, onCancel, onSaved }) {
 
 function PreviewDrawer({ entry, history, canDelete, onClose, onEdit, onDelete }) {
   if (!entry) return null
-  return <div className="drawer-backdrop" role="presentation"><aside className="user-drawer offer-preview-drawer"><div className="drawer-header"><h2>Entry #{entry.entry_number}</h2><button className="icon-button" type="button" onClick={onClose}><Icon name="close" /></button></div><div className="drawer-profile"><h3>{entry.product_title || entry.listing_id}</h3><p>{entry.agent_name || 'Agent'} · {entry.ebay_account_name}</p><div className="badge-row"><Badge value={entry.status} /><Badge value={entry.outcome} />{entry.is_high_value ? <Badge value="High Value" tone="active" /> : null}</div></div><section className="drawer-section"><h3>Listing</h3><p>{entry.listing_id} · {entry.sku || 'No SKU'}</p><p>{entry.condition || 'No condition'} · Qty {entry.listing_quantity || '—'}</p></section><section className="drawer-section"><h3>Price Progression</h3><p>{money(entry.listed_price, entry.currency)} → {money(entry.buyer_offer_price, entry.currency)} → {entry.offered_price || money(entry.counteroffer_price, entry.currency)} → {money(entry.final_price, entry.currency)}</p></section><section className="drawer-section"><h3>Follow-ups</h3><p>Next: {entry.next_offer_followup || '—'}</p><p>1: {entry.follow_up_1_notes || '—'}</p><p>2: {entry.follow_up_2_notes || '—'}</p></section><section className="drawer-section"><h3>Remarks</h3><p className="drawer-note">{entry.remarks || 'No remarks added.'}</p></section><section className="drawer-section"><h3>Change History</h3>{history?.length ? history.slice(0, 5).map((item) => <p key={item.id}>{item.action} · {item.changed_by_name || 'System'} · {new Date(item.changed_at).toLocaleString()}</p>) : <p>No history available.</p>}</section><div className="modal-actions offer-icon-actions"><ActionIcon title="Edit" icon="edit" tone="edit" onClick={onEdit} />{canDelete ? <ActionIcon title="Delete" icon="trash" tone="delete" onClick={() => onDelete(entry)} /> : null}{entry.listing_url ? <ActionIcon title="Open eBay Listing" icon="external" tone="external" href={entry.listing_url} external /> : null}{entry.related_conversation_id ? <ActionIcon title="Open Related Conversation" icon="message" tone="conversation" href={`/inbox?conversation_id=${entry.related_conversation_id}`} /> : null}</div></aside></div>
+  return <div className="drawer-backdrop" role="presentation"><aside className="user-drawer offer-preview-drawer"><div className="drawer-header"><h2>Entry #{entry.entry_number}</h2><button className="icon-button" type="button" onClick={onClose}><Icon name="close" /></button></div><div className="drawer-profile"><h3>{entry.product_title || entry.listing_id}</h3><p>{entry.agent_name || 'Agent'} Â· {entry.ebay_account_name}</p><div className="badge-row"><Badge value={entry.status} /><Badge value={entry.outcome} />{entry.is_high_value ? <Badge value="High Value" tone="active" /> : null}</div></div><section className="drawer-section"><h3>Listing</h3><p>{entry.listing_id} Â· {entry.sku || 'No SKU'}</p><p>{entry.condition || 'No condition'} Â· Avl {entry.listing_quantity || 'â€”'} Â· Req {entry.offer_quantity || 'â€”'}</p></section><section className="drawer-section"><h3>Price Progression</h3><p>{money(entry.listed_price, entry.currency)} â†’ {money(entry.revised_price, entry.currency)} â†’ {money(entry.automated_offer_price, entry.currency)} â†’ {money(entry.buyer_offer_price, entry.currency)} â†’ {entry.offered_price || 'â€”'}</p></section><section className="drawer-section"><h3>Follow-ups</h3><p>Next: {entry.next_offer_followup || 'â€”'}</p><p>1: {entry.follow_up_1_notes || 'â€”'}</p><p>2: {entry.follow_up_2_notes || 'â€”'}</p></section><section className="drawer-section"><h3>Remarks</h3><p className="drawer-note">{entry.remarks || 'No remarks added.'}</p></section><section className="drawer-section"><h3>Change History</h3>{history?.length ? history.slice(0, 5).map((item) => <p key={item.id}>{item.action} Â· {item.changed_by_name || 'System'} Â· {new Date(item.changed_at).toLocaleString()}</p>) : <p>No history available.</p>}</section><div className="modal-actions offer-icon-actions"><ActionIcon title="Edit" icon="edit" tone="edit" onClick={onEdit} />{canDelete ? <ActionIcon title="Delete" icon="trash" tone="delete" onClick={() => onDelete(entry)} /> : null}{entry.listing_url ? <ActionIcon title="Open eBay Listing" icon="external" tone="external" href={entry.listing_url} external /> : null}{entry.related_conversation_id ? <ActionIcon title="Open Related Conversation" icon="message" tone="conversation" href={`/inbox?conversation_id=${entry.related_conversation_id}`} /> : null}</div></aside></div>
 }
 
 export default function OfferManagement({ currentUser, onLogout }) {
@@ -331,6 +429,8 @@ export default function OfferManagement({ currentUser, onLogout }) {
   const [error, setError] = useState('')
   const [importing, setImporting] = useState(false)
   const [importResult, setImportResult] = useState(null)
+  const [inlineDrafts, setInlineDrafts] = useState({})
+  const [savingInlineKey, setSavingInlineKey] = useState('')
   const importInputRef = useRef(null)
 
   const activeFilters = useMemo(
@@ -608,6 +708,69 @@ export default function OfferManagement({ currentUser, onLogout }) {
     }
   }
 
+  function updateInlineDraft(entry, field, value) {
+    setInlineDrafts((current) => ({
+      ...current,
+      [`${entry.id}:${field}`]: value,
+    }))
+  }
+
+  function resetInlineDraft(entry, field) {
+    const key = `${entry.id}:${field}`
+    setInlineDrafts((current) => {
+      const next = { ...current }
+      delete next[key]
+      return next
+    })
+  }
+
+  async function saveInlineDraft(entry, field) {
+    const key = `${entry.id}:${field}`
+    const rawValue = inlineDrafts[key]
+    let value = rawValue === '' ? null : rawValue
+
+    if (['listing_quantity', 'offer_quantity'].includes(field) && value !== null) {
+      value = Number(value)
+      if (!Number.isFinite(value) || value <= 0) {
+        setError('Quantity must be greater than zero.')
+        return
+      }
+    }
+
+    if (['listed_price', 'revised_price', 'automated_offer_price', 'buyer_offer_price'].includes(field) && value !== null) {
+      value = Number(value)
+      if (!Number.isFinite(value) || value < 0) {
+        setError('Money values cannot be negative.')
+        return
+      }
+    }
+
+    if (field === 'is_high_value') {
+      value = value === true || value === 'true'
+    }
+
+    setSavingInlineKey(key)
+    setError('')
+
+    try {
+      const updated = await updateOfferEntry(entry.id, { [field]: value })
+      setData((current) => ({
+        ...current,
+        items: (current.items || []).map((item) =>
+          item.id === entry.id ? { ...item, ...updated } : item,
+        ),
+      }))
+      if (selected?.id === entry.id) {
+        setSelected((current) => ({ ...current, ...updated }))
+      }
+      resetInlineDraft(entry, field)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to update offer entry.')
+    } finally {
+      setSavingInlineKey('')
+    }
+  }
+
   const allVisibleEntriesSelected =
     data.items.length > 0 &&
     data.items.every((entry) => selectedEntryIds.has(entry.id))
@@ -642,23 +805,28 @@ export default function OfferManagement({ currentUser, onLogout }) {
   ]
 
   const tableHeaders = [
-    'Entry #',
+    'Entry No',
     'Date',
     ...(!isAgent ? ['Agent'] : []),
     'Account',
-    'Listing ID',
     'SKU',
     'Product',
     'Buyer',
+    'Condition',
+    'Link',
     'Listed Price',
+    'Revised Price',
+    'Automated Offer',
     'Buyer Offer',
     'Offered Price',
-    'Best/Counteroffer',
-    'Quantity',
-    'Status',
-    'Follow-up',
+    'Followup',
+    'Avl Qty',
+    'Req Qty',
     'High Value',
-    'Updated At',
+    'Listing ID',
+    'Status',
+    'Outcome',
+    'Remarks',
     'Actions',
   ]
 
@@ -949,25 +1117,33 @@ export default function OfferManagement({ currentUser, onLogout }) {
                         </td>
                       ) : null}
 
-                      <td>#{entry.entry_number}</td>
-                      <td>{entry.offer_date || '—'}</td>
+                      <td className="offer-entry-number-cell">#{entry.entry_number}</td>
+                      <td>{entry.offer_date || 'â€”'}</td>
 
                       {!isAgent ? (
-                        <td>{entry.agent_name || '—'}</td>
+                        <td>{entry.agent_name || 'â€”'}</td>
                       ) : null}
 
-                      <td>{entry.ebay_account_name || '—'}</td>
-                      <td>{entry.listing_id || '—'}</td>
-                      <td>{entry.sku || '—'}</td>
-
-                      <td
-                        className="truncate-cell"
-                        title={entry.product_title || ''}
-                      >
-                        {entry.product_title || '—'}
+                      <td>{entry.ebay_account_name || 'â€”'}</td>
+                      <td className="offer-sku-edit-cell">
+                        <InlineOfferEditor entry={entry} field="sku" value={entry.sku} placeholder="SKU" drafts={inlineDrafts} savingKey={savingInlineKey} onChange={updateInlineDraft} onSave={saveInlineDraft} onReset={resetInlineDraft} />
                       </td>
 
-                      <td>{entry.buyer_id || '—'}</td>
+                      <td className="offer-product-edit-cell">
+                        <InlineOfferEditor entry={entry} field="product_title" value={entry.product_title} placeholder="Product" drafts={inlineDrafts} savingKey={savingInlineKey} onChange={updateInlineDraft} onSave={saveInlineDraft} onReset={resetInlineDraft} />
+                      </td>
+
+                      <td>
+                        <InlineOfferEditor entry={entry} field="buyer_id" value={entry.buyer_id} placeholder="Buyer name" drafts={inlineDrafts} savingKey={savingInlineKey} onChange={updateInlineDraft} onSave={saveInlineDraft} onReset={resetInlineDraft} />
+                      </td>
+
+                      <td>
+                        <InlineOfferEditor entry={entry} field="condition" value={entry.condition} placeholder="Condition" drafts={inlineDrafts} savingKey={savingInlineKey} onChange={updateInlineDraft} onSave={saveInlineDraft} onReset={resetInlineDraft} />
+                      </td>
+
+                      <td>
+                        <InlineOfferEditor entry={entry} field="listing_url" value={entry.listing_url} placeholder="Link" drafts={inlineDrafts} savingKey={savingInlineKey} onChange={updateInlineDraft} onSave={saveInlineDraft} onReset={resetInlineDraft} />
+                      </td>
 
                       <td>
                         {money(
@@ -976,54 +1152,47 @@ export default function OfferManagement({ currentUser, onLogout }) {
                         )}
                       </td>
 
-                      <td>
-                        {money(
-                          entry.buyer_offer_price,
-                          entry.currency,
-                        )}
+                      <td className="offer-money-edit-cell">
+                        <InlineOfferEditor entry={entry} field="revised_price" value={entry.revised_price ?? ''} placeholder="Revised price" type="number" drafts={inlineDrafts} savingKey={savingInlineKey} onChange={updateInlineDraft} onSave={saveInlineDraft} onReset={resetInlineDraft} />
                       </td>
 
-                      <td>{entry.offered_price || '—'}</td>
-
-                      <td>
-                        {money(
-                          entry.counteroffer_price,
-                          entry.currency,
-                        )}
+                      <td className="offer-money-edit-cell">
+                        <InlineOfferEditor entry={entry} field="automated_offer_price" value={entry.automated_offer_price ?? ''} placeholder="Automated offer" type="number" drafts={inlineDrafts} savingKey={savingInlineKey} onChange={updateInlineDraft} onSave={saveInlineDraft} onReset={resetInlineDraft} />
                       </td>
 
-                      <td>
-                        {entry.offer_quantity ??
-                          entry.listing_quantity ??
-                          '—'}
+                      <td className="offer-money-edit-cell">
+                        <InlineOfferEditor entry={entry} field="buyer_offer_price" value={entry.buyer_offer_price ?? ''} placeholder="Buyer offer" type="number" drafts={inlineDrafts} savingKey={savingInlineKey} onChange={updateInlineDraft} onSave={saveInlineDraft} onReset={resetInlineDraft} />
+                      </td>
+
+                      <td className="offer-offered-edit-cell">
+                        <InlineOfferEditor entry={entry} field="offered_price" value={entry.offered_price} placeholder="Offered price" drafts={inlineDrafts} savingKey={savingInlineKey} onChange={updateInlineDraft} onSave={saveInlineDraft} onReset={resetInlineDraft} />
                       </td>
 
                       <td>
-                        <Badge value={entry.status} />
+                        <InlineOfferEditor entry={entry} field="next_offer_followup" value={entry.next_offer_followup ?? ''} placeholder="Followup" type="date" drafts={inlineDrafts} savingKey={savingInlineKey} onChange={updateInlineDraft} onSave={saveInlineDraft} onReset={resetInlineDraft} />
                       </td>
 
+                      <td className="offer-qty-edit-cell">
+                        <InlineOfferEditor entry={entry} field="listing_quantity" value={entry.listing_quantity ?? ''} placeholder="Avl qty" type="number" drafts={inlineDrafts} savingKey={savingInlineKey} onChange={updateInlineDraft} onSave={saveInlineDraft} onReset={resetInlineDraft} />
+                      </td>
+
+                      <td className="offer-qty-edit-cell">
+                        <InlineOfferEditor entry={entry} field="offer_quantity" value={entry.offer_quantity ?? ''} placeholder="Req qty" type="number" drafts={inlineDrafts} savingKey={savingInlineKey} onChange={updateInlineDraft} onSave={saveInlineDraft} onReset={resetInlineDraft} />
+                      </td>
+
+                      <td className="offer-high-value-edit-cell">
+                        <InlineOfferSelect entry={entry} field="is_high_value" value={String(Boolean(entry.is_high_value))} options={HIGH_VALUE_OPTIONS} drafts={inlineDrafts} savingKey={savingInlineKey} onChange={updateInlineDraft} onSave={saveInlineDraft} onReset={resetInlineDraft} />
+                      </td>
+                      <td>{entry.listing_id || '—'}</td>
                       <td>
-                        {entry.next_offer_followup
-                          ? entry.next_offer_followup
-                          : '—'}
+                        <InlineOfferSelect entry={entry} field="status" value={entry.status} options={OFFER_STATUSES} drafts={inlineDrafts} savingKey={savingInlineKey} onChange={updateInlineDraft} onSave={saveInlineDraft} onReset={resetInlineDraft} />
                       </td>
-
                       <td>
-                        {entry.is_high_value ? (
-                          <Badge value="Yes" tone="active" />
-                        ) : (
-                          '—'
-                        )}
+                        <InlineOfferSelect entry={entry} field="outcome" value={entry.outcome} options={['PENDING', ...OFFER_OUTCOMES]} drafts={inlineDrafts} savingKey={savingInlineKey} onChange={updateInlineDraft} onSave={saveInlineDraft} onReset={resetInlineDraft} />
                       </td>
-
-                      <td>
-                        {entry.updated_at
-                          ? new Date(
-                              entry.updated_at,
-                            ).toLocaleString()
-                          : '—'}
+                      <td className="offer-remarks-edit-cell">
+                        <InlineOfferEditor entry={entry} field="remarks" value={entry.remarks} placeholder="Remarks" drafts={inlineDrafts} savingKey={savingInlineKey} onChange={updateInlineDraft} onSave={saveInlineDraft} onReset={resetInlineDraft} />
                       </td>
-
                       <td>
                         <div className="offer-icon-actions">
                           <ActionIcon
@@ -1045,9 +1214,7 @@ export default function OfferManagement({ currentUser, onLogout }) {
                               title="Delete"
                               icon="trash"
                               tone="delete"
-                              onClick={() =>
-                                setDeleteTarget(entry)
-                              }
+                              onClick={() => setDeleteTarget(entry)}
                             />
                           ) : null}
 
@@ -1260,3 +1427,4 @@ export default function OfferManagement({ currentUser, onLogout }) {
     </AppLayout>
   )
 }
+

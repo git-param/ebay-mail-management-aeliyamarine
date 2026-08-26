@@ -18,7 +18,7 @@ from app.modules.offer_management.repository import OfferManagementRepository
 from app.modules.offer_management.utils import (
     default_listing_url,
     extract_listing_id,
-    is_high_value_amount,
+    is_offer_entry_high_value,
 )
 
 
@@ -136,7 +136,6 @@ class OfferExcelImportService:
         automated_offer_price, automated_currency = self._money(row.get('automated_offer_price'))
         buyer_offer_price, buyer_currency = self._money(row.get('buyer_offer_price'))
         offered_price = self._text(row.get('offered_price'))
-        counteroffer_price, counter_currency = self._money(offered_price, listed_price)
         quantity = self._quantity(row.get('listing_quantity'))
         offer_date = self._date(row.get('offer_date')) or date.today()
         next_followup = self._date(row.get('next_offer_followup'))
@@ -146,7 +145,6 @@ class OfferExcelImportService:
             or revised_currency
             or automated_currency
             or buyer_currency
-            or counter_currency
             or 'USD'
         )
         remarks = self._text(row.get('remarks'))
@@ -168,19 +166,14 @@ class OfferExcelImportService:
             'automated_offer_price': automated_offer_price,
             'buyer_offer_price': buyer_offer_price,
             'offered_price': offered_price,
-            'counteroffer_price': counteroffer_price,
-            'final_price': None,
             'buyer_id': self._text(row.get('buyer_id')),
             'status': OfferManagementStatus.OPEN,
             'outcome': OfferManagementOutcome.PENDING,
-            'is_high_value': is_high_value_amount(
+            'is_high_value': is_offer_entry_high_value(
                 listed_price,
                 revised_price,
-                automated_offer_price,
-                buyer_offer_price,
-                counteroffer_price,
                 threshold=threshold,
-                quantity=quantity,
+                required_quantity=quantity,
             ),
             'is_vip_lead': False,
             'next_offer_followup': next_followup,
