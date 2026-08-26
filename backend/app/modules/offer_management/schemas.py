@@ -24,6 +24,7 @@ class OfferEntryBase(BaseModel):
     revised_price: Decimal | None = None
     automated_offer_price: Decimal | None = None
     buyer_offer_price: Decimal | None = None
+    offered_price: str | None = None
     counteroffer_price: Decimal | None = None
     final_price: Decimal | None = None
     buyer_id: str | None = None
@@ -85,6 +86,7 @@ class OfferEntryUpdate(BaseModel):
     revised_price: Decimal | None = Field(default=None)
     automated_offer_price: Decimal | None = Field(default=None)
     buyer_offer_price: Decimal | None = Field(default=None)
+    offered_price: str | None = None
     counteroffer_price: Decimal | None = Field(default=None)
     final_price: Decimal | None = Field(default=None)
     buyer_id: str | None = None
@@ -177,3 +179,15 @@ class OfferBulkDeleteRequest(BaseModel):
 
 class OfferBulkDeleteResponse(BaseModel):
     deleted_count: int
+
+
+class OfferImportError(BaseModel):
+    row_number: int
+    reason: str
+
+
+class OfferImportResponse(BaseModel):
+    created_count: int
+    skipped_count: int
+    error_count: int
+    errors: list[OfferImportError] = []

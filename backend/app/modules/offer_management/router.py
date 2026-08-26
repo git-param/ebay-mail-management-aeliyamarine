@@ -1,13 +1,14 @@
 from datetime import date
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, Response, status
+from fastapi import APIRouter, Depends, File, Query, Response, UploadFile, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.api.dependencies import get_current_user
 from app.db.session import get_db
 from app.modules.offer_management.export import export_entries
+from app.modules.offer_management.excel_import_service import OfferExcelImportService
 from app.modules.offer_management.models import OfferManagementEntry, OfferManagementOutcome, OfferManagementStatus
 from app.modules.offer_management.permissions import require_offer_history_access
 from app.modules.offer_management.schemas import (
@@ -18,6 +19,7 @@ from app.modules.offer_management.schemas import (
     OfferEntryUpdate,
     OfferBulkDeleteRequest,
     OfferBulkDeleteResponse,
+    OfferImportResponse,
     OfferLookupResponse,
     OfferSummaryResponse,
 )
@@ -122,6 +124,11 @@ def export(db: Session = Depends(get_db), current_user=Depends(get_current_user)
         media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         headers={'Content-Disposition': f'attachment; filename="{filename}"'},
     )
+
+
+@router.post('/import-excel', response_model=OfferImportResponse)
+async def import_excel(file: UploadFile = File(...), db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    return await OfferExcelImportService(db).import_file(file, current_user)
 
 
 @router.get('/{entry_id}', response_model=OfferEntryResponse)

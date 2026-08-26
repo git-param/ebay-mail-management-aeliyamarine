@@ -1,4 +1,4 @@
-import { apiFetch, apiRequest } from './http'
+import { apiFetch, apiFormRequest, apiRequest } from './http'
 
 function query(params = {}) {
   const search = new URLSearchParams()
@@ -46,6 +46,12 @@ export function bulkDeleteOfferEntries(entryIds) {
     method: 'POST',
     body: JSON.stringify({ entry_ids: entryIds }),
   })
+}
+
+export function importOfferEntriesExcel(file) {
+  const formData = new FormData()
+  formData.append('file', file)
+  return apiFormRequest('/offer-management/import-excel', formData, (status, data) => data.detail || data.message || `Offer import failed (${status})`)
 }
 
 export function fetchOfferEntry(id) {

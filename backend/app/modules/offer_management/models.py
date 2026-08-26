@@ -76,6 +76,7 @@ class OfferManagementEntry(Base):
     revised_price: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
     automated_offer_price: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
     buyer_offer_price: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
+    offered_price: Mapped[str | None] = mapped_column(String(255), nullable=True)
     counteroffer_price: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
     final_price: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
     buyer_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
