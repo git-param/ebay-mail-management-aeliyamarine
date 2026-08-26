@@ -29,6 +29,10 @@ export function lookupOfferListing(listing) {
   return request(`/offer-management/lookup${query({ listing })}`)
 }
 
+export function checkOfferListingDuplicate(listing) {
+  return request(`/offer-management/duplicate-check${query({ listing })}`)
+}
+
 export function createOfferEntry(payload) {
   return request('/offer-management', { method: 'POST', body: JSON.stringify(payload) })
 }

@@ -99,12 +99,6 @@ class OfferManagementService:
 
     def create(self, payload: OfferEntryCreate, user) -> OfferManagementEntry:
         values = self._prepare_values(payload, user)
-        existing = self.repo.get_by_listing_id(values['listing_id'])
-        if existing:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=f'Entry for listing {values["listing_id"]} is already done as entry #{existing.entry_number}. Please edit it from the list below.',
-            )
         entry = OfferManagementEntry(
             **values,
             entry_number=self.repo.next_entry_number(),
@@ -156,11 +150,6 @@ class OfferManagementService:
     def lookup(self, listing_value: str) -> dict:
         listing_id = extract_listing_id(listing_value)
         existing = self.repo.get_by_listing_id(listing_id)
-        if existing:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=f'Entry for listing {listing_id} is already done as entry #{existing.entry_number}. Please edit it from the list below.',
-            )
         sources = self.repo.lookup_sources(listing_id)
         product = sources['product']
         order_line = sources['order_line']
@@ -210,5 +199,27 @@ class OfferManagementService:
                 'related_offer_id': str(offer.id),
                 'related_conversation_id': str(offer.conversation_id) if offer.conversation_id else details.get('related_conversation_id'),
             }
+        existing_entry = None
+        if existing:
+            existing_entry = {
+                'entry_number': existing.entry_number,
+                'buyer_id': existing.buyer_id,
+                'listing_id': existing.listing_id,
+            }
         message = 'One stored offer matched and was populated.' if selected else 'Multiple stored offers matched. Select one to populate the form.' if matches else 'Listing details were populated where available. Enter offer details manually.'
-        return {'listing_id': listing_id, 'listing_url': details['listing_url'], 'details': details, 'matches': matches, 'selected': selected, 'message': message}
+        if existing_entry:
+            buyer = existing_entry.get('buyer_id') or 'Unknown'
+            message = f'Offer for this item already exists with buyer name = {buyer}. You can edit entry #{existing.entry_number} or create a new offer.'
+        return {'listing_id': listing_id, 'listing_url': details['listing_url'], 'details': details, 'matches': matches, 'selected': selected, 'existing_entry': existing_entry, 'message': message}
+
+    def duplicate_check(self, listing_value: str) -> dict:
+        listing_id = extract_listing_id(listing_value)
+        existing = self.repo.get_by_listing_id(listing_id)
+        if not existing:
+            return {'exists': False, 'listing_id': listing_id}
+        return {
+            'exists': True,
+            'entry_number': existing.entry_number,
+            'buyer_id': existing.buyer_id,
+            'listing_id': listing_id,
+        }

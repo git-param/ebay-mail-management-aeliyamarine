@@ -19,6 +19,7 @@ from app.modules.offer_management.schemas import (
     OfferEntryUpdate,
     OfferBulkDeleteRequest,
     OfferBulkDeleteResponse,
+    OfferDuplicateCheckResponse,
     OfferImportResponse,
     OfferLookupResponse,
     OfferSummaryResponse,
@@ -84,6 +85,12 @@ def list_entries(
 def lookup_listing(listing: str = Query(...), db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     _ = current_user
     return OfferManagementService(db).lookup(listing)
+
+
+@router.get('/duplicate-check', response_model=OfferDuplicateCheckResponse)
+def duplicate_check(listing: str = Query(...), db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    _ = current_user
+    return OfferManagementService(db).duplicate_check(listing)
 
 
 @router.get('/summary', response_model=OfferSummaryResponse)

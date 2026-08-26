@@ -161,6 +161,7 @@ class OfferLookupResponse(BaseModel):
     details: dict
     matches: list[OfferLookupMatch] = []
     selected: dict | None = None
+    existing_entry: dict | None = None
     message: str
 
 
@@ -191,3 +192,10 @@ class OfferImportResponse(BaseModel):
     skipped_count: int
     error_count: int
     errors: list[OfferImportError] = []
+
+
+class OfferDuplicateCheckResponse(BaseModel):
+    exists: bool
+    entry_number: int | None = None
+    buyer_id: str | None = None
+    listing_id: str | None = None

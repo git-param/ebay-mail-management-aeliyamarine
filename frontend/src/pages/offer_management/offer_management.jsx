@@ -4,6 +4,7 @@ import { fetchEbayAccounts } from '../../services/ebayAccountApi'
 import { fetchUsers } from '../../services/userApi'
 import './offer_management.css'
 import {
+  checkOfferListingDuplicate,
   createOfferEntry,
   bulkDeleteOfferEntries,
   deleteOfferEntry,
@@ -132,6 +133,7 @@ function OfferForm({ entry, lookups, accounts, onCancel, onSaved }) {
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
   const [fetching, setFetching] = useState(false)
+  const [duplicateNotice, setDuplicateNotice] = useState(null)
   const accountOptions = useMemo(() => {
     const items = [...accounts]
     if (form.ebay_account_id && !items.some((account) => account.id === form.ebay_account_id)) {
@@ -170,10 +172,14 @@ function OfferForm({ entry, lookups, accounts, onCancel, onSaved }) {
   async function fetchDetails() {
     setFetching(true)
     setError('')
+    setDuplicateNotice(null)
     try {
       const data = await lookupOfferListing(lookupText)
       setLookupResult(data)
       applyLookup(data)
+      if (data.existing_entry) {
+        setDuplicateNotice(data.existing_entry)
+      }
     } catch (err) {
       setLookupResult(null)
       setError(err.message)
@@ -203,6 +209,12 @@ function OfferForm({ entry, lookups, accounts, onCancel, onSaved }) {
           throw new Error('Remarks are required before closing the offer.')
         }
       }
+      if (!entry?.id && payload.listing_id) {
+        const duplicate = await checkOfferListingDuplicate(payload.listing_id).catch(() => null)
+        if (duplicate?.exists) {
+          setDuplicateNotice(duplicate)
+        }
+      }
       const saved = entry?.id ? await updateOfferEntry(entry.id, payload) : await createOfferEntry(payload)
       onSaved(saved, preview)
     } catch (err) {
@@ -226,6 +238,11 @@ function OfferForm({ entry, lookups, accounts, onCancel, onSaved }) {
           <h2>{entry ? 'Edit Offer Entry' : 'New Offer Entry'}</h2>
           <button className="icon-button" type="button" onClick={onCancel}><Icon name="close" /></button>
         </div>
+        {duplicateNotice ? (
+          <div className="offer-duplicate-toast" role="status">
+            Offer for this item already exists with buyer name = {duplicateNotice.buyer_id || 'Unknown'}. Edit entry #{duplicateNotice.entry_number} if needed, or continue creating a new offer.
+          </div>
+        ) : null}
         <div className="management-form offer-entry-form">
           <section className="offer-form-section">
             <h3>Listing Lookup</h3>

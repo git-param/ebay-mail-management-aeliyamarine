@@ -103,11 +103,6 @@ class OfferExcelImportService:
                         next_entry_number += 1
                     entry_number = next_entry_number
 
-                if self.repo.get_by_listing_id(values['listing_id']):
-                    skipped += 1
-                    errors.append({'row_number': row_number, 'reason': f'Listing {values["listing_id"]} already exists.'})
-                    continue
-
                 entry = OfferManagementEntry(
                     **values,
                     entry_number=entry_number,
