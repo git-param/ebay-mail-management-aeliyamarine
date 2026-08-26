@@ -1153,7 +1153,7 @@ export default function OfferManagement({ currentUser, onLogout }) {
                       </td>
 
                       <td className="offer-money-edit-cell">
-                        <InlineOfferEditor entry={entry} field="revised_price" value={entry.revised_price ?? ''} placeholder="Revised price" type="number" drafts={inlineDrafts} savingKey={savingInlineKey} onChange={updateInlineDraft} onSave={saveInlineDraft} onReset={resetInlineDraft} />
+                        <InlineOfferEditor entry={entry} field="revised_price" value={entry.revised_price ?? ''} placeholder="N.A." type="number" drafts={inlineDrafts} savingKey={savingInlineKey} onChange={updateInlineDraft} onSave={saveInlineDraft} onReset={resetInlineDraft} />
                       </td>
 
                       <td className="offer-money-edit-cell">
