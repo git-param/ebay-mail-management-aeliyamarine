@@ -34,6 +34,22 @@ def is_high_value_amount(*values, threshold: Decimal = Decimal('500'), quantity:
     return False
 
 
+def is_offer_entry_high_value(
+    listed_price,
+    revised_price,
+    required_quantity: int | None = None,
+    threshold: Decimal = Decimal('500'),
+) -> bool:
+    price = revised_price if revised_price is not None and revised_price != '' else listed_price
+    if price is None or price == '':
+        return False
+    amount = Decimal(str(price))
+    if amount > threshold:
+        return True
+    quantity = required_quantity or 0
+    return bool(quantity and amount * Decimal(str(quantity)) > threshold)
+
+
 def excel_date_token(from_date: date | None, to_date: date | None) -> str:
     today = date.today().isoformat()
     if from_date or to_date:

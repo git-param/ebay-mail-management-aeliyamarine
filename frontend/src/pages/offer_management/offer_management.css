@@ -207,7 +207,7 @@
 
 .offer-management-page .offer-table {
   width: max-content;
-  min-width: 1960px;
+  min-width: 2380px;
   max-width: none;
   table-layout: auto;
   border-collapse: separate;
@@ -221,16 +221,76 @@
   vertical-align: middle;
 }
 
+.offer-management-page .offer-table td:has(.offer-inline-editor.is-editing) {
+  position: relative;
+  z-index: 8;
+}
+
 .offer-management-page .offer-table th:first-child,
 .offer-management-page .offer-table td:first-child {
   min-width: 52px;
   width: 52px;
 }
 
-.offer-management-page .offer-table th:nth-child(8),
-.offer-management-page .offer-table td:nth-child(8) {
+.offer-management-page .offer-table th:nth-child(2),
+.offer-management-page .offer-table td:nth-child(2) {
+  min-width: 72px;
+  width: 72px;
+}
+
+.offer-management-page .offer-table .offer-entry-number-cell {
+  color: #0f3b73;
+  font-weight: 800;
+}
+
+.offer-management-page .offer-table .offer-product-edit-cell {
+  min-width: 360px;
+  max-width: 360px;
+}
+
+.offer-management-page .offer-table .offer-product-edit-cell .offer-inline-editor input {
   min-width: 280px;
-  max-width: 280px;
+}
+
+.offer-management-page .offer-table .offer-sku-edit-cell {
+  min-width: 122px;
+  max-width: 122px;
+}
+
+.offer-management-page .offer-table .offer-sku-edit-cell .offer-inline-editor input {
+  min-width: 82px;
+}
+
+.offer-management-page .offer-table .offer-money-edit-cell {
+  min-width: 148px;
+  max-width: 148px;
+}
+
+.offer-management-page .offer-table .offer-offered-edit-cell {
+  min-width: 170px;
+  max-width: 170px;
+}
+
+.offer-management-page .offer-table .offer-offered-edit-cell .offer-inline-editor input {
+  min-width: 110px;
+}
+
+.offer-management-page .offer-table .offer-qty-edit-cell {
+  min-width: 108px;
+  max-width: 108px;
+}
+
+.offer-management-page .offer-table .offer-qty-edit-cell .offer-inline-editor input {
+  min-width: 54px;
+}
+
+.offer-management-page .offer-table .offer-remarks-edit-cell {
+  min-width: 260px;
+  max-width: 260px;
+}
+
+.offer-management-page .offer-table .offer-remarks-edit-cell .offer-inline-editor input {
+  min-width: 190px;
 }
 
 .offer-management-page .offer-table th:last-child,
@@ -243,6 +303,81 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.offer-management-page .offer-inline-editor {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  position: relative;
+}
+
+.offer-management-page .offer-inline-editor.is-editing {
+  width: max-content;
+  min-width: 100%;
+  z-index: 10;
+  padding: 2px;
+  border-radius: 10px;
+  background: var(--offer-surface);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.12);
+}
+
+.offer-management-page .offer-inline-editor input,
+.offer-management-page .offer-inline-editor select {
+  width: 100%;
+  min-width: 130px;
+  height: 36px;
+  padding: 7px 10px;
+  border: 1px solid #cbdaf0;
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--offer-text);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.offer-management-page .offer-inline-editor input:focus,
+.offer-management-page .offer-inline-editor select:focus {
+  border-color: var(--offer-primary);
+  outline: 3px solid rgba(109, 93, 252, 0.16);
+}
+
+.offer-management-page .offer-inline-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 auto;
+}
+
+.offer-management-page .offer-inline-save,
+.offer-management-page .offer-inline-reset {
+  width: 30px;
+  height: 30px;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.offer-management-page .offer-inline-save {
+  border-color: #bbf7d0;
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.offer-management-page .offer-inline-reset {
+  border-color: #bfdbfe;
+  background: #eff6ff;
+  color: #2563eb;
+}
+
+.offer-management-page .offer-inline-save:disabled,
+.offer-management-page .offer-inline-reset:disabled {
+  cursor: wait;
+  opacity: 0.65;
 }
 
 .offer-management-page .offer-icon-actions,
@@ -674,6 +809,25 @@ html[data-theme='dark'] .offer-preview-drawer .offer-action-conversation {
   border-color: #4c1d95;
   background: #251b3d;
   color: #ddd6fe;
+}
+
+html[data-theme='dark'] .offer-management-page .offer-inline-editor input,
+html[data-theme='dark'] .offer-management-page .offer-inline-editor select {
+  border-color: #334155;
+  background: #0f172a;
+  color: var(--offer-text);
+}
+
+html[data-theme='dark'] .offer-management-page .offer-inline-save {
+  border-color: #166534;
+  background: #12351f;
+  color: #86efac;
+}
+
+html[data-theme='dark'] .offer-management-page .offer-inline-reset {
+  border-color: #1d4ed8;
+  background: #172033;
+  color: #bfdbfe;
 }
 
 /* Responsive */
