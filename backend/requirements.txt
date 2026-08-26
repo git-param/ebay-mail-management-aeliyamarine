@@ -13,6 +13,8 @@ python-multipart
 requests
 beautifulsoup4
 openpyxl
+pandas
+numpy
 bs4
 setuptools<81
 libretranslate==1.7.3

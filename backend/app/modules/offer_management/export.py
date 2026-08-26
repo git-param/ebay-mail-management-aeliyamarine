@@ -22,6 +22,7 @@ EXPORT_COLUMNS = [
     ('Revised Price', 'revised_price'),
     ('Automated Offer', 'automated_offer_price'),
     ('Buyer Offer', 'buyer_offer_price'),
+    ('Offered Price', 'offered_price'),
     ('Counteroffer/Best Price', 'counteroffer_price'),
     ('Final Price', 'final_price'),
     ('Buyer ID', 'buyer_id'),
