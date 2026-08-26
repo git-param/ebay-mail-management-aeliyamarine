@@ -32,6 +32,7 @@ from app.schemas.conversation import (
     EbayAccountBriefResponse,
     MessageResponse,
     MessageAttachmentResponse,
+    OrderContextResponse,
     ReplyConversationRequest,
     ReplyValidationResponse,
     TranslationRequest,
