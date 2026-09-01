@@ -484,10 +484,15 @@ def offer_timestamp_from_raw_payload(payload, offer: Offer | None = None) -> dat
     if not isinstance(payload, dict):
         return None
 
-    for key in ("createdTime", "createdDate", "sent_at", "sentAt", "timestamp"):
-        parsed = parse_offer_payload_datetime(payload.get(key))
-        if parsed:
-            return parsed
+    is_derived_seller_counteroffer_submission = (
+        payload.get("derivedEvent") == "SELLER_COUNTEROFFER_SUBMITTED"
+    )
+
+    if not is_derived_seller_counteroffer_submission:
+        for key in ("createdTime", "createdDate", "sent_at", "sentAt", "timestamp"):
+            parsed = parse_offer_payload_datetime(payload.get(key))
+            if parsed:
+                return parsed
 
     posted_time = payload.get("messagePostedTime")
     if isinstance(posted_time, dict):
