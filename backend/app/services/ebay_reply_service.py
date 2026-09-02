@@ -279,13 +279,50 @@ class EbayReplyService:
 
         # --- 9. Finalise the message row with the real eBay message ID ---
         provider_message_id = self._provider_message_id(response.payload) or f'local-reply-{uuid4()}'
-        message.provider_message_id = provider_message_id
-        message.raw_payload = {
-            **(response.payload if isinstance(response.payload, dict) else {'response': response.payload}),
-            'actor_id': str(actor_id),
-            'email_copy_requested': send_copy_to_email,
-            'ebay_call_name': send_context['call_name'],
-        }
+        existing_provider_message = self._existing_provider_message(
+            provider=EBAY_PROVIDER_NAME,
+            provider_message_id=provider_message_id,
+        )
+        if existing_provider_message and existing_provider_message.id != message.id:
+            logger.warning(
+                'Reconciling sent reply with existing eBay message row: conversation_id=%s pending_message_id=%s existing_message_id=%s provider_message_id=%s',
+                conversation.id,
+                message.id,
+                existing_provider_message.id,
+                provider_message_id,
+            )
+            for attachment in saved_attachments:
+                attachment.message_id = existing_provider_message.id
+            existing_provider_message.conversation_id = conversation.id
+            existing_provider_message.sender_type = MessageSenderType.AGENT
+            existing_provider_message.sender_identifier = account.ebay_username
+            existing_provider_message.recipient_identifier = conversation.buyer_identifier
+            existing_provider_message.body = body
+            existing_provider_message.read_status = True
+            existing_provider_message.is_inbound = False
+            existing_provider_message.sent_at = message.sent_at
+            existing_provider_message.raw_payload = {
+                **(
+                    existing_provider_message.raw_payload
+                    if isinstance(existing_provider_message.raw_payload, dict)
+                    else {}
+                ),
+                **(response.payload if isinstance(response.payload, dict) else {'response': response.payload}),
+                'actor_id': str(actor_id),
+                'email_copy_requested': send_copy_to_email,
+                'ebay_call_name': send_context['call_name'],
+            }
+            self.db.delete(message)
+            self.db.flush()
+            message = existing_provider_message
+        else:
+            message.provider_message_id = provider_message_id
+            message.raw_payload = {
+                **(response.payload if isinstance(response.payload, dict) else {'response': response.payload}),
+                'actor_id': str(actor_id),
+                'email_copy_requested': send_copy_to_email,
+                'ebay_call_name': send_context['call_name'],
+            }
 
         conversation.last_message_at = message.sent_at
         SLAService(self.db).complete_after_reply(conversation, actor_id, message.sent_at)
@@ -379,6 +416,16 @@ class EbayReplyService:
             return None
         value = payload.get('messageId') or payload.get('id')
         return value.strip() if isinstance(value, str) and value.strip() else None
+
+    def _existing_provider_message(self, *, provider: str, provider_message_id: str) -> Message | None:
+        return (
+            self.db.query(Message)
+            .filter(
+                Message.provider == provider.upper(),
+                Message.provider_message_id == provider_message_id,
+            )
+            .first()
+        )
 
     def _send_context(self, conversation) -> dict:
         recipient_id = (conversation.buyer_identifier or '').strip()

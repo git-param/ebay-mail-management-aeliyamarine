@@ -2,7 +2,7 @@ from datetime import UTC, date, datetime, time, timedelta
 from uuid import UUID
 
 from fastapi import HTTPException, status
-from sqlalchemy import func, or_, select
+from sqlalchemy import delete, func, or_, select
 from sqlalchemy.orm import Session, joinedload, selectinload
 
 from app.api.dependencies import is_admin
@@ -151,6 +151,31 @@ class DailyEntryService:
                 results.append(DailyEntryUploadResultItem(user_id=payload.user_id, success=False, error=str(exc)))
         self.db.commit()
         return results
+
+    def delete_entries(self, current_user, *, date_from: date, date_to: date, user_id: UUID | None = None) -> int:
+        self._require_admin(current_user)
+        if date_from > date_to:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='From date cannot be after To date')
+
+        user_ids: list[UUID] | None = None
+        if user_id:
+            user_ids = [user.id for user in self._target_users(user_id)]
+
+        entry_statement = select(DailyTaskEntry.id).where(
+            DailyTaskEntry.entry_date >= date_from,
+            DailyTaskEntry.entry_date <= date_to,
+        )
+        if user_ids is not None:
+            entry_statement = entry_statement.where(DailyTaskEntry.user_id.in_(user_ids))
+
+        entry_ids = list(self.db.scalars(entry_statement).all())
+        if not entry_ids:
+            return 0
+
+        self.db.execute(delete(DailyTaskEntryHistory).where(DailyTaskEntryHistory.entry_id.in_(entry_ids)))
+        result = self.db.execute(delete(DailyTaskEntry).where(DailyTaskEntry.id.in_(entry_ids)))
+        self.db.commit()
+        return int(result.rowcount or 0)
 
     def _save_one(self, current_user, payload: DailyEntryCreate) -> tuple[DailyTaskEntry, str]:
         target_user_id = payload.user_id

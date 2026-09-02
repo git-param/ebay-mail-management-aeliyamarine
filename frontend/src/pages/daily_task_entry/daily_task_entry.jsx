@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 
 import AppLayout, { Icon } from '../../layouts/app_layout'
 import {
+  deleteDailyEntries,
   fetchDailyEntries,
   fetchDailyEntrySlaReview,
   loadDailyEntries as apiLoadDailyEntries,
@@ -17,6 +18,29 @@ const ERROR_LEVELS = [['NO_ERROR', 'None'], ['MINOR', 'Minor'], ['MAJOR', 'Major
 const SLA_MAX = 20
 const OTHER_GENERAL_WORK_KEY = 'other_general_work'
 const today = () => new Date().toISOString().slice(0, 10)
+
+function dateKey(date) {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+function dateRange(fromDate, toDate) {
+  if (!fromDate || !toDate) return []
+  const start = new Date(`${fromDate}T00:00:00`)
+  const end = new Date(`${toDate}T00:00:00`)
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || start > end) return []
+  const dates = []
+  for (const cursor = new Date(start); cursor <= end; cursor.setDate(cursor.getDate() + 1)) {
+    dates.push(dateKey(cursor))
+  }
+  return dates
+}
+
+function isSunday(value) {
+  return new Date(`${value}T00:00:00`).getDay() === 0
+}
 
 function number(value) {
   return Math.max(0, Number(value) || 0)
@@ -37,12 +61,12 @@ function taskAveragePercent(items) {
   return applicable.reduce((sum, item) => sum + taskPerformancePercent(item), 0) / applicable.length
 }
 
-function effectiveSlaScore(slaScore, slaTotalCount) {
-  return number(slaTotalCount) === 0 ? SLA_MAX : Math.min(number(slaScore), SLA_MAX)
+function effectiveSlaScore(slaScore, slaTotalCount, slaAutoFetched = false) {
+  return slaAutoFetched && number(slaTotalCount) === 0 ? SLA_MAX : Math.min(number(slaScore), SLA_MAX)
 }
 
-function slaPerformancePercent(slaScore, slaTotalCount) {
-  return (effectiveSlaScore(slaScore, slaTotalCount) / SLA_MAX) * 100
+function slaPerformancePercent(slaScore, slaTotalCount, slaAutoFetched = false) {
+  return (effectiveSlaScore(slaScore, slaTotalCount, slaAutoFetched) / SLA_MAX) * 100
 }
 
 function formatPercent(value) {
@@ -103,10 +127,10 @@ function buildTaskDisplayItems(items) {
   return displayItems
 }
 
-function calculate(items, slaScore, errorLevel, slaTotalCount = null) {
+function calculate(items, slaScore, errorLevel, slaTotalCount = null, slaAutoFetched = false) {
   if (errorLevel === 'MAJOR') return 0
   const taskAverage = taskAveragePercent(items)
-  const slaPerformance = slaPerformancePercent(slaScore, slaTotalCount)
+  const slaPerformance = slaPerformancePercent(slaScore, slaTotalCount, slaAutoFetched)
   return Math.round(Math.min(100, Math.max(0, (taskAverage + slaPerformance) / 2)))
 }
 
@@ -116,12 +140,13 @@ function sourceLabel(source) {
 
 function makeRow(loadedItem) {
   const entry = loadedItem.entry
+  const sunday = isSunday(entry.entry_date)
   return {
     userId: loadedItem.user.id,
     userName: loadedItem.user.full_name || loadedItem.user.email,
     userEmail: loadedItem.user.email,
     existingEntryId: loadedItem.existing_entry_id,
-    selected: !loadedItem.existing_entry_id,
+    selected: !loadedItem.existing_entry_id && !sunday,
     entry_date: entry.entry_date,
     day_type: entry.day_type,
     score_items: entry.score_items || [],
@@ -364,7 +389,7 @@ function SlaReviewModal({ userId, userName, entryDate, onClose }) {
 function AgentCard({ row, onChange, onReviewSla }) {
   const displayItems = useMemo(() => buildTaskDisplayItems(row.score_items), [row.score_items])
   const taskAverage = taskAveragePercent(row.score_items)
-  const slaPerformance = slaPerformancePercent(row.sla_score, row.sla_total_count)
+  const slaPerformance = slaPerformancePercent(row.sla_score, row.sla_total_count, row.sla_auto_fetched)
   const isMajor = row.error_level === 'MAJOR'
   const isLocked = row.status === 'success'
   const isDisabled = isLocked || isMajor
@@ -386,7 +411,7 @@ function AgentCard({ row, onChange, onReviewSla }) {
     if (isLocked) return
     onChange(row.userId, (current) => {
       const next = { ...current, ...fields }
-      next.final_score_percent = calculate(next.score_items, next.sla_score, next.error_level, next.sla_total_count)
+      next.final_score_percent = calculate(next.score_items, next.sla_score, next.error_level, next.sla_total_count, next.sla_auto_fetched)
       return next
     })
   }
@@ -404,7 +429,7 @@ function AgentCard({ row, onChange, onReviewSla }) {
       // are preserved even after the Admin edits the score manually.
       const nextItems = current.score_items.map((item) => keySet.has(item.key) ? { ...item, ...patchFields, source: markManual && patchFields.value !== undefined ? 'MANUAL' : item.source } : item)
       const next = { ...current, score_items: nextItems }
-      next.final_score_percent = calculate(next.score_items, next.sla_score, next.error_level, next.sla_total_count)
+      next.final_score_percent = calculate(next.score_items, next.sla_score, next.error_level, next.sla_total_count, next.sla_auto_fetched)
       return next
     })
   }
@@ -434,7 +459,7 @@ function AgentCard({ row, onChange, onReviewSla }) {
         return { ...item, value: childValue, status: value > 0 ? 'ENTERED' : (isTaskIncluded(group) ? 'ENTERED' : 'NOT_APPLICABLE'), source: 'MANUAL' }
       })
       const next = { ...current, score_items: nextItems }
-      next.final_score_percent = calculate(next.score_items, next.sla_score, next.error_level, next.sla_total_count)
+      next.final_score_percent = calculate(next.score_items, next.sla_score, next.error_level, next.sla_total_count, next.sla_auto_fetched)
       return next
     })
   }
@@ -463,7 +488,7 @@ function AgentCard({ row, onChange, onReviewSla }) {
         sla_score: restoredSla,
         error_remark: value === 'NO_ERROR' ? '' : current.error_remark,
       }
-      next.final_score_percent = calculate(next.score_items, next.sla_score, next.error_level, next.sla_total_count)
+      next.final_score_percent = calculate(next.score_items, next.sla_score, next.error_level, next.sla_total_count, next.sla_auto_fetched)
       return next
     })
   }
@@ -549,7 +574,7 @@ function AgentCard({ row, onChange, onReviewSla }) {
         <div className="dailyEntry-task-row final">
           <div className="dailyEntry-final-metric"><span>Task Average</span><strong>{isMajor ? '0%' : `${formatPercent(taskAverage)}%`}</strong></div>
           <div className="dailyEntry-final-metric"><span>SLA Performance</span><strong>{isMajor ? '0%' : `${formatPercent(slaPerformance)}%`}</strong></div>
-          <div className="dailyEntry-final-metric dailyEntry-final-score"><span>Final Score</span><strong>{row.final_score_percent}%</strong></div>
+          <div className="dailyEntry-final-metric dailyEntry-final-score"><span>Final Score</span><strong>{calculate(row.score_items, row.sla_score, row.error_level, row.sla_total_count, row.sla_auto_fetched)}%</strong></div>
         </div>
       </section>
 
@@ -577,6 +602,195 @@ function AgentCard({ row, onChange, onReviewSla }) {
   )
 }
 
+function BulkEntryMatrix({ rows, onChange, onSubmit, onClose, submitting }) {
+  const rowsByUser = useMemo(() => {
+    const groups = new Map()
+    for (const row of rows) {
+      if (!groups.has(row.userId)) {
+        groups.set(row.userId, {
+          userId: row.userId,
+          userName: row.userName,
+          userEmail: row.userEmail,
+          rows: [],
+        })
+      }
+      groups.get(row.userId).rows.push(row)
+    }
+    return Array.from(groups.values()).map((group) => ({
+      ...group,
+      rows: group.rows.sort((left, right) => left.entry_date.localeCompare(right.entry_date)),
+    }))
+  }, [rows])
+
+  function columnsFor(group) {
+    const seen = new Map()
+    for (const row of group.rows) {
+      for (const item of buildTaskDisplayItems(row.score_items)) {
+        if (!seen.has(item.display_key)) seen.set(item.display_key, { key: item.display_key, label: item.label })
+      }
+    }
+    return Array.from(seen.values())
+  }
+
+  function itemValue(row, column) {
+    const item = buildTaskDisplayItems(row.score_items).find((entry) => entry.display_key === column.key)
+    return item ? item.value : ''
+  }
+
+  function itemMax(row, column) {
+    const item = buildTaskDisplayItems(row.score_items).find((entry) => entry.display_key === column.key)
+    return item ? item.max_score : 0
+  }
+
+  function patchRow(row, updater) {
+    onChange(row.bulkKey, (current) => {
+      const next = updater(current)
+      return {
+        ...next,
+        final_score_percent: calculate(next.score_items, next.sla_score, next.error_level, next.sla_total_count, next.sla_auto_fetched),
+        changed: true,
+      }
+    })
+  }
+
+  function updateScore(row, column, rawValue) {
+    const displayItem = buildTaskDisplayItems(row.score_items).find((item) => item.display_key === column.key)
+    if (!displayItem) return
+    const value = clamp(rawValue, displayItem.max_score)
+    patchRow(row, (current) => {
+      if (displayItem.child_items?.length) {
+        let remaining = value
+        const children = displayItem.child_items
+        const childKeys = new Set(children.map((child) => child.key))
+        return {
+          ...current,
+          score_items: current.score_items.map((item) => {
+            if (!childKeys.has(item.key)) return item
+            const childIndex = children.findIndex((child) => child.key === item.key)
+            const isLast = childIndex === children.length - 1
+            const childMax = number(item.max_score)
+            const childValue = isLast ? clamp(remaining, childMax) : Math.min(childMax, remaining)
+            remaining = Math.max(0, remaining - childValue)
+            return { ...item, value: childValue, status: value > 0 ? 'ENTERED' : item.status, source: 'MANUAL' }
+          }),
+        }
+      }
+      return {
+        ...current,
+        score_items: current.score_items.map((item) => (
+          item.key === displayItem.key
+            ? { ...item, value, status: value > 0 ? 'ENTERED' : item.status, source: 'MANUAL' }
+            : item
+        )),
+      }
+    })
+  }
+
+  if (!rows.length) return null
+
+  return (
+    <section className="table-card dailyEntry-bulk-matrix-card">
+      <div className="dailyEntry-card-header dailyEntry-bulk-matrix-header">
+        <div>
+          <h2>Bulk Entry Matrix</h2>
+          <p className="field-help">Edit task marks by date, keep only the rows you want checked, then submit the selected rows.</p>
+        </div>
+        <button className="secondary-button compact-action action-button action-clear" type="button" onClick={onClose}>Close Bulk Entry</button>
+      </div>
+
+      <div className="dailyEntry-bulk-matrix-sections">
+        {rowsByUser.map((group) => {
+          const columns = columnsFor(group)
+          return (
+            <section className="dailyEntry-bulk-employee-section" key={group.userId}>
+              <div className="dailyEntry-bulk-employee-heading">
+                <div>
+                  <h3>{group.userName}</h3>
+                  <small>{group.userEmail}</small>
+                </div>
+                <span>{group.rows.filter((row) => row.selected).length} selected</span>
+              </div>
+              <div className="table-scroll dailyEntry-bulk-matrix-scroll">
+                <table className="users-table dailyEntry-bulk-matrix">
+                  <thead>
+                    <tr>
+                      <th className="dailyEntry-bulk-check-column">Use</th>
+                      <th>Date</th>
+                      {columns.map((column) => <th key={column.key}>{column.label}</th>)}
+                      <th>SLA</th>
+                      <th>Final</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {group.rows.map((row) => {
+                      return (
+                        <tr key={row.bulkKey} className={`${row.selected ? '' : 'not-selected'}${isSunday(row.entry_date) ? ' sunday-row' : ''}`}>
+                          <td className="dailyEntry-bulk-check-column">
+                            <input
+                              type="checkbox"
+                              checked={row.selected}
+                              onChange={(event) => onChange(row.bulkKey, (current) => ({ ...current, selected: event.target.checked, changed: true }))}
+                            />
+                          </td>
+                          <td>
+                            <strong>{row.entry_date}</strong>
+                            {isSunday(row.entry_date) ? <small>Sunday</small> : null}
+                          </td>
+                          {columns.map((column) => {
+                            const max = itemMax(row, column)
+                            return (
+                              <td key={column.key}>
+                                {max ? (
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    max={max}
+                                    value={itemValue(row, column)}
+                                    onChange={(event) => updateScore(row, column, event.target.value)}
+                                  />
+                                ) : <span className="dailyEntry-bulk-na">N/A</span>}
+                              </td>
+                            )
+                          })}
+                          <td>
+                            <input
+                              type="number"
+                              min="0"
+                              max={SLA_MAX}
+                              value={row.sla_score}
+                              onChange={(event) => patchRow(row, (current) => ({ ...current, sla_score: clamp(event.target.value, SLA_MAX), sla_auto_fetched: false }))}
+                            />
+                          </td>
+                          <td><strong>{calculate(row.score_items, row.sla_score, row.error_level, row.sla_total_count, row.sla_auto_fetched)}%</strong></td>
+                          <td>
+                            {row.existingEntryId ? <span className="upload-status saved">Saved</span> : null}
+                            {row.status === 'error' ? <span className="upload-status error">{row.statusMessage || 'Failed'}</span> : null}
+                            {row.status === 'success' ? <span className="upload-status success">Submitted</span> : null}
+                            {row.changed ? <span className="upload-status pending">Changed</span> : null}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          )
+        })}
+      </div>
+
+      <div className="dailyEntry-bulk-submit-bar">
+        <span className="field-help">Selected rows are submitted. Saved rows can be edited and submitted again.</span>
+        <button className="primary-button compact-action action-button action-upload" type="button" onClick={onSubmit} disabled={submitting}>
+          {submitting ? 'Submitting...' : 'Submit Bulk Entry'}
+        </button>
+      </div>
+    </section>
+  )
+}
+
 export default function DailyTaskEntry({ currentUser, onLogout }) {
   const isAdmin = normalizeRole(currentUser?.role) === 'ADMIN'
   const [users, setUsers] = useState([])
@@ -586,6 +800,14 @@ export default function DailyTaskEntry({ currentUser, onLogout }) {
   const [loaded, setLoaded] = useState(false)
   const [loading, setLoading] = useState(false)
   const [uploading, setUploading] = useState(false)
+  const [bulkOpen, setBulkOpen] = useState(false)
+  const [bulkFilters, setBulkFilters] = useState({ date_from: today(), date_to: today(), user_id: '' })
+  const [bulkRows, setBulkRows] = useState([])
+  const [bulkLoading, setBulkLoading] = useState(false)
+  const [bulkSubmitting, setBulkSubmitting] = useState(false)
+  const [deleteFilters, setDeleteFilters] = useState({ date_from: '', date_to: '', user_id: '' })
+  const [deleteConfirm, setDeleteConfirm] = useState('')
+  const [deleting, setDeleting] = useState(false)
   const [history, setHistory] = useState({ items: [], total: 0 })
   const [filters, setFilters] = useState({ date_from: '', date_to: '', user_id: '' })
   const [selected, setSelected] = useState(null)
@@ -633,6 +855,46 @@ export default function DailyTaskEntry({ currentUser, onLogout }) {
     setRows((current) => current.map((row) => (row.status === 'success' ? row : { ...row, selected: value })))
   }
 
+  function updateBulkRow(bulkKey, updater) {
+    setBulkRows((current) => current.map((row) => (row.bulkKey === bulkKey ? updater(row) : row)))
+  }
+
+  async function applyBulkEntry(event) {
+    event.preventDefault()
+    const dates = dateRange(bulkFilters.date_from, bulkFilters.date_to)
+    if (!dates.length) {
+      setError('Select a valid from/to date range for bulk entry.')
+      return
+    }
+    setBulkLoading(true)
+    setError('')
+    setMessage('')
+    try {
+      const loadedDates = await Promise.all(dates.map((entryDateValue) => (
+        apiLoadDailyEntries({ entry_date: entryDateValue, user_id: bulkFilters.user_id || undefined })
+      )))
+      const nextRows = loadedDates.flatMap((response) => (
+        (response.items || []).map((item) => {
+          const row = makeRow(item)
+          return {
+            ...row,
+            bulkKey: `${row.userId}:${row.entry_date}`,
+            selected: !isSunday(row.entry_date),
+            status: 'idle',
+            statusMessage: '',
+            changed: false,
+          }
+        })
+      ))
+      setBulkRows(nextRows)
+      if (!nextRows.length) setMessage('No active agents found for this bulk selection.')
+    } catch (caught) {
+      setError(caught.message)
+    } finally {
+      setBulkLoading(false)
+    }
+  }
+
   async function upload(scope) {
     const eligible = rows.filter((row) => row.status !== 'success')
     const targets = scope === 'selected' ? eligible.filter((row) => row.selected) : eligible
@@ -660,7 +922,7 @@ export default function DailyTaskEntry({ currentUser, onLogout }) {
         remarks: row.remarks || null,
         particulars_error_note: row.particulars_error_note || null,
         sla_remarks: row.sla_remarks || null,
-        final_score_percent: row.final_score_percent,
+        final_score_percent: calculate(row.score_items, row.sla_score, row.error_level, row.sla_total_count, row.sla_auto_fetched),
       }))
       const response = await uploadDailyEntries(entries)
       const resultByUser = new Map((response.results || []).map((item) => [item.user_id, item]))
@@ -681,6 +943,109 @@ export default function DailyTaskEntry({ currentUser, onLogout }) {
     }
   }
 
+  async function submitBulkEntry() {
+    const targets = bulkRows.filter((row) => row.selected)
+    if (!targets.length) {
+      setError('No selected rows to submit.')
+      return
+    }
+    const missingRemark = targets.find((row) => row.error_level !== 'NO_ERROR' && !row.error_remark.trim())
+    if (missingRemark) {
+      setError(`Error Remarks is required for ${missingRemark.userName} on ${missingRemark.entry_date}.`)
+      return
+    }
+    setBulkSubmitting(true)
+    setError('')
+    setMessage('')
+    try {
+      const entries = targets.map((row) => ({
+        user_id: row.userId,
+        entry_date: row.entry_date,
+        day_type: row.day_type,
+        score_items: row.score_items,
+        sla_score: row.sla_score,
+        error_level: row.error_level,
+        error_remark: row.error_remark || null,
+        remarks: row.remarks || null,
+        particulars_error_note: row.particulars_error_note || null,
+        sla_remarks: row.sla_remarks || null,
+        final_score_percent: calculate(row.score_items, row.sla_score, row.error_level, row.sla_total_count, row.sla_auto_fetched),
+      }))
+      const response = await uploadDailyEntries(entries)
+      const resultByBulkKey = new Map(targets.map((row, index) => [row.bulkKey, (response.results || [])[index]]))
+      setBulkRows((current) => {
+        return current.map((row) => {
+          const result = resultByBulkKey.get(row.bulkKey)
+          if (!result) return row
+          return { ...row, existingEntryId: result.success ? (result.entry_id || row.existingEntryId) : row.existingEntryId, status: result.success ? 'success' : 'error', statusMessage: result.success ? '' : result.error, changed: !result.success }
+        })
+      })
+      const failCount = (response.results || []).filter((item) => !item.success).length
+      const successCount = (response.results || []).filter((item) => item.success).length
+      if (failCount) setError(`${failCount} of ${response.results.length} bulk entries failed to upload.`)
+      else setMessage(`${successCount} bulk entr${successCount === 1 ? 'y' : 'ies'} uploaded successfully.`)
+      await loadHistory(filters)
+    } catch (caught) {
+      setError(caught.message)
+    } finally {
+      setBulkSubmitting(false)
+    }
+  }
+
+  async function deleteEntries(event) {
+    event.preventDefault()
+    if (!deleteFilters.date_from || !deleteFilters.date_to) {
+      setError('Select From and To dates before deleting daily task entries.')
+      return
+    }
+    if (deleteFilters.date_from > deleteFilters.date_to) {
+      setError('From date cannot be after To date.')
+      return
+    }
+    if (deleteConfirm !== 'DELETE') {
+      setError('Type DELETE to confirm daily task entry deletion.')
+      return
+    }
+
+    const rangeLabel = deleteFilters.date_from === deleteFilters.date_to
+      ? deleteFilters.date_from
+      : `${deleteFilters.date_from} to ${deleteFilters.date_to}`
+    const employeeLabel = deleteFilters.user_id
+      ? (users.find((user) => user.id === deleteFilters.user_id)?.full_name || users.find((user) => user.id === deleteFilters.user_id)?.email || 'selected employee')
+      : 'all employees'
+
+    const confirmed = window.confirm(`Delete Daily Task Entry data for ${employeeLabel} for ${rangeLabel}? This cannot be undone.`)
+    if (!confirmed) return
+
+    setDeleting(true)
+    setError('')
+    setMessage('')
+    try {
+      const response = await deleteDailyEntries({
+        date_from: deleteFilters.date_from,
+        date_to: deleteFilters.date_to,
+        user_id: deleteFilters.user_id || null,
+      })
+      setRows((current) => current.filter((row) => (
+        row.entry_date < deleteFilters.date_from
+        || row.entry_date > deleteFilters.date_to
+        || (deleteFilters.user_id && row.userId !== deleteFilters.user_id)
+      )))
+      setBulkRows((current) => current.filter((row) => (
+        row.entry_date < deleteFilters.date_from
+        || row.entry_date > deleteFilters.date_to
+        || (deleteFilters.user_id && row.userId !== deleteFilters.user_id)
+      )))
+      setDeleteConfirm('')
+      setMessage(`${response.deleted_count} daily task entr${response.deleted_count === 1 ? 'y' : 'ies'} deleted.`)
+      await loadHistory(filters)
+    } catch (caught) {
+      setError(caught.message)
+    } finally {
+      setDeleting(false)
+    }
+  }
+
   function applyFilters(event) {
     event.preventDefault()
     loadHistory(filters)
@@ -695,12 +1060,54 @@ export default function DailyTaskEntry({ currentUser, onLogout }) {
         <section className="dailyEntry-daily-entry-layout">
           {isAdmin ? (
             <section className="table-card dailyEntry-load-card">
-              <div className="dailyEntry-card-header"><h2>Load Daily Entries</h2></div>
+              <div className="dailyEntry-card-header">
+                <h2>Load Daily Entries</h2>
+                <button
+                  className="secondary-button compact-action action-button action-create"
+                  type="button"
+                  onClick={() => setBulkOpen((current) => !current)}
+                >
+                  Bulk Entry
+                </button>
+              </div>
               <p className="field-help">Only Agent-role users are loaded here. Operations Managers and Admins are not included.</p>
               <div className="dailyEntry-form-row dailyEntry-load-controls">
                 <label className="field"><span>Date</span><input type="date" value={entryDate} onChange={(event) => setEntryDate(event.target.value)} /></label>
                 <button className="primary-button compact-action action-button action-load dailyEntry-load-button" type="button" onClick={loadDailyEntries} disabled={loading}>{loading ? 'Loading...' : 'Load Daily Entries'}</button>
               </div>
+
+              {bulkOpen ? (
+                <form className="dailyEntry-bulk-entry-controls" onSubmit={applyBulkEntry}>
+                  <label className="field">
+                    <span>From</span>
+                    <input type="date" value={bulkFilters.date_from} onChange={(event) => setBulkFilters((current) => ({ ...current, date_from: event.target.value }))} />
+                  </label>
+                  <label className="field">
+                    <span>To</span>
+                    <input type="date" value={bulkFilters.date_to} onChange={(event) => setBulkFilters((current) => ({ ...current, date_to: event.target.value }))} />
+                  </label>
+                  <label className="field">
+                    <span>Employee</span>
+                    <select value={bulkFilters.user_id} onChange={(event) => setBulkFilters((current) => ({ ...current, user_id: event.target.value }))}>
+                      <option value="">All Employees</option>
+                      {users.map((user) => <option key={user.id} value={user.id}>{user.full_name || user.email}</option>)}
+                    </select>
+                  </label>
+                  <button className="primary-button compact-action action-button action-apply" type="submit" disabled={bulkLoading}>
+                    {bulkLoading ? 'Applying...' : 'Apply'}
+                  </button>
+                </form>
+              ) : null}
+
+              {bulkOpen && bulkRows.length ? (
+                <BulkEntryMatrix
+                  rows={bulkRows}
+                  onChange={updateBulkRow}
+                  onSubmit={submitBulkEntry}
+                  onClose={() => setBulkOpen(false)}
+                  submitting={bulkSubmitting}
+                />
+              ) : null}
 
               {loaded ? (
                 <>
@@ -759,6 +1166,40 @@ export default function DailyTaskEntry({ currentUser, onLogout }) {
               </table>
             </div>
           </section>
+          {isAdmin ? (
+            <section className="table-card dailyEntry-delete-card">
+              <div className="dailyEntry-card-header">
+                <div>
+                  <h2>Delete Daily Task Entries</h2>
+                  <p className="field-help">Delete saved Daily Task Entry records for one day or a selected date range.</p>
+                </div>
+              </div>
+              <form className="dailyEntry-delete-form" onSubmit={deleteEntries}>
+                <label className="field">
+                  <span>From</span>
+                  <input type="date" value={deleteFilters.date_from} onChange={(event) => setDeleteFilters((current) => ({ ...current, date_from: event.target.value }))} />
+                </label>
+                <label className="field">
+                  <span>To</span>
+                  <input type="date" value={deleteFilters.date_to} onChange={(event) => setDeleteFilters((current) => ({ ...current, date_to: event.target.value }))} />
+                </label>
+                <label className="field">
+                  <span>Employee</span>
+                  <select value={deleteFilters.user_id} onChange={(event) => setDeleteFilters((current) => ({ ...current, user_id: event.target.value }))}>
+                    <option value="">All Employees</option>
+                    {users.map((user) => <option key={user.id} value={user.id}>{user.full_name || user.email}</option>)}
+                  </select>
+                </label>
+                <label className="field">
+                  <span>Confirm</span>
+                  <input value={deleteConfirm} onChange={(event) => setDeleteConfirm(event.target.value)} placeholder="Type DELETE" />
+                </label>
+                <button className="primary-button compact-action action-button action-danger" type="submit" disabled={deleting || deleteConfirm !== 'DELETE'}>
+                  {deleting ? 'Deleting...' : 'Delete Entries'}
+                </button>
+              </form>
+            </section>
+          ) : null}
         </section>
       </main>
       <DetailModal entry={selected} onClose={() => setSelected(null)} />
