@@ -115,6 +115,19 @@ class DailyEntryUploadResponse(BaseModel):
     results: list[DailyEntryUploadResultItem]
 
 
+class DailyEntryBulkDeleteRequest(BaseModel):
+    date_from: date
+    date_to: date
+    user_id: UUID | None = None
+
+
+class DailyEntryBulkDeleteResponse(BaseModel):
+    deleted_count: int
+    date_from: date
+    date_to: date
+    user_id: UUID | None = None
+
+
 class DailyEntrySLAReviewItem(BaseModel):
     id: UUID
     conversation_id: UUID
