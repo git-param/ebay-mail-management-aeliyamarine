@@ -785,10 +785,7 @@ function Dashboard({
     )
 
     setPage(0)
-    setSelectedConversationId('')
-    setDetail(null)
-    setNotes([])
-    setMobilePane('list')
+    clearBulkSelection()
   }
 
   function resetFilters() {
@@ -1202,6 +1199,7 @@ function Dashboard({
             isBulkAssigning={
               isSubmitting
             }
+            error={listError}
             search={filters.search}
             activeFilterCount={
               activeFilterCount
@@ -1248,15 +1246,6 @@ function Dashboard({
               changePageSize
             }
           />
-        ) : null}
-
-        {listError ? (
-          <p
-            className="form-message error management-error"
-            role="alert"
-          >
-            {listError}
-          </p>
         ) : null}
 
         {hasSelectedConversation ? (
