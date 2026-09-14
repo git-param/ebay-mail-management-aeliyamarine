@@ -33,6 +33,7 @@ function ConversationList({
   bulkAssignError,
   isLoading,
   isBulkAssigning,
+  error,
   search,
   activeFilterCount = 0,
   nearDueActive = false,
@@ -144,7 +145,7 @@ function ConversationList({
           <Icon name="search" />
 
           <input
-            type="search"
+            type="text"
             value={searchInput}
             placeholder="Search buyer, subject, item, or message"
             onChange={(event) =>
@@ -199,8 +200,16 @@ function ConversationList({
         </div>
 
         <div className="conversation-list">
+          {error ? (
+            <EmptyPanel
+              title="Unable to load conversations"
+              message={error}
+            />
+          ) : null}
+
           {isLoading &&
-          !conversations.length ? (
+          !conversations.length &&
+          !error ? (
             <EmptyPanel
               title="Loading conversations..."
               message="Please wait while the inbox is refreshed."
@@ -208,14 +217,15 @@ function ConversationList({
           ) : null}
 
           {!isLoading &&
-          !conversations.length ? (
+          !conversations.length &&
+          !error ? (
             <EmptyPanel
               title="No conversations found"
               message="Try changing your search or inbox filters."
             />
           ) : null}
 
-          {conversations.map(
+          {!error ? conversations.map(
             (conversation) => (
               <ConversationRow
                 conversation={conversation}
@@ -237,7 +247,7 @@ function ConversationList({
                 key={conversation.id}
               />
             ),
-          )}
+          ) : null}
         </div>
       </div>
 
