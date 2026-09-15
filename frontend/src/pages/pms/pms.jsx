@@ -118,10 +118,12 @@ function metricTooltip(metric) {
     return null;
   }
 
+  const entryDays = meta.entry_days ?? meta.working_days ?? 0;
+
   if (metric.source_snapshot === "QUALITY_AUTO") {
     return (
       `${meta.formula || ""} ` +
-      `Based on ${meta.working_days ?? 0} working day(s) - ` +
+      `Based on ${entryDays} entry day(s) - ` +
       `SLA avg ${fmt(meta.sla_avg_pct)}% - ` +
       `${meta.major_error_days ?? 0} Major, ` +
       `${meta.minor_error_days ?? 0} Minor error day(s).`
@@ -131,7 +133,7 @@ function metricTooltip(metric) {
   if (metric.source_snapshot === "PRODUCTIVITY_AUTO") {
     return (
       `${meta.formula || ""} ` +
-      `Based on ${meta.working_days ?? 0} working day(s) - ` +
+      `Based on ${entryDays} entry day(s) - ` +
       `task completion avg ${fmt(meta.task_completion_avg_pct)}%.`
     );
   }

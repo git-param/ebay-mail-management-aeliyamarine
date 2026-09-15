@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 import { Icon } from '../../../layouts/app_layout'
 import { validateConversationReply } from '../../../services/conversationApi'
@@ -17,6 +17,13 @@ function formatFileSize(bytes) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
+function isImageFile(file) {
+  return (
+    String(file?.type || '').startsWith('image/') ||
+    /\.(png|jpe?g|gif|webp)$/i.test(file?.name || '')
+  )
+}
+
 export default function ReplyComposer({ conversationId, suggestedMessageTypeId, isSubmitting, onSendReply, templates, messageTypes = [] }) {
   const [body, setBody] = useState('')
   const [files, setFiles] = useState([])
@@ -29,6 +36,25 @@ export default function ReplyComposer({ conversationId, suggestedMessageTypeId, 
   const [sendCopyToEmail, setSendCopyToEmail] = useState(true)
   const category = messageTypes.find((item) => item.id === categoryId)
   const selectedTypeId = category?.children?.length ? subtypeId : categoryId
+  const attachmentPreviews = useMemo(
+    () =>
+      files.map((file) => ({
+        file,
+        previewUrl: isImageFile(file) ? URL.createObjectURL(file) : '',
+      })),
+    [files],
+  )
+
+  useEffect(
+    () => () => {
+      attachmentPreviews.forEach((attachment) => {
+        if (attachment.previewUrl) {
+          URL.revokeObjectURL(attachment.previewUrl)
+        }
+      })
+    },
+    [attachmentPreviews],
+  )
 
   function addFiles(selectedFiles) {
     const nextFiles = [...files, ...selectedFiles]
@@ -144,10 +170,21 @@ export default function ReplyComposer({ conversationId, suggestedMessageTypeId, 
       </label>
       {files.length ? (
         <div className="reply-attachment-list" aria-label="Selected attachments">
-          {files.map((file, index) => (
-            <span className="reply-attachment-chip" key={`${file.name}-${file.size}-${index}`}>
-              <span>
-                <strong>{file.name}</strong>
+          {attachmentPreviews.map(({ file, previewUrl }, index) => (
+            <span className={`reply-attachment-chip${previewUrl ? ' has-preview' : ''}`} key={`${file.name}-${file.size}-${index}`}>
+              {previewUrl ? (
+                <a
+                  className="reply-attachment-preview-link"
+                  href={previewUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label={`Open ${file.name} preview in a new tab`}
+                >
+                  <img className="reply-attachment-preview" src={previewUrl} alt="" />
+                </a>
+              ) : null}
+              <span className="reply-attachment-meta">
+                <strong title={file.name}>{file.name}</strong>
                 <small>{formatFileSize(file.size)}</small>
               </span>
               <button type="button" onClick={() => removeFile(index)} aria-label={`Remove ${file.name}`}>
@@ -173,7 +210,7 @@ export default function ReplyComposer({ conversationId, suggestedMessageTypeId, 
         <div className="composer-attachment-action">
           <input id={`reply-attachments-${conversationId}`} key={fileInputKey} type="file" multiple onChange={updateFiles} accept=".pdf,.txt,.jpg,.jpeg,.png,application/pdf,text/plain,image/jpeg,image/png" />
           <label htmlFor={`reply-attachments-${conversationId}`} title="Attach files" aria-label="Attach files"><Icon name="paperclip" /></label>
-          <small>{files.length ? `${files.length} attached` : 'Attach'} Â· {body.length}/2000</small>
+          <small>{files.length ? `${files.length} attached` : 'Attach'} · {body.length}/2000</small>
         </div>
         <label className="email-copy-checkbox" htmlFor={`reply-email-copy-${conversationId}`}>
           <input id={`reply-email-copy-${conversationId}`} type="checkbox" checked={sendCopyToEmail} disabled={isSubmitting || isValidating} onChange={(event) => setSendCopyToEmail(event.target.checked)} />

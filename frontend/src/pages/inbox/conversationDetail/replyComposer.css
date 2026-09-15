@@ -164,7 +164,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: space-between;
-  max-width: 100%;
+  width: min(100%, 246px);
   min-width: 180px;
   gap: 12px;
   padding: 8px 9px 8px 11px;
@@ -175,9 +175,45 @@
   box-sizing: border-box;
 }
 
-.reply-composer .reply-attachment-chip > span {
+.reply-composer .reply-attachment-chip.has-preview {
+  padding-left: 8px;
+}
+
+.reply-composer .reply-attachment-preview-link {
+  flex: 0 0 auto;
+  width: 42px;
+  height: 42px;
+  border-radius: 8px;
+  color: inherit;
+  outline: none;
+}
+
+.reply-composer .reply-attachment-preview-link:focus-visible {
+  box-shadow: 0 0 0 3px rgba(124, 92, 229, 0.22);
+}
+
+.reply-composer .reply-attachment-preview {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background-color: #eef2f7;
+  object-fit: cover;
+  transition:
+    border-color 0.2s ease,
+    transform 0.2s ease;
+}
+
+.reply-composer .reply-attachment-preview-link:hover .reply-attachment-preview {
+  border-color: #a78bfa;
+  transform: scale(1.02);
+}
+
+.reply-composer .reply-attachment-meta {
   display: flex;
   flex-direction: column;
+  flex: 1 1 auto;
   min-width: 0;
   gap: 2px;
 }
