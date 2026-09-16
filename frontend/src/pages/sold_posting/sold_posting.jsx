@@ -69,7 +69,10 @@ function labelize(value) {
 }
 
 function isoDate(date) {
-  return date.toISOString().slice(0, 10);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 function periodRange(period) {
@@ -186,6 +189,11 @@ function soldReferenceText(row) {
   const condition = row.condition || "No condition";
   const quantity = row.quantity || 0;
   return `Sold ref no ${sku} ${condition} ${quantity} Pc (${copyAccountName(row.ebay_account_name)})`;
+}
+
+function blogspotUrl(sku) {
+  const value = String(sku || "").trim();
+  return value ? `https://aeliyamarine.blogspot.com/search?q=${encodeURIComponent(value)}` : "";
 }
 
 async function writeClipboard(text) 
@@ -855,6 +863,7 @@ export default function SoldPosting({ currentUser, onLogout }) {
                       "Status",
                       "Order ID",
                       "SKU",
+                      "Blogspot Link",
                       "Product",
                       "Condition",
                       "Buyer",
@@ -939,6 +948,21 @@ export default function SoldPosting({ currentUser, onLogout }) {
                       </td>
                       <td>
                         <CopyValue value={row.sku} />
+                      </td>
+                      <td>
+                        {blogspotUrl(row.sku) ? (
+                          <a
+                            className="sold-blogspot-link"
+                            href={blogspotUrl(row.sku)}
+                            target="_blank"
+                            rel="noreferrer"
+                            onClick={(event) => event.stopPropagation()}
+                          >
+                            🌐
+                          </a>
+                        ) : (
+                          "-"
+                        )}
                       </td>
                       <td className="sold-title">
                         <span>{row.product || "-"}</span>
