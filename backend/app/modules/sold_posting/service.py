@@ -127,14 +127,14 @@ class SoldPostingService:
         result = AccountSyncResult(account.id, account.account_name or account.ebay_username, True)
 
         # eBay API rejects filters with an end time that is even slightly in the future.
-        # Subtract a safety margin to guarantee the timestamp is in the past.
+        # Keep the safe cursor update, but fetch without an eBay date filter so orders
+        # are not missed by creation/last-modified window constraints.
         synced_through = datetime.now(UTC) - self.EBAY_CLOCK_SAFETY_DELAY
-        filter_value = self._filter_for_state(state, synced_through)
 
         offset = 0
         try:
             while result.pages_fetched < self.MAX_PAGES:
-                page = self._fetch_page(account, offset, filter_value)
+                page = self._fetch_page(account, offset)
                 orders = page.get("orders") or []
                 result.pages_fetched += 1
                 result.orders_received += len(orders)
@@ -274,7 +274,7 @@ class SoldPostingService:
     # Private helpers
     # -------------------------------------------------------------------------
 
-    def _fetch_page(self, account: EbayAccount, offset: int, filter_value: str) -> dict:
+    def _fetch_page(self, account: EbayAccount, offset: int, filter_value: str | None = None) -> dict:
         """
         Fetch one page of orders from the eBay API with retries.
 

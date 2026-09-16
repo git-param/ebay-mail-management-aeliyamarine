@@ -1,5 +1,6 @@
 from datetime import UTC, date, datetime, time
 from uuid import UUID
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session, joinedload
@@ -7,6 +8,8 @@ from sqlalchemy.orm import Session, joinedload
 from app.models.ebay_account import EbayAccount
 from app.models.order_context import ConversationProductContext, EbayOrderLineItem
 from app.modules.sold_posting.models import SoldPostingLineItem, SoldPostingOrder, SoldPostingSyncState
+
+BUSINESS_TIMEZONE = ZoneInfo("Asia/Kolkata")
 
 
 class SoldPostingRepository:
@@ -154,8 +157,8 @@ class SoldPostingRepository:
 
 
 def _date_start(value: date) -> datetime:
-    return datetime.combine(value, time.min, tzinfo=UTC)
+    return datetime.combine(value, time.min, tzinfo=BUSINESS_TIMEZONE).astimezone(UTC)
 
 
 def _date_end(value: date) -> datetime:
-    return datetime.combine(value, time.max, tzinfo=UTC)
+    return datetime.combine(value, time.max, tzinfo=BUSINESS_TIMEZONE).astimezone(UTC)
