@@ -73,6 +73,26 @@ export default function ReplyComposer({ conversationId, suggestedMessageTypeId, 
     addFiles(Array.from(event.target.files || []))
   }
 
+  function pasteClipboardImages(event) {
+    const pastedImages = Array.from(event.clipboardData?.items || [])
+      .filter((item) => item.kind === 'file' && item.type.startsWith('image/'))
+      .map((item) => item.getAsFile())
+      .filter(Boolean)
+
+    if (!pastedImages.length) return
+
+    event.preventDefault()
+    const unsupportedImage = pastedImages.find(
+      (file) => !['image/jpeg', 'image/png'].includes(file.type),
+    )
+    if (unsupportedImage) {
+      setViolations(['Pasted images must be JPEG or PNG files.'])
+      return
+    }
+
+    addFiles(pastedImages)
+  }
+
   function removeFile(fileIndex) {
     setFiles((current) => current.filter((_, index) => index !== fileIndex))
     setDraftMessage('')
@@ -163,6 +183,7 @@ export default function ReplyComposer({ conversationId, suggestedMessageTypeId, 
             setBody(event.target.value)
             setDraftMessage('')
           }}
+          onPaste={pasteClipboardImages}
           rows="3"
           maxLength={2000}
           placeholder="Write a reply without email, phone, external links, or abusive language"

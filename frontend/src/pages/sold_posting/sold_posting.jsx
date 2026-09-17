@@ -181,6 +181,9 @@ function FilterDropdown({
 
 function copyAccountName(name) {
   const account = String(name || "").trim();
+  const normalized = account.toLowerCase();
+  if (normalized === "main") return "";
+  if (normalized === "marine") return "Aeliyamarine110";
   return `Aeliya-${account || "Account"}110`;
 }
 
@@ -188,7 +191,8 @@ function soldReferenceText(row) {
   const sku = row.sku || row.item_id || row.order_id || "-";
   const condition = row.condition || "No condition";
   const quantity = row.quantity || 0;
-  return `Sold ref no ${sku} ${condition} ${quantity} Pc (${copyAccountName(row.ebay_account_name)})`;
+  const account = copyAccountName(row.ebay_account_name);
+  return `Sold ref no ${sku} ${condition} ${quantity} Pc${account ? ` (${account})` : ""}`;
 }
 
 function blogspotUrl(sku) {

@@ -432,6 +432,15 @@ class EbayReplyService:
         if not recipient_id:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Cannot send reply because the buyer username is unavailable.')
 
+        provider_conversation_id = (conversation.provider_conversation_id or '').strip()
+        if provider_conversation_id:
+            return {
+                'transport': 'conversation',
+                'call_name': 'send_conversation_message',
+                'conversation_id': provider_conversation_id,
+                'conversation_type': conversation.provider_conversation_type or 'FROM_MEMBERS',
+            }
+
         order_mapping = getattr(conversation, 'order_mapping', None)
         if order_mapping and (order_mapping.ebay_item_id or order_mapping.listing_id or conversation.reference_id):
             return {
@@ -462,15 +471,6 @@ class EbayReplyService:
                 'item_id': item_id,
                 'recipient_id': recipient_id,
                 'parent_message_id': parent_message.provider_message_id,
-            }
-
-        provider_conversation_id = (conversation.provider_conversation_id or '').strip()
-        if provider_conversation_id:
-            return {
-                'transport': 'conversation',
-                'call_name': 'send_conversation_message',
-                'conversation_id': provider_conversation_id,
-                'conversation_type': conversation.provider_conversation_type or 'FROM_MEMBERS',
             }
 
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Cannot send reply because the eBay conversation id is unavailable.')
