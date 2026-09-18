@@ -89,6 +89,14 @@ function fmtScore(value) {
   return Number(value).toFixed(2).replace(/\.?0+$/, "");
 }
 
+function fmtPreciseNumber(value) {
+  if (value === null || value === undefined || Number.isNaN(Number(value))) {
+    return "-";
+  }
+
+  return String(Number(value));
+}
+
 function clampNumber(value, max) {
   const n = Number(value);
 
@@ -1624,7 +1632,7 @@ export function PMS({ currentUser, onLogout }) {
                   type="number"
                   min={0}
                   max={100}
-                  step="0.1"
+                  step="any"
                   value={targetAchievementDraft}
                   onChange={(event) =>
                     setTargetAchievementDraft(event.target.value)
@@ -1832,7 +1840,7 @@ export function PMS({ currentUser, onLogout }) {
                           </small>
                         ) : isTargetAchievement ? (
                           <small className="pmsModule-auto-value">
-                            Shared target: {fmt(
+                            Shared target: {fmtPreciseNumber(
                               editorTargetAchievementPercent(),
                             )}
                             % of{" "}

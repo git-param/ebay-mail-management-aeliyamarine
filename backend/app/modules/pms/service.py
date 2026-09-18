@@ -150,10 +150,7 @@ class PmsService:
     ) -> PmsTargetAchievementResponse:
         self._require_admin(current_user)
 
-        percent = round(
-            max(0.0, min(float(payload.target_achievement_percent), 100.0)),
-            2,
-        )
+        percent = max(0.0, min(float(payload.target_achievement_percent), 100.0))
         key = self._target_achievement_setting_key(payload.year, payload.month)
         setting = self.db.scalar(
             select(AppConfigSetting).where(AppConfigSetting.config_key == key)
@@ -221,7 +218,7 @@ class PmsService:
 
         if setting:
             try:
-                return round(max(0.0, min(float(setting.value), 100.0)), 2)
+                return max(0.0, min(float(setting.value), 100.0))
             except (TypeError, ValueError):
                 return None
 
@@ -248,14 +245,14 @@ class PmsService:
                 meta_percent = (metric.calc_meta or {}).get('target_percent')
                 try:
                     if meta_percent is not None:
-                        return round(max(0.0, min(float(meta_percent), 100.0)), 2)
+                        return max(0.0, min(float(meta_percent), 100.0))
                 except (TypeError, ValueError):
                     pass
 
                 final_value = float(metric.final_value or 0)
                 weight = float(metric.weight_snapshot or 0)
                 if weight > 0:
-                    return round(max(0.0, min((final_value / weight) * 100, 100.0)), 2)
+                    return max(0.0, min((final_value / weight) * 100, 100.0))
 
         return None
 
