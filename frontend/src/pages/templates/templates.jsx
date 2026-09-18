@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 
 import AppLayout, { Icon } from '../../layouts/app_layout'
 import { createTemplate, deleteTemplate, fetchTemplates, updateTemplate } from '../../services/templateApi'
+import { normalizeRole } from '../../utils/roles'
 
 import './templates.css'
 
@@ -244,6 +245,7 @@ function TemplateDrawer({ template, onClose }) {
 }
 
 function Templates({ currentUser, onLogout }) {
+  const canDeleteTemplates = normalizeRole(currentUser?.role) !== 'AGENT'
   const [templates, setTemplates] = useState([])
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('All')
@@ -480,10 +482,12 @@ function Templates({ currentUser, onLogout }) {
                               <Icon name="edit" />
                               Edit
                             </button>
-                            <button className="menu-disable" type="button" onClick={() => openModal('delete', template)}>
-                              <Icon name="disable" />
-                              Delete
-                            </button>
+                            {canDeleteTemplates ? (
+                              <button className="menu-disable" type="button" onClick={() => openModal('delete', template)}>
+                                <Icon name="disable" />
+                                Delete
+                              </button>
+                            ) : null}
                           </div>
                         ) : null}
                       </td>

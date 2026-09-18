@@ -45,7 +45,7 @@ def list_templates(
     current_user=Depends(get_current_user),
 ) -> list[ReplyTemplateResponse]:
     """List reply templates available for use during replies."""
-    # PermissionService(db).ensure_user_has(current_user, 'template.view')
+    PermissionService(db).ensure_user_has(current_user, 'template.view')
     templates = ReplyTemplateService(db).list_templates(include_inactive=include_inactive)
     return [serialize_template(template) for template in templates]
 
@@ -57,7 +57,7 @@ def create_template(
     current_user=Depends(get_current_user),
 ) -> ReplyTemplateResponse:
     """Create a new reply template."""
-    # PermissionService(db).ensure_user_has(current_user, 'template.create')
+    PermissionService(db).ensure_user_has(current_user, 'template.create')
     template = ReplyTemplateService(db).create_template(
         title=payload.title,
         body=payload.body,
@@ -75,7 +75,7 @@ def update_template(
     current_user=Depends(get_current_user),
 ) -> ReplyTemplateResponse:
     """Update an existing reply template."""
-    # PermissionService(db).ensure_user_has(current_user, 'template.edit')
+    PermissionService(db).ensure_user_has(current_user, 'template.edit')
     template = ReplyTemplateService(db).update_template(
         template_id=template_id,
         values=payload.model_dump(exclude_unset=True),
