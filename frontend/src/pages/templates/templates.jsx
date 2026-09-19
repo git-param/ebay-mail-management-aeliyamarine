@@ -1,7 +1,16 @@
 import { useEffect, useMemo, useState } from 'react'
 
 import AppLayout, { Icon } from '../../layouts/app_layout'
-import { createTemplate, deleteTemplate, fetchTemplates, updateTemplate } from '../../services/templateApi'
+import {
+  createTemplate,
+  createTemplateCategory,
+  deleteTemplate,
+  deleteTemplateCategory,
+  fetchTemplateCategories,
+  fetchTemplates,
+  updateTemplate,
+  updateTemplateCategory,
+} from '../../services/templateApi'
 import { normalizeRole } from '../../utils/roles'
 
 import './templates.css'
@@ -9,6 +18,13 @@ import './templates.css'
 const EMPTY_FORM = {
   title: '',
   body: '',
+  categoryId: '',
+  isActive: true,
+}
+
+const EMPTY_CATEGORY_FORM = {
+  name: '',
+  description: '',
   isActive: true,
 }
 
@@ -49,6 +65,8 @@ function normalizeTemplate(template) {
     id: template.id,
     title: template.title || '',
     body: template.body || '',
+    categoryId: template.category_id || '',
+    categoryName: template.category?.name || 'Uncategorized',
     isActive: template.is_active !== false,
     status: template.is_active === false ? 'Inactive' : 'Active',
     createdDate: formatDate(template.created_at),
@@ -56,10 +74,32 @@ function normalizeTemplate(template) {
   }
 }
 
+function normalizeCategory(category) {
+  return {
+    ...category,
+    id: category.id,
+    name: category.name || '',
+    description: category.description || '',
+    isActive: category.is_active !== false,
+    status: category.is_active === false ? 'Inactive' : 'Active',
+    createdDate: formatDate(category.created_at),
+    updatedDate: formatDate(category.updated_at),
+  }
+}
+
 function toPayload(values) {
   return {
     title: values.title.trim(),
     body: values.body.trim(),
+    category_id: values.categoryId || null,
+    is_active: Boolean(values.isActive),
+  }
+}
+
+function toCategoryPayload(values) {
+  return {
+    name: values.name.trim(),
+    description: values.description.trim() || null,
     is_active: Boolean(values.isActive),
   }
 }
@@ -98,7 +138,7 @@ function Modal({ title, children, onClose }) {
   )
 }
 
-function TemplateForm({ initialValues, templates, selectedTemplate, isSubmitting, submitLabel, onCancel, onSubmit }) {
+function TemplateForm({ initialValues, templates, categories, selectedTemplate, isSubmitting, submitLabel, onCancel, onSubmit }) {
   const [values, setValues] = useState(initialValues)
   const [errors, setErrors] = useState({})
 
@@ -161,6 +201,18 @@ function TemplateForm({ initialValues, templates, selectedTemplate, isSubmitting
         {errors.body ? <small>{errors.body}</small> : null}
       </label>
 
+      <label className="field form-field-wide">
+        <span>Category</span>
+        <select name="categoryId" value={values.categoryId} onChange={updateField}>
+          <option value="">Uncategorized</option>
+          {categories.map((category) => (
+            <option value={category.id} key={category.id}>
+              {category.name}
+            </option>
+          ))}
+        </select>
+      </label>
+
       <label className="template-toggle">
         <input name="isActive" type="checkbox" checked={values.isActive} onChange={updateField} />
         <span>
@@ -181,11 +233,100 @@ function TemplateForm({ initialValues, templates, selectedTemplate, isSubmitting
   )
 }
 
+function CategoryForm({ initialValues, categories, selectedCategory, isSubmitting, submitLabel, onCancel, onSubmit }) {
+  const [values, setValues] = useState(initialValues)
+  const [errors, setErrors] = useState({})
+
+  function updateField(event) {
+    const { checked, name, type, value } = event.target
+    setValues((current) => ({ ...current, [name]: type === 'checkbox' ? checked : value }))
+  }
+
+  function handleSubmit(event) {
+    event.preventDefault()
+    const nextErrors = {}
+    const name = values.name.trim()
+
+    if (!name) {
+      nextErrors.name = 'Category name is required.'
+    } else if (name.length > 160) {
+      nextErrors.name = 'Category name must be 160 characters or less.'
+    } else {
+      const duplicateName = categories.some((category) => {
+        return category.id !== selectedCategory?.id && normalizeText(category.name) === normalizeText(name)
+      })
+      if (duplicateName) {
+        nextErrors.name = 'A category with this name already exists.'
+      }
+    }
+
+    if (values.description.trim().length > 500) {
+      nextErrors.description = 'Description must be 500 characters or less.'
+    }
+
+    setErrors(nextErrors)
+    if (Object.keys(nextErrors).length) return
+
+    onSubmit(values)
+  }
+
+  return (
+    <form className="management-form template-form" onSubmit={handleSubmit}>
+      <label className="field form-field-wide">
+        <span>Category Name</span>
+        <input name="name" value={values.name} onChange={updateField} maxLength={160} />
+        {errors.name ? <small>{errors.name}</small> : null}
+      </label>
+
+      <label className="field form-field-wide">
+        <span>Description</span>
+        <textarea name="description" value={values.description} onChange={updateField} rows="4" maxLength={500} />
+        {errors.description ? <small>{errors.description}</small> : null}
+      </label>
+
+      <label className="template-toggle">
+        <input name="isActive" type="checkbox" checked={values.isActive} onChange={updateField} />
+        <span>
+          <strong>Active category</strong>
+          <small>Active categories are available when creating and choosing templates.</small>
+        </span>
+      </label>
+
+      <div className="modal-actions">
+        <button className="secondary-button" type="button" onClick={onCancel}>
+          Cancel
+        </button>
+        <button className="primary-button compact" type="submit" disabled={isSubmitting}>
+          {isSubmitting ? 'Saving...' : submitLabel}
+        </button>
+      </div>
+    </form>
+  )
+}
+
 function ConfirmModal({ template, isSubmitting, onCancel, onConfirm }) {
   return (
     <Modal title="Delete Template" onClose={onCancel}>
       <p className="confirm-message">
         Delete {template.title}? Agents will no longer be able to use this reply template.
+      </p>
+      <div className="modal-actions">
+        <button className="secondary-button" type="button" onClick={onCancel}>
+          Cancel
+        </button>
+        <button className="danger-button" type="button" onClick={onConfirm} disabled={isSubmitting}>
+          {isSubmitting ? 'Deleting...' : 'Delete'}
+        </button>
+      </div>
+    </Modal>
+  )
+}
+
+function ConfirmCategoryModal({ category, isSubmitting, onCancel, onConfirm }) {
+  return (
+    <Modal title="Delete Category" onClose={onCancel}>
+      <p className="confirm-message">
+        Delete {category.name}? Templates in this category will become uncategorized.
       </p>
       <div className="modal-actions">
         <button className="secondary-button" type="button" onClick={onCancel}>
@@ -221,6 +362,7 @@ function TemplateDrawer({ template, onClose }) {
           <h3>{template.title}</h3>
           <div className="badge-row">
             <Badge value={template.status} />
+            <span className="category-pill">{template.categoryName}</span>
           </div>
         </div>
 
@@ -247,10 +389,14 @@ function TemplateDrawer({ template, onClose }) {
 function Templates({ currentUser, onLogout }) {
   const canDeleteTemplates = normalizeRole(currentUser?.role) !== 'AGENT'
   const [templates, setTemplates] = useState([])
+  const [categories, setCategories] = useState([])
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('All')
+  const [categoryFilter, setCategoryFilter] = useState('All')
   const [actionTemplateId, setActionTemplateId] = useState(null)
+  const [actionCategoryId, setActionCategoryId] = useState(null)
   const [selectedTemplate, setSelectedTemplate] = useState(null)
+  const [selectedCategory, setSelectedCategory] = useState(null)
   const [modal, setModal] = useState(null)
   const [notification, setNotification] = useState('')
   const [error, setError] = useState('')
@@ -262,8 +408,12 @@ function Templates({ currentUser, onLogout }) {
     setError('')
 
     try {
-      const response = await fetchTemplates({ includeInactive: true })
-      setTemplates(getList(response).map(normalizeTemplate))
+      const [templateResponse, categoryResponse] = await Promise.all([
+        fetchTemplates({ includeInactive: true }),
+        fetchTemplateCategories({ includeInactive: true }),
+      ])
+      setTemplates(getList(templateResponse).map(normalizeTemplate))
+      setCategories(getList(categoryResponse).map(normalizeCategory))
     } catch (caughtError) {
       setError(caughtError.message)
     } finally {
@@ -280,11 +430,18 @@ function Templates({ currentUser, onLogout }) {
     return templates.filter((template) => {
       const query = search.trim().toLowerCase()
       const matchesSearch =
-        !query || template.title.toLowerCase().includes(query) || template.body.toLowerCase().includes(query)
+        !query ||
+        template.title.toLowerCase().includes(query) ||
+        template.body.toLowerCase().includes(query) ||
+        template.categoryName.toLowerCase().includes(query)
       const matchesStatus = statusFilter === 'All' || template.status === statusFilter
-      return matchesSearch && matchesStatus
+      const matchesCategory =
+        categoryFilter === 'All' ||
+        (categoryFilter === 'Uncategorized' && !template.categoryId) ||
+        template.categoryId === categoryFilter
+      return matchesSearch && matchesStatus && matchesCategory
     })
-  }, [search, statusFilter, templates])
+  }, [categoryFilter, search, statusFilter, templates])
 
   const stats = useMemo(() => {
     const active = templates.filter((template) => template.isActive).length
@@ -297,9 +454,10 @@ function Templates({ currentUser, onLogout }) {
       total: templates.length,
       active,
       inactive,
+      categories: categories.length,
       averageLength,
     }
-  }, [templates])
+  }, [categories.length, templates])
 
   function showNotification(message) {
     setNotification(message)
@@ -314,13 +472,16 @@ function Templates({ currentUser, onLogout }) {
 
   function openModal(type, template = null) {
     setActionTemplateId(null)
+    setActionCategoryId(null)
     setSelectedTemplate(template)
+    setSelectedCategory(template)
     setModal(type)
   }
 
   function closeModal() {
     setModal(null)
     setSelectedTemplate(null)
+    setSelectedCategory(null)
   }
 
   async function createTemplateFromForm(values) {
@@ -371,9 +532,58 @@ function Templates({ currentUser, onLogout }) {
     }
   }
 
+  async function createCategoryFromForm(values) {
+    setIsSubmitting(true)
+    setError('')
+
+    try {
+      await createTemplateCategory(toCategoryPayload(values))
+      closeModal()
+      showNotification('Category created successfully.')
+      await loadTemplates()
+    } catch (caughtError) {
+      showError(caughtError)
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  async function updateCategoryFromForm(values) {
+    setIsSubmitting(true)
+    setError('')
+
+    try {
+      await updateTemplateCategory(selectedCategory.id, toCategoryPayload(values))
+      closeModal()
+      showNotification('Category updated successfully.')
+      await loadTemplates()
+    } catch (caughtError) {
+      showError(caughtError)
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  async function removeCategory() {
+    setIsSubmitting(true)
+    setError('')
+
+    try {
+      await deleteTemplateCategory(selectedCategory.id)
+      closeModal()
+      showNotification('Category deleted successfully.')
+      await loadTemplates()
+    } catch (caughtError) {
+      showError(caughtError)
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
   function resetFilters() {
     setSearch('')
     setStatusFilter('All')
+    setCategoryFilter('All')
   }
 
   return (
@@ -394,7 +604,7 @@ function Templates({ currentUser, onLogout }) {
           <StatCard label="Total Templates" value={stats.total} />
           <StatCard label="Active Templates" value={stats.active} />
           <StatCard label="Inactive Templates" value={stats.inactive} />
-          <StatCard label="Avg. Characters" value={stats.averageLength} />
+          <StatCard label="Categories" value={stats.categories} />
         </section>
 
         <section className="filter-panel template-filter-panel" aria-label="Template filters">
@@ -417,9 +627,71 @@ function Templates({ currentUser, onLogout }) {
             </select>
           </label>
 
+          <label className="field">
+            <span>Category</span>
+            <select value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)}>
+              <option>All</option>
+              <option>Uncategorized</option>
+              {categories.map((category) => (
+                <option value={category.id} key={category.id}>
+                  {category.name}
+                </option>
+              ))}
+            </select>
+          </label>
+
           <button className="secondary-button" type="button" onClick={resetFilters}>
             Reset Filters
           </button>
+        </section>
+
+        <section className="category-management-panel" aria-label="Template categories">
+          <div className="section-heading-row">
+            <div>
+              <h2>Template Categories</h2>
+              <p>Group reply templates for faster selection in the inbox.</p>
+            </div>
+            <button className="secondary-button compact" type="button" onClick={() => openModal('create-category')}>
+              <Icon name="plus" />
+              Create Category
+            </button>
+          </div>
+          {categories.length ? (
+            <div className="category-chip-grid">
+              {categories.map((category) => (
+                <span className="category-management-chip" key={category.id}>
+                  <span>
+                    <strong>{category.name}</strong>
+                    <small>{category.status}</small>
+                  </span>
+                  <button
+                    className="icon-button"
+                    type="button"
+                    onClick={() => setActionCategoryId((current) => (current === category.id ? null : category.id))}
+                    aria-label={`Open actions for ${category.name}`}
+                  >
+                    <Icon name="dots" />
+                  </button>
+                  {actionCategoryId === category.id ? (
+                    <div className="action-menu category-action-menu">
+                      <button className="menu-edit" type="button" onClick={() => openModal('edit-category', category)}>
+                        <Icon name="edit" />
+                        Edit
+                      </button>
+                      {canDeleteTemplates ? (
+                        <button className="menu-disable" type="button" onClick={() => openModal('delete-category', category)}>
+                          <Icon name="disable" />
+                          Delete
+                        </button>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </span>
+              ))}
+            </div>
+          ) : (
+            <p className="category-empty-text">No categories yet. Templates can still be left uncategorized.</p>
+          )}
         </section>
 
         {error ? (
@@ -439,6 +711,7 @@ function Templates({ currentUser, onLogout }) {
                 <thead>
                   <tr>
                     <th>Template</th>
+                    <th>Category</th>
                     <th>Preview</th>
                     <th>Status</th>
                     <th>Updated</th>
@@ -453,10 +726,13 @@ function Templates({ currentUser, onLogout }) {
                           <span className="template-avatar small">
                             <Icon name="message" />
                           </span>
-                          <strong>{template.title}</strong>
+                          <strong title={template.title}>{template.title}</strong>
                         </span>
                       </td>
-                      <td className="template-preview-cell">{template.body}</td>
+                      <td>
+                        <span className="category-pill" title={template.categoryName}>{template.categoryName}</span>
+                      </td>
+                      <td className="template-preview-cell" title={template.body}>{template.body}</td>
                       <td>
                         <Badge value={template.status} />
                       </td>
@@ -514,6 +790,7 @@ function Templates({ currentUser, onLogout }) {
           <TemplateForm
             initialValues={EMPTY_FORM}
             templates={templates}
+            categories={categories.filter((category) => category.isActive)}
             selectedTemplate={null}
             isSubmitting={isSubmitting}
             submitLabel="Create Template"
@@ -529,9 +806,11 @@ function Templates({ currentUser, onLogout }) {
             initialValues={{
               title: selectedTemplate.title,
               body: selectedTemplate.body,
+              categoryId: selectedTemplate.categoryId,
               isActive: selectedTemplate.isActive,
             }}
             templates={templates}
+            categories={categories.filter((category) => category.isActive || category.id === selectedTemplate.categoryId)}
             selectedTemplate={selectedTemplate}
             isSubmitting={isSubmitting}
             submitLabel="Save Changes"
@@ -547,6 +826,47 @@ function Templates({ currentUser, onLogout }) {
           isSubmitting={isSubmitting}
           onCancel={closeModal}
           onConfirm={removeTemplate}
+        />
+      ) : null}
+
+      {modal === 'create-category' ? (
+        <Modal title="Create Category" onClose={closeModal}>
+          <CategoryForm
+            initialValues={EMPTY_CATEGORY_FORM}
+            categories={categories}
+            selectedCategory={null}
+            isSubmitting={isSubmitting}
+            submitLabel="Create Category"
+            onCancel={closeModal}
+            onSubmit={createCategoryFromForm}
+          />
+        </Modal>
+      ) : null}
+
+      {modal === 'edit-category' && selectedCategory ? (
+        <Modal title="Edit Category" onClose={closeModal}>
+          <CategoryForm
+            initialValues={{
+              name: selectedCategory.name,
+              description: selectedCategory.description,
+              isActive: selectedCategory.isActive,
+            }}
+            categories={categories}
+            selectedCategory={selectedCategory}
+            isSubmitting={isSubmitting}
+            submitLabel="Save Changes"
+            onCancel={closeModal}
+            onSubmit={updateCategoryFromForm}
+          />
+        </Modal>
+      ) : null}
+
+      {modal === 'delete-category' && selectedCategory ? (
+        <ConfirmCategoryModal
+          category={selectedCategory}
+          isSubmitting={isSubmitting}
+          onCancel={closeModal}
+          onConfirm={removeCategory}
         />
       ) : null}
 

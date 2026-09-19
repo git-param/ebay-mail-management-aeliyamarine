@@ -24,7 +24,7 @@ function isImageFile(file) {
   )
 }
 
-export default function ReplyComposer({ conversationId, suggestedMessageTypeId, isSubmitting, onSendReply, templates, messageTypes = [] }) {
+export default function ReplyComposer({ conversationId, suggestedMessageTypeId, isSubmitting, onSendReply, templates = [], messageTypes = [] }) {
   const [body, setBody] = useState('')
   const [files, setFiles] = useState([])
   const [fileInputKey, setFileInputKey] = useState(0)
@@ -33,9 +33,39 @@ export default function ReplyComposer({ conversationId, suggestedMessageTypeId, 
   const [isValidating, setIsValidating] = useState(false)
   const [categoryId, setCategoryId] = useState('')
   const [subtypeId, setSubtypeId] = useState('')
+  const [templateCategoryId, setTemplateCategoryId] = useState('')
+  const [selectedTemplateId, setSelectedTemplateId] = useState('')
   const [sendCopyToEmail, setSendCopyToEmail] = useState(true)
+  const [showMessageTypeError, setShowMessageTypeError] = useState(false)
   const category = messageTypes.find((item) => item.id === categoryId)
   const selectedTypeId = category?.children?.length ? subtypeId : categoryId
+  const templateCategories = useMemo(() => {
+    const categoryMap = new Map()
+    let hasUncategorizedTemplates = false
+    templates.forEach((template) => {
+      if (template.category_id && template.category?.is_active !== false) {
+        categoryMap.set(template.category_id, template.category.name)
+      } else {
+        hasUncategorizedTemplates = true
+      }
+    })
+
+    const categories = Array.from(categoryMap, ([id, name]) => ({ id, name })).sort((first, second) =>
+      first.name.localeCompare(second.name),
+    )
+    return hasUncategorizedTemplates ? [...categories, { id: 'uncategorized', name: 'Uncategorized' }] : categories
+  }, [templates])
+  const filteredTemplates = useMemo(() => {
+    if (!templateCategoryId) return []
+    return templates
+      .filter((template) => {
+        if (templateCategoryId === 'uncategorized') {
+          return !template.category_id || template.category?.is_active === false
+        }
+        return template.category_id === templateCategoryId
+      })
+      .sort((first, second) => String(first.title || '').localeCompare(String(second.title || '')))
+  }, [templateCategoryId, templates])
   const attachmentPreviews = useMemo(
     () =>
       files.map((file) => ({
@@ -103,14 +133,26 @@ export default function ReplyComposer({ conversationId, suggestedMessageTypeId, 
     setDraftMessage('Draft saved locally for this conversation.')
   }
 
+  function insertTemplate(templateId) {
+    const template = templates.find((item) => item.id === templateId)
+    setSelectedTemplateId(templateId)
+    if (template) {
+      setBody(template.body)
+    }
+  }
+
   async function submitReply(event) {
     event.preventDefault()
     if (isSubmitting || isValidating) return
     const trimmedBody = body.trim()
     if (!trimmedBody || !conversationId || !selectedTypeId) {
-      if (!selectedTypeId) setViolations(['Message type is required.'])
+      if (!selectedTypeId) {
+        setShowMessageTypeError(true)
+        setViolations(['Message type is required.'])
+      }
       return
     }
+    setShowMessageTypeError(false)
     setIsValidating(true)
     setViolations([])
     setDraftMessage('')
@@ -128,6 +170,7 @@ export default function ReplyComposer({ conversationId, suggestedMessageTypeId, 
       setFileInputKey((current) => current + 1)
       setCategoryId('')
       setSubtypeId('')
+      setShowMessageTypeError(false)
     } catch (caughtError) {
       setViolations([caughtError.message])
     } finally {
@@ -139,30 +182,44 @@ export default function ReplyComposer({ conversationId, suggestedMessageTypeId, 
     <form className="reply-composer" onSubmit={submitReply}>
       <div className="composer-toolbar composer-controls">
         {templates.length ? (
-          <label className="composer-select-control">
-            <span>Template</span>
-            <select
-              className="template-picker"
-              value=""
-              aria-label="Insert reply template"
-              onChange={(event) => {
-                const template = templates.find((item) => item.id === event.target.value)
-                if (template) {
-                  setBody((current) => {
-                    const separator = current.trim() ? '\n\n' : ''
-                    return `${current}${separator}${template.body}`
-                  })
-                }
-              }}
-            >
-              <option value="">Choose template</option>
-              {templates.map((template) => (
-                <option value={template.id} key={template.id}>
-                  {template.title}
-                </option>
-              ))}
-            </select>
-          </label>
+          <>
+            <label className="composer-select-control">
+              <span>Template Category</span>
+              <select
+                className="template-category-picker"
+                value={templateCategoryId}
+                aria-label="Choose reply template category"
+                onChange={(event) => {
+                  setTemplateCategoryId(event.target.value)
+                  setSelectedTemplateId('')
+                }}
+              >
+                <option value="">Choose category</option>
+                {templateCategories.map((templateCategory) => (
+                  <option value={templateCategory.id} key={templateCategory.id}>
+                    {templateCategory.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="composer-select-control">
+              <span>Template</span>
+              <select
+                className="template-picker"
+                value={selectedTemplateId}
+                aria-label="Insert reply template"
+                disabled={!templateCategoryId || !filteredTemplates.length}
+                onChange={(event) => insertTemplate(event.target.value)}
+              >
+                <option value="">{templateCategoryId ? 'Choose template' : 'Choose category first'}</option>
+                {filteredTemplates.map((template) => (
+                  <option value={template.id} key={template.id}>
+                    {template.title}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </>
         ) : null}
         <MessageTypeSelector
           conversationId={conversationId}
@@ -170,6 +227,7 @@ export default function ReplyComposer({ conversationId, suggestedMessageTypeId, 
           messageTypes={messageTypes}
           categoryId={categoryId}
           subtypeId={subtypeId}
+          showRequiredError={showMessageTypeError}
           onCategoryChange={setCategoryId}
           onSubtypeChange={setSubtypeId}
         />
@@ -240,7 +298,12 @@ export default function ReplyComposer({ conversationId, suggestedMessageTypeId, 
         <button className="secondary-button compact" type="button" onClick={saveDraft} disabled={!body.trim() && !files.length}>
           Save Draft
         </button>
-        <button className="primary-button compact" type="submit" disabled={!body.trim() || !selectedTypeId || isSubmitting || isValidating}>
+        <button
+          className="primary-button compact"
+          type="submit"
+          aria-disabled={!body.trim() || !selectedTypeId || isSubmitting || isValidating}
+          disabled={isSubmitting || isValidating}
+        >
           {isValidating ? 'Checking...' : isSubmitting ? 'Sending...' : 'Send Reply'}
         </button>
       </div>
