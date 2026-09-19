@@ -73,7 +73,7 @@ const PROTECTED_ROUTES = [
   {
     path: '/templates',
     component: Templates,
-    allowedRoles: ['ADMIN', 'OPS_MANAGER'],
+    allowedRoles: ['ADMIN', 'OPS_MANAGER', 'AGENT'],
   },
   {
     path: '/analytics',

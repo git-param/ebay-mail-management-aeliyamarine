@@ -29,6 +29,31 @@ export function deleteTemplate(templateId) {
   })
 }
 
+export function fetchTemplateCategories({ includeInactive = false } = {}) {
+  const query = includeInactive ? '?include_inactive=true' : ''
+  return request(`/templates/categories${query}`)
+}
+
+export function createTemplateCategory(payload) {
+  return request('/templates/categories', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function updateTemplateCategory(categoryId, payload) {
+  return request(`/templates/categories/${categoryId}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function deleteTemplateCategory(categoryId) {
+  return request(`/templates/categories/${categoryId}`, {
+    method: 'DELETE',
+  })
+}
+
 export function fetchRoleTemplatePermissions(roleId) {
   return request(`/templates/roles/${roleId}/permissions`)
 }

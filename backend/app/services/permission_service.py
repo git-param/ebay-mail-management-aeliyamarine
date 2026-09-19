@@ -3,8 +3,16 @@ from uuid import UUID
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.api.dependencies import is_support_agent
 from app.models.role import Role
 from app.repositories.permission_repository import PermissionRepository
+
+
+AGENT_TEMPLATE_PERMISSIONS = frozenset({
+    'template.view',
+    'template.create',
+    'template.edit',
+})
 
 
 class PermissionService:
@@ -16,6 +24,8 @@ class PermissionService:
 
     def ensure_user_has(self, user, permission_code: str) -> None:
         """Raise 403 when the user's role lacks a permission."""
+        if is_support_agent(user) and permission_code in AGENT_TEMPLATE_PERMISSIONS:
+            return
         if not user.role_id or not self.repository.role_has_permission(user.role_id, permission_code):
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='Insufficient permission')
 

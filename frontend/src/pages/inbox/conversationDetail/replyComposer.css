@@ -28,7 +28,7 @@
 
 .reply-composer .composer-controls {
   display: grid;
-  grid-template-columns: repeat(3, minmax(180px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 9px;
   align-items: end;
 }
@@ -78,6 +78,16 @@
 .reply-composer .composer-select-control select:focus {
   border-color: #7c5ce5;
   box-shadow: 0 0 0 3px rgba(124, 92, 229, 0.13);
+}
+
+.reply-composer .composer-select-control.has-error > span {
+  color: #b42318;
+}
+
+.reply-composer .composer-select-control.has-error select,
+.reply-composer .composer-select-control.has-error select:focus {
+  border-color: #d92d20;
+  box-shadow: 0 0 0 3px rgba(217, 45, 32, 0.14);
 }
 
 .reply-composer .composer-select-control select:disabled {
@@ -473,7 +483,7 @@
   box-shadow: 0 5px 12px rgba(124, 92, 229, 0.2);
 }
 
-.reply-composer .primary-button:hover:not(:disabled) {
+.reply-composer .primary-button:hover:not(:disabled):not([aria-disabled='true']) {
   border-color: #6d4fd4;
   background: linear-gradient(135deg, #725eea 0%, #8f4edc 100%);
   box-shadow: 0 7px 16px rgba(124, 92, 229, 0.27);
@@ -481,7 +491,7 @@
 }
 
 .reply-composer .secondary-button:active:not(:disabled),
-.reply-composer .primary-button:active:not(:disabled) {
+.reply-composer .primary-button:active:not(:disabled):not([aria-disabled='true']) {
   transform: translateY(0);
 }
 
@@ -492,7 +502,8 @@
 }
 
 .reply-composer .secondary-button:disabled,
-.reply-composer .primary-button:disabled {
+.reply-composer .primary-button:disabled,
+.reply-composer .primary-button[aria-disabled='true'] {
   cursor: not-allowed;
   box-shadow: none;
   opacity: 0.55;
@@ -636,7 +647,7 @@
   box-shadow: 0 10px 22px rgba(103, 94, 232, 0.24);
 }
 
-.reply-composer .primary-button:hover:not(:disabled) {
+.reply-composer .primary-button:hover:not(:disabled):not([aria-disabled='true']) {
   background: linear-gradient(135deg, #5c52df 0%, #7868ee 100%);
 }
 
@@ -672,4 +683,14 @@ html[data-theme='dark'] .reply-composer .composer-attachment-action > label {
   border-color: var(--inbox-border, rgba(78, 91, 113, 0.74));
   background: #1d232d;
   color: #dbe3ef;
+}
+
+html[data-theme='dark'] .reply-composer .composer-select-control.has-error > span {
+  color: #fda29b;
+}
+
+html[data-theme='dark'] .reply-composer .composer-select-control.has-error select,
+html[data-theme='dark'] .reply-composer .composer-select-control.has-error select:focus {
+  border-color: #f97066;
+  box-shadow: 0 0 0 3px rgba(249, 112, 102, 0.2);
 }

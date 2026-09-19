@@ -33,7 +33,7 @@ const NAV_ITEMS = [
     label: 'Templates',
     path: '/templates',
     icon: 'message',
-    roles: ['ADMIN', 'OPS_MANAGER'],
+    roles: ['ADMIN', 'OPS_MANAGER', 'AGENT'],
   },
   {
     label: 'Analytics',
