@@ -77,6 +77,12 @@ export function createConversationNote(conversationId, body) {
   })
 }
 
+export function unassignConversation(conversationId) {
+  return request(`/conversations/${conversationId}/unassign`, {
+    method: 'POST',
+  })
+}
+
 export function updateConversationNote(conversationId, noteId, body) {
   return request(`/conversations/${conversationId}/notes/${noteId}`, {
     method: 'PATCH',

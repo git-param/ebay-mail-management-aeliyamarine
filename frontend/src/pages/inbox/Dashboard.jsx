@@ -9,6 +9,7 @@ import AppLayout from '../../layouts/app_layout'
 import { fetchCategories } from '../../services/categoryApi'
 import {
   assignConversation,
+  unassignConversation,
   bulkUpdateConversations,
   createConversationNote,
   deleteConversationNote,
@@ -857,6 +858,29 @@ function Dashboard({
     }
   }
 
+  async function handleUnassign() {
+    if (!selectedConversationId) {
+      return
+    }
+
+    setIsSubmitting(true)
+    setActionError('')
+
+    try {
+      await unassignConversation(
+        selectedConversationId,
+      )
+      await refreshSelectedConversation()
+    } catch (caughtError) {
+      setActionError(
+        caughtError.message ||
+          'Unable to unassign conversation.',
+      )
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
   async function handleBulkAssign(event) {
     event.preventDefault()
 
@@ -1283,6 +1307,7 @@ function Dashboard({
                 />
               ) : (
                 <ConversationDetail
+                  currentUser={currentUser}
                   detail={
                     visibleConversation
                   }
@@ -1337,6 +1362,9 @@ function Dashboard({
                   onAssign={
                     handleAssign
                   }
+                  onUnassign={
+                    handleUnassign
+                  }
                   onAddNote={
                     handleAddNote
                   }
@@ -1372,6 +1400,7 @@ function Dashboard({
                 />
 
                 <DetailsPanel
+                  currentUser={currentUser}
                   detail={
                     visibleConversation
                   }
@@ -1392,6 +1421,9 @@ function Dashboard({
                   }
                   onAssign={
                     handleAssign
+                  }
+                  onUnassign={
+                    handleUnassign
                   }
                   onAddNote={
                     handleAddNote
