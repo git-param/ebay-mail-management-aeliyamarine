@@ -29,6 +29,7 @@ class ConversationService:
         limit: int | None = None,
         offset: int = 0,
         search: str | None = None,
+        search_by: str | None = None,
         status: ConversationStatus | None = None,
         provider: str | None = None,
         conversation_type: str | None = None,
@@ -43,6 +44,7 @@ class ConversationService:
         if sla_due_within_hours is not None:
             matching_ids = self._near_due_conversation_ids(
                 search=search,
+                search_by=search_by,
                 status=status,
                 provider=provider,
                 conversation_type=conversation_type,
@@ -61,6 +63,7 @@ class ConversationService:
                 limit=limit,
                 offset=offset,
                 search=search,
+                search_by=search_by,
                 status=status,
                 provider=provider,
                 conversation_type=conversation_type,
@@ -76,6 +79,7 @@ class ConversationService:
             limit=limit,
             offset=offset,
             search=search,
+            search_by=search_by,
             status=status,
             provider=provider,
             conversation_type=conversation_type,
@@ -90,6 +94,7 @@ class ConversationService:
         self,
         *,
         search: str | None = None,
+        search_by: str | None = None,
         status: ConversationStatus | None = None,
         provider: str | None = None,
         conversation_type: str | None = None,
@@ -105,6 +110,7 @@ class ConversationService:
             return len(
                 self._near_due_conversation_ids(
                     search=search,
+                    search_by=search_by,
                     status=status,
                     provider=provider,
                     conversation_type=conversation_type,
@@ -119,6 +125,7 @@ class ConversationService:
 
         return self.repository.count(
             search=search,
+            search_by=search_by,
             status=status,
             provider=provider,
             conversation_type=conversation_type,
@@ -133,6 +140,7 @@ class ConversationService:
         self,
         *,
         search: str | None = None,
+        search_by: str | None = None,
         status: ConversationStatus | None = None,
         provider: str | None = None,
         conversation_type: str | None = None,
@@ -167,6 +175,7 @@ class ConversationService:
 
         candidates = self.repository.list_sla_candidates(
             search=search,
+            search_by=search_by,
             status=status,
             provider=provider,
             conversation_type=conversation_type,

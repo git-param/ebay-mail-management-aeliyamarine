@@ -51,6 +51,7 @@ import './dashboard.css'
 
 const EMPTY_FILTERS = {
   search: '',
+  search_by: '',
   status: '',
   period: 'all',
   ...periodRange('all'),
@@ -276,6 +277,7 @@ function Dashboard({
         'period',
         'date_from',
         'date_to',
+        'search_by',
         // Near Due SLA has its own visible toggle, so do not duplicate it
         // inside the generic Filters count badge.
         'sla_due_within_hours',
@@ -1201,6 +1203,7 @@ function Dashboard({
             }
             error={listError}
             search={filters.search}
+            searchBy={filters.search_by}
             activeFilterCount={
               activeFilterCount
             }
@@ -1210,9 +1213,17 @@ function Dashboard({
               ) === 2
             }
             onSearch={(searchValue) =>
+              changeFilter({
+                search:
+                  searchValue.trim(),
+                search_by:
+                  filters.search_by,
+              })
+            }
+            onSearchByChange={(value) =>
               changeFilter(
-                'search',
-                searchValue.trim(),
+                'search_by',
+                value,
               )
             }
             onToggleNearDue={

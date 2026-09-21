@@ -19,6 +19,12 @@ from app.models.conversation import (
     Message,
     MessageAttachment,
 )
+from app.models.order_context import (
+    ConversationOrderContext,
+    ConversationProductContext,
+    EbayOrder,
+    EbayOrderLineItem,
+)
 
 
 class ConversationRepository:
@@ -31,6 +37,7 @@ class ConversationRepository:
         limit: int | None = None,
         offset: int = 0,
         search: str | None = None,
+        search_by: str | None = None,
         status: ConversationStatus | None = None,
         provider: str | None = None,
         conversation_type: str | None = None,
@@ -50,6 +57,7 @@ class ConversationRepository:
         statement = (
             self._filtered_statement(
                 search=search,
+                search_by=search_by,
                 status=status,
                 provider=provider,
                 conversation_type=conversation_type,
@@ -106,6 +114,7 @@ class ConversationRepository:
         self,
         *,
         search: str | None = None,
+        search_by: str | None = None,
         status: ConversationStatus | None = None,
         provider: str | None = None,
         conversation_type: str | None = None,
@@ -118,6 +127,7 @@ class ConversationRepository:
         """Count conversations using the same filters as the list endpoint."""
         statement = self._filtered_statement(
             search=search,
+            search_by=search_by,
             status=status,
             provider=provider,
             conversation_type=conversation_type,
@@ -141,6 +151,7 @@ class ConversationRepository:
         self,
         *,
         search: str | None = None,
+        search_by: str | None = None,
         status: ConversationStatus | None = None,
         provider: str | None = None,
         conversation_type: str | None = None,
@@ -159,6 +170,7 @@ class ConversationRepository:
         statement = (
             self._filtered_statement(
                 search=search,
+                search_by=search_by,
                 status=status,
                 provider=provider,
                 conversation_type=conversation_type,
@@ -299,6 +311,7 @@ class ConversationRepository:
         self,
         *,
         search: str | None = None,
+        search_by: str | None = None,
         status: ConversationStatus | None = None,
         provider: str | None = None,
         conversation_type: str | None = None,
@@ -351,8 +364,136 @@ class ConversationRepository:
                 )
             )
 
-            statement = statement.where(
-                or_(
+            order_context_match = exists(
+                select(ConversationOrderContext.id)
+                .where(
+                    ConversationOrderContext.conversation_id
+                    == Conversation.id
+                )
+                .where(
+                    or_(
+                        ConversationOrderContext.ebay_order_id.ilike(
+                            normalized_search
+                        ),
+                        ConversationOrderContext.legacy_order_id.ilike(
+                            normalized_search
+                        ),
+                    )
+                )
+            )
+
+            order_match = exists(
+                select(EbayOrder.id)
+                .where(
+                    EbayOrder.id
+                    == Conversation.linked_order_record_id
+                )
+                .where(
+                    EbayOrder.order_id.ilike(
+                        normalized_search
+                    )
+                )
+            )
+
+            sku_order_context_match = exists(
+                select(ConversationOrderContext.id)
+                .where(
+                    ConversationOrderContext.conversation_id
+                    == Conversation.id
+                )
+                .where(
+                    or_(
+                        ConversationOrderContext.sku.ilike(
+                            normalized_search
+                        ),
+                        ConversationOrderContext.inventory_id.ilike(
+                            normalized_search
+                        ),
+                    )
+                )
+            )
+
+            sku_product_context_match = exists(
+                select(ConversationProductContext.id)
+                .where(
+                    ConversationProductContext.conversation_id
+                    == Conversation.id
+                )
+                .where(
+                    ConversationProductContext.sku.ilike(
+                        normalized_search
+                    )
+                )
+            )
+
+            sku_line_item_match = exists(
+                select(EbayOrderLineItem.id)
+                .where(
+                    EbayOrderLineItem.order_record_id
+                    == Conversation.linked_order_record_id
+                )
+                .where(
+                    EbayOrderLineItem.sku.ilike(
+                        normalized_search
+                    )
+                )
+            )
+
+            item_line_item_match = exists(
+                select(EbayOrderLineItem.id)
+                .where(
+                    EbayOrderLineItem.order_record_id
+                    == Conversation.linked_order_record_id
+                )
+                .where(
+                    or_(
+                        EbayOrderLineItem.item_id.ilike(
+                            normalized_search
+                        ),
+                        EbayOrderLineItem.listing_id.ilike(
+                            normalized_search
+                        ),
+                    )
+                )
+            )
+
+            search_filters = {
+                'buyer_name': [
+                    Conversation.buyer_identifier.ilike(
+                        normalized_search
+                    ),
+                    exists(
+                        select(ConversationOrderContext.id)
+                        .where(
+                            ConversationOrderContext.conversation_id
+                            == Conversation.id
+                        )
+                        .where(
+                            ConversationOrderContext.buyer_username.ilike(
+                                normalized_search
+                            )
+                        )
+                    ),
+                ],
+                'item_number': [
+                    Conversation.reference_id.ilike(
+                        normalized_search
+                    ),
+                    item_line_item_match,
+                ],
+                'order_id': [
+                    order_context_match,
+                    order_match,
+                ],
+                'message_content': [
+                    message_match,
+                ],
+                'sku': [
+                    sku_order_context_match,
+                    sku_product_context_match,
+                    sku_line_item_match,
+                ],
+                'everything': [
                     Conversation.subject.ilike(
                         normalized_search
                     ),
@@ -367,6 +508,25 @@ class ConversationRepository:
                     ),
                     message_match,
                     note_match,
+                    order_context_match,
+                    order_match,
+                    sku_order_context_match,
+                    sku_product_context_match,
+                    sku_line_item_match,
+                    item_line_item_match,
+                ],
+            }
+
+            selected_search_by = (
+                search_by or 'everything'
+            )
+
+            statement = statement.where(
+                or_(
+                    *search_filters.get(
+                        selected_search_by,
+                        search_filters['everything'],
+                    )
                 )
             )
 
