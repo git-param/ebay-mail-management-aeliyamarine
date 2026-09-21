@@ -45,7 +45,25 @@ def test_conversation_search_by_sku_checks_product_and_order_context():
     assert 'conversation_order_contexts.sku ILIKE' in sql
     assert 'conversation_product_contexts.sku ILIKE' in sql
     assert 'order_line_items.sku ILIKE' in sql
+    assert 'order_line_items.account_id = conversations.provider_account_id' in sql
+    assert 'order_line_items.item_id = conversations.reference_id' in sql
     assert 'messages.body ILIKE' not in sql
+
+
+def test_conversation_search_by_order_id_checks_every_display_source():
+    statement = ConversationRepository(None)._filtered_statement(
+        search='12-34567-89012',
+        search_by='order_id',
+    )
+
+    sql = str(statement.compile(dialect=postgresql.dialect(), compile_kwargs={'literal_binds': True}))
+
+    assert 'conversation_order_contexts.ebay_order_id ILIKE' in sql
+    assert 'conversation_order_contexts.legacy_order_id ILIKE' in sql
+    assert 'conversation_product_contexts.order_id ILIKE' in sql
+    assert 'orders.order_id ILIKE' in sql
+    assert 'order_line_items.order_id ILIKE' in sql
+    assert 'order_line_items.account_id = conversations.provider_account_id' in sql
 
 
 def test_update_note_rejects_deleted_or_mismatched_note(monkeypatch):

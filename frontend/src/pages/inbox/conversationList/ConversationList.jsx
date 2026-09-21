@@ -132,6 +132,11 @@ function ConversationList({
 
   function submitSearch(event) {
     event.preventDefault()
+
+    if (!searchBy || !searchInput.trim()) {
+      return
+    }
+
     onSearch(searchInput, searchBy)
   }
 
