@@ -8,7 +8,8 @@ Query parameters:
 
 - `limit` default `25`, max `100`
 - `offset` default `0`
-- `search` searches subject, buyer, provider conversation ID, reference ID, and message body
+- `search` searches the selected `search_by` scope
+- `search_by` one of `buyer_name`, `item_number`, `order_id`, `message_content`, `sku`, `everything`; default `everything`
 - `status` one of `OPEN`, `PENDING`, `RESOLVED`, `CLOSED`
 - `provider` for example `ebay`
 - `ebay_account_id`

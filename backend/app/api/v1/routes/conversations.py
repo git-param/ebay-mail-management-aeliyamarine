@@ -1,6 +1,7 @@
 from html.parser import HTMLParser
 from multiprocessing import context
 from datetime import UTC, date, datetime, time, timedelta
+from typing import Literal
 from uuid import UUID
 
 import requests
@@ -1090,6 +1091,7 @@ def list_conversations(
     limit: int = Query(default=25, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
     search: str | None = Query(default=None, min_length=1),
+    search_by: Literal['buyer_name', 'item_number', 'order_id', 'message_content', 'sku', 'everything'] = Query(default='everything'),
     status: ConversationStatus | None = Query(default=None),
     provider: str | None = Query(default=None, min_length=1),
     conversation_type: str | None = Query(default=None, min_length=1),
@@ -1115,6 +1117,7 @@ def list_conversations(
         limit=limit,
         offset=offset,
         search=search,
+        search_by=search_by,
         status=status,
         provider=provider,
         conversation_type=conversation_type,
@@ -1133,6 +1136,7 @@ def list_conversations(
         ],
         total=service.count_conversations(
             search=search,
+            search_by=search_by,
             status=status,
             provider=provider,
             conversation_type=conversation_type,
