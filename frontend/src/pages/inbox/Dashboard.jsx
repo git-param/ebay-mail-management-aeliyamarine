@@ -1212,12 +1212,15 @@ function Dashboard({
                 filters.sla_due_within_hours,
               ) === 2
             }
-            onSearch={(searchValue) =>
+            onSearch={(
+              searchValue,
+              searchByValue,
+            ) =>
               changeFilter({
                 search:
                   searchValue.trim(),
                 search_by:
-                  filters.search_by,
+                  searchByValue,
               })
             }
             onSearchByChange={(value) =>
