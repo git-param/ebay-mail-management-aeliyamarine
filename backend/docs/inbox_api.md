@@ -65,7 +65,11 @@ Returns metadata, messages, category, current assignment, assignment history, an
 }
 ```
 
-Any authenticated user may assign to any active user. Previous current assignments are closed by setting `unassigned_at`, preserving assignment history.
+Support users may assign a conversation they are permitted to handle to an active user. Previous current assignments are closed by setting `unassigned_at`, preserving assignment history.
+
+`POST /api/v1/conversations/{id}/unassign`
+
+Closes the current assignment without deleting its history. The current assignee may unassign their own conversation; admins and operations managers may unassign any conversation. Other users receive `403 Forbidden`.
 
 ## Internal notes
 

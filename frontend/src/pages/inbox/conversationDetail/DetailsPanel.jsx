@@ -4,6 +4,7 @@ import MetadataPanel from './MetadataPanel'
 import NotesPanel from './NotesPanel'
 
 function DetailsPanel({
+  currentUser,
   detail,
   notes,
   users,
@@ -13,6 +14,7 @@ function DetailsPanel({
   notesLoading,
   isSubmitting,
   onAssign,
+  onUnassign,
   onAddNote,
   onUpdateNote,
   onDeleteNote,
@@ -25,11 +27,13 @@ function DetailsPanel({
       aria-label="Conversation details"
     >
       <AssignmentPanel
+        currentUser={currentUser}
         detail={detail}
         users={users}
         usersError={usersError}
         isSubmitting={isSubmitting}
         onAssign={onAssign}
+        onUnassign={onUnassign}
       />
 
       <CategoryPanel

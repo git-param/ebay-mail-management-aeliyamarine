@@ -1,3 +1,4 @@
+from datetime import UTC, datetime
 from uuid import UUID
 
 from fastapi import HTTPException, status
@@ -33,6 +34,24 @@ class AssignmentService:
             assigned_by=assigned_by,
         )
         self.repository.add(assignment)
+        self.db.commit()
+        self.db.refresh(assignment)
+        return assignment
+
+    def unassign_conversation(
+        self,
+        *,
+        conversation_id: UUID,
+    ) -> ConversationAssignment:
+        ConversationService(self.db).get_conversation(conversation_id)
+        assignment = self.repository.get_current_assignment(conversation_id)
+        if not assignment:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail='Conversation is not currently assigned',
+            )
+
+        assignment.unassigned_at = datetime.now(UTC)
         self.db.commit()
         self.db.refresh(assignment)
         return assignment
