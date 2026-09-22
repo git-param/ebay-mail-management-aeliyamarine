@@ -819,6 +819,8 @@ export default function OfferManagement({ currentUser, onLogout }) {
     'Automated Offer',
     'Buyer Offer',
     'Offered Price',
+    'Quantity',
+    'Status',
     'Followup',
     'Avl Qty',
     'Req Qty',
@@ -1146,6 +1148,7 @@ export default function OfferManagement({ currentUser, onLogout }) {
                       </td>
 
                       <td>
+                        {entry.offered_price || '—'}
                         {money(
                           entry.listed_price,
                           entry.currency,

@@ -22,9 +22,9 @@ export function updateAccountSyncState(payload) {
   })
 }
 
-export function deleteConversationData(confirmation) {
+export function deleteConversationData(confirmation, date_from, date_to) {
   return apiRequest('/config/conversation-data', {
     method: 'DELETE',
-    body: JSON.stringify({ confirmation }),
+    body: JSON.stringify({ confirmation, date_from: date_from || null, date_to: date_to || null }),
   })
 }

@@ -39,6 +39,7 @@ class ConversationService:
         date_from: datetime | None = None,
         date_to: datetime | None = None,
         sla_due_within_hours: int | None = None,
+        unread_only: bool = False,
     ) -> list[Conversation]:
         """Return conversations matching the requested filters."""
         if sla_due_within_hours is not None:
@@ -73,6 +74,7 @@ class ConversationService:
                 date_from=date_from,
                 date_to=date_to,
                 conversation_ids=matching_ids,
+                unread_only=unread_only,
             )
 
         return self.repository.list(
@@ -88,6 +90,7 @@ class ConversationService:
             category_id=category_id,
             date_from=date_from,
             date_to=date_to,
+            unread_only=unread_only,
         )
 
     def count_conversations(
@@ -104,11 +107,11 @@ class ConversationService:
         date_from: datetime | None = None,
         date_to: datetime | None = None,
         sla_due_within_hours: int | None = None,
+        unread_only: bool = False,
     ) -> int:
         """Return the filtered conversation total for pagination and dashboards."""
         if sla_due_within_hours is not None:
-            return len(
-                self._near_due_conversation_ids(
+            matching_ids = self._near_due_conversation_ids(
                     search=search,
                     search_by=search_by,
                     status=status,
@@ -121,6 +124,12 @@ class ConversationService:
                     date_to=date_to,
                     within_hours=sla_due_within_hours,
                 )
+            return self.repository.count(
+                search=search, status=status, provider=provider,
+                conversation_type=conversation_type, provider_account_id=provider_account_id,
+                assigned_user_id=assigned_user_id, category_id=category_id,
+                date_from=date_from, date_to=date_to,
+                conversation_ids=matching_ids, unread_only=unread_only,
             )
 
         return self.repository.count(
@@ -134,6 +143,7 @@ class ConversationService:
             category_id=category_id,
             date_from=date_from,
             date_to=date_to,
+            unread_only=unread_only,
         )
 
     def _near_due_conversation_ids(

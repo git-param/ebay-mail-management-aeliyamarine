@@ -1106,6 +1106,7 @@ def list_conversations(
         le=24,
         description='Only return unanswered SLA conversations due within this many business hours, including overdue conversations',
     ),
+    unread_only: bool = Query(default=False),
     db: Session = Depends(get_db),
     current_user=Depends(require_conversation_access),
 ) -> ConversationPageResponse:
@@ -1127,6 +1128,7 @@ def list_conversations(
         date_from=start_at,
         date_to=end_at,
         sla_due_within_hours=sla_due_within_hours,
+        unread_only=unread_only,
     )
     seller_accounts = get_seller_account_map(db, conversations)
     return ConversationPageResponse(
@@ -1146,6 +1148,7 @@ def list_conversations(
             date_from=start_at,
             date_to=end_at,
             sla_due_within_hours=sla_due_within_hours,
+            unread_only=unread_only,
         ),
         limit=limit,
         offset=offset,

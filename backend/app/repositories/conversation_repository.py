@@ -47,6 +47,7 @@ class ConversationRepository:
         date_from: datetime | None = None,
         date_to: datetime | None = None,
         conversation_ids: list[UUID] | None = None,
+        unread_only: bool = False,
     ) -> list[Conversation]:
         """
         List conversations matching inbox filters.
@@ -67,6 +68,7 @@ class ConversationRepository:
                 date_from=date_from,
                 date_to=date_to,
                 conversation_ids=conversation_ids,
+                unread_only=unread_only,
             )
             .options(
                 selectinload(
@@ -123,6 +125,8 @@ class ConversationRepository:
         category_id: UUID | None = None,
         date_from: datetime | None = None,
         date_to: datetime | None = None,
+        unread_only: bool = False,
+        conversation_ids: list[UUID] | None = None,
     ) -> int:
         """Count conversations using the same filters as the list endpoint."""
         statement = self._filtered_statement(
@@ -136,6 +140,8 @@ class ConversationRepository:
             category_id=category_id,
             date_from=date_from,
             date_to=date_to,
+            unread_only=unread_only,
+            conversation_ids=conversation_ids,
         )
 
         return int(
@@ -321,9 +327,27 @@ class ConversationRepository:
         date_from: datetime | None = None,
         date_to: datetime | None = None,
         conversation_ids: list[UUID] | None = None,
+        unread_only: bool = False,
     ):
         """Build the reusable base conversation query."""
         statement = select(Conversation)
+
+        if unread_only:
+            latest_message_id = (
+                select(Message.id)
+                .where(Message.conversation_id == Conversation.id)
+                .order_by(Message.sent_at.desc(), Message.id.desc())
+                .limit(1)
+                .correlate(Conversation)
+                .scalar_subquery()
+            )
+            statement = statement.where(
+                exists(select(Message.id).where(
+                    Message.id == latest_message_id,
+                    Message.is_inbound.is_(True),
+                    or_(Message.read_status.is_(False), Conversation.unread_count > 0),
+                ))
+            )
 
         if conversation_ids is not None:
             statement = statement.where(

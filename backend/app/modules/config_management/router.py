@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -56,6 +56,8 @@ class AccountSyncUpdateRequest(BaseModel):
 
 class DeleteConversationsRequest(BaseModel):
     confirmation: str
+    date_from: date | None = None
+    date_to: date | None = None
 
 
 @router.get('', response_model=list[ConfigSettingResponse])
@@ -86,4 +88,8 @@ def delete_conversation_data(payload: DeleteConversationsRequest, db: Session = 
     _ = current_user
     if payload.confirmation.strip() != 'DELETE CONVERSATIONS':
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='Type DELETE CONVERSATIONS to confirm.')
-    return ConfigService(db).delete_conversation_data()
+    if not payload.date_from and not payload.date_to:
+        raise HTTPException(status_code=422, detail='Select a From or To date.')
+    if payload.date_from and payload.date_to and payload.date_from > payload.date_to:
+        raise HTTPException(status_code=422, detail='From date must be on or before To date.')
+    return ConfigService(db).delete_conversation_data(payload.date_from, payload.date_to)

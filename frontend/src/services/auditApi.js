@@ -20,8 +20,14 @@ export async function fetchAuditLogs(params) {
   return data
 }
 
-export async function exportAuditLogs() {
-  const response = await apiFetch('/audit-logs/export')
+export async function fetchAuditFilterOptions() {
+  const response = await apiFetch('/audit-logs/filters')
+  if (!response.ok) throw new Error('Unable to load audit filters')
+  return response.json()
+}
+
+export async function exportAuditLogs(params = {}) {
+  const response = await apiFetch(`/audit-logs/export${buildQuery(params)}`)
   if (!response.ok) {
     throw new Error('Unable to export audit logs')
   }

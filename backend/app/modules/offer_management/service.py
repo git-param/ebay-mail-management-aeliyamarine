@@ -83,6 +83,16 @@ class OfferManagementService:
         elif merged.get('outcome') is None:
             values['outcome'] = OfferManagementOutcome.PENDING
 
+        threshold = ConfigService(self.db).get_decimal('offer.high_value_amount', default=Decimal('500'))
+        quantity = merged.get('offer_quantity') or merged.get('listing_quantity')
+        values['is_high_value'] = is_high_value_amount(
+            merged.get('listed_price'),
+            merged.get('revised_price'),
+            merged.get('automated_offer_price'),
+            merged.get('buyer_offer_price'),
+            threshold=threshold,
+            quantity=quantity,
+        )
         if 'is_high_value' not in values:
             threshold = ConfigService(self.db).get_decimal('offer.high_value_amount', default=Decimal('500'))
             values['is_high_value'] = is_offer_entry_high_value(
