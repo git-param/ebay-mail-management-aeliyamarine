@@ -7,6 +7,15 @@ import InboxPagination from './InboxPagination'
 
 import './conversationList.css'
 
+const SEARCH_BY_OPTIONS = [
+  ['everything', 'Everything'],
+  ['buyer_name', 'Buyer name'],
+  ['item_number', 'Item number'],
+  ['order_id', 'Order ID'],
+  ['message_content', 'Message content'],
+  ['sku', 'SKU'],
+]
+
 function EmptyPanel({
   title,
   message,
@@ -34,11 +43,13 @@ function ConversationList({
   isLoading,
   isBulkAssigning,
   search,
+  searchBy = 'everything',
   activeFilterCount = 0,
   nearDueActive = false,
   unreadActive = false,
   breakAction = null,
   onSearch,
+  onSearchByChange,
   onToggleNearDue,
   onToggleUnread,
   onRefresh,
@@ -155,13 +166,19 @@ function ConversationList({
         className="inbox-search-bar"
         onSubmit={submitSearch}
       >
+        <label className="inbox-search-scope">
+          <span className="sr-only">Search by</span>
+          <select value={searchBy || 'everything'} onChange={(event) => onSearchByChange(event.target.value)}>
+            {SEARCH_BY_OPTIONS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+          </select>
+        </label>
         <div className="inbox-search-input">
           <Icon name="search" />
 
           <input
             type="search"
             value={searchInput}
-            placeholder="Search buyer, subject, item, or message"
+            placeholder={searchBy === 'everything' ? 'Search buyer, item, order, SKU, or message' : `Search ${SEARCH_BY_OPTIONS.find(([value]) => value === searchBy)?.[1].toLowerCase() || 'conversations'}`}
             onChange={(event) =>
               setSearchInput(
                 event.target.value,
