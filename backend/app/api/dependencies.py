@@ -45,11 +45,11 @@ def is_admin(user) -> bool:
 
 
 def is_operations_manager(user) -> bool:
-    return normalized_role_name(user) == 'OPERATIONS_MANAGER'
+    return normalized_role_name(user) in {'OPERATIONS_MANAGER', 'OPS_MANAGER'}
 
 
 def is_support_agent(user) -> bool:
-    return normalized_role_name(user) == 'SUPPORT_AGENT'
+    return normalized_role_name(user) in {'SUPPORT_AGENT', 'AGENT'}
 
 
 def can_manage_operations(user) -> bool:

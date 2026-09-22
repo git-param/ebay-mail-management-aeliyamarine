@@ -26,6 +26,7 @@ import { fetchMessageTypeTree } from '../../services/messageTypeApi'
 import { fetchTemplates } from '../../services/templateApi'
 import { fetchUsers } from '../../services/userApi'
 import { normalizeRole } from '../../utils/roles'
+import BreakActionButton from '../break-maagement/BreakActionButton'
 
 import ConversationList from './conversationList/ConversationList'
 import InboxFiltersDrawer from './conversationList/InboxFiltersDrawer'
@@ -1220,6 +1221,7 @@ function Dashboard({
             onToggleNearDue={
               toggleNearDueSla
             }
+            breakAction={<BreakActionButton />}
             onRefresh={
               loadConversations
             }

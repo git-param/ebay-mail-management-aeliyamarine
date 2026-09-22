@@ -96,6 +96,12 @@ const NAV_ITEMS = [
     roles: ['ADMIN', 'AGENT'],
   },
   {
+    label: 'Breaks',
+    path: '/break-management',
+    icon: 'clock',
+    roles: ['ADMIN', 'OPS_MANAGER', 'AGENT'],
+  },
+  {
     label: 'Config',
     path: '/config',
     icon: 'settings',

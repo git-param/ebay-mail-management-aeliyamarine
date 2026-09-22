@@ -1,3 +1,5 @@
+from importlib import import_module
+
 from fastapi import APIRouter
 
 from app.api.v1.routes import analytics, audit_logs, auth, categories, conversations, ebay_accounts, message_types, notifications, offers, templates, users
@@ -11,6 +13,7 @@ from app.modules.task_management.router import router as task_management_router
 from app.modules.pms.router import router as pms_router
 from app.modules.leave_management.router import router as leave_management_router
 from app.modules.pms.router import router as pms_router
+break_management_router = import_module('app.modules.break-maagement.router').router
 
 
 api_router = APIRouter()
@@ -32,6 +35,7 @@ api_router.include_router(sold_posting_router, prefix='/sold-posting', tags=['so
 api_router.include_router(pms_router, prefix='/pms', tags=['pms'])
 api_router.include_router(task_management_router, prefix='/task-management', tags=['task-management'])
 api_router.include_router(leave_management_router, prefix='/leave-management', tags=['leave-management'])
+api_router.include_router(break_management_router, prefix='/break-management', tags=['break-management'])
 api_router.include_router(daily_entry_router, prefix='/dailyEntry', tags=['daily-entry'])
 api_router.include_router(task_management_router, prefix='/task-management', tags=['task-management'])
 api_router.include_router(pms_router, prefix='/pms', tags=['pms'])
