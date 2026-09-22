@@ -1,11 +1,12 @@
 import re
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy.orm import Session
 
 from app.models.conversation import (
     Conversation,
     ConversationStatus,
+    Message,
     MessageAttachment,
     MessageSenderType,
 )
@@ -45,6 +46,7 @@ class EbayMessageService:
         r'^https://i\.ebayimg\.com/00/s/[^/]+/z/(?P<image_id>[^/]+)/\$_1\.[^/?#]+(?:[?#].*)?$',
         re.IGNORECASE,
     )
+    LOCAL_REPLY_MATCH_WINDOW = timedelta(minutes=5)
 
     def __init__(self, db: Session):
         self.db = db
@@ -278,6 +280,36 @@ class EbayMessageService:
                 # offer data. Sync must not duplicate offer state here.
                 'offer_data': None,
             }
+
+            # eBay send responses can omit messageId. Claim the temporary
+            # local reply when the same outbound message appears during sync.
+            existing_provider_message = (
+                self.message_repository.get_by_provider_id(
+                    self.provider,
+                    message_id,
+                )
+            )
+            if (
+                existing_provider_message is None
+                and sender_type == MessageSenderType.AGENT
+            ):
+                local_reply = self._local_reply_match(
+                    conversation=conversation,
+                    body=values['body'],
+                    sent_at=sent_at,
+                    sender_username=sender_username,
+                    recipient_username=recipient_username,
+                )
+                if local_reply is not None:
+                    local_reply.provider_message_id = message_id
+                    values['raw_payload'] = {
+                        **(
+                            local_reply.raw_payload
+                            if isinstance(local_reply.raw_payload, dict)
+                            else {}
+                        ),
+                        **message_payload,
+                    }
 
             message, created = (
                 self.message_repository.upsert_by_provider_id(
@@ -735,6 +767,44 @@ class EbayMessageService:
             )
 
         return parsed_value
+
+    def _local_reply_match(
+        self,
+        *,
+        conversation: Conversation,
+        body: str,
+        sent_at: datetime,
+        sender_username: str | None,
+        recipient_username: str | None,
+    ) -> Message | None:
+        """Find the closest unreconciled reply created by this application."""
+        normalized_body = self._normalize_for_comparison(body)
+        normalized_sender = (sender_username or '').strip().lower()
+        normalized_recipient = (recipient_username or '').strip().lower()
+        candidates = []
+
+        for message in conversation.messages:
+            if not (message.provider_message_id or '').startswith('local-reply-'):
+                continue
+            if message.provider.upper() != self.provider or message.is_inbound:
+                continue
+            if message.sender_type != MessageSenderType.AGENT:
+                continue
+            if self._normalize_for_comparison(message.body) != normalized_body:
+                continue
+            if normalized_sender and (message.sender_identifier or '').strip().lower() != normalized_sender:
+                continue
+            if normalized_recipient and (message.recipient_identifier or '').strip().lower() != normalized_recipient:
+                continue
+
+            difference = abs(message.sent_at - sent_at)
+            if difference <= self.LOCAL_REPLY_MATCH_WINDOW:
+                candidates.append((difference, message.sent_at, message))
+
+        if not candidates:
+            return None
+
+        return min(candidates, key=lambda candidate: (candidate[0], candidate[1]))[2]
 
     def _normalize_for_comparison(
         self,

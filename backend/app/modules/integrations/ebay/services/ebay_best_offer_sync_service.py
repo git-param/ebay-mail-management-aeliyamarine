@@ -416,6 +416,7 @@ class EbayBestOfferSyncService:
                 quantity=normalized_offer.get("quantity"),
                 raw_text=normalized_offer.get("raw_text"),
                 expires_at=normalized_offer.get("expires_at"),
+                created_at_provider=normalized_offer.get("created_at_provider"),
                 raw_payload=normalized_offer.get("raw_payload"),
             )
             self.db.add(offer)
@@ -462,6 +463,7 @@ class EbayBestOfferSyncService:
         submitted_raw = dict(raw)
         submitted_raw["offerId"] = f"{raw.get('offerId')}:seller-counteroffer-submitted"
         submitted_raw["status"] = "Active"
+        submitted_raw.pop("createdTime", None)
         submitted_raw["derivedFromOfferId"] = raw.get("offerId")
         submitted_raw["derivedEvent"] = "SELLER_COUNTEROFFER_SUBMITTED"
         submitted_raw["derivedReason"] = "Accepted SellerCounterOffer also represents the earlier sent counteroffer event"

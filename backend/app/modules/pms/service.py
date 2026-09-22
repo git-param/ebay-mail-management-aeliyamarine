@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import calendar
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, date, datetime
 from uuid import UUID
 
 from fastapi import HTTPException, status
@@ -150,10 +150,7 @@ class PmsService:
     ) -> PmsTargetAchievementResponse:
         self._require_admin(current_user)
 
-        percent = round(
-            max(0.0, min(float(payload.target_achievement_percent), 100.0)),
-            2,
-        )
+        percent = max(0.0, min(float(payload.target_achievement_percent), 100.0))
         key = self._target_achievement_setting_key(payload.year, payload.month)
         setting = self.db.scalar(
             select(AppConfigSetting).where(AppConfigSetting.config_key == key)
@@ -221,7 +218,7 @@ class PmsService:
 
         if setting:
             try:
-                return round(max(0.0, min(float(setting.value), 100.0)), 2)
+                return max(0.0, min(float(setting.value), 100.0))
             except (TypeError, ValueError):
                 return None
 
@@ -248,14 +245,14 @@ class PmsService:
                 meta_percent = (metric.calc_meta or {}).get('target_percent')
                 try:
                     if meta_percent is not None:
-                        return round(max(0.0, min(float(meta_percent), 100.0)), 2)
+                        return max(0.0, min(float(meta_percent), 100.0))
                 except (TypeError, ValueError):
                     pass
 
                 final_value = float(metric.final_value or 0)
                 weight = float(metric.weight_snapshot or 0)
                 if weight > 0:
-                    return round(max(0.0, min((final_value / weight) * 100, 100.0)), 2)
+                    return max(0.0, min((final_value / weight) * 100, 100.0))
 
         return None
 
@@ -490,9 +487,8 @@ class PmsService:
     # Monthly Quality / Productivity aggregation from Daily Task Entry
     #
     # Rules:
-    #  - Only WORKING_DAY entries count; HOLIDAY/SUNDAY/LEAVE are excluded.
-    #  - A calendar date with NO DailyTaskEntry row at all is treated as an
-    #    unfilled working day and scores 0% for that day.
+    #  - Only actual WORKING_DAY entries count; HOLIDAY/SUNDAY/LEAVE and
+    #    missing dates are excluded from the monthly average denominator.
     #  - A MAJOR error day scores 0% for both Productivity and Quality.
     #  - A MINOR error day does not zero the score, but is surfaced in meta.
     #  - Productivity = task score_items portion only, excluding SLA.
@@ -519,42 +515,23 @@ class PmsService:
             )
         )
 
-        entries_by_date = {
-            entry.entry_date: entry
-            for entry in entries
-        }
         productivity_values: list[float] = []
         quality_values: list[float] = []
 
-        working_days = 0
+        entry_days = 0
         minor_error_days = 0
         major_error_days = 0
 
-        current = start
-
-        while current <= end:
-            entry = entries_by_date.get(current)
-
-            if entry is None:
-                working_days += 1
-                productivity_values.append(0.0)
-                quality_values.append(0.0)
-
-                current += timedelta(days=1)
-                continue
-
+        for entry in entries:
             if entry.day_type != DailyTaskEntryDayType.WORKING_DAY:
-                current += timedelta(days=1)
                 continue
 
-            working_days += 1
+            entry_days += 1
 
             if entry.error_level == DailyTaskEntryErrorLevel.MAJOR:
                 major_error_days += 1
                 productivity_values.append(0.0)
                 quality_values.append(0.0)
-
-                current += timedelta(days=1)
                 continue
 
             if entry.error_level == DailyTaskEntryErrorLevel.MINOR:
@@ -601,8 +578,6 @@ class PmsService:
             productivity_values.append(productivity_pct)
             quality_values.append(quality_pct)
 
-            current += timedelta(days=1)
-
         avg_productivity_pct = (
             round(
                 sum(productivity_values) / len(productivity_values),
@@ -626,10 +601,11 @@ class PmsService:
                 'pct': avg_productivity_pct,
                 'meta': {
                     'formula': (
-                        "Average of each working day's task completion % "
+                        "Average of each entry day's task completion % "
                         '(score_items only, SLA excluded).'
                     ),
-                    'working_days': working_days,
+                    'entry_days': entry_days,
+                    'working_days': entry_days,
                     'task_completion_avg_pct': avg_productivity_pct,
                     'major_error_days': major_error_days,
                 },
@@ -638,10 +614,11 @@ class PmsService:
                 'pct': avg_quality_pct,
                 'meta': {
                     'formula': (
-                        "Average of each working day's SLA score "
+                        "Average of each entry day's SLA score "
                         '(sla_score / 20), zeroed on Major error days.'
                     ),
-                    'working_days': working_days,
+                    'entry_days': entry_days,
+                    'working_days': entry_days,
                     'sla_avg_pct': avg_quality_pct,
                     'minor_error_days': minor_error_days,
                     'major_error_days': major_error_days,

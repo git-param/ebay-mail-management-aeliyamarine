@@ -7,6 +7,8 @@ from sqlalchemy.orm import Session
 from app.api.dependencies import get_current_user
 from app.db.session import get_db
 from app.modules.daily_task_entry.schemas import (
+    DailyEntryBulkDeleteRequest,
+    DailyEntryBulkDeleteResponse,
     DailyEntryCreate,
     DailyEntryDraftResponse,
     DailyEntryLoadResponse,
@@ -44,6 +46,23 @@ def upload_daily_entries(payload: DailyEntryUploadRequest, db: Session = Depends
     service = DailyEntryService(db)
     results = service.upload(current_user, payload.entries)
     return {'results': results}
+
+
+@router.post('/daily-entries/delete', response_model=DailyEntryBulkDeleteResponse)
+def delete_daily_entries(payload: DailyEntryBulkDeleteRequest, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    service = DailyEntryService(db)
+    deleted_count = service.delete_entries(
+        current_user,
+        date_from=payload.date_from,
+        date_to=payload.date_to,
+        user_id=payload.user_id,
+    )
+    return {
+        'deleted_count': deleted_count,
+        'date_from': payload.date_from,
+        'date_to': payload.date_to,
+        'user_id': payload.user_id,
+    }
 
 
 @router.post('/entries', response_model=DailyEntryResponse)

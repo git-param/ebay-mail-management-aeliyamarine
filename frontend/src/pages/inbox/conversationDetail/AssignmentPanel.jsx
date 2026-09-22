@@ -5,19 +5,32 @@ import {
   formatDate,
   userLabel,
 } from '../inboxUtils'
+import { normalizeRole } from '../../../utils/roles'
 
 function AssignmentPanel({
+  currentUser,
   detail,
   users,
   usersError,
   isSubmitting,
   onAssign,
+  onUnassign,
 }) {
   const currentAssignee =
     detail.current_assignment?.assignee
 
   const assignments =
     detail.assignments || []
+
+  const canUnassign = Boolean(
+    currentAssignee &&
+      (
+        currentAssignee.id === currentUser?.id ||
+        ['ADMIN', 'OPS_MANAGER'].includes(
+          normalizeRole(currentUser?.role),
+        )
+      ),
+  )
 
   const [selectedUser, setSelectedUser] =
     useState(
@@ -94,6 +107,17 @@ function AssignmentPanel({
               ? 'Reassign'
               : 'Assign'}
         </button>
+
+        {canUnassign ? (
+          <button
+            className="secondary-button compact unassign-button"
+            type="button"
+            disabled={isSubmitting}
+            onClick={onUnassign}
+          >
+            Unassign
+          </button>
+        ) : null}
       </div>
 
       {usersError ? (

@@ -89,11 +89,6 @@ function InboxPagination({
     0,
   )
 
-  const pageItems = getVisiblePageItems(
-    safePage,
-    safePageCount,
-  )
-
   const start = safeTotal
     ? safePage * safePageSize + 1
     : 0
@@ -130,13 +125,8 @@ function InboxPagination({
   return (
     <div className="pagination-bar">
       <div className="pagination-summary">
-        <strong>
-          Showing {start}-{end}
-        </strong>
-
-        <span>
-          of {safeTotal} conversations
-        </span>
+        <strong>{start}–{end}</strong>
+        <span>of {safeTotal}</span>
       </div>
 
       <div
@@ -147,51 +137,14 @@ function InboxPagination({
           className="pagination-button"
           type="button"
           disabled={safePage === 0}
+          title="Previous"
+          aria-label="Previous"
           onClick={() =>
             changePage(safePage - 1)
           }
         >
-          Previous
+          ‹
         </button>
-
-        <div className="pagination-pages">
-          {pageItems.map((item) => {
-            if (typeof item === 'string') {
-              return (
-                <span
-                  className="pagination-ellipsis"
-                  key={item}
-                  aria-hidden="true"
-                >
-                  ...
-                </span>
-              )
-            }
-
-            const isCurrentPage =
-              item === safePage
-
-            return (
-              <button
-                className={`pagination-page ${
-                  isCurrentPage ? 'active' : ''
-                }`}
-                type="button"
-                aria-current={
-                  isCurrentPage
-                    ? 'page'
-                    : undefined
-                }
-                onClick={() =>
-                  changePage(item)
-                }
-                key={item}
-              >
-                {item + 1}
-              </button>
-            )
-          })}
-        </div>
 
         <button
           className="pagination-button"
@@ -199,16 +152,18 @@ function InboxPagination({
           disabled={
             safePage + 1 >= safePageCount
           }
+          title="Next"
+          aria-label="Next"
           onClick={() =>
             changePage(safePage + 1)
           }
         >
-          Next
+          ›
         </button>
       </div>
 
       <label className="pagination-size">
-        <span>Rows</span>
+        <span>Rows:</span>
 
         <select
           value={safePageSize}

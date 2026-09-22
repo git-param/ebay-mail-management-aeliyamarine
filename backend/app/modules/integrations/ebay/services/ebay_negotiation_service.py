@@ -18,7 +18,9 @@ class EbayNegotiationService:
     def conversation_offers(self, conversation_id: UUID) -> list[Offer]:
         conversation = self.db.get(Conversation, conversation_id)
         offers = list(self.db.scalars(
-            select(Offer).where(Offer.conversation_id == conversation_id).order_by(Offer.created_at.desc())
+            select(Offer)
+            .where(Offer.conversation_id == conversation_id)
+            .order_by(func.coalesce(Offer.created_at_provider, Offer.created_at).asc(), Offer.created_at.asc())
         ))
         if not offers and conversation:
             offers = self._link_unattached_offers(conversation)
@@ -57,7 +59,7 @@ class EbayNegotiationService:
                     Offer.listing_id == listing_id,
                     func.lower(func.coalesce(Offer.buyer_username, "")) == buyer,
                 )
-                .order_by(Offer.created_at.desc())
+                .order_by(func.coalesce(Offer.created_at_provider, Offer.created_at).asc(), Offer.created_at.asc())
             )
         )
         for offer in offers:

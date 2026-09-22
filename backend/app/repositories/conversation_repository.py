@@ -19,7 +19,12 @@ from app.models.conversation import (
     Message,
     MessageAttachment,
 )
-from app.models.order_context import ConversationOrderContext, ConversationProductContext, EbayOrder, EbayOrderLineItem
+from app.models.order_context import (
+    ConversationOrderContext,
+    ConversationProductContext,
+    EbayOrder,
+    EbayOrderLineItem,
+)
 
 
 class ConversationRepository:
@@ -32,7 +37,7 @@ class ConversationRepository:
         limit: int | None = None,
         offset: int = 0,
         search: str | None = None,
-        search_by: str = 'everything',
+        search_by: str | None = None,
         status: ConversationStatus | None = None,
         provider: str | None = None,
         conversation_type: str | None = None,
@@ -111,7 +116,7 @@ class ConversationRepository:
         self,
         *,
         search: str | None = None,
-        search_by: str = 'everything',
+        search_by: str | None = None,
         status: ConversationStatus | None = None,
         provider: str | None = None,
         conversation_type: str | None = None,
@@ -152,7 +157,7 @@ class ConversationRepository:
         self,
         *,
         search: str | None = None,
-        search_by: str = 'everything',
+        search_by: str | None = None,
         status: ConversationStatus | None = None,
         provider: str | None = None,
         conversation_type: str | None = None,
@@ -312,7 +317,7 @@ class ConversationRepository:
         self,
         *,
         search: str | None = None,
-        search_by: str = 'everything',
+        search_by: str | None = None,
         status: ConversationStatus | None = None,
         provider: str | None = None,
         conversation_type: str | None = None,
