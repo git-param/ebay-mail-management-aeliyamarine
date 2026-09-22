@@ -1,4 +1,6 @@
-from datetime import datetime
+from datetime import UTC, date, datetime, time, timedelta
+import csv
+from io import StringIO
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Response
@@ -26,6 +28,8 @@ MODULE_LABELS = {
     'AUTHENTICATION': 'Authentication', 'ASSIGNMENT': 'Inbox',
     'MESSAGE_MANAGEMENT': 'Messaging', 'CATEGORY_MANAGEMENT': 'Categories',
     'USER_MANAGEMENT': 'Users', 'EBAY': 'eBay', 'SYNC': 'Synchronization',
+    'BREAK_MANAGEMENT': 'Break Management', 'LEAVE_MANAGEMENT': 'Leave Management',
+    'PMS_MANAGEMENT': 'PMS', 'TASK_MANAGEMENT': 'Task Management',
 }
 
 
@@ -43,7 +47,7 @@ def serialize_user(user: User | None) -> AuditUserResponse | None:
 def serialize_audit_log(log: AuditLog) -> AuditLogResponse:
     """Translate a technical audit row into a manager-readable activity event."""
     metadata = log.audit_metadata or {}
-    details = ', '.join(f'{key.replace("_", " ").title()}: {value}' for key, value in metadata.items()) or 'No additional details'
+    details = ', '.join(f'{key.replace("_", " ").title()}: {value}' for key, value in metadata.items() if key not in {'timestamp', 'user_name', 'user_role'}) or '-'
     resource_name = (log.entity_type or 'Activity').replace('_', ' ').title()
     return AuditLogResponse(
         id=log.id,
@@ -96,6 +100,19 @@ def filtered_statement(
     return statement
 
 
+@router.get('/filters')
+def audit_filter_options(db: Session = Depends(get_db), current_user=Depends(require_admin)):
+    return {
+        key: [value for value in db.scalars(select(column).distinct().order_by(column)) if value]
+        for key, column in {
+            'categories': AuditLog.category,
+            'actions': AuditLog.action,
+            'statuses': AuditLog.status,
+            'entity_types': AuditLog.entity_type,
+        }.items()
+    }
+
+
 @router.get('', response_model=AuditLogPageResponse)
 def list_audit_logs(
     limit: int = Query(default=50, ge=1, le=200),
@@ -108,6 +125,8 @@ def list_audit_logs(
     status: str | None = Query(default=None),
     start_date: datetime | None = Query(default=None),
     end_date: datetime | None = Query(default=None),
+    date_from: date | None = Query(default=None),
+    date_to: date | None = Query(default=None),
     db: Session = Depends(get_db),
     current_user=Depends(require_admin),
 ) -> AuditLogPageResponse:
@@ -118,8 +137,8 @@ def list_audit_logs(
         action=action,
         entity_type=entity_type,
         status=status,
-        start_date=start_date,
-        end_date=end_date,
+        start_date=datetime.combine(date_from, time.min, tzinfo=UTC) if date_from else start_date,
+        end_date=datetime.combine(date_to + timedelta(days=1), time.min, tzinfo=UTC) if date_to else end_date,
     )
     total = int(db.scalar(select(func.count()).select_from(statement.subquery())) or 0)
     items = list(db.scalars(statement.order_by(AuditLog.created_at.desc()).offset(offset).limit(limit)))
@@ -128,11 +147,25 @@ def list_audit_logs(
 
 @router.get('/export')
 def export_audit_logs(
+    category: str | None = Query(default=None),
+    action: str | None = Query(default=None),
+    entity_type: str | None = Query(default=None),
+    status: str | None = Query(default=None),
+    date_from: date | None = Query(default=None),
+    date_to: date | None = Query(default=None),
     db: Session = Depends(get_db),
     current_user=Depends(require_admin),
 ) -> Response:
-    rows = list(db.scalars(select(AuditLog).options(joinedload(AuditLog.user)).order_by(AuditLog.created_at.desc()).limit(5000)))
-    content = 'created_at,user_email,action,category,status,entity_type,entity_id\n'
+    statement = filtered_statement(
+        category=category, action=action, entity_type=entity_type, status=status,
+        start_date=datetime.combine(date_from, time.min, tzinfo=UTC) if date_from else None,
+        end_date=datetime.combine(date_to + timedelta(days=1), time.min, tzinfo=UTC) if date_to else None,
+    )
+    rows = list(db.scalars(statement.order_by(AuditLog.created_at.desc()).limit(5000)))
+    output = StringIO()
+    writer = csv.writer(output)
+    writer.writerow(['Date (UTC)', 'User', 'Role', 'Action', 'Module', 'Resource', 'Status', 'Details'])
     for row in rows:
-        content += f'{row.created_at},{row.user.email if row.user else ""},{row.action},{row.category or ""},{row.status or ""},{row.entity_type or ""},{row.entity_id or ""}\n'
-    return Response(content=content, media_type='text/csv', headers={'Content-Disposition': 'attachment; filename="audit_logs.csv"'})
+        item = serialize_audit_log(row)
+        writer.writerow([row.created_at, item.user.name if item.user else 'System', item.user.role if item.user else '', item.action_label, item.module_label, item.resource_label, item.status, item.details])
+    return Response(content=output.getvalue(), media_type='text/csv', headers={'Content-Disposition': 'attachment; filename="audit_logs.csv"'})

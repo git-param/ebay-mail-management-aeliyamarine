@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
 
 import AppLayout from '../../layouts/app_layout'
-import { exportAuditLogs, fetchAuditLogs } from '../../services/auditApi'
+import { exportAuditLogs, fetchAuditFilterOptions, fetchAuditLogs } from '../../services/auditApi'
+import './audit_logs.css'
 
 const PAGE_SIZE = 50
-const CATEGORIES = ['', 'AUTHENTICATION', 'ASSIGNMENT', 'EBAY', 'CATEGORY_MANAGEMENT', 'USER_MANAGEMENT', 'SYNC', 'NOTIFICATION', 'MESSAGE_MANAGEMENT']
-const STATUSES = ['', 'SUCCESS', 'FAILURE']
+const EMPTY_OPTIONS = { categories: [], actions: [], statuses: [], entity_types: [] }
+const readable = (value) => value.replaceAll('_', ' ').toLowerCase().replace(/\b\w/g, (letter) => letter.toUpperCase())
 
 function formatDate(value) {
   if (!value) {
@@ -24,7 +25,8 @@ function AuditLogs({ currentUser, onLogout }) {
   const [logs, setLogs] = useState([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(0)
-  const [filters, setFilters] = useState({ category: '', status: '', action: '', entity_type: '' })
+  const [filters, setFilters] = useState({ category: '', status: '', action: '', entity_type: '', date_from: '', date_to: '' })
+  const [options, setOptions] = useState(EMPTY_OPTIONS)
   const [error, setError] = useState('')
   const [isLoading, setIsLoading] = useState(true)
 
@@ -50,7 +52,7 @@ function AuditLogs({ currentUser, onLogout }) {
 
   async function downloadExport() {
     try {
-      const blob = await exportAuditLogs()
+      const blob = await exportAuditLogs(filters)
       const url = window.URL.createObjectURL(blob)
       const link = document.createElement('a')
       link.href = url
@@ -66,6 +68,10 @@ function AuditLogs({ currentUser, onLogout }) {
     loadLogs()
   }, [page, filters])
 
+  useEffect(() => {
+    fetchAuditFilterOptions().then(setOptions).catch((caughtError) => setError(caughtError.message))
+  }, [])
+
   function updateFilter(key, value) {
     setFilters((current) => ({ ...current, [key]: value }))
     setPage(0)
@@ -75,7 +81,7 @@ function AuditLogs({ currentUser, onLogout }) {
 
   return (
     <AppLayout activePage="Audit Logs" currentUser={currentUser} onLogout={onLogout}>
-      <main className="management-page">
+      <main className="management-page audit-page">
         <div className="page-header">
           <div>
             <h1>Audit Logs</h1>
@@ -90,23 +96,33 @@ function AuditLogs({ currentUser, onLogout }) {
           <label className="field">
             <span>Category</span>
             <select value={filters.category} onChange={(event) => updateFilter('category', event.target.value)}>
-              {CATEGORIES.map((value) => <option value={value} key={value}>{value || 'All Categories'}</option>)}
+              <option value="">All Categories</option>
+              {options.categories.map((value) => <option value={value} key={value}>{readable(value)}</option>)}
             </select>
           </label>
           <label className="field">
             <span>Status</span>
             <select value={filters.status} onChange={(event) => updateFilter('status', event.target.value)}>
-              {STATUSES.map((value) => <option value={value} key={value}>{value || 'All Statuses'}</option>)}
+              <option value="">All Statuses</option>
+              {options.statuses.map((value) => <option value={value} key={value}>{readable(value)}</option>)}
             </select>
           </label>
           <label className="field">
             <span>Action</span>
-            <input value={filters.action} onChange={(event) => updateFilter('action', event.target.value)} placeholder="LOGIN_SUCCESS" />
+            <select value={filters.action} onChange={(event) => updateFilter('action', event.target.value)}>
+              <option value="">All Actions</option>
+              {options.actions.map((value) => <option value={value} key={value}>{readable(value)}</option>)}
+            </select>
           </label>
           <label className="field">
             <span>Resource Type</span>
-            <input value={filters.entity_type} onChange={(event) => updateFilter('entity_type', event.target.value)} placeholder="CONVERSATION" />
+            <select value={filters.entity_type} onChange={(event) => updateFilter('entity_type', event.target.value)}>
+              <option value="">All Resource Types</option>
+              {options.entity_types.map((value) => <option value={value} key={value}>{readable(value)}</option>)}
+            </select>
           </label>
+          <label className="field"><span>From</span><input type="date" value={filters.date_from} onChange={(event) => updateFilter('date_from', event.target.value)} /></label>
+          <label className="field"><span>To</span><input type="date" value={filters.date_to} onChange={(event) => updateFilter('date_to', event.target.value)} /></label>
         </section>
 
         {error ? <p className="form-message error management-error">{error}</p> : null}
@@ -121,7 +137,7 @@ function AuditLogs({ currentUser, onLogout }) {
                   <tr>
                     <th>Date</th><th>Time</th>
                     <th>User</th>
-                    <th>Role</th><th>Action</th><th>Module</th><th>Resource</th><th>Status</th>
+                    <th>Role</th><th>Action</th><th>Module</th><th>Resource</th><th>Details</th><th>Status</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -129,10 +145,11 @@ function AuditLogs({ currentUser, onLogout }) {
                     <tr key={log.id}>
                       <td>{formatDate(log.created_at)}</td><td>{formatTime(log.created_at)}</td>
                       <td>{log.user?.name || log.user?.email || 'System'}</td><td>{log.user?.role || 'System'}</td>
-                      <td>{log.action_label}</td><td>{log.module_label}</td><td>{log.resource_label}</td>
+                      <td>{log.action_label}</td><td>{log.module_label}</td><td>{log.resource_label}</td><td title={log.details}>{log.details}</td>
                       <td>{log.status || '-'}</td>
                     </tr>
                   ))}
+                  {!logs.length ? <tr><td colSpan={9} className="audit-empty">No audit events match these filters.</td></tr> : null}
                 </tbody>
               </table>
             </div>

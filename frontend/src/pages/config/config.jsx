@@ -24,6 +24,7 @@ export default function Config({ currentUser, onLogout }) {
   const [syncForm, setSyncForm] = useState({ account_id: '', apply_to_all: false, last_sync_at: '' })
   const [isSyncSaving, setIsSyncSaving] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState('')
+  const [deleteDates, setDeleteDates] = useState({ date_from: '', date_to: '' })
   const [isDeleting, setIsDeleting] = useState(false)
 
   const grouped = useMemo(() => settings.reduce((groups, setting) => {
@@ -88,7 +89,7 @@ export default function Config({ currentUser, onLogout }) {
     setError('')
     setMessage('')
     try {
-      const result = await deleteConversationData(deleteConfirm)
+      const result = await deleteConversationData(deleteConfirm, deleteDates.date_from, deleteDates.date_to)
       setDeleteConfirm('')
       setMessage(`Deleted ${result.total_deleted || 0} conversation-related rows.`)
     } catch (caughtError) {
@@ -189,13 +190,17 @@ export default function Config({ currentUser, onLogout }) {
               <p>Destructive maintenance actions for admins.</p>
             </div>
           </div>
-          <p className="confirm-message">Delete all conversations, messages, assignments, notifications, offers, offer-management entries, audit logs, and synced order records from the database. eBay accounts, users, roles, categories, templates, config, and Sold Posting records are kept.</p>
+          <p className="confirm-message">Delete conversations created in the selected period and their linked messages, offers, assignments, and history. If only To is selected, every conversation created on or before that date is included. Orders and audit logs are retained.</p>
+          <div className="config-grid">
+            <label className="field config-field"><span>From (optional)</span><input type="date" value={deleteDates.date_from} onChange={(event) => setDeleteDates((current) => ({ ...current, date_from: event.target.value }))} /></label>
+            <label className="field config-field"><span>To (optional)</span><input type="date" value={deleteDates.date_to} onChange={(event) => setDeleteDates((current) => ({ ...current, date_to: event.target.value }))} /></label>
+          </div>
           <label className="field config-field">
             <span>Type DELETE CONVERSATIONS to confirm</span>
             <input value={deleteConfirm} onChange={(event) => setDeleteConfirm(event.target.value)} />
           </label>
           <div className="modal-actions">
-            <button className="danger-button" type="button" disabled={isDeleting || deleteConfirm !== 'DELETE CONVERSATIONS'} onClick={deleteAllConversations}>{isDeleting ? 'Deleting...' : 'Delete Conversation Data'}</button>
+            <button className="danger-button" type="button" disabled={isDeleting || deleteConfirm !== 'DELETE CONVERSATIONS' || (!deleteDates.date_from && !deleteDates.date_to) || (deleteDates.date_from && deleteDates.date_to && deleteDates.date_from > deleteDates.date_to)} onClick={deleteAllConversations}>{isDeleting ? 'Deleting...' : 'Delete Conversation Data'}</button>
           </div>
         </section>
       </main>

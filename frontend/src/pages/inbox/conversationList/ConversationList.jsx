@@ -36,9 +36,11 @@ function ConversationList({
   search,
   activeFilterCount = 0,
   nearDueActive = false,
+  unreadActive = false,
   breakAction = null,
   onSearch,
   onToggleNearDue,
+  onToggleUnread,
   onRefresh,
   onOpenFilters,
   onSelectConversation,
@@ -89,6 +91,16 @@ function ConversationList({
         </div>
 
         <div className="inbox-header-actions">
+          <button
+            className={`secondary-button compact-action near-due-button${unreadActive ? ' active' : ''}`}
+            type="button"
+            onClick={onToggleUnread}
+            disabled={isLoading}
+            aria-pressed={unreadActive}
+          >
+            <Icon name="message" />
+            <span>Unread Conversations</span>
+          </button>
           <button
             className={`secondary-button compact-action near-due-button${nearDueActive ? ' active' : ''}`}
             type="button"

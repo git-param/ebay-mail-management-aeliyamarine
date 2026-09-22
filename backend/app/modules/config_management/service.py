@@ -1,5 +1,5 @@
 from decimal import Decimal
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, time, timedelta
 from uuid import UUID
 
 from fastapi import HTTPException, status
@@ -108,34 +108,42 @@ class ConfigService:
         self.db.commit()
         return {'updated_count': len(accounts), 'last_sync_at': normalized}
 
-    def delete_conversation_data(self) -> dict:
+    def delete_conversation_data(self, date_from: date | None, date_to: date | None) -> dict:
+        start = datetime.combine(date_from, time.min, tzinfo=UTC) if date_from else None
+        end = datetime.combine(date_to + timedelta(days=1), time.min, tzinfo=UTC) if date_to else None
         tables = [
-            'audit_logs',
-            'conversation_category_history',
-            'conversation_assignments',
-            'notifications',
-            'offer_management_entry_history',
-            'offer_management_entries',
-            'conversation_product_contexts',
-            'conversation_notes',
-            'conversation_order_contexts',
-            'conversation_message_classifications',
-            'conversation_sla_history',
-            'conversation_status_history',
-            'conversation_participants',
-            'offers',
-            'returns',
-            'cancellations',
-            'order_line_items',
-            'message_attachments',
-            'messages',
-            'conversations',
-            'orders',
+            ('offer_management_entry_history', 'offer_entry_id IN (SELECT id FROM cleanup_offer_entries)'),
+            ('offer_management_entries', 'id IN (SELECT id FROM cleanup_offer_entries)'),
+            ('message_attachments', 'message_id IN (SELECT id FROM cleanup_messages)'),
+            ('conversation_message_classifications', 'conversation_id IN (SELECT id FROM cleanup_conversations) OR conversation_message_id IN (SELECT id FROM cleanup_messages)'),
+            ('offers', 'id IN (SELECT id FROM cleanup_offers)'),
+            ('messages', 'id IN (SELECT id FROM cleanup_messages)'),
+            ('conversation_category_history', 'conversation_id IN (SELECT id FROM cleanup_conversations)'),
+            ('conversation_assignments', 'conversation_id IN (SELECT id FROM cleanup_conversations)'),
+            ('conversation_product_contexts', 'conversation_id IN (SELECT id FROM cleanup_conversations)'),
+            ('conversation_notes', 'conversation_id IN (SELECT id FROM cleanup_conversations)'),
+            ('conversation_order_contexts', 'conversation_id IN (SELECT id FROM cleanup_conversations)'),
+            ('conversation_sla_history', 'conversation_id IN (SELECT id FROM cleanup_conversations)'),
+            ('conversation_status_history', 'conversation_id IN (SELECT id FROM cleanup_conversations)'),
+            ('conversation_participants', 'conversation_id IN (SELECT id FROM cleanup_conversations)'),
+            ('conversations', 'id IN (SELECT id FROM cleanup_conversations)'),
         ]
         deleted = {}
         try:
-            for table in tables:
-                result = self.db.execute(text(f'DELETE FROM {table}'))
+            conditions = []
+            parameters = {}
+            if start:
+                conditions.append('created_at >= :start')
+                parameters['start'] = start
+            if end:
+                conditions.append('created_at < :end')
+                parameters['end'] = end
+            self.db.execute(text('CREATE TEMP TABLE cleanup_conversations ON COMMIT DROP AS SELECT id FROM conversations WHERE ' + ' AND '.join(conditions)), parameters)
+            self.db.execute(text('CREATE TEMP TABLE cleanup_messages ON COMMIT DROP AS SELECT id FROM messages WHERE conversation_id IN (SELECT id FROM cleanup_conversations)'))
+            self.db.execute(text('CREATE TEMP TABLE cleanup_offers ON COMMIT DROP AS SELECT id FROM offers WHERE conversation_id IN (SELECT id FROM cleanup_conversations) OR message_id IN (SELECT id FROM cleanup_messages)'))
+            self.db.execute(text('CREATE TEMP TABLE cleanup_offer_entries ON COMMIT DROP AS SELECT id FROM offer_management_entries WHERE related_conversation_id IN (SELECT id FROM cleanup_conversations) OR related_offer_id IN (SELECT id FROM cleanup_offers)'))
+            for table, condition in tables:
+                result = self.db.execute(text(f'DELETE FROM {table} WHERE {condition}'))
                 deleted[table] = int(result.rowcount or 0)
             self.db.commit()
             return {'deleted': deleted, 'total_deleted': sum(deleted.values())}

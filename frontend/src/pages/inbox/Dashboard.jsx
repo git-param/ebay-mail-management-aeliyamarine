@@ -60,6 +60,7 @@ const EMPTY_FILTERS = {
   assigned_user_id: '',
   category_id: '',
   sla_due_within_hours: '',
+  unread_only: false,
 }
 
 const LIST_PANE_OPEN_KEY =
@@ -280,6 +281,7 @@ function Dashboard({
         // Near Due SLA has its own visible toggle, so do not duplicate it
         // inside the generic Filters count badge.
         'sla_due_within_hours',
+        'unread_only',
       ])
 
       let count = Object.entries(
@@ -816,6 +818,10 @@ function Dashboard({
     )
   }
 
+  function toggleUnreadOnly() {
+    changeFilter('unread_only', !filters.unread_only)
+  }
+
   async function refreshSelectedConversation() {
     await Promise.all([
       loadConversations(),
@@ -1221,6 +1227,8 @@ function Dashboard({
             onToggleNearDue={
               toggleNearDueSla
             }
+            unreadActive={Boolean(filters.unread_only)}
+            onToggleUnread={toggleUnreadOnly}
             breakAction={<BreakActionButton />}
             onRefresh={
               loadConversations
