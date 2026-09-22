@@ -21,6 +21,26 @@
   --dailyEntry-warning-bg: #fff9e6;
 }
 
+.dailyEntry-page .page-header {
+  margin-bottom: 18px;
+  padding: 22px 24px;
+}
+
+.dailyEntry-page .table-card {
+  padding: 22px 24px;
+}
+
+.dailyEntry-page .field {
+  gap: 7px;
+}
+
+.dailyEntry-page .field input,
+.dailyEntry-page .field select,
+.dailyEntry-page .field textarea {
+  min-height: 46px;
+  padding-inline: 14px;
+}
+
 .dailyEntry-card-header {
   display: flex;
   justify-content: space-between;
@@ -382,7 +402,12 @@
 .dailyEntry-history-card .table-scroll {
   max-width: 100%;
   margin-top: 12px;
-  overflow-x: auto;
+  max-height: 490px;
+  min-height: 385px;
+  overflow: auto;
+  border: 1px solid var(--dailyEntry-border);
+  border-radius: 10px;
+  scrollbar-gutter: stable;
 }
 
 .dailyEntry-history-card .users-table {
@@ -392,10 +417,17 @@
 
 .dailyEntry-history-card .users-table th,
 .dailyEntry-history-card .users-table td {
-  padding: 13px 16px;
+  height: 48px;
+  padding: 11px 16px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.dailyEntry-history-card .users-table th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
 }
 
 .dailyEntry-history-card .users-table th:nth-child(1),
@@ -410,6 +442,35 @@
 .dailyEntry-history-card .users-table th:nth-child(5),
 .dailyEntry-history-card .users-table td:nth-child(5) {
   width: 88px;
+}
+
+.dailyEntry-delete-card {
+  border-color: #fecaca;
+  background: #fffafa;
+}
+
+.dailyEntry-delete-card .dailyEntry-card-header {
+  align-items: flex-start;
+}
+
+.dailyEntry-delete-card .dailyEntry-card-header p {
+  margin: 4px 0 0;
+}
+
+.dailyEntry-delete-card h2 {
+  color: var(--dailyEntry-danger);
+}
+
+.dailyEntry-delete-form {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(150px, 1fr)) auto;
+  gap: 12px;
+  align-items: end;
+}
+
+.dailyEntry-delete-form .action-danger {
+  min-height: 44px;
+  white-space: nowrap;
 }
 
 .dailyEntry-detail-modal {
@@ -457,7 +518,11 @@
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)) auto;
   gap: 12px;
   align-items: end;
-  margin-bottom: 4px;
+  margin: 10px 0 6px;
+  padding: 14px;
+  border: 1px solid #e5edf7;
+  border-radius: 12px;
+  background: #f8fbff;
 }
 
 .dailyEntry-load-controls .primary-button {
@@ -491,6 +556,265 @@
   color: var(--dailyEntry-muted);
   font-size: 12.5px;
   font-weight: 700;
+}
+
+/* ---- Bulk entry matrix ---- */
+
+.dailyEntry-bulk-entry-controls {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(160px, 1fr)) auto;
+  gap: 12px;
+  align-items: end;
+  margin: 16px 0;
+  padding: 14px;
+  border: 1px solid #e5edf7;
+  border-radius: 12px;
+  background: #f7fbff;
+}
+
+.dailyEntry-bulk-entry-controls .primary-button {
+  min-height: 44px;
+}
+
+.dailyEntry-bulk-matrix-card {
+  margin: 16px 0;
+  padding: 16px;
+  border-radius: 12px;
+}
+
+.dailyEntry-bulk-matrix-header {
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.dailyEntry-bulk-matrix-header p {
+  margin: 4px 0 0;
+}
+
+.dailyEntry-bulk-matrix-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.dailyEntry-bulk-employee-section {
+  --bulk-header-height: 42px;
+  --bulk-row-height: 62px;
+  border: 1px solid var(--dailyEntry-border);
+  border-radius: 10px;
+  background: #ffffff;
+  overflow: hidden;
+}
+
+.dailyEntry-bulk-employee-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--dailyEntry-border);
+  background: #f8fafc;
+}
+
+.dailyEntry-bulk-employee-heading h3 {
+  margin: 0;
+  color: var(--dailyEntry-ink);
+  font-size: 15px;
+  font-weight: 850;
+}
+
+.dailyEntry-bulk-employee-heading small,
+.dailyEntry-bulk-employee-heading span {
+  color: var(--dailyEntry-muted);
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.dailyEntry-bulk-matrix-scroll {
+  height: calc(var(--bulk-header-height) + (var(--bulk-row-height) * 7));
+  max-height: calc(var(--bulk-header-height) + (var(--bulk-row-height) * 7));
+  overflow-x: auto !important;
+  overflow-y: scroll !important;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable both-edges;
+  scrollbar-width: thin;
+}
+
+.dailyEntry-bulk-matrix-scroll::-webkit-scrollbar {
+  width: 11px;
+  height: 11px;
+}
+
+.dailyEntry-bulk-matrix-scroll::-webkit-scrollbar-thumb {
+  border: 3px solid #ffffff;
+  border-radius: 999px;
+  background: #b7c3d7;
+}
+
+.dailyEntry-bulk-matrix-scroll::-webkit-scrollbar-track {
+  background: #f8fafc;
+}
+
+.dailyEntry-bulk-matrix {
+  width: max-content;
+  min-width: 100%;
+  table-layout: fixed;
+}
+
+.dailyEntry-bulk-matrix th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  width: 104px;
+  min-width: 104px;
+  max-width: 104px;
+  height: var(--bulk-header-height);
+  padding: 6px 8px;
+  background: #f1f5f9;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.1;
+  font-size: 9.5px;
+  letter-spacing: 0.02em;
+}
+
+.dailyEntry-bulk-matrix th:nth-child(1),
+.dailyEntry-bulk-matrix th:nth-child(2),
+.dailyEntry-bulk-matrix td:nth-child(1),
+.dailyEntry-bulk-matrix td:nth-child(2) {
+  position: sticky;
+  left: 0;
+  z-index: 3;
+}
+
+.dailyEntry-bulk-matrix th:nth-child(2),
+.dailyEntry-bulk-matrix td:nth-child(2) {
+  left: 52px;
+}
+
+.dailyEntry-bulk-matrix td:nth-child(1),
+.dailyEntry-bulk-matrix td:nth-child(2) {
+  background: #ffffff;
+}
+
+.dailyEntry-bulk-matrix th:nth-child(1),
+.dailyEntry-bulk-matrix th:nth-child(2) {
+  z-index: 4;
+}
+
+.dailyEntry-bulk-check-column {
+  width: 52px;
+  min-width: 52px !important;
+  max-width: 52px !important;
+  text-align: center;
+}
+
+.dailyEntry-bulk-matrix td {
+  width: 104px;
+  min-width: 104px;
+  max-width: 104px;
+  height: var(--bulk-row-height);
+  padding: 8px;
+  vertical-align: middle;
+}
+
+.dailyEntry-bulk-matrix tbody tr {
+  height: var(--bulk-row-height);
+}
+
+.dailyEntry-bulk-matrix thead tr {
+  height: var(--bulk-header-height);
+}
+
+.dailyEntry-bulk-matrix th:nth-child(2),
+.dailyEntry-bulk-matrix td:nth-child(2) {
+  width: 104px;
+  min-width: 104px;
+  max-width: 104px;
+}
+
+.dailyEntry-bulk-matrix td > strong {
+  display: block;
+  color: var(--dailyEntry-ink);
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+
+.dailyEntry-bulk-matrix td > small {
+  display: block;
+  margin-top: 2px;
+  color: var(--dailyEntry-warning);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.dailyEntry-bulk-matrix input[type="number"] {
+  width: 68px;
+  height: 32px;
+  border: 1px solid #cbd8e8;
+  border-radius: 7px;
+  background: #ffffff;
+  color: var(--dailyEntry-ink);
+  text-align: center;
+  font-size: 12.5px;
+  font-weight: 800;
+}
+
+.dailyEntry-bulk-matrix input[type="number"]:focus-visible {
+  border-color: var(--dailyEntry-accent);
+  box-shadow: 0 0 0 3px rgb(109 92 245 / 0.15);
+  outline: none;
+}
+
+.dailyEntry-bulk-matrix input:disabled {
+  background: #f1f5f9;
+  color: #94a3b8;
+  cursor: not-allowed;
+}
+
+.dailyEntry-bulk-matrix tr.not-selected {
+  opacity: 0.68;
+}
+
+.dailyEntry-bulk-matrix tr.sunday-row td,
+.dailyEntry-bulk-matrix tr.sunday-row td:nth-child(1),
+.dailyEntry-bulk-matrix tr.sunday-row td:nth-child(2) {
+  background: #fffbeb;
+}
+
+.dailyEntry-bulk-na {
+  color: var(--dailyEntry-muted);
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.dailyEntry-bulk-unlock {
+  margin-left: 8px;
+  padding: 5px 9px;
+}
+
+.upload-status.pending {
+  background: #e0f2fe;
+  color: #075985;
+}
+
+.upload-status.saved {
+  background: #eef2ff;
+  color: #3730a3;
+}
+
+.dailyEntry-bulk-submit-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-top: 14px;
+  padding: 12px 0 0;
+  border-top: 1px solid var(--dailyEntry-border);
+  background: #ffffff;
 }
 
 /* ---- Agent cards grid ---- */
@@ -651,6 +975,10 @@
     grid-template-columns: 1fr;
   }
 
+  .dailyEntry-delete-form {
+    grid-template-columns: 1fr;
+  }
+
 }
 
 /* ---- Per-day task applicability controls ---- */
@@ -788,6 +1116,7 @@ html[data-theme="dark"] .dailyEntry-page {
 html[data-theme="dark"] .dailyEntry-page .page-header,
 html[data-theme="dark"] .dailyEntry-load-card,
 html[data-theme="dark"] .dailyEntry-history-card,
+html[data-theme="dark"] .dailyEntry-delete-card,
 html[data-theme="dark"] .dailyEntry-agent-card,
 html[data-theme="dark"] .dailyEntry-detail-modal,
 html[data-theme="dark"] .dailyEntry-sla-review-modal {
@@ -797,13 +1126,47 @@ html[data-theme="dark"] .dailyEntry-sla-review-modal {
 }
 
 html[data-theme="dark"] .dailyEntry-bulk-actions,
+html[data-theme="dark"] .dailyEntry-load-controls,
+html[data-theme="dark"] .dailyEntry-bulk-entry-controls,
 html[data-theme="dark"] .dailyEntry-task-box,
 html[data-theme="dark"] .dailyEntry-score-grid p,
 html[data-theme="dark"] .dailyEntry-info-popover,
-html[data-theme="dark"] .dailyEntry-details-box {
+html[data-theme="dark"] .dailyEntry-details-box,
+html[data-theme="dark"] .dailyEntry-bulk-matrix-card,
+html[data-theme="dark"] .dailyEntry-bulk-employee-section {
   border-color: #3b424d;
   background: #15181d;
   color: #f7f8fb;
+}
+
+html[data-theme="dark"] .dailyEntry-bulk-employee-heading,
+html[data-theme="dark"] .dailyEntry-bulk-matrix th {
+  border-color: #3b424d;
+  background: #20242c;
+  color: #cbd5e1;
+}
+
+html[data-theme="dark"] .dailyEntry-bulk-matrix td,
+html[data-theme="dark"] .dailyEntry-bulk-matrix td:nth-child(1),
+html[data-theme="dark"] .dailyEntry-bulk-matrix td:nth-child(2),
+html[data-theme="dark"] .dailyEntry-bulk-submit-bar {
+  border-color: #3b424d;
+  background: #15181d;
+}
+
+html[data-theme="dark"] .dailyEntry-bulk-matrix tr.sunday-row td,
+html[data-theme="dark"] .dailyEntry-bulk-matrix tr.sunday-row td:nth-child(1),
+html[data-theme="dark"] .dailyEntry-bulk-matrix tr.sunday-row td:nth-child(2) {
+  background: #2c2516;
+}
+
+html[data-theme="dark"] .dailyEntry-bulk-matrix-scroll::-webkit-scrollbar-thumb {
+  border-color: #15181d;
+  background: #4b5563;
+}
+
+html[data-theme="dark"] .dailyEntry-bulk-matrix-scroll::-webkit-scrollbar-track {
+  background: #20242c;
 }
 
 html[data-theme="dark"] .dailyEntry-agent-card.locked {
@@ -897,6 +1260,15 @@ html[data-theme="dark"] .dailyEntry-count-status.excluded {
 
 html[data-theme="dark"] .upload-status.error {
   background: #3b171b;
+  color: #fecaca;
+}
+
+html[data-theme="dark"] .dailyEntry-delete-card {
+  border-color: #7f1d1d;
+  background: #171114;
+}
+
+html[data-theme="dark"] .dailyEntry-delete-card h2 {
   color: #fecaca;
 }
 

@@ -88,6 +88,7 @@ class OfferEntryUpdate(BaseModel):
     buyer_id: str | None = None
     status: OfferManagementStatus | None = None
     outcome: OfferManagementOutcome | None = None
+    is_high_value: bool | None = None
     is_vip_lead: bool | None = None
     next_offer_followup: date | None = None
     follow_up_1_notes: str | None = None
@@ -157,6 +158,7 @@ class OfferLookupResponse(BaseModel):
     details: dict
     matches: list[OfferLookupMatch] = []
     selected: dict | None = None
+    existing_entry: dict | None = None
     message: str
 
 
@@ -175,3 +177,22 @@ class OfferBulkDeleteRequest(BaseModel):
 
 class OfferBulkDeleteResponse(BaseModel):
     deleted_count: int
+
+
+class OfferImportError(BaseModel):
+    row_number: int
+    reason: str
+
+
+class OfferImportResponse(BaseModel):
+    created_count: int
+    skipped_count: int
+    error_count: int
+    errors: list[OfferImportError] = []
+
+
+class OfferDuplicateCheckResponse(BaseModel):
+    exists: bool
+    entry_number: int | None = None
+    buyer_id: str | None = None
+    listing_id: str | None = None

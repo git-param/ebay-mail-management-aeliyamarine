@@ -30,6 +30,7 @@ function ReplyUnavailableNotice() {
 }
 
 function ConversationDetail({
+  currentUser,
   detail,
   notes,
   users,
@@ -51,6 +52,7 @@ function ConversationDetail({
   onHideDetails,
   onCloseDetails,
   onAssign,
+  onUnassign,
   onAddNote,
   onUpdateNote,
   onDeleteNote,
@@ -160,6 +162,7 @@ function ConversationDetail({
 
       {isDetailsView ? (
         <DetailsPanel
+          currentUser={currentUser}
           detail={detail}
           notes={notes}
           users={users}
@@ -169,6 +172,7 @@ function ConversationDetail({
           notesLoading={notesLoading}
           isSubmitting={isSubmitting}
           onAssign={onAssign}
+          onUnassign={onUnassign}
           onAddNote={onAddNote}
           onUpdateNote={onUpdateNote}
           onDeleteNote={onDeleteNote}

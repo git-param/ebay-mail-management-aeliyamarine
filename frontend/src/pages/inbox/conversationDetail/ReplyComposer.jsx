@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 import { Icon } from '../../../layouts/app_layout'
 import { validateConversationReply } from '../../../services/conversationApi'
@@ -17,7 +17,14 @@ function formatFileSize(bytes) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
-export default function ReplyComposer({ conversationId, suggestedMessageTypeId, isSubmitting, onSendReply, templates, messageTypes = [] }) {
+function isImageFile(file) {
+  return (
+    String(file?.type || '').startsWith('image/') ||
+    /\.(png|jpe?g|gif|webp)$/i.test(file?.name || '')
+  )
+}
+
+export default function ReplyComposer({ conversationId, suggestedMessageTypeId, isSubmitting, onSendReply, templates = [], messageTypes = [] }) {
   const [body, setBody] = useState('')
   const [files, setFiles] = useState([])
   const [fileInputKey, setFileInputKey] = useState(0)
@@ -26,9 +33,58 @@ export default function ReplyComposer({ conversationId, suggestedMessageTypeId, 
   const [isValidating, setIsValidating] = useState(false)
   const [categoryId, setCategoryId] = useState('')
   const [subtypeId, setSubtypeId] = useState('')
+  const [templateCategoryId, setTemplateCategoryId] = useState('')
+  const [selectedTemplateId, setSelectedTemplateId] = useState('')
   const [sendCopyToEmail, setSendCopyToEmail] = useState(true)
+  const [showMessageTypeError, setShowMessageTypeError] = useState(false)
   const category = messageTypes.find((item) => item.id === categoryId)
   const selectedTypeId = category?.children?.length ? subtypeId : categoryId
+  const templateCategories = useMemo(() => {
+    const categoryMap = new Map()
+    let hasUncategorizedTemplates = false
+    templates.forEach((template) => {
+      if (template.category_id && template.category?.is_active !== false) {
+        categoryMap.set(template.category_id, template.category.name)
+      } else {
+        hasUncategorizedTemplates = true
+      }
+    })
+
+    const categories = Array.from(categoryMap, ([id, name]) => ({ id, name })).sort((first, second) =>
+      first.name.localeCompare(second.name),
+    )
+    return hasUncategorizedTemplates ? [...categories, { id: 'uncategorized', name: 'Uncategorized' }] : categories
+  }, [templates])
+  const filteredTemplates = useMemo(() => {
+    if (!templateCategoryId) return []
+    return templates
+      .filter((template) => {
+        if (templateCategoryId === 'uncategorized') {
+          return !template.category_id || template.category?.is_active === false
+        }
+        return template.category_id === templateCategoryId
+      })
+      .sort((first, second) => String(first.title || '').localeCompare(String(second.title || '')))
+  }, [templateCategoryId, templates])
+  const attachmentPreviews = useMemo(
+    () =>
+      files.map((file) => ({
+        file,
+        previewUrl: isImageFile(file) ? URL.createObjectURL(file) : '',
+      })),
+    [files],
+  )
+
+  useEffect(
+    () => () => {
+      attachmentPreviews.forEach((attachment) => {
+        if (attachment.previewUrl) {
+          URL.revokeObjectURL(attachment.previewUrl)
+        }
+      })
+    },
+    [attachmentPreviews],
+  )
 
   function addFiles(selectedFiles) {
     const nextFiles = [...files, ...selectedFiles]
@@ -47,6 +103,26 @@ export default function ReplyComposer({ conversationId, suggestedMessageTypeId, 
     addFiles(Array.from(event.target.files || []))
   }
 
+  function pasteClipboardImages(event) {
+    const pastedImages = Array.from(event.clipboardData?.items || [])
+      .filter((item) => item.kind === 'file' && item.type.startsWith('image/'))
+      .map((item) => item.getAsFile())
+      .filter(Boolean)
+
+    if (!pastedImages.length) return
+
+    event.preventDefault()
+    const unsupportedImage = pastedImages.find(
+      (file) => !['image/jpeg', 'image/png'].includes(file.type),
+    )
+    if (unsupportedImage) {
+      setViolations(['Pasted images must be JPEG or PNG files.'])
+      return
+    }
+
+    addFiles(pastedImages)
+  }
+
   function removeFile(fileIndex) {
     setFiles((current) => current.filter((_, index) => index !== fileIndex))
     setDraftMessage('')
@@ -57,14 +133,26 @@ export default function ReplyComposer({ conversationId, suggestedMessageTypeId, 
     setDraftMessage('Draft saved locally for this conversation.')
   }
 
+  function insertTemplate(templateId) {
+    const template = templates.find((item) => item.id === templateId)
+    setSelectedTemplateId(templateId)
+    if (template) {
+      setBody(template.body)
+    }
+  }
+
   async function submitReply(event) {
     event.preventDefault()
     if (isSubmitting || isValidating) return
     const trimmedBody = body.trim()
     if (!trimmedBody || !conversationId || !selectedTypeId) {
-      if (!selectedTypeId) setViolations(['Message type is required.'])
+      if (!selectedTypeId) {
+        setShowMessageTypeError(true)
+        setViolations(['Message type is required.'])
+      }
       return
     }
+    setShowMessageTypeError(false)
     setIsValidating(true)
     setViolations([])
     setDraftMessage('')
@@ -82,6 +170,7 @@ export default function ReplyComposer({ conversationId, suggestedMessageTypeId, 
       setFileInputKey((current) => current + 1)
       setCategoryId('')
       setSubtypeId('')
+      setShowMessageTypeError(false)
     } catch (caughtError) {
       setViolations([caughtError.message])
     } finally {
@@ -93,30 +182,44 @@ export default function ReplyComposer({ conversationId, suggestedMessageTypeId, 
     <form className="reply-composer" onSubmit={submitReply}>
       <div className="composer-toolbar composer-controls">
         {templates.length ? (
-          <label className="composer-select-control">
-            <span>Template</span>
-            <select
-              className="template-picker"
-              value=""
-              aria-label="Insert reply template"
-              onChange={(event) => {
-                const template = templates.find((item) => item.id === event.target.value)
-                if (template) {
-                  setBody((current) => {
-                    const separator = current.trim() ? '\n\n' : ''
-                    return `${current}${separator}${template.body}`
-                  })
-                }
-              }}
-            >
-              <option value="">Choose template</option>
-              {templates.map((template) => (
-                <option value={template.id} key={template.id}>
-                  {template.title}
-                </option>
-              ))}
-            </select>
-          </label>
+          <>
+            <label className="composer-select-control">
+              <span>Template Category</span>
+              <select
+                className="template-category-picker"
+                value={templateCategoryId}
+                aria-label="Choose reply template category"
+                onChange={(event) => {
+                  setTemplateCategoryId(event.target.value)
+                  setSelectedTemplateId('')
+                }}
+              >
+                <option value="">Choose category</option>
+                {templateCategories.map((templateCategory) => (
+                  <option value={templateCategory.id} key={templateCategory.id}>
+                    {templateCategory.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="composer-select-control">
+              <span>Template</span>
+              <select
+                className="template-picker"
+                value={selectedTemplateId}
+                aria-label="Insert reply template"
+                disabled={!templateCategoryId || !filteredTemplates.length}
+                onChange={(event) => insertTemplate(event.target.value)}
+              >
+                <option value="">{templateCategoryId ? 'Choose template' : 'Choose category first'}</option>
+                {filteredTemplates.map((template) => (
+                  <option value={template.id} key={template.id}>
+                    {template.title}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </>
         ) : null}
         <MessageTypeSelector
           conversationId={conversationId}
@@ -124,6 +227,7 @@ export default function ReplyComposer({ conversationId, suggestedMessageTypeId, 
           messageTypes={messageTypes}
           categoryId={categoryId}
           subtypeId={subtypeId}
+          showRequiredError={showMessageTypeError}
           onCategoryChange={setCategoryId}
           onSubtypeChange={setSubtypeId}
         />
@@ -137,6 +241,7 @@ export default function ReplyComposer({ conversationId, suggestedMessageTypeId, 
             setBody(event.target.value)
             setDraftMessage('')
           }}
+          onPaste={pasteClipboardImages}
           rows="3"
           maxLength={2000}
           placeholder="Write a reply without email, phone, external links, or abusive language"
@@ -144,10 +249,21 @@ export default function ReplyComposer({ conversationId, suggestedMessageTypeId, 
       </label>
       {files.length ? (
         <div className="reply-attachment-list" aria-label="Selected attachments">
-          {files.map((file, index) => (
-            <span className="reply-attachment-chip" key={`${file.name}-${file.size}-${index}`}>
-              <span>
-                <strong>{file.name}</strong>
+          {attachmentPreviews.map(({ file, previewUrl }, index) => (
+            <span className={`reply-attachment-chip${previewUrl ? ' has-preview' : ''}`} key={`${file.name}-${file.size}-${index}`}>
+              {previewUrl ? (
+                <a
+                  className="reply-attachment-preview-link"
+                  href={previewUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label={`Open ${file.name} preview in a new tab`}
+                >
+                  <img className="reply-attachment-preview" src={previewUrl} alt="" />
+                </a>
+              ) : null}
+              <span className="reply-attachment-meta">
+                <strong title={file.name}>{file.name}</strong>
                 <small>{formatFileSize(file.size)}</small>
               </span>
               <button type="button" onClick={() => removeFile(index)} aria-label={`Remove ${file.name}`}>
@@ -173,7 +289,7 @@ export default function ReplyComposer({ conversationId, suggestedMessageTypeId, 
         <div className="composer-attachment-action">
           <input id={`reply-attachments-${conversationId}`} key={fileInputKey} type="file" multiple onChange={updateFiles} accept=".pdf,.txt,.jpg,.jpeg,.png,application/pdf,text/plain,image/jpeg,image/png" />
           <label htmlFor={`reply-attachments-${conversationId}`} title="Attach files" aria-label="Attach files"><Icon name="paperclip" /></label>
-          <small>{files.length ? `${files.length} attached` : 'Attach'} Â· {body.length}/2000</small>
+          <small>{files.length ? `${files.length} attached` : 'Attach'} · {body.length}/2000</small>
         </div>
         <label className="email-copy-checkbox" htmlFor={`reply-email-copy-${conversationId}`}>
           <input id={`reply-email-copy-${conversationId}`} type="checkbox" checked={sendCopyToEmail} disabled={isSubmitting || isValidating} onChange={(event) => setSendCopyToEmail(event.target.checked)} />
@@ -182,7 +298,12 @@ export default function ReplyComposer({ conversationId, suggestedMessageTypeId, 
         <button className="secondary-button compact" type="button" onClick={saveDraft} disabled={!body.trim() && !files.length}>
           Save Draft
         </button>
-        <button className="primary-button compact" type="submit" disabled={!body.trim() || !selectedTypeId || isSubmitting || isValidating}>
+        <button
+          className="primary-button compact"
+          type="submit"
+          aria-disabled={!body.trim() || !selectedTypeId || isSubmitting || isValidating}
+          disabled={isSubmitting || isValidating}
+        >
           {isValidating ? 'Checking...' : isSubmitting ? 'Sending...' : 'Send Reply'}
         </button>
       </div>

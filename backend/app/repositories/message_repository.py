@@ -3,6 +3,7 @@ from uuid import UUID
 import logging
 
 from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert as postgresql_insert
 from sqlalchemy.orm import Session
 
 from app.models.conversation import Message, MessageAttachment
@@ -25,7 +26,8 @@ class MessageRepository:
             .where(Message.provider == provider)
             .where(Message.provider_message_id == provider_message_id)
         )
-        return self.db.scalar(statement)
+        with self.db.no_autoflush:
+            return self.db.scalar(statement)
 
     def add(self, message: Message) -> Message:
         self.db.add(message)
@@ -114,26 +116,64 @@ class MessageRepository:
         if 'provider' in values:
             values.pop('provider')
         
-        existing = self.db.scalar(
-            select(Message).where(
-                Message.provider == provider,
-                Message.provider_message_id == provider_message_id
-            )
-        )
+        existing = self._get_by_provider_id_no_autoflush(provider, provider_message_id)
         
         if existing:
-            # Update existing message
-            for key, value in values.items():
-                if hasattr(existing, key) and key not in ('id', 'provider', 'provider_message_id', 'created_at'):
-                    setattr(existing, key, value)
+            self._update_message(existing, values)
             return existing, False
-        else:
-            # Create new message
-            message = Message(
-                provider=provider,
-                provider_message_id=provider_message_id,
-                **values
+
+        if self.db.bind is not None and self.db.bind.dialect.name == 'postgresql':
+            return self._upsert_postgresql(provider, provider_message_id, values)
+
+        # Create new message
+        message = Message(
+            provider=provider,
+            provider_message_id=provider_message_id,
+            **values
+        )
+        self.db.add(message)
+        self.db.flush()
+        return message, True
+
+    def _get_by_provider_id_no_autoflush(self, provider: str, provider_message_id: str) -> Message | None:
+        with self.db.no_autoflush:
+            return self.db.scalar(
+                select(Message).where(
+                    Message.provider == provider,
+                    Message.provider_message_id == provider_message_id
+                )
             )
-            self.db.add(message)
-            self.db.flush()
+
+    def _update_message(self, message: Message, values: dict) -> None:
+        for key, value in values.items():
+            if hasattr(message, key) and key not in ('id', 'provider', 'provider_message_id', 'created_at'):
+                setattr(message, key, value)
+
+    def _upsert_postgresql(self, provider: str, provider_message_id: str, values: dict) -> tuple[Message, bool]:
+        insert_values = {
+            'provider': provider,
+            'provider_message_id': provider_message_id,
+            **values,
+        }
+        insert_statement = (
+            postgresql_insert(Message)
+            .values(**insert_values)
+            .on_conflict_do_nothing(
+                index_elements=['provider', 'provider_message_id'],
+            )
+            .returning(Message.id)
+        )
+
+        inserted_id = self.db.scalar(insert_statement)
+        if inserted_id is not None:
+            message = self.db.get(Message, inserted_id)
+            if message is None:
+                raise RuntimeError('Inserted message could not be loaded')
             return message, True
+
+        existing = self._get_by_provider_id_no_autoflush(provider, provider_message_id)
+        if existing is None:
+            raise RuntimeError('Message upsert conflict could not be reconciled')
+
+        self._update_message(existing, values)
+        return existing, False

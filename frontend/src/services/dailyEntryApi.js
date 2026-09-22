@@ -35,6 +35,13 @@ export function uploadDailyEntries(entries) {
   })
 }
 
+export function deleteDailyEntries(payload) {
+  return apiRequest('/dailyEntry/daily-entries/delete', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
 export function fetchDailyEntrySlaReview(params) {
   return apiRequest(`/dailyEntry/sla-review${qs(params)}`)
 }

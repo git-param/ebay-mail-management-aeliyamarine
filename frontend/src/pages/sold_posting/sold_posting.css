@@ -544,7 +544,7 @@ a .sold-thumb:hover {
 
 .sold-table {
   table-layout: fixed;
-  min-width: 1848px;
+  min-width: 1988px;
 }
 
 .sold-table thead th {
@@ -793,52 +793,63 @@ a .sold-thumb:hover {
 
 .sold-table th:nth-child(7),
 .sold-table td:nth-child(7) {
-  width: 420px;
-}
-
-.sold-table td:nth-child(7) {
-  white-space: normal;
+  width: 140px;
 }
 
 .sold-table th:nth-child(8),
 .sold-table td:nth-child(8) {
-  width: 220px;
+  width: 420px;
+}
+
+.sold-table td:nth-child(8) {
+  white-space: normal;
 }
 
 .sold-table th:nth-child(9),
 .sold-table td:nth-child(9) {
-  width: 120px;
+  width: 220px;
 }
 
 .sold-table th:nth-child(10),
 .sold-table td:nth-child(10) {
-  width: 88px;
+  width: 120px;
 }
 
 .sold-table th:nth-child(11),
-.sold-table td:nth-child(11),
+.sold-table td:nth-child(11) {
+  width: 88px;
+}
+
 .sold-table th:nth-child(12),
 .sold-table td:nth-child(12),
 .sold-table th:nth-child(13),
-.sold-table td:nth-child(13) {
+.sold-table td:nth-child(13),
+.sold-table th:nth-child(14),
+.sold-table td:nth-child(14) {
   width: 112px;
 }
 
-.sold-table th:nth-child(14),
-.sold-table td:nth-child(14),
 .sold-table th:nth-child(15),
-.sold-table td:nth-child(15) {
-  width: 156px;
-}
-
+.sold-table td:nth-child(15),
 .sold-table th:nth-child(16),
 .sold-table td:nth-child(16) {
-  width: 136px;
+  width: 156px;
 }
 
 .sold-table th:nth-child(17),
 .sold-table td:nth-child(17) {
+  width: 136px;
+}
+
+.sold-table th:nth-child(18),
+.sold-table td:nth-child(18) {
   width: 80px;
+}
+
+.sold-blogspot-link {
+  font-weight: 800;
+  text-decoration: none;
+  font-size: 17px;
 }
 
 /* ==========================================================================
@@ -1217,6 +1228,7 @@ html[data-theme="dark"] .sold-posting-page :is(h1, h2, h3, strong, label),
 html[data-theme="dark"] .sold-table td,
 html[data-theme="dark"] .sold-title span,
 html[data-theme="dark"] .copy-chip,
+html[data-theme="dark"] .sold-blogspot-link,
 html[data-theme="dark"] .sold-reset-link,
 html[data-theme="dark"] .sold-search-box button,
 html[data-theme="dark"] .sold-condition-editor input {

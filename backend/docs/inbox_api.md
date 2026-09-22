@@ -8,7 +8,8 @@ Query parameters:
 
 - `limit` default `25`, max `100`
 - `offset` default `0`
-- `search` searches subject, buyer, provider conversation ID, reference ID, and message body
+- `search` searches the selected `search_by` scope
+- `search_by` one of `buyer_name`, `item_number`, `order_id`, `message_content`, `sku`, `everything`; default `everything`
 - `status` one of `OPEN`, `PENDING`, `RESOLVED`, `CLOSED`
 - `provider` for example `ebay`
 - `ebay_account_id`
@@ -64,7 +65,11 @@ Returns metadata, messages, category, current assignment, assignment history, an
 }
 ```
 
-Any authenticated user may assign to any active user. Previous current assignments are closed by setting `unassigned_at`, preserving assignment history.
+Support users may assign a conversation they are permitted to handle to an active user. Previous current assignments are closed by setting `unassigned_at`, preserving assignment history.
+
+`POST /api/v1/conversations/{id}/unassign`
+
+Closes the current assignment without deleting its history. The current assignee may unassign their own conversation; admins and operations managers may unassign any conversation. Other users receive `403 Forbidden`.
 
 ## Internal notes
 

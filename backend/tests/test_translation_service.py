@@ -3,7 +3,7 @@ from uuid import uuid4
 
 import pytest
 
-from app.api.v1.routes.conversations import visible_conversation_offers
+from app.api.v1.routes.conversations import offer_timestamp_from_raw_payload, visible_conversation_offers
 from app.services.translation_service import TranslationService
 
 
@@ -171,3 +171,40 @@ def test_visible_conversation_offers_keeps_one_accepted_event():
     )
 
     assert visible == [sent_counteroffer, latest_accepted]
+
+
+def test_offer_timestamp_uses_ebay_expiration_duration_when_created_time_missing():
+    buyer_offer = SimpleNamespace(offer_type='BUYER_OFFER', status='PENDING')
+    seller_counteroffer = SimpleNamespace(offer_type='SELLER_COUNTEROFFER', status='PENDING')
+
+    assert (
+        offer_timestamp_from_raw_payload(
+            {'expirationTime': '2026-07-29T02:39:00Z', 'offerType': 'BuyerBestOffer'},
+            buyer_offer,
+        ).isoformat()
+        == '2026-07-28T02:39:00+00:00'
+    )
+    assert (
+        offer_timestamp_from_raw_payload(
+            {'expirationTime': '2026-08-01T00:37:00Z', 'offerType': 'SellerCounterOffer'},
+            seller_counteroffer,
+        ).isoformat()
+        == '2026-07-28T00:37:00+00:00'
+    )
+
+
+def test_derived_seller_counteroffer_submission_ignores_copied_created_time():
+    offer = SimpleNamespace(offer_type='SELLER_COUNTEROFFER', status='PENDING')
+
+    assert (
+        offer_timestamp_from_raw_payload(
+            {
+                'createdTime': '2026-07-28T01:47:00Z',
+                'expirationTime': '2026-08-01T00:37:00Z',
+                'offerType': 'SellerCounterOffer',
+                'derivedEvent': 'SELLER_COUNTEROFFER_SUBMITTED',
+            },
+            offer,
+        ).isoformat()
+        == '2026-07-28T00:37:00+00:00'
+    )

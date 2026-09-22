@@ -595,6 +595,11 @@
   white-space: pre-wrap;
 }
 
+.inbox-page .assignment-form .unassign-button {
+  grid-column: 1 / -1;
+  width: 100%;
+}
+
 .inbox-page .note-item-header {
   min-width: 0;
   display: grid;

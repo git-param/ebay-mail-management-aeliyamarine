@@ -20,7 +20,7 @@ from app.models.order_context import ConversationOrderContext, ConversationProdu
 from app.models.password_reset_token import PasswordResetToken
 from app.models.permission import Permission, RolePermission
 from app.models.refresh_token import RefreshToken
-from app.models.reply_template import ReplyTemplate
+from app.models.reply_template import ReplyTemplate, ReplyTemplateCategory
 from app.models.role import Role
 from app.models.user import User
 from app.models.message_type import MessageClassification, MessageType, MessageTypeKeyword
@@ -60,6 +60,7 @@ __all__ = [
     'Permission',
     'RefreshToken',
     'ReplyTemplate',
+    'ReplyTemplateCategory',
     'Role',
     'RolePermission',
     'SyncLog',

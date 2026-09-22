@@ -9,6 +9,7 @@ import AppLayout from '../../layouts/app_layout'
 import { fetchCategories } from '../../services/categoryApi'
 import {
   assignConversation,
+  unassignConversation,
   bulkUpdateConversations,
   createConversationNote,
   deleteConversationNote,
@@ -52,6 +53,7 @@ import './dashboard.css'
 
 const EMPTY_FILTERS = {
   search: '',
+  search_by: '',
   status: '',
   period: 'all',
   ...periodRange('all'),
@@ -278,6 +280,7 @@ function Dashboard({
         'period',
         'date_from',
         'date_to',
+        'search_by',
         // Near Due SLA has its own visible toggle, so do not duplicate it
         // inside the generic Filters count badge.
         'sla_due_within_hours',
@@ -788,10 +791,7 @@ function Dashboard({
     )
 
     setPage(0)
-    setSelectedConversationId('')
-    setDetail(null)
-    setNotes([])
-    setMobilePane('list')
+    clearBulkSelection()
   }
 
   function resetFilters() {
@@ -859,6 +859,29 @@ function Dashboard({
       setActionError(
         caughtError.message ||
           'Unable to assign conversation.',
+      )
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  async function handleUnassign() {
+    if (!selectedConversationId) {
+      return
+    }
+
+    setIsSubmitting(true)
+    setActionError('')
+
+    try {
+      await unassignConversation(
+        selectedConversationId,
+      )
+      await refreshSelectedConversation()
+    } catch (caughtError) {
+      setActionError(
+        caughtError.message ||
+          'Unable to unassign conversation.',
       )
     } finally {
       setIsSubmitting(false)
@@ -1209,7 +1232,9 @@ function Dashboard({
             isBulkAssigning={
               isSubmitting
             }
+            error={listError}
             search={filters.search}
+            searchBy={filters.search_by}
             activeFilterCount={
               activeFilterCount
             }
@@ -1218,10 +1243,21 @@ function Dashboard({
                 filters.sla_due_within_hours,
               ) === 2
             }
-            onSearch={(searchValue) =>
+            onSearch={(
+              searchValue,
+              searchByValue,
+            ) =>
+              changeFilter({
+                search:
+                  searchValue.trim(),
+                search_by:
+                  searchByValue,
+              })
+            }
+            onSearchByChange={(value) =>
               changeFilter(
-                'search',
-                searchValue.trim(),
+                'search_by',
+                value,
               )
             }
             onToggleNearDue={
@@ -1260,15 +1296,6 @@ function Dashboard({
           />
         ) : null}
 
-        {listError ? (
-          <p
-            className="form-message error management-error"
-            role="alert"
-          >
-            {listError}
-          </p>
-        ) : null}
-
         {hasSelectedConversation ? (
           <>
             {isListPaneOpen ? (
@@ -1290,6 +1317,7 @@ function Dashboard({
                 />
               ) : (
                 <ConversationDetail
+                  currentUser={currentUser}
                   detail={
                     visibleConversation
                   }
@@ -1344,6 +1372,9 @@ function Dashboard({
                   onAssign={
                     handleAssign
                   }
+                  onUnassign={
+                    handleUnassign
+                  }
                   onAddNote={
                     handleAddNote
                   }
@@ -1379,6 +1410,7 @@ function Dashboard({
                 />
 
                 <DetailsPanel
+                  currentUser={currentUser}
                   detail={
                     visibleConversation
                   }
@@ -1399,6 +1431,9 @@ function Dashboard({
                   }
                   onAssign={
                     handleAssign
+                  }
+                  onUnassign={
+                    handleUnassign
                   }
                   onAddNote={
                     handleAddNote

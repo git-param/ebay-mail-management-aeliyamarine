@@ -14,10 +14,13 @@ export default function MessageTypeSelector({
   messageTypes,
   categoryId,
   subtypeId,
+  showRequiredError,
   onCategoryChange,
   onSubtypeChange,
 }) {
   const category = messageTypes.find((item) => item.id === categoryId)
+  const categoryIsMissing = showRequiredError && !categoryId
+  const subtypeIsMissing = showRequiredError && Boolean(category?.children?.length) && !subtypeId
 
   useEffect(() => {
     onCategoryChange('')
@@ -41,10 +44,11 @@ export default function MessageTypeSelector({
 
   return (
     <>
-      <label className="composer-select-control">
+      <label className={`composer-select-control${categoryIsMissing ? ' has-error' : ''}`}>
         <span>Message Type *</span>
         <select
           value={categoryId}
+          aria-invalid={categoryIsMissing}
           onChange={(event) => {
             onCategoryChange(event.target.value)
             onSubtypeChange('')
@@ -55,9 +59,13 @@ export default function MessageTypeSelector({
         </select>
       </label>
       {category?.children?.length ? (
-        <label className="composer-select-control">
+        <label className={`composer-select-control${subtypeIsMissing ? ' has-error' : ''}`}>
           <span>Sub Type *</span>
-          <select value={subtypeId} onChange={(event) => onSubtypeChange(event.target.value)}>
+          <select
+            value={subtypeId}
+            aria-invalid={subtypeIsMissing}
+            onChange={(event) => onSubtypeChange(event.target.value)}
+          >
             <option value="">Select subtype</option>
             {category.children.map((item) => <option value={item.id} key={item.id}>{item.name}</option>)}
           </select>

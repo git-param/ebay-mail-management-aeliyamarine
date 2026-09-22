@@ -6,7 +6,7 @@ import './app_layout.css'
 
 const NAV_ITEMS = [
   {
-    label: 'Inbox',
+    label: 'Messages',
     path: '/inbox',
     icon: 'home',
     roles: ['ADMIN', 'OPS_MANAGER', 'AGENT'],
@@ -33,7 +33,7 @@ const NAV_ITEMS = [
     label: 'Templates',
     path: '/templates',
     icon: 'message',
-    roles: ['ADMIN', 'OPS_MANAGER'],
+    roles: ['ADMIN', 'OPS_MANAGER', 'AGENT'],
   },
   {
     label: 'Analytics',

@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import and_, exists, func, or_, select
+from sqlalchemy import and_, exists, false, func, or_, select
 from sqlalchemy.orm import (
     Session,
     joinedload,
@@ -19,6 +19,12 @@ from app.models.conversation import (
     Message,
     MessageAttachment,
 )
+from app.models.order_context import (
+    ConversationOrderContext,
+    ConversationProductContext,
+    EbayOrder,
+    EbayOrderLineItem,
+)
 
 
 class ConversationRepository:
@@ -31,6 +37,7 @@ class ConversationRepository:
         limit: int | None = None,
         offset: int = 0,
         search: str | None = None,
+        search_by: str | None = None,
         status: ConversationStatus | None = None,
         provider: str | None = None,
         conversation_type: str | None = None,
@@ -51,6 +58,7 @@ class ConversationRepository:
         statement = (
             self._filtered_statement(
                 search=search,
+                search_by=search_by,
                 status=status,
                 provider=provider,
                 conversation_type=conversation_type,
@@ -108,6 +116,7 @@ class ConversationRepository:
         self,
         *,
         search: str | None = None,
+        search_by: str | None = None,
         status: ConversationStatus | None = None,
         provider: str | None = None,
         conversation_type: str | None = None,
@@ -122,6 +131,7 @@ class ConversationRepository:
         """Count conversations using the same filters as the list endpoint."""
         statement = self._filtered_statement(
             search=search,
+            search_by=search_by,
             status=status,
             provider=provider,
             conversation_type=conversation_type,
@@ -147,6 +157,7 @@ class ConversationRepository:
         self,
         *,
         search: str | None = None,
+        search_by: str | None = None,
         status: ConversationStatus | None = None,
         provider: str | None = None,
         conversation_type: str | None = None,
@@ -165,6 +176,7 @@ class ConversationRepository:
         statement = (
             self._filtered_statement(
                 search=search,
+                search_by=search_by,
                 status=status,
                 provider=provider,
                 conversation_type=conversation_type,
@@ -305,6 +317,7 @@ class ConversationRepository:
         self,
         *,
         search: str | None = None,
+        search_by: str | None = None,
         status: ConversationStatus | None = None,
         provider: str | None = None,
         conversation_type: str | None = None,
@@ -375,8 +388,213 @@ class ConversationRepository:
                 )
             )
 
-            statement = statement.where(
-                or_(
+            order_context_match = exists(
+                select(ConversationOrderContext.id)
+                .where(
+                    ConversationOrderContext.conversation_id
+                    == Conversation.id
+                )
+                .where(
+                    or_(
+                        ConversationOrderContext.ebay_order_id.ilike(
+                            normalized_search
+                        ),
+                        ConversationOrderContext.legacy_order_id.ilike(
+                            normalized_search
+                        ),
+                    )
+                )
+            )
+
+            order_match = exists(
+                select(EbayOrder.id)
+                .where(
+                    EbayOrder.id
+                    == Conversation.linked_order_record_id
+                )
+                .where(
+                    EbayOrder.order_id.ilike(
+                        normalized_search
+                    )
+                )
+            )
+
+            mapped_order_match = exists(
+                select(EbayOrder.id)
+                .join(
+                    ConversationOrderContext,
+                    ConversationOrderContext.order_record_id
+                    == EbayOrder.id,
+                )
+                .where(
+                    ConversationOrderContext.conversation_id
+                    == Conversation.id
+                )
+                .where(
+                    EbayOrder.order_id.ilike(
+                        normalized_search
+                    )
+                )
+            )
+
+            product_order_context_match = exists(
+                select(ConversationProductContext.id)
+                .where(
+                    ConversationProductContext.conversation_id
+                    == Conversation.id
+                )
+                .where(
+                    ConversationProductContext.order_id.ilike(
+                        normalized_search
+                    )
+                )
+            )
+
+            referenced_order_line_match = exists(
+                select(EbayOrderLineItem.id)
+                .where(
+                    EbayOrderLineItem.account_id
+                    == Conversation.provider_account_id
+                )
+                .where(
+                    or_(
+                        EbayOrderLineItem.item_id
+                        == Conversation.reference_id,
+                        EbayOrderLineItem.listing_id
+                        == Conversation.reference_id,
+                    )
+                )
+                .where(
+                    EbayOrderLineItem.order_id.ilike(
+                        normalized_search
+                    )
+                )
+            )
+
+            sku_order_context_match = exists(
+                select(ConversationOrderContext.id)
+                .where(
+                    ConversationOrderContext.conversation_id
+                    == Conversation.id
+                )
+                .where(
+                    or_(
+                        ConversationOrderContext.sku.ilike(
+                            normalized_search
+                        ),
+                        ConversationOrderContext.inventory_id.ilike(
+                            normalized_search
+                        ),
+                    )
+                )
+            )
+
+            sku_product_context_match = exists(
+                select(ConversationProductContext.id)
+                .where(
+                    ConversationProductContext.conversation_id
+                    == Conversation.id
+                )
+                .where(
+                    ConversationProductContext.sku.ilike(
+                        normalized_search
+                    )
+                )
+            )
+
+            sku_line_item_match = exists(
+                select(EbayOrderLineItem.id)
+                .where(
+                    EbayOrderLineItem.order_record_id
+                    == Conversation.linked_order_record_id
+                )
+                .where(
+                    EbayOrderLineItem.sku.ilike(
+                        normalized_search
+                    )
+                )
+            )
+
+            referenced_sku_line_match = exists(
+                select(EbayOrderLineItem.id)
+                .where(
+                    EbayOrderLineItem.account_id
+                    == Conversation.provider_account_id
+                )
+                .where(
+                    or_(
+                        EbayOrderLineItem.item_id
+                        == Conversation.reference_id,
+                        EbayOrderLineItem.listing_id
+                        == Conversation.reference_id,
+                    )
+                )
+                .where(
+                    EbayOrderLineItem.sku.ilike(
+                        normalized_search
+                    )
+                )
+            )
+
+            item_line_item_match = exists(
+                select(EbayOrderLineItem.id)
+                .where(
+                    EbayOrderLineItem.order_record_id
+                    == Conversation.linked_order_record_id
+                )
+                .where(
+                    or_(
+                        EbayOrderLineItem.item_id.ilike(
+                            normalized_search
+                        ),
+                        EbayOrderLineItem.listing_id.ilike(
+                            normalized_search
+                        ),
+                    )
+                )
+            )
+
+            search_filters = {
+                'buyer_name': [
+                    Conversation.buyer_identifier.ilike(
+                        normalized_search
+                    ),
+                    exists(
+                        select(ConversationOrderContext.id)
+                        .where(
+                            ConversationOrderContext.conversation_id
+                            == Conversation.id
+                        )
+                        .where(
+                            ConversationOrderContext.buyer_username.ilike(
+                                normalized_search
+                            )
+                        )
+                    ),
+                ],
+                'item_number': [
+                    Conversation.reference_id.ilike(
+                        normalized_search
+                    ),
+                    item_line_item_match,
+                ],
+                'order_id': [
+                    order_context_match,
+                    order_match,
+                    mapped_order_match,
+                    product_order_context_match,
+                    referenced_order_line_match,
+                ],
+                'message_content': [
+                    message_match,
+                ],
+                'sku': [
+                    sku_order_context_match,
+                    sku_product_context_match,
+                    sku_line_item_match,
+                    referenced_sku_line_match,
+                ],
+                'everything': [
                     Conversation.subject.ilike(
                         normalized_search
                     ),
@@ -391,6 +609,36 @@ class ConversationRepository:
                     ),
                     message_match,
                     note_match,
+                    order_context_match,
+                    order_match,
+                    mapped_order_match,
+                    product_order_context_match,
+                    referenced_order_line_match,
+                    sku_order_context_match,
+                    sku_product_context_match,
+                    sku_line_item_match,
+                    referenced_sku_line_match,
+                    item_line_item_match,
+                ],
+            }
+
+            selected_search_by = (
+                search_by or 'everything'
+            ).strip().lower()
+
+            selected_filters = search_filters.get(
+                selected_search_by
+            )
+
+            # A supplied scope must never broaden into an Everything search.
+            # The API validates known values; this guard also protects direct
+            # repository callers from accidentally matching message content.
+            if selected_filters is None:
+                selected_filters = [false()]
+
+            statement = statement.where(
+                or_(
+                    *selected_filters
                 )
             )
 

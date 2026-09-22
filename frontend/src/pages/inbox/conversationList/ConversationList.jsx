@@ -1,4 +1,8 @@
-import { useEffect, useState } from 'react'
+import {
+  useEffect,
+  useRef,
+  useState,
+} from 'react'
 
 import { Icon } from '../../../layouts/app_layout'
 import BulkAssignBar from './BulkAssignBar'
@@ -6,6 +10,25 @@ import ConversationRow from './ConversationRow'
 import InboxPagination from './InboxPagination'
 
 import './conversationList.css'
+
+const SEARCH_BY_OPTIONS = [
+  ['buyer_name', 'Buyer name'],
+  ['item_number', 'Item number'],
+  ['order_id', 'Order ID'],
+  ['message_content', 'Text message content'],
+  ['sku', 'SKU'],
+  ['everything', 'Everything'],
+]
+
+const SEARCH_PLACEHOLDERS = {
+  '': 'Enter a keyword to search',
+  buyer_name: 'Search buyer name',
+  item_number: 'Search item number',
+  order_id: 'Search order ID',
+  message_content: 'Search text message content',
+  sku: 'Search SKU',
+  everything: 'Search buyer, item, order, SKU, or message',
+}
 
 function EmptyPanel({
   title,
@@ -33,12 +56,15 @@ function ConversationList({
   bulkAssignError,
   isLoading,
   isBulkAssigning,
+  error,
   search,
+  searchBy,
   activeFilterCount = 0,
   nearDueActive = false,
   unreadActive = false,
   breakAction = null,
   onSearch,
+  onSearchByChange,
   onToggleNearDue,
   onToggleUnread,
   onRefresh,
@@ -53,22 +79,73 @@ function ConversationList({
 }) {
   const [searchInput, setSearchInput] =
     useState(search || '')
+  const [isSearchByOpen, setIsSearchByOpen] =
+    useState(false)
+  const searchByRef = useRef(null)
+
+  const selectedSearchOption =
+    SEARCH_BY_OPTIONS.find(
+      ([value]) => value === searchBy,
+    )
 
   useEffect(() => {
     setSearchInput(search || '')
   }, [search])
+
+  useEffect(() => {
+    function closeSearchBy(event) {
+      if (
+        !searchByRef.current?.contains(
+          event.target,
+        )
+      ) {
+        setIsSearchByOpen(false)
+      }
+    }
+
+    function closeSearchByOnEscape(event) {
+      if (event.key === 'Escape') {
+        setIsSearchByOpen(false)
+      }
+    }
+
+    document.addEventListener(
+      'mousedown',
+      closeSearchBy,
+    )
+    document.addEventListener(
+      'keydown',
+      closeSearchByOnEscape,
+    )
+
+    return () => {
+      document.removeEventListener(
+        'mousedown',
+        closeSearchBy,
+      )
+      document.removeEventListener(
+        'keydown',
+        closeSearchByOnEscape,
+      )
+    }
+  }, [])
 
   const selectedCount =
     selectedConversationIds?.size || 0
 
   function submitSearch(event) {
     event.preventDefault()
-    onSearch(searchInput)
+
+    if (!searchBy || !searchInput.trim()) {
+      return
+    }
+
+    onSearch(searchInput, searchBy)
   }
 
   function clearSearch() {
     setSearchInput('')
-    onSearch('')
+    onSearch('', searchBy)
   }
 
   return (
@@ -155,13 +232,76 @@ function ConversationList({
         className="inbox-search-bar"
         onSubmit={submitSearch}
       >
+        <div
+          className="inbox-search-by"
+          ref={searchByRef}
+        >
+          <button
+            className={`inbox-search-by-trigger${isSearchByOpen ? ' open' : ''}${searchBy ? ' selected' : ''}`}
+            type="button"
+            aria-haspopup="listbox"
+            aria-expanded={isSearchByOpen}
+            onClick={() =>
+              setIsSearchByOpen(
+                (current) => !current,
+              )
+            }
+          >
+            <span>
+              {selectedSearchOption?.[1] ||
+                'Search by'}
+            </span>
+            <Icon name="chevron" />
+          </button>
+
+          {isSearchByOpen ? (
+            <div
+              className="inbox-search-by-menu"
+              role="listbox"
+              aria-label="Search by"
+            >
+              {SEARCH_BY_OPTIONS.map(
+                ([value, label]) => (
+                  <button
+                    className={
+                      value === searchBy
+                        ? 'selected'
+                        : ''
+                    }
+                    type="button"
+                    role="option"
+                    aria-selected={
+                      value === searchBy
+                    }
+                    value={value}
+                    key={value}
+                    onClick={() => {
+                      onSearchByChange(value)
+                      setIsSearchByOpen(false)
+                    }}
+                >
+                    <span>{label}</span>
+                    {value === searchBy ? (
+                      <Icon name="activate" />
+                    ) : null}
+                  </button>
+                ),
+              )}
+            </div>
+          ) : null}
+        </div>
+
         <div className="inbox-search-input">
           <Icon name="search" />
 
           <input
-            type="search"
+            type="text"
             value={searchInput}
-            placeholder="Search buyer, subject, item, or message"
+            placeholder={
+              SEARCH_PLACEHOLDERS[
+                searchBy
+              ]
+            }
             onChange={(event) =>
               setSearchInput(
                 event.target.value,
@@ -184,6 +324,10 @@ function ConversationList({
         <button
           className="primary-button compact"
           type="submit"
+          disabled={
+            !searchBy ||
+            !searchInput.trim()
+          }
         >
           Search
         </button>
@@ -214,8 +358,16 @@ function ConversationList({
         </div>
 
         <div className="conversation-list">
+          {error ? (
+            <EmptyPanel
+              title="Unable to load conversations"
+              message={error}
+            />
+          ) : null}
+
           {isLoading &&
-          !conversations.length ? (
+          !conversations.length &&
+          !error ? (
             <EmptyPanel
               title="Loading conversations..."
               message="Please wait while the inbox is refreshed."
@@ -223,14 +375,15 @@ function ConversationList({
           ) : null}
 
           {!isLoading &&
-          !conversations.length ? (
+          !conversations.length &&
+          !error ? (
             <EmptyPanel
               title="No conversations found"
               message="Try changing your search or inbox filters."
             />
           ) : null}
 
-          {conversations.map(
+          {!error ? conversations.map(
             (conversation) => (
               <ConversationRow
                 conversation={conversation}
@@ -252,7 +405,7 @@ function ConversationList({
                 key={conversation.id}
               />
             ),
-          )}
+          ) : null}
         </div>
       </div>
 

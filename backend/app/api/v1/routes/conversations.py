@@ -1,6 +1,7 @@
 from html.parser import HTMLParser
 from multiprocessing import context
 from datetime import UTC, date, datetime, time, timedelta
+from typing import Literal
 from uuid import UUID
 
 import requests
@@ -484,10 +485,15 @@ def offer_timestamp_from_raw_payload(payload, offer: Offer | None = None) -> dat
     if not isinstance(payload, dict):
         return None
 
-    for key in ("createdTime", "createdDate", "sent_at", "sentAt", "timestamp"):
-        parsed = parse_offer_payload_datetime(payload.get(key))
-        if parsed:
-            return parsed
+    is_derived_seller_counteroffer_submission = (
+        payload.get("derivedEvent") == "SELLER_COUNTEROFFER_SUBMITTED"
+    )
+
+    if not is_derived_seller_counteroffer_submission:
+        for key in ("createdTime", "createdDate", "sent_at", "sentAt", "timestamp"):
+            parsed = parse_offer_payload_datetime(payload.get(key))
+            if parsed:
+                return parsed
 
     posted_time = payload.get("messagePostedTime")
     if isinstance(posted_time, dict):
@@ -1085,6 +1091,7 @@ def list_conversations(
     limit: int = Query(default=25, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
     search: str | None = Query(default=None, min_length=1),
+    search_by: Literal['buyer_name', 'item_number', 'order_id', 'message_content', 'sku', 'everything'] = Query(default='everything'),
     status: ConversationStatus | None = Query(default=None),
     provider: str | None = Query(default=None, min_length=1),
     conversation_type: str | None = Query(default=None, min_length=1),
@@ -1111,6 +1118,7 @@ def list_conversations(
         limit=limit,
         offset=offset,
         search=search,
+        search_by=search_by,
         status=status,
         provider=provider,
         conversation_type=conversation_type,
@@ -1130,6 +1138,7 @@ def list_conversations(
         ],
         total=service.count_conversations(
             search=search,
+            search_by=search_by,
             status=status,
             provider=provider,
             conversation_type=conversation_type,
@@ -1355,6 +1364,52 @@ def assign_conversation(
         entity_id=conversation_id,
         category='ASSIGNMENT',
         metadata={'assigned_to': str(payload.assigned_to)},
+    )
+    db.commit()
+    db.refresh(assignment)
+    return serialize_assignment(assignment)
+
+
+@router.post('/{conversation_id}/unassign', response_model=ConversationAssignmentResponse)
+def unassign_conversation(
+    conversation_id: UUID,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_conversation_access),
+) -> ConversationAssignmentResponse:
+    conversation = ConversationService(db).get_conversation(conversation_id)
+    assignment_service = AssignmentService(db)
+    assignment = assignment_service.repository.get_current_assignment(conversation_id)
+
+    if not assignment:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail='Conversation is not currently assigned',
+        )
+
+    can_unassign = (
+        assignment.assigned_to == current_user.id
+        or is_admin(current_user)
+        or is_operations_manager(current_user)
+    )
+    if not can_unassign:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail='Only the current assignee, an admin, or an operations manager can unassign this conversation',
+        )
+
+    assignment = assignment_service.unassign_conversation(
+        conversation_id=conversation_id,
+    )
+    AuditService(db).log(
+        action='CONVERSATION_UNASSIGNED',
+        user_id=current_user.id,
+        entity_type='CONVERSATION',
+        entity_id=conversation_id,
+        category='ASSIGNMENT',
+        metadata={
+            'previous_assignee': str(assignment.assigned_to),
+            'self_unassigned': assignment.assigned_to == current_user.id,
+        },
     )
     db.commit()
     db.refresh(assignment)
