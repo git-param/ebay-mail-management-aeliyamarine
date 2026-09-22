@@ -90,8 +90,6 @@ class OfferManagementService:
             merged.get('revised_price'),
             merged.get('automated_offer_price'),
             merged.get('buyer_offer_price'),
-            merged.get('counteroffer_price'),
-            merged.get('final_price'),
             threshold=threshold,
             quantity=quantity,
         )
@@ -99,12 +97,6 @@ class OfferManagementService:
 
     def create(self, payload: OfferEntryCreate, user) -> OfferManagementEntry:
         values = self._prepare_values(payload, user)
-        existing = self.repo.get_by_listing_id(values['listing_id'])
-        if existing:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=f'Entry for listing {values["listing_id"]} is already done as entry #{existing.entry_number}. Please edit it from the list below.',
-            )
         entry = OfferManagementEntry(
             **values,
             entry_number=self.repo.next_entry_number(),

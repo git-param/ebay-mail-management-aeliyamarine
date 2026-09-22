@@ -24,8 +24,7 @@ class OfferEntryBase(BaseModel):
     revised_price: Decimal | None = None
     automated_offer_price: Decimal | None = None
     buyer_offer_price: Decimal | None = None
-    counteroffer_price: Decimal | None = None
-    final_price: Decimal | None = None
+    offered_price: str | None = None
     buyer_id: str | None = None
     status: OfferManagementStatus = OfferManagementStatus.OPEN
     outcome: OfferManagementOutcome = OfferManagementOutcome.PENDING
@@ -50,7 +49,7 @@ class OfferEntryBase(BaseModel):
             raise ValueError('Currency must be an ISO-style code.')
         return code
 
-    @field_validator('listed_price', 'revised_price', 'automated_offer_price', 'buyer_offer_price', 'counteroffer_price', 'final_price')
+    @field_validator('listed_price', 'revised_price', 'automated_offer_price', 'buyer_offer_price')
     @classmethod
     def validate_money(cls, value):
         if value is not None and value < 0:
@@ -85,8 +84,7 @@ class OfferEntryUpdate(BaseModel):
     revised_price: Decimal | None = Field(default=None)
     automated_offer_price: Decimal | None = Field(default=None)
     buyer_offer_price: Decimal | None = Field(default=None)
-    counteroffer_price: Decimal | None = Field(default=None)
-    final_price: Decimal | None = Field(default=None)
+    offered_price: str | None = None
     buyer_id: str | None = None
     status: OfferManagementStatus | None = None
     outcome: OfferManagementOutcome | None = None

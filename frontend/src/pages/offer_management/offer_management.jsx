@@ -32,8 +32,7 @@ const blankEntry = {
   revised_price: '',
   automated_offer_price: '',
   buyer_offer_price: '',
-  counteroffer_price: '',
-  final_price: '',
+  offered_price: '',
   buyer_id: '',
   status: 'OPEN',
   outcome: 'PENDING',
@@ -247,7 +246,7 @@ function OfferForm({ entry, lookups, accounts, onCancel, onSaved }) {
           <section className="offer-form-section">
             <h3>Offer Details</h3>
             <div className="form-grid">
-              {field('offer_date', 'Offer date', 'date')}{field('buyer_id', 'Buyer ID')}{field('offer_quantity', 'Offer quantity', 'number')}{field('automated_offer_price', 'Automated offer', 'number')}{field('buyer_offer_price', 'Buyer offer', 'number')}{field('revised_price', 'Revised price', 'number')}{field('counteroffer_price', 'Counteroffer/best price', 'number')}{field('final_price', 'Final agreed price', 'number')}
+              {field('offer_date', 'Offer date', 'date')}{field('buyer_id', 'Buyer ID')}{field('offer_quantity', 'Offer quantity', 'number')}{field('automated_offer_price', 'Automated offer', 'number')}{field('buyer_offer_price', 'Buyer offer', 'number')}{field('revised_price', 'Revised price', 'number')}{field('offered_price', 'Offered price')}
               <label className="field"><span>Status</span><select value={form.status} onChange={(event) => update('status', event.target.value)}>{OFFER_STATUSES.map((item) => <option key={item} value={item}>{label(item)}</option>)}</select></label>
               <label className="field"><span>Outcome</span><select value={form.outcome || ''} required={form.status === 'CLOSED'} onChange={(event) => update('outcome', event.target.value)}><option value={form.status === 'CLOSED' ? '' : 'PENDING'}>{form.status === 'CLOSED' ? 'Select outcome' : 'Pending'}</option>{OFFER_OUTCOMES.map((item) => <option key={item} value={item}>{label(item)}</option>)}</select></label>
               <label className="field"><span>Next offer follow-up</span><input type="date" value={form.next_offer_followup || ''} disabled={form.status === 'CLOSED'} onChange={(event) => update('next_offer_followup', event.target.value)} /></label>
@@ -265,7 +264,7 @@ function OfferForm({ entry, lookups, accounts, onCancel, onSaved }) {
 
 function PreviewDrawer({ entry, history, canDelete, onClose, onEdit, onDelete }) {
   if (!entry) return null
-  return <div className="drawer-backdrop" role="presentation"><aside className="user-drawer offer-preview-drawer"><div className="drawer-header"><h2>Entry #{entry.entry_number}</h2><button className="icon-button" type="button" onClick={onClose}><Icon name="close" /></button></div><div className="drawer-profile"><h3>{entry.product_title || entry.listing_id}</h3><p>{entry.agent_name || 'Agent'} · {entry.ebay_account_name}</p><div className="badge-row"><Badge value={entry.status} /><Badge value={entry.outcome} />{entry.is_high_value ? <Badge value="High Value" tone="active" /> : null}</div></div><section className="drawer-section"><h3>Listing</h3><p>{entry.listing_id} · {entry.sku || 'No SKU'}</p><p>{entry.condition || 'No condition'} · Qty {entry.listing_quantity || '—'}</p></section><section className="drawer-section"><h3>Price Progression</h3><p>{money(entry.listed_price, entry.currency)} → {money(entry.buyer_offer_price, entry.currency)} → {money(entry.counteroffer_price, entry.currency)} → {money(entry.final_price, entry.currency)}</p></section><section className="drawer-section"><h3>Follow-ups</h3><p>Next: {entry.next_offer_followup || '—'}</p><p>1: {entry.follow_up_1_notes || '—'}</p><p>2: {entry.follow_up_2_notes || '—'}</p></section><section className="drawer-section"><h3>Remarks</h3><p className="drawer-note">{entry.remarks || 'No remarks added.'}</p></section><section className="drawer-section"><h3>Change History</h3>{history?.length ? history.slice(0, 5).map((item) => <p key={item.id}>{item.action} · {item.changed_by_name || 'System'} · {new Date(item.changed_at).toLocaleString()}</p>) : <p>No history available.</p>}</section><div className="modal-actions offer-icon-actions"><ActionIcon title="Edit" icon="edit" tone="edit" onClick={onEdit} />{canDelete ? <ActionIcon title="Delete" icon="trash" tone="delete" onClick={() => onDelete(entry)} /> : null}{entry.listing_url ? <ActionIcon title="Open eBay Listing" icon="external" tone="external" href={entry.listing_url} external /> : null}{entry.related_conversation_id ? <ActionIcon title="Open Related Conversation" icon="message" tone="conversation" href={`/inbox?conversation_id=${entry.related_conversation_id}`} /> : null}</div></aside></div>
+return <div className="drawer-backdrop" role="presentation"><aside className="user-drawer offer-preview-drawer"><div className="drawer-header"><h2>Entry #{entry.entry_number}</h2><button className="icon-button" type="button" onClick={onClose}><Icon name="close" /></button></div><div className="drawer-profile"><h3>{entry.product_title || entry.listing_id}</h3><p>{entry.agent_name || 'Agent'} · {entry.ebay_account_name}</p><div className="badge-row"><Badge value={entry.status} /><Badge value={entry.outcome} />{entry.is_high_value ? <Badge value="High Value" tone="active" /> : null}</div></div><section className="drawer-section"><h3>Listing</h3><p>{entry.listing_id} · {entry.sku || 'No SKU'}</p><p>{entry.condition || 'No condition'} · Qty {entry.listing_quantity || '—'}</p></section><section className="drawer-section"><h3>Price Progression</h3><p>{money(entry.listed_price, entry.currency)} → {money(entry.buyer_offer_price, entry.currency)} → {entry.offered_price || '-'}</p></section><section className="drawer-section"><h3>Follow-ups</h3><p>Next: {entry.next_offer_followup || '—'}</p><p>1: {entry.follow_up_1_notes || '—'}</p><p>2: {entry.follow_up_2_notes || '—'}</p></section><section className="drawer-section"><h3>Remarks</h3><p className="drawer-note">{entry.remarks || 'No remarks added.'}</p></section><section className="drawer-section"><h3>Change History</h3>{history?.length ? history.slice(0, 5).map((item) => <p key={item.id}>{item.action} · {item.changed_by_name || 'System'} · {new Date(item.changed_at).toLocaleString()}</p>) : <p>No history available.</p>}</section><div className="modal-actions offer-icon-actions"><ActionIcon title="Edit" icon="edit" tone="edit" onClick={onEdit} />{canDelete ? <ActionIcon title="Delete" icon="trash" tone="delete" onClick={() => onDelete(entry)} /> : null}{entry.listing_url ? <ActionIcon title="Open eBay Listing" icon="external" tone="external" href={entry.listing_url} external /> : null}{entry.related_conversation_id ? <ActionIcon title="Open Related Conversation" icon="message" tone="conversation" href={`/inbox?conversation_id=${entry.related_conversation_id}`} /> : null}</div></aside></div>
 }
 
 export default function OfferManagement({ currentUser, onLogout }) {
@@ -583,7 +582,7 @@ export default function OfferManagement({ currentUser, onLogout }) {
     'Buyer',
     'Listed Price',
     'Buyer Offer',
-    'Best/Counteroffer',
+    'Offered Price',
     'Quantity',
     'Status',
     'Follow-up',
@@ -890,10 +889,7 @@ export default function OfferManagement({ currentUser, onLogout }) {
                       </td>
 
                       <td>
-                        {money(
-                          entry.counteroffer_price,
-                          entry.currency,
-                        )}
+                        {entry.offered_price || '—'}
                       </td>
 
                       <td>

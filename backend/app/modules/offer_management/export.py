@@ -22,8 +22,7 @@ EXPORT_COLUMNS = [
     ('Revised Price', 'revised_price'),
     ('Automated Offer', 'automated_offer_price'),
     ('Buyer Offer', 'buyer_offer_price'),
-    ('Counteroffer/Best Price', 'counteroffer_price'),
-    ('Final Price', 'final_price'),
+    ('Offered Price', 'offered_price'),
     ('Buyer ID', 'buyer_id'),
     ('Status', 'status'),
     ('Outcome', 'outcome'),
@@ -61,7 +60,7 @@ def export_entries(entries) -> BytesIO:
         cell.fill = PatternFill('solid', fgColor='1F2937')
     sheet.freeze_panes = 'A2'
     sheet.auto_filter.ref = f'A1:{get_column_letter(len(EXPORT_COLUMNS))}1'
-    money_fields = {'listed_price', 'revised_price', 'automated_offer_price', 'buyer_offer_price', 'counteroffer_price', 'final_price'}
+    money_fields = {'listed_price', 'revised_price', 'automated_offer_price', 'buyer_offer_price'}
     wrap_fields = {'product_title', 'remarks', 'follow_up_1_notes', 'follow_up_2_notes'}
     for entry in entries:
         row = []
