@@ -224,7 +224,7 @@ function InlineOfferSelect({
   )
 }
 
-function OfferForm({ entry, lookups, accounts, onCancel, onSaved }) {
+function OfferForm({ entry, lookups, accounts, initialFieldError = null, onCancel, onSaved }) {
   const [form, setForm] = useState(() => normalizeOfferForm(entry))
   const [lookupText, setLookupText] = useState(entry?.listing_id || '')
   const [lookupResult, setLookupResult] = useState(null)
@@ -232,6 +232,9 @@ function OfferForm({ entry, lookups, accounts, onCancel, onSaved }) {
   const [saving, setSaving] = useState(false)
   const [fetching, setFetching] = useState(false)
   const [duplicateNotice, setDuplicateNotice] = useState(null)
+  const [fieldErrors, setFieldErrors] = useState(() => (
+    initialFieldError?.field ? { [initialFieldError.field]: initialFieldError.message } : {}
+  ))
   const accountOptions = useMemo(() => {
     const items = [...accounts]
     if (form.ebay_account_id && !items.some((account) => account.id === form.ebay_account_id)) {
@@ -243,7 +246,31 @@ function OfferForm({ entry, lookups, accounts, onCancel, onSaved }) {
     return items
   }, [accounts, form.ebay_account_id, form.ebay_account_name])
 
+  function focusField(key) {
+    window.requestAnimationFrame(() => {
+      const control = document.querySelector(`[data-offer-field="${key}"]`)
+      control?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      control?.focus({ preventScroll: true })
+    })
+  }
+
+  function showFieldError(key, message) {
+    setFieldErrors((current) => ({ ...current, [key]: message }))
+    setError('')
+    focusField(key)
+  }
+
+  useEffect(() => {
+    if (initialFieldError?.field) focusField(initialFieldError.field)
+  }, [initialFieldError])
+
   function update(key, value) {
+    setFieldErrors((current) => {
+      if (!current[key]) return current
+      const next = { ...current }
+      delete next[key]
+      return next
+    })
     setForm((current) => {
       const next = { ...current, [key]: value }
 
@@ -296,15 +323,22 @@ function OfferForm({ entry, lookups, accounts, onCancel, onSaved }) {
         listing_url: form.listing_url || (lookupText && /^\d+$/.test(lookupText) ? `https://www.ebay.com/itm/${lookupText}` : ''),
       }
       const payload = cleanPayload(nextForm)
+      if (!payload.ebay_account_id) {
+        showFieldError('ebay_account_id', 'Select a seller account before saving this offer.')
+        return
+      }
       if (!payload.currency) {
-        throw new Error('Enter a currency code.')
+        showFieldError('custom_currency', 'Enter a currency code.')
+        return
       }
       if (payload.status === 'CLOSED') {
         if (!payload.outcome || payload.outcome === 'PENDING') {
-          throw new Error('Select an outcome before closing the offer.')
+          showFieldError('outcome', 'Select an outcome before closing the offer.')
+          return
         }
         if (!String(payload.remarks || '').trim()) {
-          throw new Error('Remarks are required before closing the offer.')
+          showFieldError('remarks', 'Enter remarks before closing the offer.')
+          return
         }
       }
       if (!entry?.id && payload.listing_id) {
@@ -316,16 +350,21 @@ function OfferForm({ entry, lookups, accounts, onCancel, onSaved }) {
       const saved = entry?.id ? await updateOfferEntry(entry.id, payload) : await createOfferEntry(payload)
       onSaved(saved, preview)
     } catch (err) {
-      setError(err.message)
+      if (err.field) {
+        showFieldError(err.field, err.message)
+      } else {
+        setError(err.message)
+      }
     } finally {
       setSaving(false)
     }
   }
 
   const field = (key, title, type = 'text') => (
-    <label className="field">
+    <label className={`field ${fieldErrors[key] ? 'has-error' : ''}`}>
       <span>{title}</span>
-      <input type={type === 'number' ? 'text' : type} inputMode={type === 'number' ? 'decimal' : undefined} value={form[key] || ''} onChange={(event) => update(key, event.target.value)} />
+      <input data-offer-field={key} aria-invalid={Boolean(fieldErrors[key])} type={type === 'number' ? 'text' : type} inputMode={type === 'number' ? 'decimal' : undefined} value={form[key] || ''} onChange={(event) => update(key, event.target.value)} />
+      {fieldErrors[key] ? <small className="offer-field-error">{fieldErrors[key]}</small> : null}
     </label>
   )
 
@@ -354,10 +393,10 @@ function OfferForm({ entry, lookups, accounts, onCancel, onSaved }) {
           <section className="offer-form-section">
             <h3>Listing Details</h3>
             <div className="form-grid">
-              <label className="field"><span>Seller account</span><select value={form.ebay_account_id || ''} onChange={(event) => update('ebay_account_id', event.target.value)}><option value="">Select</option>{accountOptions.map((account) => <option key={account.id} value={account.id}>{account.account_name || account.store_name || account.ebay_username}</option>)}</select></label>
+              <label className={`field ${fieldErrors.ebay_account_id ? 'has-error' : ''}`}><span>Seller account</span><select data-offer-field="ebay_account_id" aria-invalid={Boolean(fieldErrors.ebay_account_id)} value={form.ebay_account_id || ''} onChange={(event) => update('ebay_account_id', event.target.value)}><option value="">Select</option>{accountOptions.map((account) => <option key={account.id} value={account.id}>{account.account_name || account.store_name || account.ebay_username}</option>)}</select>{fieldErrors.ebay_account_id ? <small className="offer-field-error">{fieldErrors.ebay_account_id}</small> : null}</label>
               {field('listing_id', 'Listing ID')}{field('sku', 'SKU')}{field('product_title', 'Product title')}{field('condition', 'Condition')}{field('listing_quantity', 'Listing quantity', 'number')}{field('listed_price', 'Listing price', 'number')}
               <label className="field"><span>Currency</span><select value={form.currency || 'USD'} onChange={(event) => update('currency', event.target.value)}>{(lookups.currencies || ['USD']).map((item) => <option key={item}>{item}</option>)}</select></label>
-              {form.currency === 'OTHER' ? <label className="field"><span>Currency code</span><input value={form.custom_currency || ''} maxLength="10" onChange={(event) => update('custom_currency', event.target.value.toUpperCase())} /></label> : null}
+              {form.currency === 'OTHER' ? <label className={`field ${fieldErrors.custom_currency ? 'has-error' : ''}`}><span>Currency code</span><input data-offer-field="custom_currency" aria-invalid={Boolean(fieldErrors.custom_currency)} value={form.custom_currency || ''} maxLength="10" onChange={(event) => update('custom_currency', event.target.value.toUpperCase())} />{fieldErrors.custom_currency ? <small className="offer-field-error">{fieldErrors.custom_currency}</small> : null}</label> : null}
               {field('listing_url', 'eBay URL')}
             </div>
           </section>
@@ -366,13 +405,13 @@ function OfferForm({ entry, lookups, accounts, onCancel, onSaved }) {
             <div className="form-grid">
               {field('offer_date', 'Offer date', 'date')}{field('buyer_id', 'Buyer ID')}{field('offer_quantity', 'Required quantity', 'number')}{field('automated_offer_price', 'Automated offer', 'number')}{field('buyer_offer_price', 'Buyer offer', 'number')}{field('offered_price', 'Offered price')}{field('revised_price', 'Revised price', 'number')}
               <label className="field"><span>Status</span><select value={form.status} onChange={(event) => update('status', event.target.value)}>{OFFER_STATUSES.map((item) => <option key={item} value={item}>{label(item)}</option>)}</select></label>
-              <label className="field"><span>Outcome</span><select value={form.outcome || ''} required={form.status === 'CLOSED'} onChange={(event) => update('outcome', event.target.value)}><option value={form.status === 'CLOSED' ? '' : 'PENDING'}>{form.status === 'CLOSED' ? 'Select outcome' : 'Pending'}</option>{OFFER_OUTCOMES.map((item) => <option key={item} value={item}>{label(item)}</option>)}</select></label>
+              <label className={`field ${fieldErrors.outcome ? 'has-error' : ''}`}><span>Outcome</span><select data-offer-field="outcome" aria-invalid={Boolean(fieldErrors.outcome)} value={form.outcome || ''} required={form.status === 'CLOSED'} onChange={(event) => update('outcome', event.target.value)}><option value={form.status === 'CLOSED' ? '' : 'PENDING'}>{form.status === 'CLOSED' ? 'Select outcome' : 'Pending'}</option>{OFFER_OUTCOMES.map((item) => <option key={item} value={item}>{label(item)}</option>)}</select>{fieldErrors.outcome ? <small className="offer-field-error">{fieldErrors.outcome}</small> : null}</label>
               <label className="field"><span>Next offer follow-up</span><input type="date" value={form.next_offer_followup || ''} disabled={form.status === 'CLOSED'} onChange={(event) => update('next_offer_followup', event.target.value)} /></label>
               <label className="checkbox-field"><input type="checkbox" checked={Boolean(form.is_vip_lead)} onChange={(event) => update('is_vip_lead', event.target.checked)} /> VIP lead</label>
             </div>
           </section>
           <section className="offer-form-section"><h3>Follow-ups</h3><div className="form-grid two"><label className="field"><span>Follow-up 1</span><textarea value={form.follow_up_1_notes || ''} onChange={(event) => update('follow_up_1_notes', event.target.value)} /></label><label className="field"><span>Follow-up 2</span><textarea value={form.follow_up_2_notes || ''} onChange={(event) => update('follow_up_2_notes', event.target.value)} /></label></div></section>
-          <section className="offer-form-section"><h3>Notes</h3><div className="form-grid two"><label className="field"><span>Remarks</span><textarea required={form.status === 'CLOSED'} value={form.remarks || ''} onChange={(event) => update('remarks', event.target.value)} /></label></div></section>
+          <section className="offer-form-section"><h3>Notes</h3><div className="form-grid two"><label className={`field ${fieldErrors.remarks ? 'has-error' : ''}`}><span>Remarks</span><textarea data-offer-field="remarks" aria-invalid={Boolean(fieldErrors.remarks)} required={form.status === 'CLOSED'} value={form.remarks || ''} onChange={(event) => update('remarks', event.target.value)} />{fieldErrors.remarks ? <small className="offer-field-error">{fieldErrors.remarks}</small> : null}</label></div></section>
           <div className="modal-actions"><button className="secondary-button" type="button" onClick={onCancel}>Cancel</button><button className="secondary-button action-button action-preview" type="button" disabled={saving} onClick={() => save(true)}>Save and Preview</button><button className="primary-button action-button action-save" type="button" disabled={saving} onClick={() => save(false)}>{saving ? 'Saving...' : 'Save Entry'}</button></div>
         </div>
       </section>
@@ -418,6 +457,7 @@ export default function OfferManagement({ currentUser, onLogout }) {
   const [accounts, setAccounts] = useState([])
   const [users, setUsers] = useState([])
   const [modalEntry, setModalEntry] = useState(null)
+  const [modalFieldError, setModalFieldError] = useState(null)
   const [showCreate, setShowCreate] = useState(false)
   const [selected, setSelected] = useState(null)
   const [deleteTarget, setDeleteTarget] = useState(null)
@@ -606,6 +646,7 @@ export default function OfferManagement({ currentUser, onLogout }) {
   function afterSave(saved, previewSaved = false) {
     setShowCreate(false)
     setModalEntry(null)
+    setModalFieldError(null)
     load()
 
     if (previewSaved) {
@@ -765,7 +806,12 @@ export default function OfferManagement({ currentUser, onLogout }) {
       }
       resetInlineDraft(entry, field)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unable to update offer entry.')
+      if (err.field) {
+        setModalFieldError({ field: err.field, message: err.message })
+        setModalEntry(entry)
+      } else {
+        setError(err instanceof Error ? err.message : 'Unable to update offer entry.')
+      }
     } finally {
       setSavingInlineKey('')
     }
@@ -819,8 +865,6 @@ export default function OfferManagement({ currentUser, onLogout }) {
     'Automated Offer',
     'Buyer Offer',
     'Offered Price',
-    'Quantity',
-    'Status',
     'Followup',
     'Avl Qty',
     'Req Qty',
@@ -1148,7 +1192,6 @@ export default function OfferManagement({ currentUser, onLogout }) {
                       </td>
 
                       <td>
-                        {entry.offered_price || '—'}
                         {money(
                           entry.listed_price,
                           entry.currency,
@@ -1209,7 +1252,10 @@ export default function OfferManagement({ currentUser, onLogout }) {
                             title="Edit"
                             icon="edit"
                             tone="edit"
-                            onClick={() => setModalEntry(entry)}
+                            onClick={() => {
+                              setModalFieldError(null)
+                              setModalEntry(entry)
+                            }}
                           />
 
                           {canDelete ? (
@@ -1335,7 +1381,11 @@ export default function OfferManagement({ currentUser, onLogout }) {
           entry={modalEntry}
           lookups={lookups}
           accounts={accounts}
-          onCancel={() => setModalEntry(null)}
+          initialFieldError={modalFieldError}
+          onCancel={() => {
+            setModalEntry(null)
+            setModalFieldError(null)
+          }}
           onSaved={afterSave}
         />
       ) : null}
@@ -1351,6 +1401,7 @@ export default function OfferManagement({ currentUser, onLogout }) {
             setHistory([])
           }}
           onEdit={() => {
+            setModalFieldError(null)
             setModalEntry(selected)
             setSelected(null)
           }}

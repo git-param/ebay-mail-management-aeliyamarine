@@ -8,7 +8,7 @@ from app.modules.offer_management.models import OfferManagementEntry, OfferManag
 from app.modules.offer_management.permissions import can_view_all_offer_entries, require_offer_entry_access, require_offer_entry_delete_access
 from app.modules.offer_management.repository import OfferManagementRepository
 from app.modules.offer_management.schemas import OfferEntryCreate, OfferEntryUpdate
-from app.modules.offer_management.utils import default_listing_url, extract_listing_id, is_offer_entry_high_value
+from app.modules.offer_management.utils import default_listing_url, extract_listing_id, is_high_value_amount
 from app.modules.config_management.service import ConfigService
 
 
@@ -46,7 +46,13 @@ class OfferManagementService:
             if account_id:
                 values['ebay_account_id'] = account_id
         if not account_id:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='Seller account is required.')
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={
+                    'field': 'ebay_account_id',
+                    'message': 'Select a seller account before saving this offer.',
+                },
+            )
         account = self.db.query(EbayAccount).filter(EbayAccount.id == account_id).first()
         if not account:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='The selected eBay account was not found.')
@@ -70,13 +76,19 @@ class OfferManagementService:
             if merged.get('outcome') not in self.CLOSED_OUTCOMES:
                 raise HTTPException(
                     status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                    detail='Outcome is required before closing an offer.',
+                    detail={
+                        'field': 'outcome',
+                        'message': 'Select an outcome before closing the offer.',
+                    },
                 )
 
             if not str(merged.get('remarks') or '').strip():
                 raise HTTPException(
                     status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                    detail='Remarks are required before closing an offer.',
+                    detail={
+                        'field': 'remarks',
+                        'message': 'Enter remarks before closing the offer.',
+                    },
                 )
 
             values['next_offer_followup'] = None
@@ -93,14 +105,6 @@ class OfferManagementService:
             threshold=threshold,
             quantity=quantity,
         )
-        if 'is_high_value' not in values:
-            threshold = ConfigService(self.db).get_decimal('offer.high_value_amount', default=Decimal('500'))
-            values['is_high_value'] = is_offer_entry_high_value(
-                merged.get('listed_price'),
-                merged.get('revised_price'),
-                required_quantity=merged.get('offer_quantity'),
-                threshold=threshold,
-            )
         return values
 
     def create(self, payload: OfferEntryCreate, user) -> OfferManagementEntry:

@@ -647,6 +647,22 @@
   resize: vertical;
 }
 
+.offer-entry-modal .offer-entry-form .field.has-error input,
+.offer-entry-modal .offer-entry-form .field.has-error select,
+.offer-entry-modal .offer-entry-form .field.has-error textarea {
+  border-color: #dc2626;
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.14);
+}
+
+.offer-entry-modal .offer-field-error {
+  display: block;
+  margin-top: 6px;
+  color: #b91c1c;
+  font-size: 12px;
+  font-weight: 750;
+  line-height: 1.35;
+}
+
 /* Checkbox */
 .offer-entry-modal .checkbox-field {
   min-height: 52px;

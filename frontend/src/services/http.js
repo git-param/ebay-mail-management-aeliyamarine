@@ -84,8 +84,15 @@ export async function apiRequest(path, options = {}, getErrorMessage) {
     const fallback = getErrorMessage
       ? getErrorMessage(response.status, data)
       : data.detail || data.message || `Request failed (${response.status})`
-    const error = new Error(fallback)
+    const detail = data.detail
+    const message = typeof fallback === 'string'
+      ? fallback
+      : fallback?.message || data.message || `Request failed (${response.status})`
+    const error = new Error(message)
     error.status = response.status
+    error.data = data
+    error.detail = detail
+    error.field = detail?.field || (Array.isArray(detail) ? detail[0]?.loc?.at(-1) : null) || null
     throw error
   }
 

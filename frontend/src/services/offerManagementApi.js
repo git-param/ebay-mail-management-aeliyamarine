@@ -10,7 +10,14 @@ function query(params = {}) {
 }
 
 function request(path, options = {}) {
-  return apiRequest(path, options, (status, data) => data.detail || data.message || `Offer Management request failed (${status})`)
+  return apiRequest(path, options, (status, data) => {
+    if (typeof data.detail === 'string') return data.detail
+    if (data.detail?.message) return data.detail.message
+    if (Array.isArray(data.detail)) {
+      return data.detail.map((item) => item.msg).filter(Boolean).join(' ') || `Offer Management request failed (${status})`
+    }
+    return data.message || `Offer Management request failed (${status})`
+  })
 }
 
 export function fetchOfferEntries(params) {
