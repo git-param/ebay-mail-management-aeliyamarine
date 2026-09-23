@@ -821,7 +821,9 @@ export default function OfferManagement({ currentUser, onLogout }) {
     'Offered Price',
     'Quantity',
     'Status',
-    'Follow-up',
+    'Followup',
+    'Avl Qty',
+    'Req Qty',
     'High Value',
     'Listing ID',
     'Status',
@@ -1146,6 +1148,7 @@ export default function OfferManagement({ currentUser, onLogout }) {
                       </td>
 
                       <td>
+                        {entry.offered_price || '—'}
                         {money(
                           entry.listed_price,
                           entry.currency,
@@ -1169,7 +1172,7 @@ export default function OfferManagement({ currentUser, onLogout }) {
                       </td>
 
                       <td>
-                        {entry.offered_price || '—'}
+                        <InlineOfferEditor entry={entry} field="next_offer_followup" value={entry.next_offer_followup ?? ''} placeholder="Followup" type="date" drafts={inlineDrafts} savingKey={savingInlineKey} onChange={updateInlineDraft} onSave={saveInlineDraft} onReset={resetInlineDraft} />
                       </td>
 
                       <td className="offer-qty-edit-cell">

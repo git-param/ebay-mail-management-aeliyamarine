@@ -27,7 +27,6 @@ import { fetchMessageTypeTree } from '../../services/messageTypeApi'
 import { fetchTemplates } from '../../services/templateApi'
 import { fetchUsers } from '../../services/userApi'
 import { normalizeRole } from '../../utils/roles'
-import BreakActionButton from '../break-maagement/BreakActionButton'
 
 import ConversationList from './conversationList/ConversationList'
 import InboxFiltersDrawer from './conversationList/InboxFiltersDrawer'
@@ -1266,7 +1265,6 @@ function Dashboard({
             }
             unreadActive={Boolean(filters.unread_only)}
             onToggleUnread={toggleUnreadOnly}
-            breakAction={<BreakActionButton />}
             onRefresh={
               loadConversations
             }
@@ -1486,3 +1484,4 @@ function Dashboard({
 }
 
 export default Dashboard
+

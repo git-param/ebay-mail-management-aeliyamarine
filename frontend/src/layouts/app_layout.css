@@ -187,11 +187,26 @@
   gap: 10px;
 }
 
+.top-actions .top-break-action {
+  display: inline-flex;
+  flex: 0 0 auto;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 38px;
+  white-space: nowrap;
+}
+
+.top-actions .top-break-action > span:not(.breakModule-status-dot) {
+  display: inline-block;
+  white-space: nowrap;
+}
+
 .icon-button {
   position: relative;
   display: inline-grid;
   place-items: center;
-  width: 38px;
   height: 38px;
 }
 
@@ -1108,6 +1123,16 @@ html[data-theme="dark"] :is(
     gap: 6px;
   }
 
+  .top-actions .top-break-action {
+    width: 36px;
+    min-width: 36px;
+    padding: 0;
+  }
+
+  .top-actions .top-break-action > span:not(.breakModule-status-dot) {
+    display: none;
+  }
+
 }
 
 /* ACES shell polish */
@@ -1433,3 +1458,4 @@ html[data-theme="dark"] .sidebar-brand strong {
 html[data-theme="dark"] .sidebar-brand p {
   color: #d7dce5;
 }
+

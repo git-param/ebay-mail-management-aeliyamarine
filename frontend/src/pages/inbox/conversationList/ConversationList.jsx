@@ -62,7 +62,6 @@ function ConversationList({
   activeFilterCount = 0,
   nearDueActive = false,
   unreadActive = false,
-  breakAction = null,
   onSearch,
   onSearchByChange,
   onToggleNearDue,
@@ -194,8 +193,6 @@ function ConversationList({
             <span>Near Due SLA</span>
             <span className="near-due-window">2h</span>
           </button>
-
-          {breakAction}
 
           <button
             className="secondary-button compact-action"
@@ -425,3 +422,4 @@ function ConversationList({
 
 export { EmptyPanel }
 export default ConversationList
+

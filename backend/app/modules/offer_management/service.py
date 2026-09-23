@@ -93,6 +93,14 @@ class OfferManagementService:
             threshold=threshold,
             quantity=quantity,
         )
+        if 'is_high_value' not in values:
+            threshold = ConfigService(self.db).get_decimal('offer.high_value_amount', default=Decimal('500'))
+            values['is_high_value'] = is_offer_entry_high_value(
+                merged.get('listed_price'),
+                merged.get('revised_price'),
+                required_quantity=merged.get('offer_quantity'),
+                threshold=threshold,
+            )
         return values
 
     def create(self, payload: OfferEntryCreate, user) -> OfferManagementEntry:

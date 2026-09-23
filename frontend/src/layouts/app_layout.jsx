@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 
+import BreakActionButton from '../pages/break-maagement/BreakActionButton'
 import { normalizeRole } from '../utils/roles'
 import { deleteAllNotifications, deleteNotification, fetchNotifications, markNotificationsRead } from '../services/notificationApi'
 import './app_layout.css'
@@ -354,6 +355,7 @@ function AppLayout({ activePage, children, currentUser, onLogout }) {
             <Icon name={isSidebarOpen ? 'close' : 'menu'} />
           </button>
           <div className="top-actions">
+            <BreakActionButton className="top-break-action" />
             <div className="notification-menu-wrap" ref={notificationMenuRef}>
               <button
                 className={`icon-button notification-trigger ${unreadCount ? 'has-unread' : ''}`}
@@ -444,3 +446,4 @@ function AppLayout({ activePage, children, currentUser, onLogout }) {
 }
 
 export default AppLayout
+
