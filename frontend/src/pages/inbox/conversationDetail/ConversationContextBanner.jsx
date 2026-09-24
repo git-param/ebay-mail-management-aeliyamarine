@@ -87,6 +87,60 @@ function formatContextPrice(
   }
 }
 
+function getMarketplaceHost(detail) {
+  const accountText = [
+    detail?.seller_account?.account_name,
+    detail?.seller_account?.ebay_username,
+    detail?.product_context?.seller_username,
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase()
+
+  if (
+    accountText.includes('marine') ||
+    accountText.includes('marin')
+  ) {
+    return 'www.ebay.co.uk'
+  }
+
+  if (accountText.includes('trade')) {
+    return 'www.ebay.de'
+  }
+
+  return 'www.ebay.com'
+}
+
+function localizeEbayUrl(url, marketplaceHost) {
+  if (!url) {
+    return ''
+  }
+
+  try {
+    const parsedUrl = new URL(url)
+    const hostname = parsedUrl.hostname.toLowerCase()
+
+    if (
+      hostname === 'ebay.com' ||
+      hostname.endsWith('.ebay.com') ||
+      hostname.endsWith('.ebay.co.uk') ||
+      hostname.endsWith('.ebay.de')
+    ) {
+      parsedUrl.hostname = marketplaceHost
+    }
+
+    return parsedUrl.toString()
+  } catch {
+    return String(url)
+  }
+}
+
+function buildListingUrl(listingId, marketplaceHost) {
+  return listingId
+    ? `https://${marketplaceHost}/itm/${listingId}`
+    : ''
+}
+
 function ContextItemBanner({
   context,
   actionLabel,
@@ -201,7 +255,10 @@ function ContextItemBanner({
   )
 }
 
-function OrderBanner({ order }) {
+function OrderBanner({
+  order,
+  marketplaceHost,
+}) {
   if (!order) {
     return null
   }
@@ -218,9 +275,10 @@ function OrderBanner({ order }) {
       item.title ||
       `Order ${order.order_id}`,
     image_url: item.image_url,
-    item_url: listingId
-      ? `https://www.ebay.com/itm/${listingId}`
-      : '',
+    item_url: buildListingUrl(
+      listingId,
+      marketplaceHost,
+    ),
     price: item.price_value,
     currency: item.price_currency,
     order_id: order.order_id,
@@ -234,22 +292,38 @@ function OrderBanner({ order }) {
     <ContextItemBanner
       context={context}
       actionLabel="Open Order"
-      actionUrl={order.ebay_url}
+      actionUrl={localizeEbayUrl(
+        order.ebay_url,
+        marketplaceHost,
+      )}
       ariaLabel="Order context"
     />
   )
 }
 
-function ProductBanner({ context }) {
+function ProductBanner({
+  context,
+  marketplaceHost,
+}) {
   if (!context) {
     return null
   }
+
+  const localizedUrl = localizeEbayUrl(
+    context.item_url ||
+      buildListingUrl(
+        context.reference_id,
+        marketplaceHost,
+      ),
+    marketplaceHost,
+  )
 
   return (
     <ContextItemBanner
       context={{
         ...context,
         item_id: context.reference_id,
+        item_url: localizedUrl,
       }}
       actionLabel={
         context.buy_now_available
@@ -264,13 +338,19 @@ function ProductBanner({ context }) {
 function ConversationContextBanner({
   detail,
 }) {
+  const marketplaceHost =
+    getMarketplaceHost(detail)
+
   const order =
     detail?.order_context
       ?.selected_order
 
   if (order) {
     return (
-      <OrderBanner order={order} />
+      <OrderBanner
+        order={order}
+        marketplaceHost={marketplaceHost}
+      />
     )
   }
 
@@ -282,7 +362,10 @@ function ConversationContextBanner({
   }
 
   return (
-    <ProductBanner context={context} />
+    <ProductBanner
+      context={context}
+      marketplaceHost={marketplaceHost}
+    />
   )
 }
 

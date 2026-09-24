@@ -36,6 +36,7 @@ import DetailsPanel from './conversationDetail/DetailsPanel'
 import {
   DEFAULT_PAGE_SIZE,
   DETAILS_WIDTH_KEY,
+  INBOX_LAST_LOCATION_KEY,
   LIST_WIDTH_KEY,
   addOneDayToIsoDate,
   clamp,
@@ -66,6 +67,13 @@ const EMPTY_FILTERS = {
 
 const LIST_PANE_OPEN_KEY =
   'inbox.listPaneOpen'
+
+function rememberInboxLocation() {
+  localStorage.setItem(
+    INBOX_LAST_LOCATION_KEY,
+    `${window.location.pathname}${window.location.search}`,
+  )
+}
 
 function Dashboard({
   currentUser,
@@ -551,6 +559,8 @@ function Dashboard({
           ? 'thread'
           : 'list',
       )
+
+      rememberInboxLocation()
     }
 
     syncConversationFromUrl()
@@ -719,6 +729,8 @@ function Dashboard({
       '',
       url,
     )
+
+    rememberInboxLocation()
   }
 
   function returnToList() {
@@ -742,6 +754,8 @@ function Dashboard({
       '',
       url,
     )
+
+    rememberInboxLocation()
   }
 
   function toggleBulkSelection(

@@ -5,6 +5,8 @@ import { normalizeRole } from '../utils/roles'
 import { deleteAllNotifications, deleteNotification, fetchNotifications, markNotificationsRead } from '../services/notificationApi'
 import './app_layout.css'
 
+const INBOX_LAST_LOCATION_KEY = 'inboxLastLocation'
+
 const NAV_ITEMS = [
   {
     label: 'Messages',
@@ -140,6 +142,29 @@ function formatNotificationTime(value) {
     hour: '2-digit',
     minute: '2-digit',
   })
+}
+
+function isInboxPath(pathname) {
+  const normalizedPath = String(pathname || '')
+    .replace(/\/+$/, '')
+    .toLowerCase()
+
+  return normalizedPath === '/inbox' || normalizedPath === '/dashboard'
+}
+
+function getNavigationHref(item) {
+  if (item.path !== '/inbox') {
+    return item.path
+  }
+
+  if (isInboxPath(window.location.pathname)) {
+    return '/inbox'
+  }
+
+  return (
+    localStorage.getItem(INBOX_LAST_LOCATION_KEY) ||
+    '/inbox'
+  )
 }
 
 export function Icon({ name }) {
@@ -325,7 +350,7 @@ function AppLayout({ activePage, children, currentUser, onLogout }) {
 
         <nav className="sidebar-nav" aria-label="Main navigation">
           {visibleItems.map((item) => (
-            <a className={item.label === activePage ? 'active' : ''} href={item.path} key={item.label} onClick={() => setIsSidebarOpen(false)}>
+            <a className={item.label === activePage ? 'active' : ''} href={getNavigationHref(item)} key={item.label} onClick={() => setIsSidebarOpen(false)}>
               <span>
                 <Icon name={item.icon} />
               </span>

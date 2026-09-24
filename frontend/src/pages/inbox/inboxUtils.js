@@ -10,6 +10,8 @@ export const LIST_WIDTH_KEY = 'inboxListPanelWidth'
 
 export const DETAILS_WIDTH_KEY = 'inboxDetailsPanelWidth'
 
+export const INBOX_LAST_LOCATION_KEY = 'inboxLastLocation'
+
 export const SHOW_MESSAGE_ATTACHMENTS = true
 
 export const PERIOD_OPTIONS = [
