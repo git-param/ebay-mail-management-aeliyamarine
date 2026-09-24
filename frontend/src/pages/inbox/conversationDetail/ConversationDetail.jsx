@@ -199,6 +199,9 @@ function ConversationDetail({
           ) : (
             <ReplyComposer
               conversationId={detail.id}
+              buyerName={
+                detail.buyer_identifier
+              }
               suggestedMessageTypeId={
                 detail.suggested_message_type_id
               }

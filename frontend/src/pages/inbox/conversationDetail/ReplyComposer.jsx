@@ -24,7 +24,7 @@ function isImageFile(file) {
   )
 }
 
-export default function ReplyComposer({ conversationId, suggestedMessageTypeId, isSubmitting, onSendReply, templates = [], messageTypes = [] }) {
+export default function ReplyComposer({ conversationId, buyerName, suggestedMessageTypeId, isSubmitting, onSendReply, templates = [], messageTypes = [] }) {
   const [body, setBody] = useState('')
   const [files, setFiles] = useState([])
   const [fileInputKey, setFileInputKey] = useState(0)
@@ -137,7 +137,13 @@ export default function ReplyComposer({ conversationId, suggestedMessageTypeId, 
     const template = templates.find((item) => item.id === templateId)
     setSelectedTemplateId(templateId)
     if (template) {
-      setBody(template.body)
+      const templateBody = String(template.body || '')
+      const normalizedBuyerName = String(buyerName || '').trim()
+      const personalizedBody = normalizedBuyerName
+        ? templateBody.replace(/\[name\]/gi, normalizedBuyerName)
+        : templateBody
+
+      setBody(personalizedBody)
     }
   }
 
