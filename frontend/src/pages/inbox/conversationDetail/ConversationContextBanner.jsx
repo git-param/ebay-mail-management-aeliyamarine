@@ -1,7 +1,4 @@
-import {
-  useEffect,
-  useState,
-} from 'react'
+import { useState } from 'react'
 
 import { Icon } from '../../../layouts/app_layout'
 
@@ -19,37 +16,18 @@ function normalizeImageUrl(imageUrl) {
     .replace(/&amp;/g, '&')
 }
 
-function ContextThumbnail({
-  imageUrl,
-  title,
-}) {
-  const [failed, setFailed] =
-    useState(false)
+function ContextThumbnail({imageUrl, title,}) 
+{
+  const [failedUrl, setFailedUrl] = useState('')
+  const normalizedUrl = normalizeImageUrl(imageUrl)
+  const failed = failedUrl === normalizedUrl
 
-  const normalizedUrl =
-    normalizeImageUrl(imageUrl)
-
-  useEffect(() => {
-    setFailed(false)
-  }, [normalizedUrl])
-
-  if (!normalizedUrl || failed) {
+  if (!normalizedUrl || failed) 
+  {
     return <Icon name="package" />
   }
 
-  return (
-    <img
-      src={normalizedUrl}
-      alt={
-        title
-          ? `${title} preview`
-          : 'Item preview'
-      }
-      loading="eager"
-      referrerPolicy="no-referrer"
-      onError={() => setFailed(true)}
-    />
-  )
+  return ( <img src={normalizedUrl} alt={ title ? `${title} preview` : 'Item preview' } loading="eager" referrerPolicy="no-referrer" onError={() => setFailedUrl(normalizedUrl)} />)
 }
 
 function formatContextPrice(
