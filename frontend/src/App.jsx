@@ -7,6 +7,7 @@ import Config from './pages/config/config'
 import Dashboard from './pages/inbox/Dashboard'
 import EbayAccounts from './pages/ebay_accounts/ebay_accounts'
 import ForgotPassword from './pages/login/forgot_password'
+import Home from './pages/home'
 import Login from './pages/login/login'
 import ResetPassword from './pages/login/reset_password'
 import SearchAcrossPlatformsPage from './pages/SearchAcrossPlatforms/SearchAcrossPlatformsPage'
@@ -29,7 +30,11 @@ import './App.css'
 const PUBLIC_ROUTES = [
   {
     path: '/',
-    component: Login,
+    component: Home,
+  },
+  {
+    path: '/home',
+    component: Home,
   },
   {
     path: '/login',
@@ -215,7 +220,7 @@ function App() {
     window.location.assign('/login')
   }
 
-  if (isAuthenticated && ['/', '/login', '/forgot-password', '/reset-password', '/login-success'].includes(currentPath)) {
+  if (isAuthenticated && ['/', '/home', '/login', '/forgot-password', '/reset-password', '/login-success'].includes(currentPath)) {
     return <Redirect to="/inbox" />
   }
 

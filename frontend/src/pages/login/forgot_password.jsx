@@ -63,7 +63,7 @@ function ForgotPassword() {
 
             <div className="form-row single">
               <p>{FORGOT_PASSWORD_TEXT.helper}</p>
-              <a href="/">{FORGOT_PASSWORD_TEXT.backToLogin}</a>
+              <a href="/login">{FORGOT_PASSWORD_TEXT.backToLogin}</a>
             </div>
           </form>
         </div>
