@@ -24,12 +24,13 @@ def require_offer_view(user=Depends(get_current_user)):
 @router.get('/current')
 def current(account_id: UUID | None = None, status: str | None = None,
             search: str | None = Query(default=None, max_length=255), buyer: str | None = None, item_id: str | None = None,
+            role: Literal['Buyer','Seller','Unknown'] | None = None,
             sort: Literal['expiring','newest','amount','listing_price']='expiring',
             page: int = Query(1, ge=1), page_size: int = Query(25, ge=1, le=100),
             db=Depends(get_db), user=Depends(require_offer_view)):
     allowed = bool(user.role_id and PermissionRepository(db).role_has_permission(user.role_id, 'offer.respond'))
     return EbayBestOfferQueryService(db).list(account_id=account_id, status=status, search=search, buyer=buyer,
-        item_id=item_id, sort=sort, page=page, page_size=page_size, can_respond=allowed)
+        item_id=item_id, role=role, sort=sort, page=page, page_size=page_size, can_respond=allowed)
 
 
 @router.get('/accounts')
@@ -50,7 +51,7 @@ def update_config(payload: BestOfferConfigUpdate, db=Depends(get_db), user=Depen
 
 @router.post('/sync', status_code=202)
 def sync(payload: BestOfferSyncRequest, db=Depends(get_db), user=Depends(require_operations_manager_or_admin)):
-    return dispatch(EbayBestOfferJobService(db).reserve(payload.account_ids, user=user))
+    return dispatch(EbayBestOfferJobService(db).reserve(payload.account_ids, user=user, include_history=payload.include_history))
 
 
 @router.get('/jobs/{job_id}')

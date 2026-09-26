@@ -20,6 +20,7 @@ class BestOfferConfigUpdate(BaseModel):
 
 
 class BestOfferSyncRequest(BaseModel):
+    include_history: StrictBool = False
     account_ids: list[UUID] | None = None
 
 

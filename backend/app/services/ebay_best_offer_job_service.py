@@ -115,7 +115,7 @@ class EbayBestOfferJobService:
             action.completed_at = datetime.now(UTC)
         self.db.flush()
 
-    def reserve(self, account_ids=None, *, trigger='manual', user=None, due_only=False):
+    def reserve(self, account_ids=None, *, trigger='manual', user=None, due_only=False, include_history=False):
         # Serialize reservation across all API/scheduler processes.
         self.db.execute(text('SELECT pg_advisory_xact_lock(:key)'), {'key': lock_key('reservation')})
         self.recover_abandoned()
@@ -155,7 +155,7 @@ class EbayBestOfferJobService:
                 continue
             job = SyncLog(id=uuid4(), provider='EBAY', provider_account_id=account.id, sync_type=ACCOUNT,
                 status=SyncLogStatus.PENDING, records_processed=0,
-                sync_metadata={'trigger': trigger, 'reservation_token': token, 'account_name': account.account_name})
+                sync_metadata={'trigger': trigger, 'reservation_token': token, 'account_name': account.account_name, 'include_history': include_history})
             self.db.add(job)
             jobs.append(job)
         if not jobs:

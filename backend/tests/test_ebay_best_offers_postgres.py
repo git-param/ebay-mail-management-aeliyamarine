@@ -135,11 +135,11 @@ def test_discovery_pagination_roles_idempotency_and_row_savepoints(isolated, mon
     monkeypatch.setattr(EbayAuthClient,'get_best_offers_raw',response)
     service = EbayBestOfferSyncService(db)
     result = service.sync_current(account.id)
-    assert result['outcome'] == 'PARTIAL' and result['offers_synced'] == 2
-    assert result['discovery'] == {'pages':2,'returned':5,'seller':3,'buyer_skipped':1,'unknown_role_skipped':1}
-    assert db.scalar(select(func.count()).select_from(Offer)) == 2
+    assert result['outcome'] == 'PARTIAL' and result['offers_synced'] == 3
+    assert result['discovery'] == {'pages':2,'returned':5,'seller':3,'buyer':1,'buyer_skipped':0,'unknown_role_skipped':1}
+    assert db.scalar(select(func.count()).select_from(Offer)) == 3
     service.sync_current(account.id)
-    assert db.scalar(select(func.count()).select_from(Offer)) == 2
+    assert db.scalar(select(func.count()).select_from(Offer)) == 3
     assert len(calls) == 4
     assert EbayApiUsageService(db).get_today_usage('bestseller').call_count == 4
 
@@ -316,3 +316,74 @@ def test_stale_dispatch_recovered_without_a_batch_and_never_retried(isolated):
     EbayBestOfferJobService(db).reserve(trigger='auto',due_only=True)
     db.refresh(ledger);db.refresh(offer)
     assert ledger.state=='RECONCILIATION_REQUIRED' and offer.reconciliation_required
+
+
+def test_all_offers_includes_buyer_expired_and_unverified_history_without_actions(isolated):
+    db,_,account,_=isolated
+    seed_offer(db,account)
+    seed_offer(db,account,offer_id='buyer-expired',role='Buyer',status='Expired')
+    history=Offer(provider='EBAY',account_id=account.id,provider_offer_id='old-history',listing_id='457',
+        direction='INCOMING',status='EXPIRED',record_source='MESSAGE_PARSE',offer_amount=10,currency='USD')
+    synthetic=Offer(provider='EBAY',account_id=account.id,provider_offer_id='123:seller-counteroffer-submitted',
+        direction='OUTGOING',status='PENDING',record_source='DERIVED')
+    db.add_all([history,synthetic]);db.commit()
+    service=EbayBestOfferQueryService(db)
+    result=service.list(can_respond=True)
+    assert result['total']==3
+    records={item['provider_offer_id']:item for item in result['items']}
+    assert records['123']['can_respond']
+    assert records['buyer-expired']['display_status']=='Expired'
+    assert not records['buyer-expired']['can_respond']
+    assert not records['old-history']['can_respond'] and not records['old-history']['status_verified']
+    assert service.list(role='Buyer')['total']==1
+    assert service.list(role='Unknown')['total']==1
+    assert service.list(status='Expired')['total']==1
+
+
+def test_buyer_historical_reconciliation_preserves_role(isolated,monkeypatch):
+    db,_,account,_=isolated
+    offer=seed_offer(db,account,role='Buyer')
+    monkeypatch.setattr(EbayAuthClient,'get_best_offers_raw',lambda *_args,**_kwargs:SimpleNamespace(ok=True,status_code=200,
+        payload={'ack':'Success','offers':[raw(role=None,status='Expired')],'totalPages':1}))
+    EbayBestOfferSyncService(db).reconcile_listing(account,'456')
+    db.refresh(offer)
+    assert offer.provider_role=='Buyer' and offer.provider_status=='Expired'
+
+
+def test_latest_sync_counts_changes_and_skips_old_history(isolated, monkeypatch):
+    db, _, account, _ = isolated
+    history = seed_offer(db, account, offer_id='old')
+    history.record_source = 'LEGACY_UNKNOWN'
+    db.commit()
+    snapshot = raw(offer_id='new')
+    calls = []
+    def response(*_args, **kwargs):
+        calls.append(kwargs)
+        assert not kwargs.get('item_id'), 'Normal sync must not scan old history'
+        return SimpleNamespace(ok=True, status_code=200, payload={'ack':'Success', 'offers':[snapshot], 'totalPages':1})
+    monkeypatch.setattr(EbayAuthClient, 'get_best_offers_raw', response)
+    service = EbayBestOfferSyncService(db)
+    assert service.sync_current(account.id)['changes']['new'] == 1
+    offer = db.scalar(select(Offer).where(Offer.provider_offer_id == 'new'))
+    version = offer.version
+    result = service.sync_current(account.id)
+    assert result['offers_synced'] == 0 and result['changes']['unchanged'] == 1
+    db.refresh(offer)
+    assert offer.version == version and len(calls) == 2
+
+
+def test_unavailable_history_is_a_note_and_preserves_records(isolated, monkeypatch):
+    db, _, account, _ = isolated
+    offer = seed_offer(db, account)
+    offer.record_source = 'LEGACY_UNKNOWN'
+    db.commit()
+    def response(*_args, **kwargs):
+        if kwargs.get('item_id'):
+            return SimpleNamespace(ok=True, status_code=200, payload={'ack':'Failure', 'errors':[
+                {'code':'21549', 'severity':'Error', 'message':'Item is no longer in our database'}]})
+        return SimpleNamespace(ok=True, status_code=200, payload={'ack':'Success', 'offers':[], 'totalPages':1})
+    monkeypatch.setattr(EbayAuthClient, 'get_best_offers_raw', response)
+    result = EbayBestOfferSyncService(db).sync_current(account.id, include_history=True)
+    assert result['outcome'] == 'SUCCESS' and not result['errors']
+    assert result['warnings'][0]['provider_codes'] == ['21549']
+    assert db.get(Offer, offer.id) is not None

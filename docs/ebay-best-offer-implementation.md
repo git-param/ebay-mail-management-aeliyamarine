@@ -1,5 +1,30 @@
 # eBay Best Offer implementation report ? 2026-09-26
 
+## Scope expanded: buyer, seller, active and historical offers
+
+### Latest-change synchronization and clearer results
+
+Normal manual and automatic synchronization now checks active Trading offers and unresolved status changes, compares provider snapshots, and reports new, updated and unchanged counts. It skips routine scans of legacy history. Manual sync offers an optional **Also refresh older stored history** checkbox; saved history remains visible in either mode.
+
+GetBestOffers does not expose a modified-since filter (https://developer.ebay.com/devzone/XML/docs/Reference/eBay/GetBestOffers.html). This is selective polling with local change detection, not a server-side delta feed. GetSellerEvents listing modification windows do not cover all buyer/seller offer changes and are not used as an equivalent.
+
+A read-only diagnostic for Main listing 334577127872 returned eBay error 21549: the listing is invalid, not activated, or no longer in eBay's database. This old-history error previously appeared only as RuntimeError. Unavailable listings now produce a readable note, preserve stored offers and receive a seven-day recheck backoff. Other failures retain readable error details. A new regression also caught and fixed initialization of retry counts after a rolled-back listing request.
+
+Offer cards explain buying/selling roles and unverified history, distinguish ACES processing dates from confirmed provider checks, label cached prices, and show accepted/expired records as closed. All Offers initially sorts newest records first. Zero results describe the Trading API scope rather than claiming that the account has no offers anywhere on eBay. The separate notification-feed coverage limitation below still applies.
+
+Validation: 57 dedicated tests passed, including PostgreSQL regressions for unchanged versions, skipping legacy history by default and preserving unavailable history. Frontend build and targeted ESLint passed; existing bundle-size and Pydantic deprecation warnings remain. No migration is required.
+
+The user subsequently authorized displaying both account roles and expired history. This supersedes the seller-only view described in the original report below.
+
+- All Offers now defaults to all stored non-synthetic offers, including buyer records and legacy/message history. Role and status filters are local. Historical/unverified records are labelled and cannot receive live seller actions.
+- Account-wide Trading discovery retains both explicit Buyer and Seller roles. Historical reconciliation supports both roles and refreshes known legacy Trading identities by listing. Unknown roles are never assigned by guesswork.
+- The current configured database exposes 870 non-synthetic records through this view, including stored expired statuses. Matching cached account/item product metadata supplies available titles and images.
+- The screenshot's seller-initiated discounts are a separate source. A live Main account-wide GetBestOffers response reports zero entries; its token identity matches aeliya110. A listing-specific request for 315776110438 returned provider error 21549. GetMyeBayBuying did not yield a usable response in the diagnostic request (provider XML failure). No historical buyer discounts were fabricated or imported from screenshots.
+- eBay documents OFFER_ACTIVITY notifications for buyer and seller offers, including SELLER_OFFER sent to buyers: https://developer.ebay.com/develop/api/buy/notification_events . That feed is not connected in this implementation. Complete capture of those discounts requires webhook/subscription setup and relevant authorization; previously missed expired offers may not be retrievable through the existing Trading polling API. The UI states this coverage limit.
+
+Validation for this expansion: 55 dedicated Best Offer tests passed; frontend production build and lint of the three modified components passed. No migration is required for this expansion. Seller action provenance and permission checks remain unchanged.
+
+
 The existing Offer model and importer now support account-wide seller Best Offers, local Current Offers queries, persistent scheduling, spawned synchronization jobs, and guarded Accept/Decline/Counter actions. Existing manual Offer Entries remain mounted under their own tab. No PMS files were changed and no Best Offer action awards PMS credit.
 
 ## Screenshot: why a successful sync can show zero

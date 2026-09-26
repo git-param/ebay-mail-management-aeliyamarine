@@ -52,12 +52,12 @@ def run_batch(batch_id, token, stop_event):
                             return False
                         try:
                             result = EbayBestOfferSyncService(db).sync_current(job.provider_account_id,
-                                job_id=job.id, should_stop=should_stop)
+                                job_id=job.id, should_stop=should_stop, include_history=(job.sync_metadata or {}).get('include_history', False))
                             job = db.get(SyncLog, job_id)
                             job.records_processed = result['offers_synced']
                             job.sync_metadata = {**job.sync_metadata, **result}
                             job.status = SyncLogStatus.SUCCESS if result['outcome'] == 'SUCCESS' else SyncLogStatus.FAILED
-                            job.error_message = None if job.status == SyncLogStatus.SUCCESS else str(result.get('errors') or result['outcome'])
+                            job.error_message = None if job.status == SyncLogStatus.SUCCESS else '; '.join(e.get('message', 'An offer could not be refreshed') for e in result.get('errors', [])) or result['outcome']
                         except Exception as exc:
                             db.rollback()
                             job = db.get(SyncLog, job_id)

@@ -1,10 +1,12 @@
-"""Database-only seller view. No token service or provider client dependency."""
+"""Database-only buyer, seller and historical offer view. No token service or provider client dependency."""
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from sqlalchemy import select, func, or_, Numeric, cast
 from app.models.offer import Offer
 from app.models.ebay_account import EbayAccount
 from app.models.ebay_best_offer_action import EbayBestOfferAction
+from app.models.conversation import Conversation
+from app.models.order_context import ConversationProductContext
 
 
 def actionable(offer, last_action=None):
@@ -31,12 +33,18 @@ class EbayBestOfferQueryService:
         self.db = db
 
     def list(self, *, account_id=None, status=None, search=None, buyer=None, item_id=None,
-             sort='expiring', page=1, page_size=25, can_respond=False):
-        criteria = [Offer.provider == 'EBAY', Offer.record_source == 'TRADING', Offer.provider_role == 'Seller']
+             role=None, sort='expiring', page=1, page_size=25, can_respond=False):
+        display_status = func.coalesce(Offer.provider_status, Offer.status)
+        criteria = [Offer.provider == 'EBAY', Offer.record_source != 'DERIVED',
+                    ~Offer.provider_offer_id.like('%:seller-counteroffer-submitted')]
+        if role == 'Unknown':
+            criteria.append(Offer.provider_role.is_(None))
+        elif role:
+            criteria.append(Offer.provider_role == role)
         if account_id:
             criteria.append(Offer.account_id == account_id)
         if status:
-            criteria.append(Offer.provider_status == status)
+            criteria.append(display_status == status)
         if buyer:
             criteria.append(Offer.buyer_username.ilike('%' + buyer + '%'))
         if item_id:
@@ -57,15 +65,31 @@ class EbayBestOfferQueryService:
         for action in self.db.scalars(select(EbayBestOfferAction).where(
             EbayBestOfferAction.offer_id.in_([o.id for o in offers])).order_by(EbayBestOfferAction.created_at.desc())):
             latest.setdefault(action.offer_id, action)
+        cached = {}
+        contexts = self.db.execute(select(Conversation.provider_account_id, ConversationProductContext)
+            .join(Conversation, Conversation.id == ConversationProductContext.conversation_id)
+            .where(Conversation.provider_account_id.in_({o.account_id for o in offers}),
+                   ConversationProductContext.reference_id.in_({o.listing_id for o in offers if o.listing_id}))
+            .order_by(ConversationProductContext.updated_at.desc()))
+        for cached_account, context in contexts:
+            cached.setdefault((cached_account, context.reference_id), context)
         items = []
         for offer in offers:
-            raw, listing = offer.provider_snapshot or {}, offer.listing_snapshot or {}
+            raw, listing = offer.provider_snapshot or offer.raw_payload or {}, offer.listing_snapshot or {}
+            context = cached.get((offer.account_id, offer.listing_id))
+            if context:
+                metadata = {'title': context.item_title, 'image_url': context.image_url, 'sku': context.sku,
+                    'price': str(context.price_value) if context.price_value is not None else None,
+                    'currency': context.price_currency}
+                listing = {**{k:v for k,v in metadata.items() if v is not None}, **listing}
             account, action = accounts.get(offer.account_id), latest.get(offer.id)
             items.append({'id': offer.id, 'account_id': offer.account_id,
                 'account_name': account.account_name if account else None,
                 'provider_offer_id': offer.provider_offer_id, 'listing_id': offer.listing_id,
-                'buyer': raw.get('buyerUsername'), 'provider_status': offer.provider_status,
-                'provider_role': offer.provider_role, 'amount': raw.get('amount'), 'currency': raw.get('currency'),
+                'buyer': raw.get('buyerUsername') or offer.buyer_username, 'seller': raw.get('sellerUsername'),
+                'provider_status': offer.provider_status, 'display_status': offer.provider_status or offer.status,
+                'record_source': offer.record_source, 'status_verified': bool(offer.provider_snapshot),
+                'provider_role': offer.provider_role, 'amount': raw.get('amount') if raw.get('amount') is not None else offer.offer_amount, 'currency': raw.get('currency') or offer.currency,
                 'quantity': raw.get('quantity'), 'buyer_message': raw.get('buyerMessage'),
                 'listing': listing, 'received_at': offer.received_at, 'received_at_source': offer.received_at_source,
                 'first_seen_at': offer.first_seen_at, 'expires_at': offer.expires_at,
@@ -73,10 +97,9 @@ class EbayBestOfferQueryService:
                 'reconciliation_required': offer.reconciliation_required,
                 'last_action': {'action': action.action, 'state': action.state, 'id': action.id} if action else None,
                 'can_respond': can_respond and bool(account and account.is_active and account.connection_status.value == 'CONNECTED') and actionable(offer, action)})
-        summary = dict(self.db.execute(select(Offer.provider_status, func.count()).where(*criteria).group_by(Offer.provider_status)).all())
+        summary = dict(self.db.execute(select(display_status, func.count()).where(*criteria).group_by(display_status)).all())
         summary['ExpiringSoon'] = self.db.scalar(select(func.count()).select_from(Offer).where(*criteria,
             Offer.provider_status.in_(['Active','Pending']), Offer.expires_at > datetime.now(UTC),
             Offer.expires_at <= datetime.now(UTC) + timedelta(hours=4)))
-        statuses = list(self.db.scalars(select(Offer.provider_status).where(Offer.record_source == 'TRADING',
-            Offer.provider_role == 'Seller', Offer.provider_status.is_not(None)).distinct().order_by(Offer.provider_status)))
+        statuses = list(self.db.scalars(select(display_status).where(Offer.provider == 'EBAY', Offer.record_source != 'DERIVED').distinct().order_by(display_status)))
         return {'items': items, 'total': total, 'page': page, 'page_size': page_size, 'summary': summary, 'statuses': statuses}
