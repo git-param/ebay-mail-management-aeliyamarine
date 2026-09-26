@@ -1,11 +1,10 @@
 from uuid import UUID
 
-from fastapi import APIRouter, BackgroundTasks, Depends, status
+from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
 from app.api.dependencies import get_current_user, require_admin
-from app.db.session import SessionLocal, get_db
-from app.modules.integrations.ebay.services.ebay_best_offer_sync_service import EbayBestOfferSyncService
+from app.db.session import get_db
 from app.modules.integrations.ebay.services.ebay_negotiation_service import EbayNegotiationService
 from app.schemas.offer import OfferResponse
 from app.services.conversation_service import ConversationService
@@ -15,15 +14,11 @@ router = APIRouter()
 
 
 @router.post('/sync/account/{account_id}', status_code=status.HTTP_202_ACCEPTED)
-def sync_buyer_offers(account_id: UUID, background_tasks: BackgroundTasks, _=Depends(require_admin)):
-    """Queue official Trading API BestOffer sync across all statuses."""
-    background_tasks.add_task(_sync_buyer_offers, account_id)
-    return {'status': 'queued', 'account_id': str(account_id), 'source': 'official_trading_get_best_offers_all'}
-
-
-def _sync_buyer_offers(account_id: UUID) -> None:
-    with SessionLocal() as db:
-        EbayBestOfferSyncService(db).sync_account(account_id)
+def sync_buyer_offers(account_id: UUID, db: Session = Depends(get_db), user=Depends(require_admin)):
+    """Legacy endpoint shares the safe spawned Best Offer job dispatcher."""
+    from app.services.ebay_best_offer_job_service import EbayBestOfferJobService
+    from app.services.ebay_best_offer_worker import dispatch
+    return dispatch(EbayBestOfferJobService(db).reserve([account_id], user=user))
 
 
 def _visible_conversation(conversation_id: UUID, db: Session, user):

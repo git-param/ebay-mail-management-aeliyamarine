@@ -23,6 +23,10 @@ class EbayBestOfferListingSyncState(Base):
     last_conversation_activity_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_offer_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    last_reconciled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    next_reconcile_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    reconcile_attempts: Mapped[int] = mapped_column(Integer, default=0, server_default='0', nullable=False)
+    reconcile_page: Mapped[int] = mapped_column(Integer, default=1, server_default='1', nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

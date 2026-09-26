@@ -35,7 +35,7 @@ class EbayNegotiationService:
         now = datetime.now(UTC)
         changed = False
         for offer in offers:
-            if offer.status == OfferStatus.PENDING and offer.expires_at and offer.expires_at <= now:
+            if offer.record_source != 'TRADING' and offer.status == OfferStatus.PENDING and offer.expires_at and offer.expires_at <= now:
                 offer.status = OfferStatus.EXPIRED
                 changed = True
         if changed:

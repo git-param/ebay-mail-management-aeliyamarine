@@ -41,3 +41,6 @@ api_router.include_router(task_management_router, prefix='/task-management', tag
 api_router.include_router(pms_router, prefix='/pms', tags=['pms'])
 api_router.include_router(config_router, prefix='/config', tags=['config'])
 api_router.include_router(ebay_oauth_routes.router,prefix='/integrations/ebay',tags=['integrations-ebay'])
+
+from app.modules.integrations.ebay.routes.ebay_best_offer_routes import router as best_offer_router
+api_router.include_router(best_offer_router, prefix='/integrations/ebay/best-offers', tags=['eBay Best Offers'])

@@ -108,6 +108,12 @@ def update_missing_offer_fields(
     offer_data: dict,
     fields: tuple[str, ...] = OFFER_UPDATE_FIELDS,
 ) -> None:
+    raw = offer_data.get('raw_payload') or {}
+    if getattr(offer, 'record_source', None) == 'TRADING' and raw.get('source') == 'on_demand_message_parse':
+        # Message evidence may link history, but cannot replace Trading evidence.
+        return
+    if raw.get('source') == 'on_demand_message_parse':
+        offer.record_source = 'MESSAGE_PARSE'
     for field in fields:
         value = offer_data.get(field)
         if value is None:

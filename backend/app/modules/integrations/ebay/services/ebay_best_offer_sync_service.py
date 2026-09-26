@@ -21,6 +21,8 @@ from app.models.order_context import ConversationProductContext
 from app.modules.integrations.ebay.oauth.token_service import EbayTokenService
 from app.services.ebay_api_usage_service import EbayApiUsageService
 from app.services.offer_consistency_service import OfferConsistencyService
+from app.services.ebay_best_offer_lock import account_operation_lock
+from fastapi import HTTPException
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +40,164 @@ class EbayBestOfferSyncService:
         self.api_usage = EbayApiUsageService(db)
 
     def sync_account(self, account_id: UUID, *, listing_ids: list[str] | None = None,  commit: bool = True) -> dict[str, int]:
+        try:
+            with account_operation_lock(self.db.get_bind(), account_id):
+                return self._sync_listing_account(account_id, listing_ids=listing_ids, commit=commit)
+        except HTTPException as exc:
+            if exc.status_code != 409:
+                raise
+            # Best Offer contention must never fail the surrounding message sync.
+            return dict(created=0, updated=0, linked=0, listings_checked=0, listings_skipped=1, api_calls=0, busy=True)
+
+    def sync_current(self, account_id, *, job_id=None, should_stop=lambda: False):
+        """Account discovery and selective history use the existing upsert path."""
+        with account_operation_lock(self.db.get_bind(), account_id):
+            account = self.db.get(EbayAccount, account_id)
+            if not account or not account.is_active or account.connection_status.value != 'CONNECTED':
+                raise ValueError('Account is not active and connected')
+            if account.environment.value != self.tokens.client.environment:
+                raise ValueError('Account environment does not match the configured eBay OAuth environment')
+            if not account.access_token or (account.access_token_expires_at and account.access_token_expires_at <= datetime.now(UTC)):
+                account = self.tokens.refresh_access_token(account.id)
+            seen, count, errors = set(), 0, []
+            discovery = {'pages': 0, 'returned': 0, 'seller': 0, 'buyer_skipped': 0, 'unknown_role_skipped': 0}
+            def result(outcome):
+                return {'offers_synced': count, 'outcome': outcome, 'errors': errors, 'discovery': discovery,
+                    'scope': 'Active seller-side Trading Best Offers'}
+            page = 1
+            while True:
+                if should_stop():
+                    return result('STOPPED')
+                payload = self._current_request(account, page=page, job_id=job_id)
+                discovery['pages'] += 1
+                for raw in payload.get('offers', []):
+                    discovery['returned'] += 1
+                    # Buyer/unknown roles are never admitted to seller operations.
+                    if raw.get('role') != 'Seller':
+                        discovery['buyer_skipped' if raw.get('role') == 'Buyer' else 'unknown_role_skipped'] += 1
+                        continue
+                    discovery['seller'] += 1
+                    try:
+                        with self.db.begin_nested():
+                            conversation = self._match_conversation(account.id, raw.get('listingId'), raw.get('buyerUsername'))
+                            offer, _ = self._upsert(account, raw, conversation)
+                            offer.last_seen_sync_id = job_id
+                            self.db.flush()
+                            seen.add(offer.id)
+                            self._upsert_derived_offer_events(account, raw, conversation, offer)
+                            if conversation:
+                                OfferConsistencyService(self.db).sync_conversation(conversation.id)
+                        count += 1
+                    except Exception as exc:
+                        errors.append({'offer_id': raw.get('offerId'), 'error': type(exc).__name__})
+                self.db.commit()
+                if page >= max(1, int(payload.get('totalPages') or 1)):
+                    break
+                page += 1
+            # Only a complete, error-free scan supplies absence evidence.
+            if not errors:
+                known = self.db.scalars(select(Offer).where(Offer.account_id == account.id,
+                    Offer.record_source == 'TRADING', Offer.provider_role == 'Seller',
+                    Offer.provider_status.in_(['Active','Pending','SellerAccept','PendingBuyerPayment','PendingBuyerConfirmation'])))
+                for offer in known:
+                    if offer.id not in seen or offer.provider_status in {'SellerAccept','PendingBuyerPayment','PendingBuyerConfirmation'}:
+                        offer.reconciliation_required = True
+                self.db.commit()
+            now = datetime.now(UTC)
+            listings = list(self.db.scalars(select(Offer.listing_id).where(
+                Offer.account_id == account.id, Offer.record_source == 'TRADING',
+                Offer.provider_role == 'Seller', Offer.reconciliation_required.is_(True),
+                Offer.listing_id.is_not(None)).distinct()))
+            for listing_id in listings:
+                if should_stop():
+                    return result('STOPPED')
+                state = self._listing_state(account.id, listing_id, create=True)
+                if state.next_reconcile_at and state.next_reconcile_at > now:
+                    continue
+                try:
+                    self.reconcile_listing(account, listing_id, job_id=job_id, should_stop=should_stop)
+                    state.last_reconciled_at = datetime.now(UTC)
+                    state.next_reconcile_at = datetime.now(UTC) + timedelta(minutes=5)
+                    state.reconcile_attempts = 0
+                    state.last_error = None
+                except Exception as exc:
+                    self.db.rollback()
+                    state = self._listing_state(account.id, listing_id, create=True)
+                    state.reconcile_attempts += 1
+                    state.next_reconcile_at = datetime.now(UTC) + timedelta(minutes=min(1440, 5 * 2 ** min(state.reconcile_attempts, 8)))
+                    state.last_error = type(exc).__name__
+                    errors.append({'listing_id': listing_id, 'error': type(exc).__name__})
+                self.db.commit()
+            return result('PARTIAL' if errors else 'SUCCESS')
+
+    def _current_request(self, account, *, page=1, listing_id=None, job_id=None):
+        for retry in range(2):
+            attempt = self.api_usage.reserve_attempt(account_id=account.id, operation='GetBestOffers',
+                job_id=job_id, attempt_number=retry + 1)
+            try:
+                response = self.tokens.client.get_best_offers_raw(account.access_token, page=page,
+                    best_offer_status='All' if listing_id else 'Active', item_id=listing_id)
+                self.api_usage.finish_attempt(attempt, 'SUCCESS' if response.ok else 'FAILED')
+            except Exception:
+                self.api_usage.finish_attempt(attempt, 'TRANSPORT_ERROR')
+                raise
+            if response.status_code == 401 and retry == 0:
+                account = self.tokens.refresh_access_token(account.id)
+                continue
+            if not response.ok or response.payload.get('ack') not in {'Success','Warning'}:
+                raise RuntimeError('GetBestOffers failed: ' + str(response.payload.get('errors') or response.payload.get('error')))
+            if any(e.get('severity') == 'Error' for e in response.payload.get('errors', [])):
+                raise RuntimeError('GetBestOffers returned provider errors')
+            return response.payload
+        raise RuntimeError('GetBestOffers authentication failed')
+
+    def reconcile_listing(self, account, listing_id, *, job_id=None, should_stop=lambda: False):
+        from app.models.ebay_best_offer_action import EbayBestOfferAction
+        page = 1
+        observed = []
+        while True:
+            if should_stop():
+                raise RuntimeError('Automatic synchronization stopped')
+            payload = self._current_request(account, page=page, listing_id=listing_id, job_id=job_id)
+            for raw in payload.get('offers', []):
+                raw['listingId'] = raw.get('listingId') or listing_id
+                existing = self.db.scalar(select(Offer).where(Offer.account_id == account.id,
+                    Offer.provider == 'EBAY', Offer.provider_offer_id == raw.get('offerId')))
+                # Item-specific responses may omit Role. Only previously verified
+                # identities can inherit their own role; new unknown rows fail closed.
+                if not raw.get('role') and existing and existing.provider_role == 'Seller':
+                    raw['role'] = 'Seller'
+                if raw.get('role') != 'Seller':
+                    continue
+                with self.db.begin_nested():
+                    offer, _ = self._upsert(account, raw, self._match_conversation(account.id, listing_id, raw.get('buyerUsername')))
+                    offer.last_seen_sync_id = job_id
+                    self.db.flush()
+                    observed.append(offer.id)
+                    self._upsert_derived_offer_events(account, raw, offer.conversation, offer)
+            self.db.commit()
+            if page >= max(1, int(payload.get('totalPages') or 1)):
+                break
+            page += 1
+        for offer_id in observed:
+            offer = self.db.get(Offer, offer_id)
+            actions = self.db.scalars(select(EbayBestOfferAction).where(EbayBestOfferAction.offer_id == offer_id,
+                EbayBestOfferAction.state.in_(['DISPATCHING','RECONCILIATION_REQUIRED','SUCCEEDED'])))
+            awaiting_transition = False
+            for action in actions:
+                # Observing a provider transition closes ambiguity, without falsely
+                # claiming that this user caused an externally made transition.
+                if offer.provider_status in {'Active','Pending'}:
+                    awaiting_transition = True
+                else:
+                    if action.state != 'SUCCEEDED':
+                        action.state = 'RECONCILED'
+                        action.completed_at = datetime.now(UTC)
+                        action.provider_result = {'observed_status': offer.provider_status, 'result': 'Provider state observed; action attribution unknown'}
+            offer.reconciliation_required = awaiting_transition or offer.provider_status in {'SellerAccept','PendingBuyerPayment','PendingBuyerConfirmation'}
+        self.db.commit()
+
+    def _sync_listing_account(self, account_id: UUID, *, listing_ids: list[str] | None = None, commit: bool = True):
         account = self.db.get(EbayAccount, account_id)
         if not account or not account.is_active:
             raise ValueError('Active eBay account not found')
@@ -105,30 +265,30 @@ class EbayBestOfferSyncService:
                     conversation = None
                     raw['listingId'] = raw.get('listingId') or listing_id
                     try:
-                        conversation = self._match_conversation(
-                            account.id,
-                            raw.get('listingId') or listing_id,
-                            raw.get('buyerUsername'),
-                        )
-                        result, was_created = self._upsert(account, raw, conversation)
-                        derived_results = self._upsert_derived_offer_events(account, raw, conversation, result)
-                        touched_conversation_ids.update(
-                            value
-                            for value in (
-                                getattr(conversation, "id", None),
-                                result.conversation_id,
-                                *(offer.conversation_id for offer, _ in derived_results),
+                        with self.db.begin_nested():
+                            conversation = self._match_conversation(
+                                account.id,
+                                raw.get('listingId') or listing_id,
+                                raw.get('buyerUsername'),
                             )
-                            if value
-                        )
-                        created += int(was_created)
-                        updated += int(not was_created)
-                        linked += int(result.conversation_id is not None)
-                        created += sum(int(was_created) for _, was_created in derived_results)
-                        updated += sum(int(not was_created) for _, was_created in derived_results)
-                        linked += sum(int(offer.conversation_id is not None) for offer, _ in derived_results)
+                            result, was_created = self._upsert(account, raw, conversation)
+                            derived_results = self._upsert_derived_offer_events(account, raw, conversation, result)
+                            touched_conversation_ids.update(
+                                value
+                                for value in (
+                                    getattr(conversation, "id", None),
+                                    result.conversation_id,
+                                    *(offer.conversation_id for offer, _ in derived_results),
+                                )
+                                if value
+                            )
+                            created += int(was_created)
+                            updated += int(not was_created)
+                            linked += int(result.conversation_id is not None)
+                            created += sum(int(was_created) for _, was_created in derived_results)
+                            updated += sum(int(not was_created) for _, was_created in derived_results)
+                            linked += sum(int(offer.conversation_id is not None) for offer, _ in derived_results)
                     except IntegrityError:
-                        self.db.rollback()
                         logger.exception(
                             "Best offer upsert failed but sync will continue. account_id=%s "
                             "conversation_id=%s message_id=%s provider_offer_id=%s payload=%s",
@@ -139,7 +299,6 @@ class EbayBestOfferSyncService:
                             raw,
                         )
                     except ValueError as exc:
-                        self.db.rollback()
                         logger.warning(
                             "Skipping incomplete best offer. reason=%s account_id=%s conversation_id=%s "
                             "message_id=%s provider_offer_id=%s payload=%s",
@@ -151,7 +310,6 @@ class EbayBestOfferSyncService:
                             raw,
                         )
                     except Exception:
-                        self.db.rollback()
                         logger.exception(
                             "Unexpected best offer upsert error but sync will continue. account_id=%s "
                             "conversation_id=%s message_id=%s provider_offer_id=%s payload=%s",
@@ -203,25 +361,21 @@ class EbayBestOfferSyncService:
         sync_operation_id: str,
         request_number: int,
     ) -> dict:
-        self.api_usage.reserve_calls(1, EbayApiUsageService.BESTSELLER)
         retry_count = 0
         started_at = perf_counter()
-        response = self.tokens.client.get_best_offers_raw(
-            account.access_token,
-            page=page,
-            best_offer_status='All',
-            item_id=listing_id,
-        )
-        if response.status_code == 401:
-            account = self.tokens.refresh_access_token(account.id)
-            self.api_usage.reserve_calls(1, EbayApiUsageService.BESTSELLER)
-            retry_count += 1
-            response = self.tokens.client.get_best_offers_raw(
-                account.access_token,
-                page=page,
-                best_offer_status='All',
-                item_id=listing_id,
-            )
+        for retry_count in range(2):
+            attempt = self.api_usage.reserve_attempt(account_id=account.id, operation='GetBestOffers', attempt_number=retry_count + 1)
+            try:
+                response = self.tokens.client.get_best_offers_raw(account.access_token,
+                    page=page, best_offer_status='All', item_id=listing_id)
+                self.api_usage.finish_attempt(attempt, 'SUCCESS' if response.ok else 'FAILED')
+            except Exception:
+                self.api_usage.finish_attempt(attempt, 'TRANSPORT_ERROR')
+                raise
+            if response.status_code == 401 and retry_count == 0:
+                account = self.tokens.refresh_access_token(account.id)
+                continue
+            break
         duration = perf_counter() - started_at
         payload = response.payload if isinstance(response.payload, dict) else {}
         offers = payload.get("offers", []) if isinstance(payload.get("offers"), list) else []
@@ -443,10 +597,41 @@ class EbayBestOfferSyncService:
                 "raw_payload",
             ),
         )
+        if raw.get('derivedEvent') or str(provider_id).endswith(':seller-counteroffer-submitted'):
+            offer.record_source = 'DERIVED'
+        else:
+            now = datetime.now(UTC)
+            if offer.provider_snapshot != raw:
+                offer.version = (offer.version or 1) + (0 if created else 1)
+            offer.record_source = 'TRADING'
+            offer.provider_status = raw.get('status')
+            offer.provider_role = raw.get('role') or offer.provider_role
+            offer.provider_snapshot = dict(raw)
+            offer.listing_snapshot = {**(offer.listing_snapshot or {}), **self._listing_metadata(account.id, offer.listing_id), **{k: v for k, v in (raw.get('listing') or {}).items() if v is not None}}
+            offer.last_seen_at = now
+            offer.last_synced_at = now
         if conversation:
             self._attach_matching_message(offer, conversation)
 
         return offer, created
+
+    def _listing_metadata(self, account_id, listing_id):
+        # Cached metadata must match both account and item, never another seller.
+        context = self.db.scalar(select(ConversationProductContext).join(Conversation,
+            Conversation.id == ConversationProductContext.conversation_id).where(
+            Conversation.provider_account_id == account_id,
+            ConversationProductContext.reference_id == listing_id)
+            .order_by(ConversationProductContext.updated_at.desc()).limit(1))
+        if not context:
+            return {}
+        data = {'title': context.item_title, 'image_url': context.image_url, 'sku': context.sku,
+                'price': str(context.price_value) if context.price_value is not None else None,
+                'currency': context.price_currency}
+        payload = context.raw_payload or {}
+        condition = payload.get('condition')
+        if isinstance(condition, str):
+            data['condition'] = condition
+        return {k: v for k, v in data.items() if v is not None}
 
     def _upsert_derived_offer_events(
         self,

@@ -182,8 +182,12 @@ def get_ebay_api_usage(
     db: Session = Depends(get_db),
     current_user=Depends(require_ebay_sync_access),
 ) -> EbayApiUsageListResponse:
+    service = EbayApiUsageService(db)
+    attribution = service.attribution()
     return EbayApiUsageListResponse(
-        items=[serialize_api_usage(usage) for usage in EbayApiUsageService(db).get_today_usage_all()]
+        items=[serialize_api_usage(usage) for usage in service.get_today_usage_all()],
+        attribution=attribution,
+        unattributed_trading_calls=max(0, service.get_today_usage(service.BESTSELLER).call_count - sum(row['total'] for row in attribution)),
     )
 
 

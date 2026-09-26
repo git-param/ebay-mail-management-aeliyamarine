@@ -1,4 +1,6 @@
 from app.db.base_class import Base
+from app.models.ebay_best_offer_action import EbayBestOfferAction  # noqa: F401
+from app.models.ebay_api_call_attempt import EbayApiCallAttempt  # noqa: F401
 from app.models import (
     AuditLog,
     AppConfigSetting,

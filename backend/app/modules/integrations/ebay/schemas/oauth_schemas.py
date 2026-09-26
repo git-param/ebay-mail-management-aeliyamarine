@@ -53,6 +53,8 @@ class EbayApiUsageResponse(BaseModel):
 
 class EbayApiUsageListResponse(BaseModel):
     items: list[EbayApiUsageResponse]
+    attribution: list[dict] = Field(default_factory=list)
+    unattributed_trading_calls: int = 0
 
 
 class EbayAutoSyncStatusResponse(BaseModel):

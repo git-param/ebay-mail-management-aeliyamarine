@@ -50,7 +50,7 @@ const EMPTY_AUTO_SYNC_STATUS = {
 const API_USAGE_TYPES = [
   { key: 'commerce', label: 'Commerce', description: 'Messaging and conversation sync calls' },
   { key: 'fulfillment', label: 'Fulfillment', description: 'Order and fulfillment sync calls' },
-  { key: 'bestseller', label: 'Bestseller', description: 'Best offer and listing offer calls' },
+  { key: 'bestseller', label: 'Trading Best Offer', description: 'Shared daily quota for Best Offer calls' },
 ]
 
 function formatDate(value) {
@@ -441,6 +441,8 @@ function EbayAccounts({ currentUser, onLogout }) {
   const [notification, setNotification] = useState('')
   const [error, setError] = useState('')
   const [syncResults, setSyncResults] = useState([])
+  const [offerUsage, setOfferUsage] = useState([])
+  const [unattributedOfferUsage, setUnattributedOfferUsage] = useState(0)
   const [apiUsages, setApiUsages] = useState(() => API_USAGE_TYPES.map((type) => ({ ...EMPTY_API_USAGE, apiName: type.key })))
   const [autoSyncStatus, setAutoSyncStatus] = useState(EMPTY_AUTO_SYNC_STATUS)
   const [autoSyncDraft, setAutoSyncDraft] = useState({ hours: '6', minutes: '0' })
@@ -478,6 +480,8 @@ function EbayAccounts({ currentUser, onLogout }) {
     try {
       const response = await fetchEbayApiUsage()
       setApiUsages(normalizeApiUsages(response))
+      setOfferUsage(response.attribution || [])
+      setUnattributedOfferUsage(response.unattributed_trading_calls || 0)
     } catch (caughtError) {
       setError(caughtError.message)
     }
@@ -1017,6 +1021,13 @@ function EbayAccounts({ currentUser, onLogout }) {
             {API_USAGE_TYPES.map((type) => (
               <ApiUsageCard key={type.key} type={type} usage={getApiUsage(apiUsages, type.key)} />
             ))}
+            <div className="best-offer-usage-attribution">
+              <h3>Trading Best Offer calls by account today</h3>
+              <table><thead><tr><th>Account</th><th>GetBestOffers</th><th>RespondToBestOffer</th><th>Total</th></tr></thead>
+                <tbody>{offerUsage.map(row => <tr key={row.account_id}><td>{row.account_name}</td><td>{row.GetBestOffers}</td><td>{row.RespondToBestOffer}</td><td>{row.total}</td></tr>)}</tbody>
+              </table>
+              <p>Unattributed historical calls: {unattributedOfferUsage.toLocaleString()}. All accounts share the daily Trading limit.</p>
+            </div>
           </section>
         ) : null}
 

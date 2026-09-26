@@ -2,7 +2,7 @@ import enum
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Integer, String, Text, UniqueConstraint, false
+from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Integer, String, Text, UniqueConstraint, false, Index, text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy import JSON, Column
@@ -95,7 +95,8 @@ class Conversation(Base):
     offers = relationship(
         'Offer',
         back_populates='conversation',
-        cascade='all, delete-orphan',
+        cascade='save-update, merge',
+        passive_deletes=True,
         order_by='Offer.created_at',
     )
     messages = relationship(
@@ -204,7 +205,8 @@ class Message(Base):
     offers = relationship(
         'Offer',
         back_populates='linked_message',
-        cascade='all, delete-orphan',
+        cascade='save-update, merge',
+        passive_deletes=True,
         order_by='Offer.created_at',
     )
 
@@ -336,6 +338,12 @@ class ConversationNote(Base):
 
 class SyncLog(Base):
     __tablename__ = 'sync_logs'
+    __table_args__ = (
+        Index('uq_best_offer_account_job', 'provider_account_id', unique=True,
+              postgresql_where=text("sync_type='EBAY_BEST_OFFER_SYNC' AND status IN ('PENDING','RUNNING')")),
+        Index('uq_best_offer_batch_job', 'sync_type', unique=True,
+              postgresql_where=text("sync_type='EBAY_BEST_OFFER_BATCH' AND status IN ('PENDING','RUNNING')")),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     provider: Mapped[str] = mapped_column(String(50), nullable=False)

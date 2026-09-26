@@ -10,6 +10,9 @@ from app.models.ebay_account import EbayAccount
 from app.modules.config_management.defaults import DEFAULT_CONFIGS
 
 HIDDEN_CONFIG_KEYS = {
+    'offer.best_offer_enabled',
+    'offer.best_offer_interval_minutes',
+    'offer.best_offer_account_ids',
     'api.ebay_daily_api_limit',
     'api.ebay_auto_sync_enabled',
     'api.ebay_auto_sync_interval_hours',
@@ -142,6 +145,9 @@ class ConfigService:
             self.db.execute(text('CREATE TEMP TABLE cleanup_messages ON COMMIT DROP AS SELECT id FROM messages WHERE conversation_id IN (SELECT id FROM cleanup_conversations)'))
             self.db.execute(text('CREATE TEMP TABLE cleanup_offers ON COMMIT DROP AS SELECT id FROM offers WHERE conversation_id IN (SELECT id FROM cleanup_conversations) OR message_id IN (SELECT id FROM cleanup_messages)'))
             self.db.execute(text('CREATE TEMP TABLE cleanup_offer_entries ON COMMIT DROP AS SELECT id FROM offer_management_entries WHERE related_conversation_id IN (SELECT id FROM cleanup_conversations) OR related_offer_id IN (SELECT id FROM cleanup_offers)'))
+            # Detach durable Trading history; manual-entry cleanup above is unchanged.
+            self.db.execute(text("UPDATE offers SET conversation_id=NULL, message_id=NULL WHERE id IN (SELECT id FROM cleanup_offers) AND record_source='TRADING'"))
+            self.db.execute(text("DELETE FROM cleanup_offers WHERE id IN (SELECT id FROM offers WHERE record_source='TRADING')"))
             for table, condition in tables:
                 result = self.db.execute(text(f'DELETE FROM {table} WHERE {condition}'))
                 deleted[table] = int(result.rowcount or 0)

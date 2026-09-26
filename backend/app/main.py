@@ -8,16 +8,18 @@ from app.api.v1.router import api_router
 from app.core.config import get_settings
 from app.services.ebay_auto_sync_service import ebay_auto_sync_loop
 from app.services.notification_cleanup import notification_cleanup_loop
+from app.services.ebay_best_offer_auto_sync_service import ebay_best_offer_auto_sync_loop
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     cleanup_task = asyncio.create_task(notification_cleanup_loop())
     ebay_auto_sync_task = asyncio.create_task(ebay_auto_sync_loop())
+    best_offer_task = asyncio.create_task(ebay_best_offer_auto_sync_loop())
     try:
         yield
     finally:
-        for task in (cleanup_task, ebay_auto_sync_task):
+        for task in (cleanup_task, ebay_auto_sync_task, best_offer_task):
             task.cancel()
             try:
                 await task

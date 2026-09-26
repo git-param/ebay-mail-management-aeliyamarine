@@ -18,6 +18,7 @@ from fastapi import HTTPException, status
 logger = logging.getLogger(__name__)
 
 EBAY_OAUTH_SCOPES = [
+    'https://api.ebay.com/oauth/api_scope',
     'https://api.ebay.com/oauth/api_scope/commerce.message',
     'https://api.ebay.com/oauth/api_scope/commerce.identity.readonly',
     'https://api.ebay.com/oauth/api_scope/sell.inventory',
@@ -146,11 +147,14 @@ class EbayAuthClient:
         *,
         page: int = 1,
         entries_per_page: int = 200,
-        best_offer_status: str = 'All',
+        best_offer_status: str = 'Active',
         item_id: str | None = None,
     ) -> EbayRawApiResponse:
         """Retrieve Best Offers through eBay's official Trading API."""
-        item_filter = f'<ItemID>{item_id}</ItemID>' if item_id else ''
+        if best_offer_status == 'All' and not item_id:
+            raise ValueError('BestOfferStatus=All requires ItemID')
+        from xml.sax.saxutils import escape
+        item_filter = f'<ItemID>{escape(item_id)}</ItemID>' if item_id else ''
         body = (
             '<?xml version="1.0" encoding="utf-8"?>'
             '<GetBestOffersRequest xmlns="urn:ebay:apis:eBLBaseComponents">'
@@ -201,13 +205,23 @@ class EbayAuthClient:
             for group in grouped:
                 item_id = group.findtext('./e:Item/e:ItemID', namespaces=ns)
                 for node in group.findall('./e:BestOfferArray/e:BestOffer', ns):
-                    offers.append(self._best_offer_node(node, item_id, ns))
+                    offer = self._best_offer_node(node, item_id, ns)
+                    offer['role'] = group.findtext('./e:Role', namespaces=ns)
+                    price = group.find('./e:Item/e:BuyItNowPrice', ns)
+                    offer['listing'] = {'price': price.text if price is not None else None,
+                        'currency': price.get('currencyID') if price is not None else None}
+                    offers.append(offer)
         else:
             item_id = root.findtext('./e:Item/e:ItemID', namespaces=ns)
             for node in root.findall('./e:BestOfferArray/e:BestOffer', ns):
                 offers.append(self._best_offer_node(node, item_id, ns))
         pages = root.findtext('.//e:PaginationResult/e:TotalNumberOfPages', default='1', namespaces=ns)
-        return {'offers': offers, 'totalPages': int(pages or 1), 'error': error.text if error is not None else None, 'ack': ack}
+        errors = [{'code': n.findtext('./e:ErrorCode', namespaces=ns),
+                   'severity': n.findtext('./e:SeverityCode', namespaces=ns),
+                   'message': n.findtext('./e:LongMessage', namespaces=ns)}
+                  for n in root.findall('./e:Errors', ns)]
+        return {'offers': offers, 'totalPages': int(pages or 1), 'errors': errors,
+                'error': error.text if error is not None else None, 'ack': ack}
 
     def _best_offer_node(self, node, item_id, ns) -> dict:
         price = node.find('./e:Price', ns)
@@ -220,8 +234,8 @@ class EbayAuthClient:
             'expirationTime': node.findtext('./e:ExpirationTime', namespaces=ns),
             'amount': price.text if price is not None else None,
             'currency': price.get('currencyID') if price is not None else None,
-            'quantity': node.findtext('./e:Quantity', default='1', namespaces=ns),
-            'status': node.findtext('./e:Status', default='Pending', namespaces=ns),
+            'quantity': node.findtext('./e:Quantity', namespaces=ns),
+            'status': node.findtext('./e:Status', namespaces=ns),
             'offerType': node.findtext('./e:BestOfferCodeType', namespaces=ns),
             'createdTime': (
                 node.findtext('./e:CreatedTime', namespaces=ns)
@@ -231,6 +245,51 @@ class EbayAuthClient:
                 or node.findtext('./e:StartTime', namespaces=ns)
             ),
         }
+
+    def respond_to_best_offer_raw(self, access_token, *, action, offer_id, item_id,
+                                  amount=None, currency=None, quantity=None, message=None, correlation_id=None):
+        """Single attempt only. Timeout/malformed replies remain ambiguous."""
+        if action not in {'Accept', 'Decline', 'Counter'}:
+            raise ValueError('Unsupported Best Offer action')
+        root = ET.Element('RespondToBestOfferRequest', xmlns='urn:ebay:apis:eBLBaseComponents')
+        for name, value in [('Action', action), ('BestOfferID', offer_id), ('ItemID', item_id), ('MessageID', correlation_id)]:
+            if value is not None:
+                ET.SubElement(root, name).text = str(value)
+        if action == 'Counter':
+            ET.SubElement(root, 'CounterOfferPrice', currencyID=currency).text = str(amount)
+            ET.SubElement(root, 'CounterOfferQuantity').text = str(quantity)
+        if message:
+            ET.SubElement(root, 'SellerResponse').text = message
+        headers = {'X-EBAY-API-CALL-NAME': 'RespondToBestOffer', 'X-EBAY-API-SITEID': '0',
+                   'X-EBAY-API-COMPATIBILITY-LEVEL': '1455', 'X-EBAY-API-IAF-TOKEN': access_token,
+                   'Content-Type': 'text/xml'}
+        request = Request(self.trading_url, data=ET.tostring(root, encoding='utf-8'), headers=headers, method='POST')
+        try:
+            with urlopen(request, timeout=30) as response:
+                payload = self._best_offer_action_xml(response.read().decode('utf-8'))
+                return EbayRawApiResponse(response.status, payload,
+                    payload.get('confirmed', False), self.trading_url, self._sanitize_headers(headers))
+        except HTTPError as exc:
+            payload = self._best_offer_action_xml(exc.read().decode('utf-8', errors='replace'))
+            return EbayRawApiResponse(exc.code, payload, False, self.trading_url, self._sanitize_headers(headers))
+        except (URLError, TimeoutError):
+            return EbayRawApiResponse(0, {'ambiguous': True}, False, self.trading_url, self._sanitize_headers(headers))
+
+    def _best_offer_action_xml(self, xml):
+        try:
+            root = ET.fromstring(xml)
+        except ET.ParseError:
+            return {'ambiguous': True}
+        ns = {'e': 'urn:ebay:apis:eBLBaseComponents'}
+        ack = root.findtext('./e:Ack', namespaces=ns)
+        statuses = [n.text for n in root.findall('./e:RespondToBestOffer/e:BestOffer/e:CallStatus', ns)]
+        errors = [{'code': n.findtext('./e:ErrorCode', namespaces=ns),
+                   'severity': n.findtext('./e:SeverityCode', namespaces=ns),
+                   'message': n.findtext('./e:LongMessage', namespaces=ns)} for n in root.findall('./e:Errors', ns)]
+        confirmed = ack in {'Success', 'Warning'} and statuses == ['Success'] and not any(e['severity'] == 'Error' for e in errors)
+        definitive_failure = (ack == 'Failure' or statuses == ['Failure']) and bool(errors or statuses)
+        return {'ack': ack, 'call_status': statuses, 'errors': errors, 'confirmed': confirmed,
+                'ambiguous': not confirmed and not definitive_failure}
 
     def build_authorization_url(self, *, state: str) -> str:
         query = urlencode(
@@ -254,6 +313,12 @@ class EbayAuthClient:
         )
 
     def refresh_access_token(self, refresh_token: str) -> EbayTokenPayload:
+        try:
+            return self._refresh_access_token_with_scopes(refresh_token,
+                ['https://api.ebay.com/oauth/api_scope', *EBAY_REFRESH_SCOPES])
+        except HTTPException:
+            # Preserve grants made before Trading scope was added.
+            logger.warning('Trading scope unavailable on existing grant; trying original scopes')
         try:
             return self._refresh_access_token_with_scopes(refresh_token, EBAY_REFRESH_SCOPES)
         except HTTPException:

@@ -3,6 +3,9 @@ import AppLayout, { Icon } from '../../layouts/app_layout'
 import { fetchEbayAccounts } from '../../services/ebayAccountApi'
 import { fetchUsers } from '../../services/userApi'
 import './offer_management.css'
+import './best_offers.css'
+import CurrentOffers from './CurrentOffers'
+import BestOfferConfig from './BestOfferConfig'
 import {
   checkOfferListingDuplicate,
   createOfferEntry,
@@ -425,6 +428,8 @@ function PreviewDrawer({ entry, history, canDelete, onClose, onEdit, onDelete })
 }
 
 export default function OfferManagement({ currentUser, onLogout }) {
+  const [activeTab, setActiveTab] = useState('entries')
+  const canManageBestOffers = ['ADMIN', 'OPS_MANAGER'].includes(normalizeRole(currentUser?.role))
   const isAgent = normalizeRole(currentUser?.role) === 'AGENT'
   const canDelete = !isAgent
 
@@ -882,7 +887,12 @@ export default function OfferManagement({ currentUser, onLogout }) {
       currentUser={currentUser}
       onLogout={onLogout}
     >
-      <main className="management-page offer-management-page">
+      <nav className="offer-module-tabs" aria-label="Offer Management sections">
+        <button type="button" className={activeTab === 'entries' ? 'active' : ''} onClick={() => setActiveTab('entries')}>Offer Entries</button>
+        <button type="button" className={activeTab === 'current' ? 'active' : ''} onClick={() => setActiveTab('current')}>See Current Offers</button>
+        {canManageBestOffers && <button type="button" className={activeTab === 'config' ? 'active' : ''} onClick={() => setActiveTab('config')}>Config</button>}
+      </nav>
+      <main className="management-page offer-management-page" style={{ display: activeTab === 'entries' ? undefined : 'none' }}>
         <div className="page-header">
           <div>
             <h1>Offer Management</h1>
@@ -1363,6 +1373,8 @@ export default function OfferManagement({ currentUser, onLogout }) {
           </div>
         </section>
       </main>
+      {activeTab === 'current' && <CurrentOffers />}
+      {activeTab === 'config' && canManageBestOffers && <BestOfferConfig />}
 
       {/* CREATE OFFER */}
       {showCreate ? (

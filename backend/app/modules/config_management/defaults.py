@@ -26,10 +26,10 @@ DEFAULT_CONFIGS = [
     {
         'section': 'api',
         'config_key': 'api.ebay_bestseller_daily_limit',
-        'label': 'eBay Bestseller API daily limit',
-        'value': '100',
+        'label': 'eBay Trading Best Offer daily limit',
+        'value': '2500000',
         'value_type': 'integer',
-        'description': 'Maximum eBay Bestseller API calls allowed per day.',
+        'description': 'Shared maximum Trading Best Offer calls across all eBay accounts per day.',
     },
     {
         'section': 'api',
@@ -58,3 +58,7 @@ DEFAULT_CONFIGS = [
         'is_editable': False,
     },
 ]
+
+for key, value, kind in [('enabled', 'false', 'boolean'), ('interval_minutes', '5', 'integer'), ('account_ids', '[]', 'text')]:
+    DEFAULT_CONFIGS.append({'section': 'offer', 'config_key': 'offer.best_offer_' + key,
+        'label': 'Best Offer ' + key, 'value': value, 'value_type': kind, 'is_editable': False})

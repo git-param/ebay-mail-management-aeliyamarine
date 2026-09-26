@@ -323,3 +323,5 @@ html[data-theme="dark"] .api-usage-meter {
     min-height: 0;
   }
 }
+
+.best-offer-usage-attribution{grid-column:1/-1;overflow:auto;padding:18px;border:1px solid var(--border-color,#334155);border-radius:12px}.best-offer-usage-attribution table{width:100%;text-align:left;border-collapse:collapse}.best-offer-usage-attribution th,.best-offer-usage-attribution td{padding:8px}

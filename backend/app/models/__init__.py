@@ -1,4 +1,6 @@
 from app.models.audit_log import AuditLog
+from app.models.ebay_best_offer_action import EbayBestOfferAction
+from app.models.ebay_api_call_attempt import EbayApiCallAttempt
 from app.models.app_config import AppConfigSetting
 from app.models.category import Category, CategoryKeyword, CategoryUserAssignment
 from app.models.conversation import (
