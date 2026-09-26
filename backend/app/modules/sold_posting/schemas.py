@@ -32,6 +32,7 @@ class SoldPostingRow(BaseModel):
     order_payment_status: str | None = None
     order_fulfillment_status: str | None = None
     image_url: str | None = None
+    note: str | None = None
     is_copied: bool = False
     copied_at: datetime | None = None
     copied_by_user_id: UUID | None = None
@@ -77,6 +78,7 @@ class SoldPostingLineItemResponse(BaseModel):
     currency: str | None = None
     ship_by_date: datetime | None = None
     image_url: str | None = None
+    note: str | None = None
     copied_at: datetime | None = None
     copied_by_user_id: UUID | None = None
     copy_count: int = 0
@@ -144,6 +146,7 @@ class SoldPostingEditRequest(BaseModel):
     condition: str | None = None
     title: str | None = None
     quantity: int | None = None
+    note: str | None = None
     tracking_number: str | None = None
     shipping_carrier_code: str | None = None
     shipping_service_code: str | None = None

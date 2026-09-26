@@ -578,6 +578,23 @@ a .sold-thumb:hover {
   background: #f0f7ff;
 }
 
+.sold-table tbody tr.sold-note-row,
+.sold-table tbody tr.sold-note-row:hover {
+  background: #ffffff;
+  cursor: default;
+}
+
+.sold-table tbody tr.sold-data-row.has-note td {
+  border-bottom-color: transparent;
+}
+
+.sold-table tbody tr.sold-data-row.has-note:hover,
+.sold-table tbody tr.sold-data-row.has-note:hover + tr.sold-note-row,
+.sold-table tbody tr.sold-data-row.has-note:has(+ tr.sold-note-row:hover),
+.sold-table tbody tr.sold-data-row.has-note + tr.sold-note-row:hover {
+  background: #f0f7ff;
+}
+
 .sold-table th,
 .sold-table td {
   border-bottom: 1px solid #edf2f8;
@@ -601,6 +618,7 @@ a .sold-thumb:hover {
 
 .sold-copy-cell {
   overflow: visible;
+  position: relative;
 }
 
 .sold-copy-actions {
@@ -664,6 +682,242 @@ a .sold-thumb:hover {
   font-weight: 800;
 
   padding: 3px 7px;
+}
+
+/* ==========================================================================
+   NOTES
+   ========================================================================== */
+
+.sold-posting-page .sold-add-note-button {
+  position: absolute;
+  top: -26px;
+  left: 12px;
+  z-index: 4;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 26px;
+  min-height: 26px;
+  width: auto;
+  min-width: 82px;
+  padding: 0 9px;
+  border: 1px solid #c9d8ea;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #174066;
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+  opacity: 0;
+  transform: scale(0.92);
+  transition:
+    opacity 150ms ease,
+    transform 150ms ease,
+    background 150ms ease,
+    border-color 150ms ease;
+}
+
+.sold-data-row:hover .sold-add-note-button,
+.sold-data-row:focus-within .sold-add-note-button,
+.sold-add-note-button:focus-visible {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.sold-add-note-button:hover {
+  border-color: #75a8d8;
+  background: #eef7ff;
+}
+
+.sold-note-row td {
+  padding: 0 16px 5px;
+  white-space: normal;
+  overflow: visible;
+}
+
+.sold-note-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 980px;
+}
+
+.sold-note-label {
+  flex: 0 0 42px;
+  color: #5b6f8a;
+  font-size: 11px;
+  font-weight: 900;
+  text-align: right;
+}
+
+.sold-note-display {
+  align-items: center;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  flex: 1 1 auto;
+  width: min(920px, calc(100% - 52px));
+  max-width: 920px;
+  min-height: 38px;
+  box-sizing: border-box;
+  padding: 5px 8px 5px 12px;
+  border: 1px solid #dbe6f3;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #17324d;
+}
+
+.sold-note-text-button {
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: text;
+  margin: 0;
+  color: #17324d;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 750;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.sold-note-actions {
+  align-items: center;
+  display: inline-flex;
+  gap: 6px;
+}
+
+.sold-posting-page .sold-note-icon {
+  width: 26px;
+  height: 26px;
+  min-height: 26px;
+  padding: 0;
+  border-radius: 5px;
+  border: 1px solid #c9d8ea;
+  background: #f8fbff;
+  color: #174066;
+}
+
+.sold-posting-page .sold-note-icon .ui-icon {
+  width: 14px;
+  height: 14px;
+}
+
+.sold-note-inline-editor {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 30px;
+  padding: 5px 7px;
+  resize: vertical;
+  border: 1px solid #93b5d7;
+  border-radius: 5px;
+  background: #ffffff;
+  color: #17324d;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.35;
+  outline: 0;
+}
+
+.sold-note-inline-editor:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.12);
+}
+
+.sold-note-inline-save {
+  min-height: 26px;
+  padding: 0 10px;
+  border: 1px solid #2563eb;
+  border-radius: 5px;
+  background: #2563eb;
+  color: #ffffff;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.sold-note-inline-save:disabled {
+  cursor: wait;
+  opacity: 0.7;
+}
+
+.sold-note-icon:hover {
+  border-color: #75a8d8;
+  background: #eef7ff;
+}
+
+.sold-note-icon.danger {
+  border-color: #fecdd3;
+  background: #fff1f2;
+  color: #be123c;
+}
+
+.sold-note-popover {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 60;
+  width: min(540px, calc(100vw - 28px));
+  max-height: calc(100svh - 48px);
+  padding: 0;
+  overflow: auto;
+  border: 1px solid #c9d8ea;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 22px 60px rgba(10, 22, 42, 0.24);
+}
+
+.sold-note-popover-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 16px 20px;
+  border-bottom: 1px solid #dbe6f3;
+}
+
+.sold-note-popover-header h2 {
+  margin: 0;
+  color: #17324d;
+  font-size: 17px;
+}
+
+.sold-note-popover-header span {
+  display: block;
+  margin-top: 2px;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.sold-note-body {
+  display: grid;
+  gap: 14px;
+  padding: 18px 22px 20px;
+}
+
+.sold-note-body textarea {
+  width: 100%;
+  min-height: 150px;
+  resize: vertical;
+  padding: 12px;
+  border: 1px solid #c9d8ea;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #17324d;
+  font: inherit;
+  line-height: 1.45;
+  box-sizing: border-box;
+}
+
+.sold-note-body textarea:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+  outline: 0;
 }
 
 /* ==========================================================================
@@ -830,7 +1084,10 @@ a .sold-thumb:hover {
 }
 
 .sold-table th:nth-child(15),
-.sold-table td:nth-child(15),
+.sold-table td:nth-child(15) {
+  width: 156px;
+}
+
 .sold-table th:nth-child(16),
 .sold-table td:nth-child(16) {
   width: 156px;
@@ -1175,6 +1432,13 @@ a .sold-thumb:hover {
 }
 
 @media (max-width: 720px) {
+  .sold-note-popover {
+    right: 10px;
+    bottom: 10px;
+    width: calc(100vw - 20px);
+    max-height: calc(100svh - 20px);
+  }
+
   .sold-filter-dropdown,
   .sold-filter-trigger,
   .sold-search-box,
@@ -1210,9 +1474,11 @@ html[data-theme="dark"] .sold-filter-bar,
 html[data-theme="dark"] .sold-posting-page .table-card,
 html[data-theme="dark"] .sold-posting-page .pagination-bar,
 html[data-theme="dark"] .modal-panel.sold-edit-modal,
+html[data-theme="dark"] .sold-note-popover,
 html[data-theme="dark"] .modal-panel.sold-confirm-modal,
 html[data-theme="dark"] .sold-edit-modal .modal-header,
 html[data-theme="dark"] .sold-edit-form .modal-actions,
+html[data-theme="dark"] .sold-note-popover-header,
 html[data-theme="dark"] .sold-confirm-detail,
 html[data-theme="dark"] .sold-detail-drawer {
   border-color: #3b424d !important;
@@ -1231,7 +1497,11 @@ html[data-theme="dark"] .copy-chip,
 html[data-theme="dark"] .sold-blogspot-link,
 html[data-theme="dark"] .sold-reset-link,
 html[data-theme="dark"] .sold-search-box button,
-html[data-theme="dark"] .sold-condition-editor input {
+html[data-theme="dark"] .sold-condition-editor input,
+html[data-theme="dark"] .sold-note-text-button,
+html[data-theme="dark"] .sold-note-popover-header h2,
+html[data-theme="dark"] .sold-note-body textarea,
+html[data-theme="dark"] .sold-note-inline-editor {
   color: #ffffff !important;
 }
 
@@ -1243,6 +1513,19 @@ html[data-theme="dark"] .sold-filter-menu button {
   color: #b4bac4 !important;
 }
 
+html[data-theme="dark"] .sold-note-popover-header span {
+  color: #b4bac4 !important;
+}
+
+html[data-theme="dark"] .sold-note-label {
+  color: #b4bac4 !important;
+}
+
+html[data-theme="dark"] .sold-note-display {
+  border-color: #3b424d !important;
+  background: #181c22 !important;
+}
+
 html[data-theme="dark"] .sold-filter-trigger,
 html[data-theme="dark"] .sold-search-box,
 html[data-theme="dark"] .sold-search-box input,
@@ -1252,6 +1535,8 @@ html[data-theme="dark"] .sold-date-filter,
 html[data-theme="dark"] .sold-date-filter input,
 html[data-theme="dark"] .sold-filter-menu,
 html[data-theme="dark"] .sold-condition-editor input,
+html[data-theme="dark"] .sold-note-body textarea,
+html[data-theme="dark"] .sold-note-inline-editor,
 html[data-theme="dark"] .sold-posting-page .pagination-bar select,
 html[data-theme="dark"] .sold-edit-columns .field input,
 html[data-theme="dark"] .sold-edit-columns .field select,
@@ -1282,6 +1567,22 @@ html[data-theme="dark"] .sold-table tbody tr:hover {
   background: #242932 !important;
 }
 
+html[data-theme="dark"] .sold-table tbody tr.sold-note-row,
+html[data-theme="dark"] .sold-table tbody tr.sold-note-row:hover {
+  background: #15181d !important;
+}
+
+html[data-theme="dark"] .sold-table tbody tr.sold-data-row.has-note td {
+  border-bottom-color: transparent !important;
+}
+
+html[data-theme="dark"] .sold-table tbody tr.sold-data-row.has-note:hover,
+html[data-theme="dark"] .sold-table tbody tr.sold-data-row.has-note:hover + tr.sold-note-row,
+html[data-theme="dark"] .sold-table tbody tr.sold-data-row.has-note:has(+ tr.sold-note-row:hover),
+html[data-theme="dark"] .sold-table tbody tr.sold-data-row.has-note + tr.sold-note-row:hover {
+  background: #242932 !important;
+}
+
 html[data-theme="dark"] .sold-table th,
 html[data-theme="dark"] .sold-table td {
   border-bottom-color: #343b46 !important;
@@ -1289,15 +1590,25 @@ html[data-theme="dark"] .sold-table td {
 
 html[data-theme="dark"] .sold-thumb,
 html[data-theme="dark"] .sold-thumb.placeholder,
-html[data-theme="dark"] .sold-copy-button {
+html[data-theme="dark"] .sold-copy-button,
+html[data-theme="dark"] .sold-add-note-button,
+html[data-theme="dark"] .sold-note-icon {
   border-color: #4b5563 !important;
   background: #20242c !important;
   color: #f7f8fb !important;
 }
 
-html[data-theme="dark"] .sold-copy-button:hover {
+html[data-theme="dark"] .sold-copy-button:hover,
+html[data-theme="dark"] .sold-add-note-button:hover,
+html[data-theme="dark"] .sold-note-icon:hover {
   border-color: #6b7280 !important;
   background: #2f3540 !important;
+}
+
+html[data-theme="dark"] .sold-note-icon.danger {
+  border-color: #7f1d1d !important;
+  background: #3b1219 !important;
+  color: #fecdd3 !important;
 }
 
 html[data-theme="dark"] .sold-custom-apply,

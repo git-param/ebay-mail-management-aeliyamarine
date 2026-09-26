@@ -241,7 +241,7 @@ class SoldPostingService:
         for key in ["tracking_number", "shipping_carrier_code", "shipping_service_code", "ship_by_date", "order_payment_status", "order_fulfillment_status", "buyer_username"]:
             if key in values:
                 setattr(order, key, values[key] or None)
-        for key in ["sku", "condition", "title", "quantity"]:
+        for key in ["sku", "condition", "title", "quantity", "note"]:
             if key in values:
                 setattr(line, key, values[key] if values[key] != "" else None)
 
@@ -458,6 +458,7 @@ class SoldPostingService:
             "order_payment_status": order.order_payment_status,
             "order_fulfillment_status": order.order_fulfillment_status,
             "image_url": line.image_url,
+            "note": line.note,
             "is_copied": line.copied_at is not None,
             "copied_at": line.copied_at,
             "copied_by_user_id": line.copied_by_user_id,

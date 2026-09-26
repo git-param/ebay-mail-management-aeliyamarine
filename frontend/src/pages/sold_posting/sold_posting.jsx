@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import AppLayout, { Icon } from "../../layouts/app_layout";
 import {
 fetchSoldPostingDetail,
@@ -421,6 +421,70 @@ function SoldConfirmModal({
   );
 }
 
+function SoldNotePopover({ row, value, saving, error, onChange, onCancel, onSave }) {
+  if (!row) return null;
+  return (
+    <section
+      className="sold-note-popover"
+      role="dialog"
+      aria-label={row.note ? "Edit note" : "Add note"}
+    >
+      <div className="sold-note-popover-header">
+        <div>
+          <h2>{row.note ? "Edit Note" : "Add Note"}</h2>
+          <span>Order {row.order_id}</span>
+        </div>
+        <button
+          className="icon-button"
+          type="button"
+          title="Close note editor"
+          aria-label="Close note editor"
+          onClick={onCancel}
+        >
+          <Icon name="close" />
+        </button>
+      </div>
+      <div className="sold-note-body">
+        {error ? <p className="form-message error">{error}</p> : null}
+        <textarea
+          value={value}
+          placeholder="Add note..."
+          onChange={(event) => onChange(event.target.value)}
+          onKeyDown={(event) => {
+            if (
+              event.key === "Enter" &&
+              !event.shiftKey &&
+              !event.nativeEvent.isComposing
+            ) {
+              event.preventDefault();
+              if (!saving) onSave();
+            }
+          }}
+          autoFocus
+        />
+        <div className="modal-actions">
+          <button
+            className="secondary-button"
+            type="button"
+            onClick={onCancel}
+            disabled={saving}
+          >
+            Cancel
+          </button>
+          <button
+            className="primary-button"
+            type="button"
+            onClick={onSave}
+            disabled={saving}
+          >
+            {saving ? "Saving..." : "Save"}
+          </button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export default function SoldPosting({ currentUser, onLogout }) {
   const isAdmin = normalizeRole(currentUser?.role) === "ADMIN";
   const [period, setPeriod] = useState("90");
@@ -457,6 +521,12 @@ export default function SoldPosting({ currentUser, onLogout }) {
   const [conditionDrafts, setConditionDrafts] = useState({});
   const [pendingConditionRow, setPendingConditionRow] = useState(null);
   const [savingConditionId, setSavingConditionId] = useState(null);
+  const [noteTarget, setNoteTarget] = useState(null);
+  const [noteDraft, setNoteDraft] = useState("");
+  const [noteError, setNoteError] = useState("");
+  const [savingNoteId, setSavingNoteId] = useState(null);
+  const [editingNoteId, setEditingNoteId] = useState(null);
+  const [inlineNoteDraft, setInlineNoteDraft] = useState("");
   const activeFilters = useMemo(() => filters, [filters]);
 
   const load = useCallback(
@@ -696,6 +766,83 @@ export default function SoldPosting({ currentUser, onLogout }) {
       setSavingConditionId(null);
     }
   }
+  function openNote(row, event) {
+    event.stopPropagation();
+    setNoteTarget(row);
+    setNoteDraft(row.note || "");
+    setNoteError("");
+  }
+  async function saveNote() {
+    if (!noteTarget) return;
+    setSavingNoteId(noteTarget.id);
+    setNoteError("");
+    try {
+      const updated = await updateSoldPostingLineItem(noteTarget.id, {
+        note: noteDraft.trim() || null,
+      });
+      setData((current) => ({
+        ...current,
+        items: (current.items || []).map((item) =>
+          item.id === noteTarget.id ? { ...item, ...updated } : item,
+        ),
+      }));
+      setNoteTarget(null);
+      setNoteDraft("");
+    } catch (err) {
+      setNoteError(err.message || "Could not save note");
+    } finally {
+      setSavingNoteId(null);
+    }
+  }
+  function beginInlineNoteEdit(row, event) {
+    event.stopPropagation();
+    setEditingNoteId(row.id);
+    setInlineNoteDraft(row.note || "");
+  }
+  async function saveInlineNote(row, event) {
+    event.stopPropagation();
+    setSavingNoteId(row.id);
+    setError("");
+    try {
+      const updated = await updateSoldPostingLineItem(row.id, {
+        note: inlineNoteDraft.trim() || null,
+      });
+      setData((current) => ({
+        ...current,
+        items: (current.items || []).map((item) =>
+          item.id === row.id ? { ...item, ...updated } : item,
+        ),
+      }));
+      setEditingNoteId(null);
+      setInlineNoteDraft("");
+    } catch (err) {
+      setError(err.message || "Could not save note");
+    } finally {
+      setSavingNoteId(null);
+    }
+  }
+  async function deleteNote(row, event) {
+    event.stopPropagation();
+    setSavingNoteId(row.id);
+    setError("");
+    try {
+      const updated = await updateSoldPostingLineItem(row.id, { note: null });
+      setData((current) => ({
+        ...current,
+        items: (current.items || []).map((item) =>
+          item.id === row.id ? { ...item, ...updated } : item,
+        ),
+      }));
+      if (editingNoteId === row.id) {
+        setEditingNoteId(null);
+        setInlineNoteDraft("");
+      }
+    } catch (err) {
+      setError(err.message || "Could not delete note");
+    } finally {
+      setSavingNoteId(null);
+    }
+  }
 
   return (
     <AppLayout
@@ -886,7 +1033,11 @@ export default function SoldPosting({ currentUser, onLogout }) {
                 </thead>
                 <tbody>
                   {data.items.map((row) => (
-                    <tr key={row.id} onClick={() => openDetail(row.order_id)}>
+                    <Fragment key={row.id}>
+                    <tr
+                      className={`sold-data-row ${row.note ? "has-note" : ""}`}
+                      onClick={() => openDetail(row.order_id)}
+                    >
                       <td className="sold-copy-cell">
                         <div className="sold-copy-actions">
                           <span
@@ -910,6 +1061,18 @@ export default function SoldPosting({ currentUser, onLogout }) {
                             <span className="sold-copied-label">Copied</span>
                           ) : null}
                         </div>
+                        {!row.note ? (
+                          <button
+                            className="icon-button sold-add-note-button"
+                            type="button"
+                            title="Add note"
+                            aria-label="Add note"
+                            disabled={savingNoteId === row.id}
+                            onClick={(event) => openNote(row, event)}
+                          >
+                            <span>+ Add note</span>
+                          </button>
+                        ) : null}
                       </td>
                       <td>
                         {row.item_id ? (
@@ -1037,6 +1200,65 @@ export default function SoldPosting({ currentUser, onLogout }) {
                         </button>
                       </td>
                     </tr>
+                    {row.note ? (
+                      <tr className="sold-note-row" onClick={(event) => event.stopPropagation()}>
+                        <td colSpan={18}>
+                          <div className="sold-note-line">
+                            <span className="sold-note-label">Note</span>
+                            <div className="sold-note-display">
+                            {editingNoteId === row.id ? (
+                              <textarea
+                                className="sold-note-inline-editor"
+                                value={inlineNoteDraft}
+                                rows={1}
+                                autoFocus
+                                onChange={(event) => setInlineNoteDraft(event.target.value)}
+                                onKeyDown={(event) => {
+                                  if (event.key === "Escape") {
+                                    setEditingNoteId(null);
+                                    setInlineNoteDraft("");
+                                  }
+                                }}
+                              />
+                            ) : (
+                              <button
+                                className="sold-note-text-button"
+                                type="button"
+                                title="Click to edit note"
+                                onClick={(event) => beginInlineNoteEdit(row, event)}
+                              >
+                                {row.note}
+                              </button>
+                            )}
+                            <div className="sold-note-actions">
+                              {editingNoteId === row.id &&
+                              inlineNoteDraft.trim() !== (row.note || "").trim() ? (
+                                <button
+                                  className="sold-note-inline-save"
+                                  type="button"
+                                  disabled={savingNoteId === row.id}
+                                  onClick={(event) => saveInlineNote(row, event)}
+                                >
+                                  {savingNoteId === row.id ? "Saving..." : "Save"}
+                                </button>
+                              ) : null}
+                              <button
+                                className="icon-button sold-note-icon danger"
+                                type="button"
+                                title="Delete note"
+                                aria-label="Delete note"
+                                disabled={savingNoteId === row.id}
+                                onClick={(event) => deleteNote(row, event)}
+                              >
+                                <Icon name="trash" />
+                              </button>
+                            </div>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    ) : null}
+                    </Fragment>
                   ))}
                 </tbody>
               </table>
@@ -1094,6 +1316,17 @@ export default function SoldPosting({ currentUser, onLogout }) {
         onChange={updateEditField}
         onCancel={() => setEditTarget(null)}
         onSave={saveEdit}
+      />
+      <SoldNotePopover
+        row={noteTarget}
+        value={noteDraft}
+        saving={Boolean(savingNoteId && noteTarget?.id === savingNoteId)}
+        error={noteError}
+        onChange={setNoteDraft}
+        onCancel={() => {
+          if (!savingNoteId) setNoteTarget(null);
+        }}
+        onSave={saveNote}
       />
       {pendingCopyRow ? (
         <SoldConfirmModal
