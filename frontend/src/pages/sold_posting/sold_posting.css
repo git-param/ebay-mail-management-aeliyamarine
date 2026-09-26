@@ -932,7 +932,7 @@ a .sold-thumb:hover {
   min-width: 0;
 }
 
-.sold-condition-editor input {
+.sold-condition-editor select {
   width: 100%;
   min-width: 0;
   height: 32px;
@@ -945,7 +945,7 @@ a .sold-thumb:hover {
   font-weight: 750;
 }
 
-.sold-condition-editor input:focus {
+.sold-condition-editor select:focus {
   border-color: #2563eb;
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
   outline: 0;
@@ -1497,7 +1497,7 @@ html[data-theme="dark"] .copy-chip,
 html[data-theme="dark"] .sold-blogspot-link,
 html[data-theme="dark"] .sold-reset-link,
 html[data-theme="dark"] .sold-search-box button,
-html[data-theme="dark"] .sold-condition-editor input,
+html[data-theme="dark"] .sold-condition-editor select,
 html[data-theme="dark"] .sold-note-text-button,
 html[data-theme="dark"] .sold-note-popover-header h2,
 html[data-theme="dark"] .sold-note-body textarea,
@@ -1534,7 +1534,7 @@ html[data-theme="dark"] .sold-custom-period,
 html[data-theme="dark"] .sold-date-filter,
 html[data-theme="dark"] .sold-date-filter input,
 html[data-theme="dark"] .sold-filter-menu,
-html[data-theme="dark"] .sold-condition-editor input,
+html[data-theme="dark"] .sold-condition-editor select,
 html[data-theme="dark"] .sold-note-body textarea,
 html[data-theme="dark"] .sold-note-inline-editor,
 html[data-theme="dark"] .sold-posting-page .pagination-bar select,

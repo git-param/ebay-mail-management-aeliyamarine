@@ -37,6 +37,7 @@ const searchOptions = [
   ["item_id", "Item ID"],
   ["search", "Product / all"],
 ];
+const conditionOptions = ["New", "Brand New", "Used", "Refurbished", "For parts"];
 
 function money(value, currency) 
 {
@@ -1139,18 +1140,25 @@ export default function SoldPosting({ currentUser, onLogout }) {
                           className="sold-condition-editor"
                           onClick={(event) => event.stopPropagation()}
                         >
-                          <input
-                            type="text"
+                          <select
                             value={
                               Object.prototype.hasOwnProperty.call(conditionDrafts, row.id)
                                 ? conditionDrafts[row.id]
                                 : row.condition || ""
                             }
-                            placeholder="Condition"
                             onChange={(event) =>
                               updateConditionDraft(row, event.target.value, event)
                             }
-                          />
+                          >
+                            <option value="" disabled>
+                              Condition
+                            </option>
+                            {conditionOptions.map((condition) => (
+                              <option key={condition} value={condition}>
+                                {condition}
+                              </option>
+                            ))}
+                          </select>
                           {Object.prototype.hasOwnProperty.call(conditionDrafts, row.id) &&
                           (conditionDrafts[row.id] || "") !== (row.condition || "") ? (
                             <span className="sold-condition-actions">
