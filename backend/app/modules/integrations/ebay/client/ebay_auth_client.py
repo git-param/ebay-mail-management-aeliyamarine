@@ -26,15 +26,6 @@ EBAY_OAUTH_SCOPES = [
 ]
 # eBay does not publish a separate ``sell.negotiation`` OAuth scope. The
 # Negotiation API is authorized by sell.inventory (included above).
-EBAY_LEGACY_REFRESH_SCOPES = [
-    'https://api.ebay.com/oauth/api_scope/commerce.message',
-    'https://api.ebay.com/oauth/api_scope/sell.inventory',
-]
-EBAY_REFRESH_SCOPES = [
-    'https://api.ebay.com/oauth/api_scope/commerce.identity.readonly',
-    *EBAY_LEGACY_REFRESH_SCOPES,
-    'https://api.ebay.com/oauth/api_scope/sell.fulfillment',
-]
 
 
 @dataclass(frozen=True)
@@ -201,20 +192,21 @@ class EbayAuthClient:
         ack = root.findtext('./e:Ack', default='', namespaces=ns)
         offers = []
         grouped = root.findall('.//e:ItemBestOffers', ns)
-        if grouped:
-            for group in grouped:
-                item_id = group.findtext('./e:Item/e:ItemID', namespaces=ns)
-                for node in group.findall('./e:BestOfferArray/e:BestOffer', ns):
-                    offer = self._best_offer_node(node, item_id, ns)
-                    offer['role'] = group.findtext('./e:Role', namespaces=ns)
-                    price = group.find('./e:Item/e:BuyItNowPrice', ns)
-                    offer['listing'] = {'price': price.text if price is not None else None,
-                        'currency': price.get('currencyID') if price is not None else None}
-                    offers.append(offer)
-        else:
-            item_id = root.findtext('./e:Item/e:ItemID', namespaces=ns)
-            for node in root.findall('./e:BestOfferArray/e:BestOffer', ns):
-                offers.append(self._best_offer_node(node, item_id, ns))
+        for container in grouped or [root]:
+            item_id = container.findtext('./e:Item/e:ItemID', namespaces=ns)
+            role = container.findtext('./e:Role', namespaces=ns)
+            price = container.find('./e:Item/e:BuyItNowPrice', ns)
+            listing = {
+                'price': price.text if price is not None else None,
+                'currency': (price.get('currencyID') if price is not None else None)
+                    or container.findtext('./e:Item/e:Currency', namespaces=ns),
+                'title': container.findtext('./e:Item/e:Title', namespaces=ns),
+            }
+            for node in container.findall('./e:BestOfferArray/e:BestOffer', ns):
+                offer = self._best_offer_node(node, item_id, ns)
+                offer['role'] = node.findtext('./e:Role', namespaces=ns) or role
+                offer['listing'] = dict(listing)
+                offers.append(offer)
         pages = root.findtext('.//e:PaginationResult/e:TotalNumberOfPages', default='1', namespaces=ns)
         errors = [{'code': n.findtext('./e:ErrorCode', namespaces=ns),
                    'severity': n.findtext('./e:SeverityCode', namespaces=ns),
@@ -227,7 +219,7 @@ class EbayAuthClient:
         price = node.find('./e:Price', ns)
         return {
             'offerId': node.findtext('./e:BestOfferID', namespaces=ns),
-            'listingId': item_id,
+            'listingId': node.findtext('./e:ItemID', namespaces=ns) or item_id,
             'buyerUsername': node.findtext('./e:Buyer/e:UserID', namespaces=ns),
             'buyerMessage': node.findtext('./e:BuyerMessage', namespaces=ns),
             'sellerMessage': node.findtext('./e:SellerMessage', namespaces=ns),
@@ -291,14 +283,18 @@ class EbayAuthClient:
         return {'ack': ack, 'call_status': statuses, 'errors': errors, 'confirmed': confirmed,
                 'ambiguous': not confirmed and not definitive_failure}
 
-    def build_authorization_url(self, *, state: str) -> str:
+    def build_authorization_url(self, *, state: str, offer_activity: bool = False) -> str:
         query = urlencode(
             {
                 'client_id': self.client_id,
                 'redirect_uri': self.oauth_redirect_uri,
                 'response_type': 'code',
+                **({'prompt': 'login'} if offer_activity else {}),
                 'state': state,
-                'scope': ' '.join(EBAY_OAUTH_SCOPES),
+                'scope': ' '.join(EBAY_OAUTH_SCOPES + ([
+                    'https://api.ebay.com/oauth/api_scope/commerce.notification.subscription',
+                    'https://api.ebay.com/oauth/api_scope/sell.offer',
+                ] if offer_activity else [])),
             }
         )
         return f'{self.authorization_base_url}?{query}'
@@ -313,32 +309,12 @@ class EbayAuthClient:
         )
 
     def refresh_access_token(self, refresh_token: str) -> EbayTokenPayload:
-        try:
-            return self._refresh_access_token_with_scopes(refresh_token,
-                ['https://api.ebay.com/oauth/api_scope', *EBAY_REFRESH_SCOPES])
-        except HTTPException:
-            # Preserve grants made before Trading scope was added.
-            logger.warning('Trading scope unavailable on existing grant; trying original scopes')
-        try:
-            return self._refresh_access_token_with_scopes(refresh_token, EBAY_REFRESH_SCOPES)
-        except HTTPException:
-            # Tokens granted before order sync existed do not include sell.fulfillment.
-            # Preserve message synchronization until the seller reconnects and consents.
-            logger.warning('Expanded eBay token refresh failed; retrying legacy scopes')
-        try:
-            return self._refresh_access_token_with_scopes(refresh_token, EBAY_LEGACY_REFRESH_SCOPES)
-        except HTTPException:
-            logger.warning('Legacy eBay token refresh failed; retrying without explicit scopes')
-            return self._refresh_access_token_with_scopes(refresh_token, None)
-
-    def _refresh_access_token_with_scopes(self, refresh_token: str, scopes: list[str] | None) -> EbayTokenPayload:
-        payload = {
+        # Omit scope so eBay preserves the original consent grant. Refreshing
+        # cannot add permissions, and guessed scope lists waste token requests.
+        return self._request_tokens({
             'grant_type': 'refresh_token',
             'refresh_token': refresh_token,
-        }
-        if scopes:
-            payload['scope'] = ' '.join(scopes)
-        return self._request_tokens(payload)
+        })
 
     def get_authenticated_seller_identity(self, access_token: str) -> EbaySellerIdentity:
         request = Request(
@@ -536,7 +512,7 @@ class EbayAuthClient:
             logger.warning('eBay OAuth token response did not include an access token')
             raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail='eBay OAuth response was invalid')
 
-        logger.warning('eBay OAuth token request succeeded')
+        logger.info('eBay OAuth token request succeeded')
 
         return EbayTokenPayload(
             access_token=access_token,

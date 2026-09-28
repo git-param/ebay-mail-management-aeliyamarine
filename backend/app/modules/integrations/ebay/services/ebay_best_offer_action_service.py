@@ -9,7 +9,8 @@ from app.models.offer import Offer
 from app.models.ebay_account import EbayAccount
 from app.models.ebay_best_offer_action import EbayBestOfferAction
 from app.modules.integrations.ebay.oauth.token_service import EbayTokenService
-from app.modules.integrations.ebay.services.ebay_best_offer_query_service import actionable
+from app.modules.integrations.ebay.services.ebay_best_offer_query_service import actionable, latest_offer_ids
+from app.modules.integrations.ebay.services.ebay_best_offer_snapshot import current_snapshot_ids
 from app.services.ebay_best_offer_lock import account_operation_lock
 from app.services.ebay_api_usage_service import EbayApiUsageService
 from app.services.permission_service import PermissionService
@@ -53,6 +54,10 @@ class EbayBestOfferActionService:
                 .order_by(EbayBestOfferAction.created_at.desc()).limit(1))
             if not account or not account.is_active or account.connection_status.value != 'CONNECTED':
                 raise HTTPException(409, 'Account is not active and connected')
+            current_ids, _ = current_snapshot_ids(self.db, account_id)
+            if not self.db.scalar(select(Offer.id).where(Offer.id == offer_id,
+                    Offer.id.in_(latest_offer_ids([Offer.id.in_(current_ids)])))):
+                raise HTTPException(409, 'This offer is no longer the latest current offer. Synchronize the account and refresh the view.')
             if offer.version != payload.expected_version or not actionable(offer, latest):
                 raise HTTPException(409, 'Offer changed, is not actionable, or requires reconciliation')
             raw = offer.provider_snapshot

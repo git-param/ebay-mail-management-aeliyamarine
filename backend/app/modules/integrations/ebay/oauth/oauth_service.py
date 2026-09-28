@@ -26,16 +26,17 @@ class EbayOAuthService:
             media_base_url=self.settings.ebay_media_base_url,
         )
 
-    def create_authorization_url(self, account_id: UUID) -> tuple[str, str]:
+    def create_authorization_url(self, account_id: UUID, *, offer_activity: bool = False) -> tuple[str, str]:
         account = self.db.get(EbayAccount, account_id)
         if not account:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='eBay account not found')
 
         state = secrets.token_urlsafe(32)
         account.oauth_state = state
-        account.connection_status = EbayConnectionStatus.PENDING
+        if account.connection_status != EbayConnectionStatus.CONNECTED:
+            account.connection_status = EbayConnectionStatus.PENDING
         self.db.commit()
 
-        authorization_url = self.client.build_authorization_url(state=state)
+        authorization_url = self.client.build_authorization_url(state=state, offer_activity=offer_activity)
         logger.warning('Generated eBay OAuth authorization URL for account %s', account.id)
         return authorization_url, state

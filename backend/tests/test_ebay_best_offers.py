@@ -15,10 +15,28 @@ from app.modules.integrations.ebay.schemas.best_offer_schemas import BestOfferAc
 from app.modules.integrations.ebay.services.ebay_best_offer_query_service import actionable
 from app.modules.integrations.ebay.services.ebay_offer_validation import update_missing_offer_fields
 from app.services.ebay_best_offer_worker import dispatch
+from app.services.ebay_best_offer_job_service import job_response
+from app.modules.integrations.ebay.services.ebay_best_offer_status import status_group, status_label, reconciliation_delay
 
 
 def client():
     return EbayAuthClient(client_id='test', client_secret='test', redirect_uri='test', runame='test', environment='PRODUCTION')
+
+
+def test_notification_failure_identifies_provider_step_without_token(monkeypatch, caplog):
+    from app.modules.integrations.ebay.services.ebay_offer_activity_service import EbayOfferActivityService
+    service = object.__new__(EbayOfferActivityService)
+    service.base = 'https://example.invalid'
+    response = SimpleNamespace(ok=False, status_code=409,
+        json=lambda: {'errors': [{'errorId': 195021, 'message': 'Destination exists for this endpoint. secret-token'}]})
+    monkeypatch.setattr('app.modules.integrations.ebay.services.ebay_offer_activity_service.requests.request', lambda *args, **kwargs: response)
+    with pytest.raises(HTTPException) as exc:
+        service.request('POST', '/destination', 'secret-token')
+    assert exc.value.status_code == 502
+    assert 'POST /destination' in exc.value.detail
+    assert '195021' in exc.value.detail
+    assert 'secret-token' not in exc.value.detail
+    assert 'secret-token' not in caplog.text
 
 
 @pytest.mark.parametrize('hours,minutes', [(0,0),(0,1),(-1,5),(0,60),(168,1),(True,5)])
@@ -136,3 +154,116 @@ def test_all_requires_listing_without_outbound(monkeypatch):
     monkeypatch.setattr('app.modules.integrations.ebay.client.ebay_auth_client.urlopen', lambda *_: pytest.fail('Unexpected call'))
     with pytest.raises(ValueError):
         client().get_best_offers_raw('secret', best_offer_status='All')
+
+
+@pytest.mark.parametrize('shape', ['grouped', 'flat'])
+def test_parser_keeps_role_listing_price_and_exact_transitional_status_in_both_shapes(shape):
+    body = '''<Role>Seller</Role><Item><ItemID>456</ItemID><Title>Test item</Title>
+    <BuyItNowPrice currencyID="EUR">100</BuyItNowPrice></Item><BestOfferArray><BestOffer>
+    <BestOfferID>123</BestOfferID><Price currencyID="EUR">80</Price><Quantity>1</Quantity>
+    <Status>PendingBuyerPayment</Status></BestOffer></BestOfferArray>'''
+    if shape == 'grouped':
+        body = '<ItemBestOffersArray><ItemBestOffers>' + body + '</ItemBestOffers></ItemBestOffersArray>'
+    parsed = client()._best_offers_xml('<GetBestOffersResponse xmlns="urn:ebay:apis:eBLBaseComponents"><Ack>Success</Ack>' + body + '</GetBestOffersResponse>')['offers'][0]
+    assert parsed['role'] == 'Seller' and parsed['listingId'] == '456'
+    assert parsed['listing'] == {'price': '100', 'currency': 'EUR', 'title': 'Test item'}
+    assert parsed['status'] == 'PendingBuyerPayment' and parsed['currency'] == 'EUR'
+
+
+def test_parser_does_not_infer_role_from_offer_type_or_buyer():
+    parsed = client()._best_offers_xml('''<GetBestOffersResponse xmlns="urn:ebay:apis:eBLBaseComponents">
+    <Ack>Success</Ack><BestOfferArray><BestOffer><BestOfferID>123</BestOfferID>
+    <Buyer><UserID>buyer</UserID></Buyer><BestOfferCodeType>BuyerBestOffer</BestOfferCodeType>
+    <Status>FutureProviderState</Status></BestOffer></BestOfferArray></GetBestOffersResponse>''')['offers'][0]
+    assert parsed['role'] is None
+    assert parsed['status'] == 'FutureProviderState'
+
+
+@pytest.mark.parametrize('state,group,minutes', [
+    ('Active', 'OPEN', 5), ('Countered', 'OPEN', 5), ('SellerAccept', 'AGREED', 5),
+    ('PendingBuyerConfirmation', 'AGREED', 5), ('PendingBuyerPayment', 'AGREED', 15),
+    ('Accepted', 'COMPLETED', 10080), ('AdminEnded', 'CLOSED', 10080),
+    ('Expired', 'CLOSED', 10080), ('FutureProviderState', 'UNKNOWN', 60),
+])
+def test_lifecycle_and_polling_preserve_provider_states(state, group, minutes):
+    assert status_group(state) == group
+    assert reconciliation_delay([state], returned=1) == timedelta(minutes=minutes)
+    assert status_label('FutureProviderState') == 'FutureProviderState'
+
+
+def test_unresolved_actions_override_closed_backoff_and_empty_listings_wait():
+    assert reconciliation_delay(['Accepted'], unresolved=True, returned=1) == timedelta(minutes=5)
+    assert reconciliation_delay([], returned=0) == timedelta(hours=12)
+    assert reconciliation_delay(['PendingBuyerPayment', 'Active'], returned=2) == timedelta(minutes=5)
+
+
+def test_job_response_reports_separate_discovery_reconciliation_and_change_counts():
+    metadata = {'discovery': {'returned': 14}, 'reconciliation': {'reconciled': 22},
+        'changes': {'new': 3, 'updated': 7, 'status_changes': 6, 'unchanged': 27}, 'api_calls': 24}
+    job = SimpleNamespace(id=uuid4(), provider_account_id=uuid4(), status=SimpleNamespace(value='SUCCESS'),
+        started_at=None, completed_at=None, records_processed=10, error_message=None, sync_metadata=metadata)
+    statistics = job_response(job)['result']['statistics']
+    assert statistics == {'active_discovered': 14, 'listings_reconciled': 22, 'new_offers': 3,
+        'status_changes': 6, 'updated_offers': 7, 'unchanged': 27, 'api_calls': 24}
+    assert 'statistics' not in metadata
+
+
+def test_token_refresh_preserves_original_grant_in_one_request(monkeypatch):
+    from urllib.parse import parse_qs
+    import app.modules.integrations.ebay.client.ebay_auth_client as auth
+    requests = []
+    class Response:
+        def __enter__(self):
+            return self
+        def __exit__(self, *_args):
+            pass
+        def read(self):
+            return b'{"access_token":"test-access","expires_in":7200}'
+    def request(req, **_kwargs):
+        requests.append(parse_qs(req.data.decode()))
+        return Response()
+    monkeypatch.setattr(auth, 'urlopen', request)
+    result = client().refresh_access_token('test-refresh')
+    assert result.access_token == 'test-access'
+    assert requests == [{'grant_type':['refresh_token'], 'refresh_token':['test-refresh']}]
+
+
+@pytest.mark.parametrize('error', ['invalid_grant', 'invalid_client', 'invalid_scope'])
+def test_token_refresh_does_not_retry_failed_grants(monkeypatch, error):
+    import io
+    from urllib.error import HTTPError
+    import app.modules.integrations.ebay.client.ebay_auth_client as auth
+    calls = []
+    def request(req, **_kwargs):
+        calls.append(req)
+        raise HTTPError(req.full_url, 400, 'Bad Request', {}, io.BytesIO(
+            ('{"error":"'+error+'","error_description":"Test rejection"}').encode()))
+    monkeypatch.setattr(auth, 'urlopen', request)
+    with pytest.raises(HTTPException):
+        client().refresh_access_token('test-refresh')
+    assert len(calls) == 1
+
+
+def test_offer_activity_consent_is_explicit_and_does_not_change_normal_connect():
+    from urllib.parse import urlparse, parse_qs
+    regular = parse_qs(urlparse(client().build_authorization_url(state='state')).query)['scope'][0]
+    offers = parse_qs(urlparse(client().build_authorization_url(state='state', offer_activity=True)).query)['scope'][0]
+    assert '/sell.offer' not in regular and '/buy.offer' not in regular
+    assert '/sell.offer' in offers and '/commerce.notification.subscription' in offers
+    assert '/buy.offer' not in offers
+
+
+def test_offer_notification_signature_rejects_tampered_payload():
+    import base64, json
+    from cryptography.hazmat.primitives import hashes, serialization
+    from cryptography.hazmat.primitives.asymmetric import ec
+    from app.modules.integrations.ebay.services.ebay_offer_activity_service import verify_signature
+    key = ec.generate_private_key(ec.SECP256R1())
+    body = b'{"notification":{"data":{"itemId":"123"}}}'
+    signature = key.sign(body, ec.ECDSA(hashes.SHA1()))
+    header = base64.b64encode(json.dumps({'kid':'test-key', 'signature':base64.b64encode(signature).decode()}).encode()).decode()
+    public_key = key.public_key().public_bytes(serialization.Encoding.PEM, serialization.PublicFormat.SubjectPublicKeyInfo).decode()
+    verify_signature(body, header, public_key)
+    with pytest.raises(HTTPException) as error:
+        verify_signature(body.replace(b'123', b'456'), header, public_key)
+    assert error.value.status_code == 412

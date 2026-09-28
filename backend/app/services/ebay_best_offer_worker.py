@@ -46,8 +46,11 @@ def run_batch(batch_id, token, stop_event):
                             parent = multiprocessing.parent_process()
                             if stop_event.is_set() or (parent is not None and not parent.is_alive()):
                                 return True
-                            if metadata['trigger'] == 'auto':
-                                with SessionLocal() as config_db:
+                            with SessionLocal() as config_db:
+                                current_batch = config_db.get(SyncLog, batch_id)
+                                if current_batch and (current_batch.sync_metadata or {}).get('cancel_requested'):
+                                    return True
+                                if metadata['trigger'] == 'auto':
                                     return not read_config(config_db)['enabled']
                             return False
                         try:

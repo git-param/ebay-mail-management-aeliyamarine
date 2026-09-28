@@ -30,22 +30,52 @@ def eligible_accounts(db):
 
 
 def job_response(job):
+    result = dict(job.sync_metadata or {})
+    if 'discovery' in result:
+        changes, reconciliation = result.get('changes', {}), result.get('reconciliation', {})
+        result['statistics'] = {
+            'active_discovered': result['discovery'].get('returned', 0),
+            'listings_reconciled': reconciliation.get('reconciled', 0),
+            'new_offers': changes.get('new', 0),
+            'status_changes': changes.get('status_changes', 0),
+            'updated_offers': changes.get('updated', 0),
+            'unchanged': changes.get('unchanged', 0),
+            'api_calls': result.get('api_calls'),
+        }
     return {'id': job.id, 'account_id': job.provider_account_id, 'status': job.status.value,
             'started_at': job.started_at, 'completed_at': job.completed_at,
             'records_processed': job.records_processed, 'error': job.error_message,
-            'result': job.sync_metadata or {}}
+            'result': result}
 
 
 class EbayBestOfferJobService:
     def __init__(self, db):
         self.db = db
 
+    def cancel(self, batch_id, user):
+        batch = self.db.scalar(select(SyncLog).where(SyncLog.id == batch_id, SyncLog.sync_type == BATCH).with_for_update())
+        if not batch:
+            raise HTTPException(404, 'Best Offer batch not found')
+        if batch.status in {SyncLogStatus.PENDING, SyncLogStatus.RUNNING}:
+            batch.sync_metadata = {**(batch.sync_metadata or {}), 'cancel_requested': True}
+            AuditService(self.db).log(action='EBAY_BEST_OFFER_SYNC_CANCEL_REQUESTED', user_id=user.id,
+                category='OFFER_MANAGEMENT', metadata={'batch_id': str(batch.id)})
+            self.db.commit()
+        return job_response(batch)
+
     def config(self):
         config = read_config(self.db)
         latest = self.db.scalar(select(SyncLog).where(SyncLog.sync_type == BATCH)
             .order_by(SyncLog.started_at.desc()).limit(1))
         accounts = eligible_accounts(self.db)
-        config['accounts'] = [{'id': a.id, 'name': a.account_name, 'username': a.ebay_username} for a in accounts]
+        activity = {row.config_key.removeprefix('offer.activity.'): bool(json.loads(row.value).get('subscription_id'))
+            for row in self.db.scalars(select(AppConfigSetting).where(AppConfigSetting.config_key.like('offer.activity.%')))}
+        config['accounts'] = [{'id': a.id, 'name': a.account_name, 'username': a.ebay_username,
+            'offer_activity_enabled': activity.get(str(a.id), False)} for a in accounts]
+        config['offer_activity_accounts'] = [{'id': a.id, 'name': a.account_name, 'username': a.ebay_username,
+            'connection_status': a.connection_status.value,
+            'offer_activity_enabled': activity.get(str(a.id), False)} for a in self.db.scalars(
+                select(EbayAccount).where(EbayAccount.is_active.is_(True)).order_by(EbayAccount.account_name))]
         config['latest_job'] = job_response(latest) if latest else None
         automatic = self.db.scalar(select(SyncLog).where(SyncLog.sync_type == BATCH, SyncLog.sync_metadata['trigger'].astext == 'auto').order_by(SyncLog.started_at.desc()).limit(1))
         config['next_run_at'] = (max(datetime.now(UTC), (automatic.completed_at or automatic.started_at) + timedelta(minutes=config['interval_minutes']))

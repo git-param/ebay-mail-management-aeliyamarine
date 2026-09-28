@@ -31,14 +31,16 @@ class EbayOAuthCallbackService:
         logger.warning('Received eBay OAuth callback')
         account = self._get_account_by_state(state)
         if error:
-            account.connection_status = EbayConnectionStatus.FAILED
+            if account.connection_status != EbayConnectionStatus.CONNECTED:
+                account.connection_status = EbayConnectionStatus.FAILED
             account.oauth_state = None
             self.db.commit()
             logger.warning('eBay OAuth callback failed for account %s', account.id)
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='eBay authorization was denied')
 
         if not code:
-            account.connection_status = EbayConnectionStatus.FAILED
+            if account.connection_status != EbayConnectionStatus.CONNECTED:
+                account.connection_status = EbayConnectionStatus.FAILED
             account.oauth_state = None
             self.db.commit()
             logger.warning('eBay OAuth callback missing authorization code for account %s', account.id)
@@ -49,7 +51,8 @@ class EbayOAuthCallbackService:
             token_payload = self.client.exchange_code_for_tokens(decoded_code)
             seller_identity = self.client.get_authenticated_seller_identity(token_payload.access_token)
             if not self._usernames_match(account.ebay_username, seller_identity.username):
-                account.connection_status = EbayConnectionStatus.FAILED
+                if account.connection_status != EbayConnectionStatus.CONNECTED:
+                    account.connection_status = EbayConnectionStatus.FAILED
                 account.oauth_state = None
                 self.db.commit()
                 logger.warning(
@@ -80,7 +83,8 @@ class EbayOAuthCallbackService:
             logger.warning('eBay OAuth callback token exchange succeeded for account %s', account.id)
             return connected_account
         except HTTPException:
-            account.connection_status = EbayConnectionStatus.FAILED
+            if account.connection_status != EbayConnectionStatus.CONNECTED:
+                account.connection_status = EbayConnectionStatus.FAILED
             account.oauth_state = None
             self.db.commit()
             logger.warning('eBay OAuth callback completion failed for account %s', account.id)

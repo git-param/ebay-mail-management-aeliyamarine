@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import { respondToBestOffer } from '../../services/ebayBestOfferApi'
-import { bestOfferMoney } from './bestOfferFormat'
+import { bestOfferPrices } from './bestOfferFormat'
 
 export default function BestOfferActionDialog({ offer, action, onClose, onDone }) {
   const [amount, setAmount] = useState('')
@@ -10,6 +10,7 @@ export default function BestOfferActionDialog({ offer, action, onClose, onDone }
   const [error, setError] = useState('')
   const key = useRef(crypto.randomUUID())
   const dispatching = useRef(false)
+  const prices = bestOfferPrices(offer)
   async function submit(event) {
     event.preventDefault()
     if (dispatching.current) return
@@ -28,8 +29,8 @@ export default function BestOfferActionDialog({ offer, action, onClose, onDone }
   return <div className="modal-backdrop"><section className="modal-panel best-offer-dialog" role="dialog" aria-modal="true" aria-labelledby="best-offer-action-title">
     <h2 id="best-offer-action-title">{action === 'Counter' ? 'Send Counter Offer' : `${action} Offer`}</h2>
     <p>{offer.listing?.title || `Item ${offer.listing_id}`}</p>
-    <p>Buyer: {offer.buyer} · Buyer offer: {bestOfferMoney(offer.amount, offer.currency)}</p>
-    <p>Listed price: {bestOfferMoney(offer.listing?.price, offer.listing?.currency)}</p>
+    <p>Buyer: {offer.buyer} · Buyer offer: {prices.amount}</p>
+    <p>Listed price: {prices.listingPrice}{prices.listingNote ? ` (${prices.listingNote})` : ''}</p>
     {action === 'Accept' ? <p>Accept this buyer offer? Payment completion will be shown after eBay confirms its provider state.</p> : null}
     {action === 'Decline' ? <p>Decline this offer?</p> : null}
     <form onSubmit={submit}>

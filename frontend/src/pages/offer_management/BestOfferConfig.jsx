@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { fetchBestOfferConfig, updateBestOfferConfig, syncBestOffers, fetchBestOfferJob } from '../../services/ebayBestOfferApi'
+import { fetchBestOfferConfig, updateBestOfferConfig, syncBestOffers, fetchBestOfferJob, cancelBestOfferJob, authorizeOfferActivity, setupOfferActivity } from '../../services/ebayBestOfferApi'
 import { bestOfferDate } from './bestOfferFormat'
 import './best_offers.css'
 
@@ -16,29 +16,43 @@ export default function BestOfferConfig() {
   const [notice, setNotice] = useState('')
   const [batchId, setBatchId] = useState(null)
   const [job, setJob] = useState(null)
+  const syncing = ['PENDING', 'RUNNING'].includes(job?.status)
   useEffect(() => {
     let active = true
     fetchBestOfferConfig().then(result => { if (!active) return; setConfig(result); setHours(Math.floor(result.interval_minutes/60)); setMinutes(result.interval_minutes%60); setSelected(result.account_ids); if (result.latest_job) { setBatchId(result.latest_job.id) } }).catch(err => { if (active) setError(err.message) })
     return () => { active = false }
   }, [])
   useEffect(() => {
+    if (!config?.enabled || syncing) return
     let active = true
-    const timer = setInterval(async () => {
+    let timer
+    async function refresh() {
       try {
         const result = await fetchBestOfferConfig()
         if (!active) return
         setConfig(result)
         if (result.latest_job) setBatchId(result.latest_job.id)
       } catch (err) { if (active) setError(err.message) }
-    }, 5000)
-    return () => { active = false; clearInterval(timer) }
-  }, [])
+      if (active) timer = setTimeout(refresh, 60000)
+    }
+    timer = setTimeout(refresh, 60000)
+    return () => { active = false; clearTimeout(timer) }
+  }, [config?.enabled, syncing])
   useEffect(() => {
     if (!batchId) return
     let active = true
     let timer
     async function poll() {
-      try { const result = await fetchBestOfferJob(batchId); if (!active) return; setJob(result); if (['PENDING','RUNNING'].includes(result.status)) timer = setTimeout(poll, 2000) }
+      try {
+        const result = await fetchBestOfferJob(batchId)
+        if (!active) return
+        setJob(result)
+        if (['PENDING','RUNNING'].includes(result.status)) timer = setTimeout(poll, document.hidden ? 30000 : 10000)
+        else {
+          const refreshed = await fetchBestOfferConfig()
+          if (active) setConfig(refreshed)
+        }
+      }
       catch (err) { if (active) setError(err.message) }
     }
     poll()
@@ -56,9 +70,28 @@ export default function BestOfferConfig() {
     catch (err) { setError(err.message) }
     finally { setBusy(false) }
   }
+  async function connectOfferActivity(id) {
+    setBusy(true); setError('')
+    try { const result = await authorizeOfferActivity(id); window.location.assign(result.authorization_url) }
+    catch (err) { setError(err.message); setBusy(false) }
+  }
+  async function enableOfferActivity(id) {
+    setBusy(true); setError('')
+    try { await setupOfferActivity(id); setNotice('Offer activity connected. New offer events will be fetched on the next sync.'); setConfig(await fetchBestOfferConfig()) }
+    catch (err) { setError(err.message) }
+    finally { setBusy(false) }
+  }
+  async function stopSync() {
+    setBusy(true); setError('')
+    try {
+      const result = await cancelBestOfferJob(batchId)
+      setJob(current => ({ ...current, result: result.result }))
+      setNotice('Stopping synchronization after the current request finishes.')
+    } catch (err) { setError(err.message) }
+    finally { setBusy(false) }
+  }
   const toggle = (ids, id) => ids.includes(id) ? ids.filter(value => value !== id) : [...ids,id]
   if (!config) return <section className="best-offers-page">{error ? <p role="alert">{error}</p> : 'Loading configuration…'}</section>
-  const syncing = ['PENDING', 'RUNNING'].includes(job?.status)
   const jobs = job?.jobs || []
   const completed = jobs.filter(item => item.status === 'SUCCESS').length
   const imported = jobs.reduce((total, item) => total + (item.records_processed || 0), 0)
@@ -87,22 +120,37 @@ export default function BestOfferConfig() {
         <div className="bo-account-footer"><div><button className="bo-text-button" onClick={() => setSelected(config.accounts.map(a => a.id))}>Select all</button><button className="bo-text-button" onClick={() => setSelected([])}>Clear</button></div><button className="primary-button" disabled={busy} onClick={() => save({ account_ids: selected }, 'Accounts saved')}>Save accounts</button></div>
       </section>
     </div>
-    <section className="best-offer-config-card bo-manual"><div className="bo-manual-toolbar"><div className="bo-section-title"><span className="bo-section-icon">03</span><div><h2>Sync on demand</h2><p>Check active offers and recent status changes. Unchanged offers stay in place.</p></div></div><div className="bo-manual-controls"><select aria-label="Manual synchronization accounts" value={allConfigured ? 'configured' : 'specific'} onChange={e => setAllConfigured(e.target.value === 'configured')}><option value="configured">All configured accounts</option><option value="specific">Choose accounts</option></select><button className="primary-button" disabled={busy || syncing || (!allConfigured && !manual.length) || (allConfigured && !config.account_ids.length)} onClick={sync}>{busy ? 'Requesting...' : syncing ? 'Synchronizing...' : 'Sync now'}</button></div></div>
-      <label className="bo-history-toggle"><input type="checkbox" checked={includeHistory} onChange={event => setIncludeHistory(event.target.checked)} disabled={busy || syncing} /> Also refresh older stored history <small>Slower; some old listings are no longer available on eBay.</small></label>
+    <section className="best-offer-config-card">
+      <h2>Discover new offers automatically</h2>
+      <p>Connect eBay offer activity for each account so sync can discover new offers and counteroffers without item IDs or eBay messages. This requires fresh eBay consent and a publicly reachable backend.</p>
+      {(config.offer_activity_accounts || config.accounts).map(account => <div className="bo-schedule-footer" key={account.id}>
+        <strong>{account.name}<small> ? {account.username}</small></strong>
+        <span>{account.offer_activity_enabled ? 'Offer activity connected' : 'Not connected'}</span>
+        <button className="secondary-button" disabled={busy || syncing} onClick={() => connectOfferActivity(account.id)}>Authorize offer access</button>
+        <button className="primary-button" disabled={busy || syncing || account.offer_activity_enabled || (account.connection_status && account.connection_status !== 'CONNECTED')} onClick={() => enableOfferActivity(account.id)}>Enable offer activity</button>
+      </div>)}
+      <p className="bo-hint">Authorize first, then return here and enable offer activity. Keep automatic sync enabled to fetch queued offer changes.</p>
+    </section>
+    <section className="best-offer-config-card bo-manual"><div className="bo-manual-toolbar"><div className="bo-section-title"><span className="bo-section-icon">03</span><div><h2>Sync on demand</h2><p>Replace each account's current offers with the latest eBay result.</p></div></div><div className="bo-manual-controls"><select aria-label="Manual synchronization accounts" value={allConfigured ? 'configured' : 'specific'} onChange={e => setAllConfigured(e.target.value === 'configured')}><option value="configured">All configured accounts</option><option value="specific">Choose accounts</option></select><button className="primary-button" disabled={busy || syncing || (!allConfigured && !manual.length) || (allConfigured && !config.account_ids.length)} onClick={sync}>{busy ? 'Requesting...' : syncing ? 'Synchronizing...' : 'Sync now'}</button></div></div>
+      {syncing ? <button className="secondary-button" disabled={busy || job?.result?.cancel_requested} onClick={stopSync}>{job?.result?.cancel_requested ? 'Stopping…' : 'Stop current sync'}</button> : null}
+      <label className="bo-history-toggle"><input type="checkbox" checked={includeHistory} onChange={event => setIncludeHistory(event.target.checked)} disabled={busy || syncing} /> Refresh recent saved history <small>Up to 25 due listings from the last 30 days per account. Accepted and expired offers are saved automatically.</small></label>
       {!allConfigured ? <div className="best-offer-account-list bo-manual-accounts">{config.accounts.map(account => <label key={account.id}><input type="checkbox" checked={manual.includes(account.id)} onChange={() => setManual(ids => toggle(ids, account.id))} />{account.name}</label>)}</div> : null}
       {jobs.length ? <>
         <div className="bo-results-heading"><h3>Latest run <span>{syncing ? 'In progress' : `${completed} of ${jobs.length} accounts completed`}</span></h3><strong>{imported} <span>new or changed offers</span></strong></div>
         <div className="bo-results-grid">{jobs.map(accountJob => {
           const discovery = accountJob.result?.discovery
+          const statistics = accountJob.result?.statistics
           const failed = accountJob.status === 'FAILED'
+          const stopped = accountJob.result?.outcome === 'STOPPED'
           const pending = ['PENDING', 'RUNNING'].includes(accountJob.status)
           return <article className={`best-offer-job bo-result-card ${failed ? 'failed' : ''}`} key={accountJob.id}>
-            <div className="bo-result-top"><span className="bo-account-avatar">{(accountJob.result?.account_name || 'A').slice(0,1)}</span><strong>{accountJob.result?.account_name || accountJob.account_id}</strong><span className={`bo-result-status ${failed ? 'failed' : pending ? 'pending' : 'complete'}`}>{failed ? (discovery ? 'Partly completed' : 'Could not complete') : pending ? 'Syncing' : accountJob.result?.warnings?.length ? 'Completed with notes' : 'Completed'}</span></div>
+            <div className="bo-result-top"><span className="bo-account-avatar">{(accountJob.result?.account_name || 'A').slice(0,1)}</span><strong>{accountJob.result?.account_name || accountJob.account_id}</strong><span className={`bo-result-status ${failed ? 'failed' : pending ? 'pending' : 'complete'}`}>{stopped ? 'Stopped' : failed ? (discovery ? 'Partly completed' : 'Could not complete') : pending ? 'Syncing' : accountJob.result?.warnings?.length ? 'Completed with notes' : 'Completed'}</span></div>
             <div className="bo-result-count"><strong>{accountJob.records_processed || 0}</strong><span>new or changed offers</span></div>
-            <p className="bo-result-message">{pending ? 'Checking active offers and recent changes...' : failed ? (discovery ? 'Active offers checked; some records could not be refreshed.' : 'The account check could not complete. See the details below.') : accountJob.result?.changes?.unchanged ? `${accountJob.result.changes.unchanged} offers checked with no changes.` : discovery?.returned === 0 ? 'No active Trading offers returned. Saved history is unchanged.' : 'Latest changes saved in ACES.'}</p>
-            {discovery ? <details className="bo-result-details"><summary>Response details</summary><dl><div><dt>Returned by eBay</dt><dd>{discovery.returned}</dd></div><div><dt>Verified seller records</dt><dd>{discovery.seller}</dd></div><div><dt>Buyer records</dt><dd>{discovery.buyer ?? 0}</dd></div><div><dt>Unknown roles skipped</dt><dd>{discovery.unknown_role_skipped}</dd></div></dl></details> : null}
-            {accountJob.result?.warnings?.map((warning, index) => <p className="bo-result-message" key={index}>Item {warning.listing_id}: {warning.message}</p>)}
-            {accountJob.error ? <p role="alert" className="bo-result-error">{accountJob.result?.errors?.length ? accountJob.result.errors.map(error => `Item ${error.listing_id || error.offer_id || ''}: ${error.message || 'This older record could not be refreshed.'}`).join(' ') : accountJob.error.startsWith('[{') ? 'An older stored listing could not be refreshed. Run the latest-changes sync to check active offers.' : accountJob.error}</p> : null}
+            <p className="bo-result-message">{pending ? 'Checking current offers and decisions...' : stopped ? 'Synchronization stopped. Saved offers are preserved.' : failed ? (discovery ? 'Some offers were checked; some records could not be refreshed.' : 'The account check could not complete. See the details below.') : discovery?.returned === 0 && !statistics?.listings_reconciled ? 'eBay returned no active Best Offers for this account. This check does not include every offer type shown on eBay.' : statistics ? `${statistics.new_offers} new offers and ${statistics.updated_offers} updates saved; ${statistics.listings_reconciled} listings refreshed.` : accountJob.result?.changes?.unchanged ? `${accountJob.result.changes.unchanged} offers checked with no changes.` : discovery?.returned === 0 ? 'No active Trading offers returned. Saved history is unchanged.' : 'Latest changes saved in ACES.'}</p>
+            {statistics ? <dl className="bo-sync-statistics">{[['Active discovered', statistics.active_discovered], ['Listings reconciled', statistics.listings_reconciled], ['New offers', statistics.new_offers], ['Status changes', statistics.status_changes], ['Other updates', Math.max(0, statistics.updated_offers - statistics.status_changes)], ['Unchanged observations', statistics.unchanged], ['API calls', statistics.api_calls ?? '—']].map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl> : null}
+            {discovery ? <details className="bo-result-details"><summary>Response details</summary><dl><div><dt>Active returned by eBay</dt><dd>{discovery.returned}</dd></div><div><dt>Verified seller records</dt><dd>{discovery.seller}</dd></div><div><dt>Buyer records</dt><dd>{discovery.buyer ?? 0}</dd></div><div><dt>Unknown roles skipped</dt><dd>{discovery.unknown_role_skipped + (accountJob.result?.reconciliation?.unknown_role_skipped || 0)}</dd></div></dl></details> : null}
+            {accountJob.result?.warnings?.length ? <details className="bo-result-details"><summary>{accountJob.result.warnings.length} history notes</summary>{accountJob.result.warnings.map((warning, index) => <p className="bo-result-message" key={index}>Item {warning.listing_id}: {warning.message}</p>)}</details> : null}
+            {accountJob.error && !stopped ? <p role="alert" className="bo-result-error">{accountJob.result?.errors?.length ? accountJob.result.errors.map(error => `Item ${error.listing_id || error.offer_id || ''}: ${error.message || 'This older record could not be refreshed.'}`).join(' ') : accountJob.error.startsWith('[{') ? 'An older stored listing could not be refreshed. Run the latest-changes sync to check active offers.' : accountJob.error}</p> : null}
           </article>
         })}</div>
       </> : <div className="bo-run-empty"><strong>Ready when you are</strong><p>Run a synchronization to see results for each selected account.</p></div>}

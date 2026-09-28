@@ -2,7 +2,37 @@
 
 ## Scope expanded: buyer, seller, active and historical offers
 
-### Latest-change synchronization and clearer results
+### Efficient current-offer monitoring (2026-09-28)
+
+Routine sync reads paginated account-wide Active offers without depending on eBay messages. Unchanged active listings do not incur redundant ItemID/All calls. Previously current offers that disappear, recent verified buyer-waiting states, and unresolved financial actions receive due listing-specific reconciliation. Confirmed accepted/closed offers move out of Current Offers into Saved History. An empty provider response does not invent an accepted or expired status.
+
+The optional history refresh checks at most 25 due listings with verified terminal offers from the last 30 days per account. It never sweeps old conversations, legacy unknown records, or orphan listing states. The limit counts listings; pagination and authentication retry can add API attempts. Current-offer reconciliation is separate from this optional budget.
+
+Config polls a running job every 10 seconds (30 seconds in a hidden tab), stops on completion, and pauses configuration polling during a job. Enabled idle scheduling checks configuration once per minute. These local requests do not consume eBay API quota. Stop current sync records a cancellation request; the worker stops before its next provider request and preserves stored records.
+
+Offer updates appear after a successful scheduled/manual sync; automatic synchronization must be enabled for continued monitoring. No webhook or email notification is needed for the Trading offer polling path. Earlier broad-history behavior described below has been superseded.
+
+### Current cache and latest buyer/item entries (2026-09-28)
+
+Current Offers now defaults to the latest complete account-wide Active scan. A successful scan atomically replaces the account's visible offer IDs, including replacing the set with zero IDs when eBay returns no offers. A dedicated SUCCESS snapshot record in the existing SyncLog table stores this membership; failed, stopped, malformed, or unknown-role scans never publish a partial set. Offer rows remain available to conversation history and action ledgers. Saved history is an explicit separate view and never exposes action controls.
+
+Both views select one newest offer per account, normalized buyer username, and item ID **before** status/search filters, counts, sorting, or pagination. Provider creation/received timestamps establish chronology; numeric provider offer IDs break timestamp ties, including legacy bulk import timestamps. Missing buyer/item identities are kept separate. Actions also verify that the selected offer is the latest member of the current account snapshot.
+
+Routine synchronization no longer scans archived conversation/listing candidates. Optional saved-history refresh is limited to 25 recent verified terminal listings, while current/unresolved verified offers continue using due listing checks. Trading error 20140 (no Best Offers found) is an authoritative empty result, not a failed job; other errors retain normal failure behavior. Historical listing notes are collapsed in Config. No migration is required. Existing accounts need one successful Sync now to populate their current cache.
+
+### Earlier two-pass synchronization and lifecycle status
+
+Synchronization combines paginated account-wide `Active` discovery with due listing-specific `ItemID + All` reconciliation. The candidate set includes discovered listings, unresolved offers, verified buyer-waiting states, recent `FROM_MEMBERS` conversations, and recent existing listing sync states. Normal runs use a 30-day conversation horizon; **Include older offer history** expands it to 365 days and includes known legacy Trading identities. The account-wide request remains `Active` in both modes.
+
+`provider_status` remains the exact eBay value. The query API additionally returns a human-readable `display_status` and `status_group`: OPEN, AGREED, COMPLETED, CLOSED, or UNKNOWN. SellerAccept and buyer confirmation/payment states belong to AGREED, not paid COMPLETED. AdminEnded belongs to CLOSED. Existing broad internal status strings remain compatible with conversation history; no database migration or enum expansion is required. Unknown future states stay visible and cannot resolve ambiguous actions.
+
+Successful listing checks persist their count and timestamps in the existing listing state table. Open offers and buyer confirmation poll after five minutes; buyer payment after fifteen minutes; verified terminal offers after seven days; empty listings after twelve hours. Unresolved actions retain five-minute reconciliation. Provider failures retain exponential backoff and unavailable listings retain seven-day backoff. New conversation activity can wake an otherwise deferred listing without bypassing error backoff. Unknown roles remain excluded unless a previous verified offer can supply its own role. Both grouped and flat XML shapes preserve available role and listing metadata.
+
+Current Offers provides lifecycle filters, grouped exact-status options, deliberate lifecycle summary counts, and waiting-state labels in place of stale countdowns. Cards and action dialogs display listing prices only when their currency matches the offer. Config reports active discovery, reconciled listings, new offers, status changes, other updates, unchanged observations, and API attempts separately. Worker, locking, permissions, and single-dispatch action behavior remain in place.
+
+Official API references: [GetBestOffers](https://developer.ebay.com/devzone/xml/docs/reference/ebay/GetBestOffers.html) and [BestOfferStatusCodeType](https://developer.ebay.com/devzone/xml/docs/reference/ebay/types/BestOfferStatusCodeType.html).
+
+### Earlier latest-change synchronization
 
 Normal manual and automatic synchronization now checks active Trading offers and unresolved status changes, compares provider snapshots, and reports new, updated and unchanged counts. It skips routine scans of legacy history. Manual sync offers an optional **Also refresh older stored history** checkbox; saved history remains visible in either mode.
 
@@ -134,3 +164,36 @@ Official behavior reference: [GetBestOffers](https://developer.ebay.com/devzone/
 - `frontend/src/pages/offer_management/best_offers.css`
 - `frontend/src/pages/offer_management/offer_management.jsx`
 - `frontend/src/services/ebayBestOfferApi.js`
+
+
+### OAuth refresh scope correction (2026-09-28)
+
+Token refresh now omits the optional scope parameter, preserving the account's original consent grant. This replaces the Trading/expanded/legacy scope retry chain, avoiding predictable invalid_scope requests for older grants and propagating genuine refresh failures after one request. Successful token operations log at INFO. Adding missing permissions still requires account reconnection and consent; refresh does not grant new permissions. See https://developer.ebay.com/develop/guides/sell/authorization .
+
+
+### Pending counteroffer discovery gap (2026-09-28)
+
+Live Marine listing 396535199496 returned BuyerBestOffer Countered (GBP 37) and SellerCounterOffer Pending (GBP 92.14) through listing-specific All. Account-wide Active returned no offers, including with UK SiteID and omitted explicit status filter. GetItem confirmed Marine's seller identity. The two negotiation records were imported under that verified role; latest buyer/item selection displays the pending GBP 92.14 counteroffer.
+
+Known open/waiting snapshot members now remain visible until a successful due listing-specific check establishes an empty or terminal outcome. This prevents pending counteroffers from disappearing during listing backoff. Reconciliation continues for these known listings without a broad historical sweep. Newly created pending offers omitted by account-wide discovery remain a coverage gap; this change does not provide a separate discovery feed.
+
+
+### Automatic event-driven discovery (2026-09-28)
+
+Manual item imports do not provide discovery. ACES now has an OFFER_ACTIVITY webhook, destination/subscription setup endpoints, optional expanded consent, and Config controls for each account. The direct production getTopic/OFFER_ACTIVITY response returned ENABLED with sell.offer/buy.offer scopes even though getTopics omitted the topic. Existing grants must receive fresh seller consent; refresh cannot expand permissions.
+
+A signed event identifies the account, offer and item. ECC/SHA1 signature verification follows the eBay SDK protocol, and account identity must match seller/buyer data. Delivery is deduplicated under the account lock and persisted as an EBAY_OFFER_ACTIVITY SyncLog. Normal sync consumes at most 25 pending event rows per account, uses listing-specific All, and accepts a missing provider Role only from the verified event's account identity. Events wake ordinary backoff without bypassing provider error backoff. Provider failures retain pending events. Completed/expired records stay in history; no financial actions are sent by event processing. New-event discovery does not depend on conversation messages or a preloaded item ID.
+
+Activation: deploy/restart this backend at PUBLIC_BACKEND_URL; for each account use Config -> Authorize offer access, complete matching eBay consent, then Enable offer activity. Ensure sell.offer and commerce.notification.subscription are available in the eBay application keyset. Keep automatic sync enabled or manually sync to consume events. The webhook path is /api/v1/integrations/ebay/best-offers/activity/{account_id}. Challenge uses the persisted destination endpoint and verification token. Event subscriptions are per account and not created automatically until setup is invoked. No migration is needed.
+
+This feed receives future delivered events. It does not retroactively enumerate pending offers that existed before subscription. Active discovery and known-offer reconciliation remain enabled. Complete backfill is still limited by the observed empty Trading discovery and incomplete large-account listing summaries.
+
+References: https://developer.ebay.com/develop/api/buy/notification_events and https://github.com/eBay/event-notification-nodejs-sdk/blob/main/lib/validator.js .
+
+
+Seller offer authorization requests sell.offer and commerce.notification.subscription only. buy.offer is excluded because the integration discovers buyer offers received on seller listings, rather than subscribing to buyer-side activity.
+# Current negotiation visibility and direction
+
+Current offers rank against published current steps and stored terminal steps before applying snapshot membership. A newer verified step for the same item and buyer, including a step seen through another managed account, suppresses older current rows. Unpublished open rows from failed scans do not replace the last complete snapshot. Provider creation time takes precedence over offer ID when ordering steps. Closed steps stay available in saved history.
+
+The card labels the importing account as "Synced account". Offer direction is derived from the provider offer type and verified buyer/seller identities; the selling account can send a seller counteroffer to the buyer. Unknown identities remain explicit rather than being inferred from the account name.
