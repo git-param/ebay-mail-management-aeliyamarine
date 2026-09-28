@@ -513,6 +513,7 @@ export default function SoldPosting({ currentUser, onLogout }) {
   const [syncResult, setSyncResult] = useState(null);
   const [selected, setSelected] = useState(null);
   const [editTarget, setEditTarget] = useState(null);
+  const [pendingDeleteNoteRow, setPendingDeleteNoteRow] = useState(null);
   const [editError, setEditError] = useState("");
   const [savingEdit, setSavingEdit] = useState(false);
   const [copiedToastId, setCopiedToastId] = useState(null);
@@ -822,8 +823,13 @@ export default function SoldPosting({ currentUser, onLogout }) {
       setSavingNoteId(null);
     }
   }
-  async function deleteNote(row, event) {
+  function deleteNote(row, event) {
     event.stopPropagation();
+    setPendingDeleteNoteRow(row);
+  }
+  async function confirmDeleteNote() {
+    if (!pendingDeleteNoteRow || savingNoteId) return;
+    const row = pendingDeleteNoteRow;
     setSavingNoteId(row.id);
     setError("");
     try {
@@ -838,6 +844,7 @@ export default function SoldPosting({ currentUser, onLogout }) {
         setEditingNoteId(null);
         setInlineNoteDraft("");
       }
+      setPendingDeleteNoteRow(null);
     } catch (err) {
       setError(err.message || "Could not delete note");
     } finally {
@@ -1336,6 +1343,19 @@ export default function SoldPosting({ currentUser, onLogout }) {
         }}
         onSave={saveNote}
       />
+      {pendingDeleteNoteRow ? (
+        <SoldConfirmModal
+          title="Delete Note"
+          message="Do you want to delete this sold posting note?"
+          detail={pendingDeleteNoteRow.note}
+          confirmLabel="Delete"
+          saving={Boolean(savingNoteId)}
+          onCancel={() => {
+            if (!savingNoteId) setPendingDeleteNoteRow(null);
+          }}
+          onConfirm={confirmDeleteNote}
+        />
+      ) : null}
       {pendingCopyRow ? (
         <SoldConfirmModal
           title="Copy Sold Posting"
