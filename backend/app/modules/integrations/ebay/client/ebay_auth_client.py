@@ -202,6 +202,14 @@ class EbayAuthClient:
                     or container.findtext('./e:Item/e:Currency', namespaces=ns),
                 'title': container.findtext('./e:Item/e:Title', namespaces=ns),
             }
+            images = [node.text.strip() for node in container.findall('./e:Item/e:PictureDetails/e:PictureURL', ns)
+                      if node.text and node.text.strip()]
+            gallery = container.findtext('./e:Item/e:PictureDetails/e:GalleryURL', namespaces=ns)
+            if gallery and gallery.strip():
+                images.append(gallery.strip())
+            if images:
+                listing['image_url'] = images[0]
+                listing['image_urls'] = list(dict.fromkeys(images))
             for node in container.findall('./e:BestOfferArray/e:BestOffer', ns):
                 offer = self._best_offer_node(node, item_id, ns)
                 offer['role'] = node.findtext('./e:Role', namespaces=ns) or role

@@ -1,25 +1,12 @@
 import { useState } from 'react'
+import { ebayMarketplaceHost, ebayListingUrl as buildListingUrl, localizeEbayUrl, normalizeProductImageUrl } from '../../../utils/ebayUrls'
 
 import { Icon } from '../../../layouts/app_layout'
-
-function normalizeImageUrl(imageUrl) {
-  if (typeof imageUrl !== 'string') {
-    return ''
-  }
-
-  return imageUrl
-    .trim()
-    .replace(
-      /^http:\/\//i,
-      'https://',
-    )
-    .replace(/&amp;/g, '&')
-}
 
 function ContextThumbnail({imageUrl, title,}) 
 {
   const [failedUrl, setFailedUrl] = useState('')
-  const normalizedUrl = normalizeImageUrl(imageUrl)
+  const normalizedUrl = normalizeProductImageUrl(imageUrl)
   const failed = failedUrl === normalizedUrl
 
   if (!normalizedUrl || failed) 
@@ -63,60 +50,6 @@ function formatContextPrice(
   } catch {
     return `${numericPrice} ${currency}`
   }
-}
-
-function getMarketplaceHost(detail) {
-  const accountText = [
-    detail?.seller_account?.account_name,
-    detail?.seller_account?.ebay_username,
-    detail?.product_context?.seller_username,
-  ]
-    .filter(Boolean)
-    .join(' ')
-    .toLowerCase()
-
-  if (
-    accountText.includes('marine') ||
-    accountText.includes('marin')
-  ) {
-    return 'www.ebay.co.uk'
-  }
-
-  if (accountText.includes('trade')) {
-    return 'www.ebay.de'
-  }
-
-  return 'www.ebay.com'
-}
-
-function localizeEbayUrl(url, marketplaceHost) {
-  if (!url) {
-    return ''
-  }
-
-  try {
-    const parsedUrl = new URL(url)
-    const hostname = parsedUrl.hostname.toLowerCase()
-
-    if (
-      hostname === 'ebay.com' ||
-      hostname.endsWith('.ebay.com') ||
-      hostname.endsWith('.ebay.co.uk') ||
-      hostname.endsWith('.ebay.de')
-    ) {
-      parsedUrl.hostname = marketplaceHost
-    }
-
-    return parsedUrl.toString()
-  } catch {
-    return String(url)
-  }
-}
-
-function buildListingUrl(listingId, marketplaceHost) {
-  return listingId
-    ? `https://${marketplaceHost}/itm/${listingId}`
-    : ''
 }
 
 function ContextItemBanner({
@@ -317,7 +250,7 @@ function ConversationContextBanner({
   detail,
 }) {
   const marketplaceHost =
-    getMarketplaceHost(detail)
+    ebayMarketplaceHost(detail?.seller_account)
 
   const order =
     detail?.order_context

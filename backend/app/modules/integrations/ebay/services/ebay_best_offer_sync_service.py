@@ -19,6 +19,7 @@ from app.modules.integrations.ebay.services.ebay_offer_validation import (
     update_missing_offer_fields,
 )
 from app.models.order_context import ConversationProductContext
+from app.modules.integrations.ebay.services.ebay_best_offer_listing import merge_listing_metadata
 from app.modules.integrations.ebay.oauth.token_service import EbayTokenService
 from app.services.ebay_api_usage_service import EbayApiUsageService
 from app.services.offer_consistency_service import OfferConsistencyService
@@ -797,7 +798,8 @@ class EbayBestOfferSyncService:
             offer.provider_status = raw.get('status')
             offer.provider_role = raw.get('role') or offer.provider_role
             offer.provider_snapshot = dict(raw)
-            offer.listing_snapshot = {**(offer.listing_snapshot or {}), **self._listing_metadata(account.id, offer.listing_id), **{k: v for k, v in (raw.get('listing') or {}).items() if v is not None}}
+            offer.listing_snapshot = merge_listing_metadata(
+                offer.listing_snapshot, self._listing_metadata(account.id, offer.listing_id), raw.get('listing'))
             offer.last_seen_at = now
             offer.last_synced_at = now
         if conversation:

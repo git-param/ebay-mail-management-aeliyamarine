@@ -1,7 +1,10 @@
 import { bestOfferPrices, bestOfferDate, bestOfferStatusKey, bestOfferStatusLabel, bestOfferStatusGroup, bestOfferGroupLabels } from './bestOfferFormat'
+import { ebayMarketplaceHost, ebayListingUrl } from '../../utils/ebayUrls'
+import OfferThumbnail from './OfferThumbnail'
 
 export default function BestOfferCard({ offer, now, onAction, loading }) {
   const listing = offer.listing || {}
+  const listingUrl = ebayListingUrl(offer.listing_id, ebayMarketplaceHost({ account_name: offer.account_name, ebay_username: offer.account_username }))
   const remaining = offer.expires_at ? Math.max(0, new Date(offer.expires_at).getTime() - now) : null
   const status = bestOfferStatusKey(offer.provider_status || offer.status || offer.display_status)
   const group = offer.status_group || bestOfferStatusGroup(status)
@@ -11,17 +14,17 @@ export default function BestOfferCard({ offer, now, onAction, loading }) {
   const countdown = closed ? (group === 'COMPLETED' ? (offer.status_verified && offer.provider_status ? 'Accepted · payment completed' : 'Accepted offer · closed') : 'Offer closed') : group === 'AGREED' ? bestOfferStatusLabel(status) : group === 'UNKNOWN' ? 'Provider status awaiting review' : remaining == null ? '—' : remaining === 0 ? 'Offer deadline passed - checking its status' : `${Math.floor(remaining / 3600000)}h ${Math.floor(remaining / 60000) % 60}m ${Math.floor(remaining / 1000) % 60}s`
   const canRespond = !loading && offer.can_respond && remaining > 0
   return <article className="best-offer-card">
-    <div className="best-offer-image">{listing.image_url ? <img src={listing.image_url} alt={listing.title || 'Product'} loading="lazy" /> : <span>No image</span>}</div>
+    <OfferThumbnail key={offer.listing_id} listing={listing} href={listingUrl} />
     <div className="best-offer-product">
       <div className="bo-card-badges"><span className={`best-offer-status bo-status-${status.toLowerCase()} bo-group-${group.toLowerCase()}`}>{offer.display_status || bestOfferStatusLabel(status)}</span><span className="bo-lifecycle-label">{bestOfferGroupLabels[group]}</span>
       <span className="bo-offer-role">{roleLabel}</span></div>
       {!offer.status_verified ? <small className="bo-history-label">Saved from earlier records; current eBay status has not been confirmed</small> : null}
-      <h2>{listing.title || `Item ${offer.listing_id}`}</h2>
+      <h2>{listingUrl ? <a className="bo-product-link" href={listingUrl} target="_blank" rel="noreferrer">{listing.title || `Item ${offer.listing_id}`} <span aria-hidden="true">↗</span></a> : listing.title || 'Unknown item'}</h2>
       <dl className="bo-card-details">
         <div><dt>Synced account</dt><dd>{offer.account_name || '—'}</dd></div>
         {offer.offer_from || offer.offer_to ? <div><dt>Offer direction</dt><dd>{offer.offer_from || 'Unknown'} → {offer.offer_to || 'Unknown'}</dd></div> : null}
         <div><dt>Buyer</dt><dd>{offer.buyer || '—'}</dd></div>
-        <div><dt>Item ID</dt><dd>{offer.listing_id || '—'}</dd></div>
+        <div><dt>Item ID</dt><dd>{listingUrl ? <a href={listingUrl} target="_blank" rel="noreferrer">{offer.listing_id}</a> : '—'}</dd></div>
         <div><dt>Offer ID</dt><dd>{offer.provider_offer_id || '—'}</dd></div>
         <div><dt>SKU</dt><dd>{listing.sku || '—'}</dd></div>
         <div><dt>Condition</dt><dd>{listing.condition || '—'}</dd></div>
@@ -32,7 +35,6 @@ export default function BestOfferCard({ offer, now, onAction, loading }) {
       <span>{offer.status_verified ? 'Last checked with eBay' : 'Last processed in ACES'}: {bestOfferDate(offer.last_synced_at)}</span></div>
     </div>
     <div className="best-offer-prices">
-      {offer.provider_role === 'Buyer' ? <a className="secondary-button bo-ebay-link" href={`https://www.ebay.com/itm/${encodeURIComponent(offer.listing_id)}`} target="_blank" rel="noreferrer">View listing on eBay</a> : null}
       <div className="bo-price-heading"><span>Offer amount</span>{prices.currency ? <span className="bo-currency">{prices.currency}</span> : null}</div><strong>{prices.amount}</strong>
       <span>Listing price</span><b>{prices.listingPrice}</b>
       {prices.listingNote ? <small className="bo-price-note">{prices.listingNote}</small> : null}
@@ -45,6 +47,7 @@ export default function BestOfferCard({ offer, now, onAction, loading }) {
         <button className="secondary-button" onClick={() => onAction(offer, 'Counter')}>Counter Offer</button>
         <button className="secondary-button" onClick={() => onAction(offer, 'Decline')}>Decline</button>
       </div> : null}
+      {listingUrl ? <a className="bo-ebay-link" href={listingUrl} target="_blank" rel="noreferrer">View on eBay ↗</a> : null}
     </div>
   </article>
 }

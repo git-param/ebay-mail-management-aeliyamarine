@@ -7,7 +7,8 @@ from app.models.offer import Offer
 from app.models.ebay_account import EbayAccount
 from app.models.ebay_best_offer_action import EbayBestOfferAction
 from app.models.conversation import Conversation
-from app.models.order_context import ConversationProductContext
+from app.models.order_context import ConversationProductContext, EbayOrderLineItem
+from app.modules.integrations.ebay.services.ebay_best_offer_listing import merge_listing_metadata
 from app.modules.integrations.ebay.services.ebay_best_offer_snapshot import current_snapshot_ids
 from app.modules.integrations.ebay.services.ebay_best_offer_status import (
     OPEN_STATUSES, AGREED_STATUSES, CLOSED_STATUSES, status_group, status_label, status_key,
@@ -143,16 +144,33 @@ class EbayBestOfferQueryService:
                    ConversationProductContext.reference_id.in_({o.listing_id for o in offers if o.listing_id}))
             .order_by(ConversationProductContext.updated_at.desc()))
         for cached_account, context in contexts:
-            cached.setdefault((cached_account, context.reference_id), context)
+            key = (cached_account, context.reference_id)
+            metadata = {'title': context.item_title, 'image_url': context.image_url, 'sku': context.sku,
+                'price': str(context.price_value) if context.price_value is not None else None,
+                'currency': context.price_currency}
+            entry = cached.setdefault(key, {})
+            for field, value in metadata.items():
+                if value is not None and (not isinstance(value, str) or value.strip()):
+                    entry.setdefault(field, value)
+            if context.image_url and context.image_url.strip():
+                entry.setdefault('image_urls', []).append(context.image_url)
+        item_ids = {o.listing_id for o in offers if o.listing_id}
+        for line in self.db.scalars(select(EbayOrderLineItem).where(
+                EbayOrderLineItem.account_id.in_({o.account_id for o in offers}),
+                or_(EbayOrderLineItem.item_id.in_(item_ids), EbayOrderLineItem.listing_id.in_(item_ids)))
+                .order_by(EbayOrderLineItem.updated_at.desc())):
+            for item_id in {line.item_id, line.listing_id} & item_ids:
+                entry = cached.setdefault((line.account_id, item_id), {})
+                for field, value in {'title': line.title, 'sku': line.sku, 'image_url': line.image_url}.items():
+                    if value and value.strip():
+                        entry.setdefault(field, value)
+                if line.image_url and line.image_url.strip():
+                    entry.setdefault('image_urls', []).append(line.image_url)
         items = []
         for offer in offers:
             raw, listing = offer.provider_snapshot or offer.raw_payload or {}, offer.listing_snapshot or {}
             context = cached.get((offer.account_id, offer.listing_id))
-            if context:
-                metadata = {'title': context.item_title, 'image_url': context.image_url, 'sku': context.sku,
-                    'price': str(context.price_value) if context.price_value is not None else None,
-                    'currency': context.price_currency}
-                listing = {**{k:v for k,v in metadata.items() if v is not None}, **listing}
+            listing = merge_listing_metadata(context, listing)
             account, action = accounts.get(offer.account_id), latest.get(offer.id)
             seller = raw.get('sellerUsername') or (account.ebay_username if account and offer.provider_role == 'Seller' else None)
             buyer_name = raw.get('buyerUsername') or offer.buyer_username
@@ -161,6 +179,7 @@ class EbayBestOfferQueryService:
             buyer_sent = offer_type in {'BuyerBestOffer', 'BuyerCounterOffer'}
             items.append({'id': offer.id, 'account_id': offer.account_id,
                 'account_name': account.account_name if account else None,
+                'account_username': account.ebay_username if account else None,
                 'provider_offer_id': offer.provider_offer_id, 'listing_id': offer.listing_id,
                 'buyer': buyer_name, 'seller': seller, 'offer_type': offer_type,
                 'offer_from': seller if seller_sent else buyer_name if buyer_sent else None,
