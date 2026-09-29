@@ -15,6 +15,7 @@ from app.schemas.auth import (
     TokenResponse,
 )
 from app.services.auth_service import AuthService
+from app.services.daily_login_service import record_daily_login
 
 
 router = APIRouter()
@@ -67,18 +68,23 @@ def login(payload: LoginRequest, request: Request, response: Response, db: Sessi
 
 @router.post('/refresh', response_model=TokenResponse)
 def refresh(
+    request: Request,
     response: Response,
     payload: RefreshRequest = Body(default_factory=RefreshRequest),
     refresh_token_cookie: str | None = Cookie(default=None, alias=REFRESH_COOKIE_NAME),
     db: Session = Depends(get_db),
 ) -> TokenResponse:
-    token_response = AuthService(db).refresh(refresh_token=payload.refresh_token or refresh_token_cookie or '')
+    token_response = AuthService(db).refresh(refresh_token=payload.refresh_token or refresh_token_cookie or '',
+        ip_address=request.client.host if request.client else None, user_agent=request.headers.get('user-agent'))
     return set_auth_cookies(response, token_response)
 
 
 @router.get('/me', response_model=TokenResponse)
-def me(current_user=Depends(get_current_user)) -> TokenResponse:
+def me(request: Request, current_user=Depends(get_current_user), db: Session = Depends(get_db)) -> TokenResponse:
     """Return the current session user without exposing token values."""
+    record_daily_login(db, current_user, ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get('user-agent'))
+    db.commit()
     return TokenResponse(
         expires_in=0,
         user={

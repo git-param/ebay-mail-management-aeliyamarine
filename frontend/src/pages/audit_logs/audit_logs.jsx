@@ -13,12 +13,12 @@ function formatDate(value) {
     return ''
   }
   const date = new Date(value)
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString()
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString(undefined, { timeZone: 'Asia/Kolkata' })
 }
 
 function formatTime(value) {
   const date = new Date(value)
-  return Number.isNaN(date.getTime()) ? '' : date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  return Number.isNaN(date.getTime()) ? '' : date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' })
 }
 
 function AuditLogs({ currentUser, onLogout }) {
@@ -29,26 +29,6 @@ function AuditLogs({ currentUser, onLogout }) {
   const [options, setOptions] = useState(EMPTY_OPTIONS)
   const [error, setError] = useState('')
   const [isLoading, setIsLoading] = useState(true)
-
-  async function loadLogs() {
-    setIsLoading(true)
-    setError('')
-    try {
-      const response = await fetchAuditLogs({
-        limit: PAGE_SIZE,
-        offset: page * PAGE_SIZE,
-        ...filters,
-      })
-      setLogs(response.items || [])
-      setTotal(response.total || 0)
-    } catch (caughtError) {
-      setError(caughtError.message)
-      setLogs([])
-      setTotal(0)
-    } finally {
-      setIsLoading(false)
-    }
-  }
 
   async function downloadExport() {
     try {
@@ -65,7 +45,16 @@ function AuditLogs({ currentUser, onLogout }) {
   }
 
   useEffect(() => {
-    loadLogs()
+    let active = true
+    fetchAuditLogs({ limit: PAGE_SIZE, offset: page * PAGE_SIZE, ...filters })
+      .then(response => {
+        if (active) { setLogs(response.items || []); setTotal(response.total || 0); setError('') }
+      })
+      .catch(caughtError => {
+        if (active) { setError(caughtError.message); setLogs([]); setTotal(0) }
+      })
+      .finally(() => { if (active) setIsLoading(false) })
+    return () => { active = false }
   }, [page, filters])
 
   useEffect(() => {
@@ -73,11 +62,15 @@ function AuditLogs({ currentUser, onLogout }) {
   }, [])
 
   function updateFilter(key, value) {
+    setIsLoading(true)
     setFilters((current) => ({ ...current, [key]: value }))
     setPage(0)
   }
 
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE))
+  const firstEvent = total ? page * PAGE_SIZE + 1 : 0
+  const lastEvent = Math.min((page + 1) * PAGE_SIZE, total)
+  const hasFilters = Object.values(filters).some(Boolean)
 
   return (
     <AppLayout activePage="Audit Logs" currentUser={currentUser} onLogout={onLogout}>
@@ -85,11 +78,14 @@ function AuditLogs({ currentUser, onLogout }) {
         <div className="page-header">
           <div>
             <h1>Audit Logs</h1>
-            <p>{total} events</p>
+            <p>{total.toLocaleString()} events · All times in India time</p>
           </div>
+          <div className="audit-header-actions">
+          {hasFilters ? <button className="secondary-button compact-action" type="button" onClick={() => { setIsLoading(true); setPage(0); setFilters({ category: '', status: '', action: '', entity_type: '', date_from: '', date_to: '' }) }}>Clear filters</button> : null}
           <button className="secondary-button compact-action" type="button" onClick={downloadExport}>
             Export CSV
           </button>
+          </div>
         </div>
 
         <section className="filter-panel">
@@ -121,8 +117,8 @@ function AuditLogs({ currentUser, onLogout }) {
               {options.entity_types.map((value) => <option value={value} key={value}>{readable(value)}</option>)}
             </select>
           </label>
-          <label className="field"><span>From</span><input type="date" value={filters.date_from} onChange={(event) => updateFilter('date_from', event.target.value)} /></label>
-          <label className="field"><span>To</span><input type="date" value={filters.date_to} onChange={(event) => updateFilter('date_to', event.target.value)} /></label>
+          <label className="field"><span>From (India time)</span><input type="date" max={filters.date_to || undefined} value={filters.date_from} onChange={(event) => updateFilter('date_from', event.target.value)} /></label>
+          <label className="field"><span>To (India time)</span><input type="date" min={filters.date_from || undefined} value={filters.date_to} onChange={(event) => updateFilter('date_to', event.target.value)} /></label>
         </section>
 
         {error ? <p className="form-message error management-error">{error}</p> : null}
@@ -131,8 +127,9 @@ function AuditLogs({ currentUser, onLogout }) {
           {isLoading ? (
             <div className="empty-state"><h2>Loading audit logs...</h2></div>
           ) : (
-            <div className="table-scroll">
-              <table className="users-table">
+            <div className="table-scroll" tabIndex={0} role="region" aria-label="Audit events, scroll to see all columns">
+              <table className="users-table" aria-label="Audit activity">
+                <colgroup>{['date', 'time', 'user', 'role', 'action', 'module', 'resource', 'details', 'status'].map(column => <col key={column} className={`audit-column-${column}`} />)}</colgroup>
                 <thead>
                   <tr>
                     <th>Date</th><th>Time</th>
@@ -144,9 +141,9 @@ function AuditLogs({ currentUser, onLogout }) {
                   {logs.map((log) => (
                     <tr key={log.id}>
                       <td>{formatDate(log.created_at)}</td><td>{formatTime(log.created_at)}</td>
-                      <td>{log.user?.name || log.user?.email || 'System'}</td><td>{log.user?.role || 'System'}</td>
-                      <td>{log.action_label}</td><td>{log.module_label}</td><td>{log.resource_label}</td><td title={log.details}>{log.details}</td>
-                      <td>{log.status || '-'}</td>
+                      <td>{log.actor_name || log.user?.name || log.user?.email || 'System'}</td><td>{log.metadata?.actor_role || log.user?.role || 'System'}</td>
+                      <td>{log.action_label}</td><td>{log.module_label}</td><td>{log.resource_label}</td><td><p className="audit-description">{log.details}</p>{log.conversation_id || log.entity_id ? <details className="audit-record-ids"><summary>Record IDs</summary>{log.conversation_id ? <div>Conversation: <code>{log.conversation_id}</code></div> : null}{log.entity_id && log.entity_id !== log.conversation_id ? <div>{readable(log.entity_type || 'Resource')}: <code>{log.entity_id}</code></div> : null}</details> : null}</td>
+                      <td><span className={`audit-status audit-status-${String(log.status || 'unknown').toLowerCase().replace(/[^a-z]/g, '')}`}>{log.status ? readable(log.status) : 'Not recorded'}</span></td>
                     </tr>
                   ))}
                   {!logs.length ? <tr><td colSpan={9} className="audit-empty">No audit events match these filters.</td></tr> : null}
@@ -154,13 +151,15 @@ function AuditLogs({ currentUser, onLogout }) {
               </table>
             </div>
           )}
-        </section>
-
-        <div className="pagination-bar">
-          <button className="secondary-button" type="button" disabled={page === 0} onClick={() => setPage(page - 1)}>Previous</button>
+        <div className="pagination-bar audit-pagination">
+          <span className="audit-results-count" role="status">{isLoading ? 'Loading events...' : `Showing ${firstEvent.toLocaleString()}–${lastEvent.toLocaleString()} of ${total.toLocaleString()} events`}</span>
+          <nav className="audit-pagination-controls" aria-label="Audit log pages">
+          <button className="secondary-button" type="button" disabled={isLoading || page === 0} onClick={() => { setIsLoading(true); setPage(page - 1) }}>Previous</button>
           <span>Page {page + 1} of {pageCount}</span>
-          <button className="secondary-button" type="button" disabled={page + 1 >= pageCount} onClick={() => setPage(page + 1)}>Next</button>
+          <button className="secondary-button" type="button" disabled={isLoading || page + 1 >= pageCount} onClick={() => { setIsLoading(true); setPage(page + 1) }}>Next</button>
+          </nav>
         </div>
+        </section>
       </main>
     </AppLayout>
   )

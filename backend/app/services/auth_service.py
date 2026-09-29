@@ -18,6 +18,7 @@ from app.core.security import (
 from app.repositories.auth_repository import AuthRepository
 from app.schemas.auth import TokenResponse, UserSession
 from app.services.email_service import EmailService
+from app.services.daily_login_service import record_daily_login
 from app.utils.auth_utils import ensure_new_password_is_valid
 
 
@@ -77,7 +78,7 @@ class AuthService:
             access_expires_at=access_expires_at,
         )
 
-    def refresh(self, *, refresh_token: str) -> TokenResponse:
+    def refresh(self, *, refresh_token: str, ip_address: str | None = None, user_agent: str | None = None) -> TokenResponse:
         payload = self._decode_refresh_payload(refresh_token)
         stored_token = self.repository.get_active_refresh_token(hash_token(refresh_token))
 
@@ -104,6 +105,7 @@ class AuthService:
             jwt_id=refresh_jti,
             expires_at=refresh_expires_at,
         )
+        record_daily_login(self.db, user, ip_address=ip_address, user_agent=user_agent)
         self.db.commit()
 
         return self._build_token_response(

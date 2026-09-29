@@ -4,7 +4,6 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
-from app.models.audit_log import AuditLog
 from app.models.password_reset_token import PasswordResetToken
 from app.models.refresh_token import RefreshToken
 from app.models.user import User
@@ -94,13 +93,7 @@ class AuthRepository:
         ip_address: str | None = None,
         user_agent: str | None = None,
     ) -> None:
-        self.db.add(
-            AuditLog(
-                user_id=user_id,
-                action=action,
-                entity_type=entity_type,
-                entity_id=entity_id,
-                ip_address=ip_address,
-                user_agent=user_agent,
-            )
-        )
+        from app.services.audit_service import AuditService
+        AuditService(self.db).log(action=action, user_id=user_id, entity_type=entity_type,
+            entity_id=entity_id, ip_address=ip_address, user_agent=user_agent,
+            status='FAILED' if action in {'LOGIN_FAILURE', 'LOGIN_BLOCKED_INACTIVE_USER'} else 'SUCCESS')

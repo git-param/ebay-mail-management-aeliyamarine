@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session, joinedload, selectinload
 from app.api.dependencies import get_current_user
 from app.core.security import hash_password
 from app.db.session import get_db
-from app.models.audit_log import AuditLog
+from app.services.audit_service import AuditService
 from app.models.category import Category, CategoryUserAssignment
 from app.models.password_reset_token import PasswordResetToken
 from app.models.refresh_token import RefreshToken
@@ -114,14 +114,8 @@ def serialize_user(user: User) -> UserResponse:
 
 
 def add_user_audit_log(db: Session, *, action: str, actor_id: UUID, target_user_id: UUID) -> None:
-    db.add(
-        AuditLog(
-            user_id=actor_id,
-            action=action,
-            entity_type=USER_ENTITY_TYPE,
-            entity_id=target_user_id,
-        )
-    )
+    AuditService(db).log(user_id=actor_id, action=action,
+        entity_type=USER_ENTITY_TYPE, entity_id=target_user_id)
 
 
 @router.get('', response_model=list[UserResponse])

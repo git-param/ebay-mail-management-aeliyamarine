@@ -12,6 +12,7 @@ from app.repositories.conversation_category_history_repository import Conversati
 from app.repositories.conversation_repository import ConversationRepository
 from app.repositories.conversation_status_history_repository import ConversationStatusHistoryRepository
 from app.services.sla_service import SLAService
+from app.services.audit_service import AuditService
 
 logger = logging.getLogger(__name__)
 
@@ -310,6 +311,9 @@ class ConversationService:
         conversation = self.get_conversation(conversation_id)
         old_status = conversation.status
         conversation.status = new_status
+        AuditService(self.db).log(action='MESSAGE_STATUS_CHANGED', user_id=changed_by,
+            entity_type='CONVERSATION', entity_id=conversation.id, category='MESSAGE_MANAGEMENT',
+            metadata={'previous_status': old_status.value, 'status': new_status.value})
         self.status_history_repository.add(
             ConversationStatusHistory(
                 conversation_id=conversation.id,
@@ -337,6 +341,10 @@ class ConversationService:
 
         old_category_id = conversation.category_id
         conversation.category_id = category_id
+        AuditService(self.db).log(action='MESSAGE_CATEGORY_CHANGED', user_id=changed_by,
+            entity_type='CONVERSATION', entity_id=conversation.id, category='MESSAGE_MANAGEMENT',
+            metadata={'previous_category_id': str(old_category_id) if old_category_id else None,
+                      'category_id': str(category_id) if category_id else None})
         conversation.category_manually_selected = True
         self.category_history_repository.add(
             ConversationCategoryHistory(

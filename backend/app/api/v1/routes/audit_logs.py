@@ -1,10 +1,10 @@
-from datetime import UTC, date, datetime, time, timedelta
+from datetime import date, datetime, time, timedelta
 import csv
 from io import StringIO
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, Response
-from sqlalchemy import func, select
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session, joinedload
 
 from app.api.dependencies import require_admin
@@ -12,7 +12,10 @@ from app.db.session import get_db
 from app.models.audit_log import AuditLog
 from app.models.role import Role
 from app.models.user import User
-from app.schemas.audit import AuditLogPageResponse, AuditLogResponse, AuditUserResponse
+from app.schemas.audit import AuditLogDeleteRequest, AuditLogPageResponse, AuditLogResponse, AuditUserResponse
+from app.services.audit_service import AuditService, audit_category_for_action
+from app.services.audit_presentation_service import AuditPresentationService
+from app.services.daily_login_service import INDIA_TIME, audit_date_bounds
 
 
 router = APIRouter()
@@ -23,6 +26,11 @@ ACTION_LABELS = {
     'MESSAGE_STATUS_CHANGED': 'Conversation Status Updated',
     'CONVERSATION_ASSIGNED': 'Assigned Conversation',
     'MESSAGE_REPLY_SENT': 'Replied to Buyer',
+    'MESSAGE_CATEGORY_CHANGED': 'Changed Message Category',
+    'CONVERSATION_UNASSIGNED': 'Unassigned Conversation',
+    'REPLY_CATEGORIZED': 'Categorized Reply',
+    'INTERNAL_NOTE_CREATED': 'Created Internal Note',
+    'AUDIT_LOGS_DELETED': 'Deleted Audit Logs',
 }
 MODULE_LABELS = {
     'AUTHENTICATION': 'Authentication', 'ASSIGNMENT': 'Inbox',
@@ -44,11 +52,14 @@ def serialize_user(user: User | None) -> AuditUserResponse | None:
     )
 
 
-def serialize_audit_log(log: AuditLog) -> AuditLogResponse:
+def serialize_audit_log(log: AuditLog, presenter=None) -> AuditLogResponse:
     """Translate a technical audit row into a manager-readable activity event."""
-    metadata = log.audit_metadata or {}
-    details = ', '.join(f'{key.replace("_", " ").title()}: {value}' for key, value in metadata.items() if key not in {'timestamp', 'user_name', 'user_role'}) or '-'
+    metadata = presenter.enrich(action=log.action, user_id=log.user_id, entity_type=log.entity_type,
+        entity_id=log.entity_id, metadata=log.audit_metadata, created_at=log.created_at) if presenter else (log.audit_metadata or {})
+    actor = metadata.get('actor_name') or (log.user.full_name if log.user else 'System')
+    details = metadata.get('description') or AuditPresentationService.describe(log.action, {**metadata, 'actor_name': actor})
     resource_name = (log.entity_type or 'Activity').replace('_', ' ').title()
+    category = log.category or audit_category_for_action(log.action)
     return AuditLogResponse(
         id=log.id,
         user_id=log.user_id,
@@ -56,15 +67,17 @@ def serialize_audit_log(log: AuditLog) -> AuditLogResponse:
         action=log.action,
         entity_type=log.entity_type,
         entity_id=log.entity_id,
-        category=log.category,
+        category=category,
         status=log.status,
         metadata=log.audit_metadata,
         ip_address=log.ip_address,
         user_agent=log.user_agent,
         created_at=log.created_at,
         action_label=ACTION_LABELS.get(log.action, log.action.replace('_', ' ').title()),
-        module_label=MODULE_LABELS.get(log.category or '', (log.category or 'System').replace('_', ' ').title()),
-        resource_label=f'{resource_name} #{str(log.entity_id)[:8]}' if log.entity_id else resource_name,
+        module_label=MODULE_LABELS.get(category, category.replace('_', ' ').title()),
+        resource_label=metadata.get('resource_label') or resource_name,
+        actor_name=actor,
+        conversation_id=metadata.get('conversation_id'),
         details=details,
     )
 
@@ -96,7 +109,7 @@ def filtered_statement(
     if start_date:
         statement = statement.where(AuditLog.created_at >= start_date)
     if end_date:
-        statement = statement.where(AuditLog.created_at <= end_date)
+        statement = statement.where(AuditLog.created_at < end_date)
     return statement
 
 
@@ -130,6 +143,8 @@ def list_audit_logs(
     db: Session = Depends(get_db),
     current_user=Depends(require_admin),
 ) -> AuditLogPageResponse:
+    if date_from and date_to and date_from > date_to:
+        raise HTTPException(422, 'From date must be on or before To date')
     statement = filtered_statement(
         user_id=user_id,
         role=role,
@@ -137,12 +152,14 @@ def list_audit_logs(
         action=action,
         entity_type=entity_type,
         status=status,
-        start_date=datetime.combine(date_from, time.min, tzinfo=UTC) if date_from else start_date,
-        end_date=datetime.combine(date_to + timedelta(days=1), time.min, tzinfo=UTC) if date_to else end_date,
+        start_date=datetime.combine(date_from, time.min, tzinfo=INDIA_TIME) if date_from else start_date,
+        end_date=datetime.combine(date_to + timedelta(days=1), time.min, tzinfo=INDIA_TIME) if date_to else end_date,
     )
     total = int(db.scalar(select(func.count()).select_from(statement.subquery())) or 0)
     items = list(db.scalars(statement.order_by(AuditLog.created_at.desc()).offset(offset).limit(limit)))
-    return AuditLogPageResponse(items=[serialize_audit_log(item) for item in items], total=total, limit=limit, offset=offset)
+    presenter = AuditPresentationService(db)
+    presenter.preload(items)
+    return AuditLogPageResponse(items=[serialize_audit_log(item, presenter) for item in items], total=total, limit=limit, offset=offset)
 
 
 @router.get('/export')
@@ -156,16 +173,43 @@ def export_audit_logs(
     db: Session = Depends(get_db),
     current_user=Depends(require_admin),
 ) -> Response:
+    if date_from and date_to and date_from > date_to:
+        raise HTTPException(422, 'From date must be on or before To date')
     statement = filtered_statement(
         category=category, action=action, entity_type=entity_type, status=status,
-        start_date=datetime.combine(date_from, time.min, tzinfo=UTC) if date_from else None,
-        end_date=datetime.combine(date_to + timedelta(days=1), time.min, tzinfo=UTC) if date_to else None,
+        start_date=datetime.combine(date_from, time.min, tzinfo=INDIA_TIME) if date_from else None,
+        end_date=datetime.combine(date_to + timedelta(days=1), time.min, tzinfo=INDIA_TIME) if date_to else None,
     )
     rows = list(db.scalars(statement.order_by(AuditLog.created_at.desc()).limit(5000)))
+    presenter = AuditPresentationService(db)
+    presenter.preload(rows)
     output = StringIO()
     writer = csv.writer(output)
     writer.writerow(['Date (UTC)', 'User', 'Role', 'Action', 'Module', 'Resource', 'Status', 'Details'])
     for row in rows:
-        item = serialize_audit_log(row)
-        writer.writerow([row.created_at, item.user.name if item.user else 'System', item.user.role if item.user else '', item.action_label, item.module_label, item.resource_label, item.status, item.details])
+        item = serialize_audit_log(row, presenter)
+        writer.writerow([row.created_at, item.actor_name, (row.audit_metadata or {}).get('actor_role') or (item.user.role if item.user else ''), item.action_label, item.module_label, item.resource_label, item.status, item.details])
     return Response(content=output.getvalue(), media_type='text/csv', headers={'Content-Disposition': 'attachment; filename="audit_logs.csv"'})
+
+
+def deletion_criteria(date_from, date_to):
+    start, end = audit_date_bounds(date_from, date_to)
+    return (AuditLog.created_at >= start, AuditLog.created_at < end)
+
+
+@router.get('/deletion-preview')
+def preview_audit_deletion(date_from: date, date_to: date, db: Session = Depends(get_db), current_user=Depends(require_admin)):
+    count = db.scalar(select(func.count()).select_from(AuditLog).where(*deletion_criteria(date_from, date_to)))
+    return {'count': count or 0, 'timezone': 'Asia/Kolkata'}
+
+
+@router.delete('')
+def delete_audit_logs(payload: AuditLogDeleteRequest, db: Session = Depends(get_db), current_user=Depends(require_admin)):
+    if payload.confirmation != 'DELETE AUDIT LOGS':
+        raise HTTPException(422, 'Type DELETE AUDIT LOGS to confirm')
+    result = db.execute(delete(AuditLog).where(*deletion_criteria(payload.date_from, payload.date_to)))
+    count = result.rowcount
+    AuditService(db).log(action='AUDIT_LOGS_DELETED', user_id=current_user.id, category='SYSTEM',
+        metadata={'date_from': payload.date_from.isoformat(), 'date_to': payload.date_to.isoformat(), 'deleted_count': count})
+    db.commit()
+    return {'deleted_count': count}

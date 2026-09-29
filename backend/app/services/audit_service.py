@@ -3,6 +3,7 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 
 from app.models.audit_log import AuditLog
+from app.services.audit_presentation_service import AuditPresentationService
 
 
 def audit_category_for_action(action: str) -> str:
@@ -48,7 +49,8 @@ class AuditService:
             entity_id=entity_id,
             category=category or audit_category_for_action(action),
             status=status,
-            audit_metadata=metadata,
+            audit_metadata=AuditPresentationService(self.db).enrich(
+                action=action, user_id=user_id, entity_type=entity_type, entity_id=entity_id, metadata=metadata),
             ip_address=ip_address,
             user_agent=user_agent,
         )

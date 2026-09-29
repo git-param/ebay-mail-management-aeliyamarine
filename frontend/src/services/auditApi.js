@@ -1,4 +1,7 @@
-import { apiFetch } from './http'
+import { apiFetch, apiRequest } from './http'
+
+export const previewAuditDeletion = (dates) => apiRequest(`/audit-logs/deletion-preview${buildQuery(dates)}`)
+export const deleteAuditLogs = (payload) => apiRequest('/audit-logs', { method: 'DELETE', body: JSON.stringify(payload) })
 
 function buildQuery(params = {}) {
   const query = new URLSearchParams()

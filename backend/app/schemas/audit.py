@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from uuid import UUID
 
 from pydantic import BaseModel
@@ -29,6 +29,8 @@ class AuditLogResponse(BaseModel):
     module_label: str
     resource_label: str
     details: str
+    actor_name: str | None = None
+    conversation_id: UUID | None = None
 
 
 class AuditLogPageResponse(BaseModel):
@@ -36,3 +38,9 @@ class AuditLogPageResponse(BaseModel):
     total: int
     limit: int
     offset: int
+
+
+class AuditLogDeleteRequest(BaseModel):
+    date_from: date
+    date_to: date
+    confirmation: str

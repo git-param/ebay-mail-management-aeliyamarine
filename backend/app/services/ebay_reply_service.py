@@ -351,7 +351,8 @@ class EbayReplyService:
         )
         AuditService(self.db).log(
             action='REPLY_CATEGORIZED', user_id=actor_id, entity_type='MESSAGE', entity_id=message.id,
-            category='MESSAGE_MANAGEMENT', metadata={'message_type_id': str(selected_type.id)},
+            category='MESSAGE_MANAGEMENT', metadata={'message_type_id': str(selected_type.id),
+                'message_type_name': selected_type.name, 'conversation_id': str(conversation.id)},
         )
         self.db.commit()
         self.db.refresh(message)

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 import Categories from './pages/categories/categories'
 import Analytics from './pages/analytics/analytics'
@@ -21,8 +21,8 @@ import DailyTaskEntry from './pages/daily_task_entry/daily_task_entry'
 import TaskManagement from './pages/task_management/task_management'
 import LeaveManagement from './pages/leave_management/leave_management'
 import BreakManagement from './pages/break-maagement/break_maagement'
-import { logoutUser } from './services/authApi'
-import { clearStoredSession } from './services/http'
+import { fetchCurrentSession, logoutUser } from './services/authApi'
+import { clearStoredSession, storeSessionUser } from './services/http'
 import { normalizeRole } from './utils/roles'
 import PMS from './pages/pms/pms'
 import './App.css'
@@ -203,9 +203,28 @@ function Redirect({ to }) {
 
 function App() {
   const [auth, setAuth] = useState(getStoredAuth)
+  const [checkingSession, setCheckingSession] = useState(true)
+  const [sessionError, setSessionError] = useState('')
+  const [sessionRevision, setSessionRevision] = useState(0)
   const currentPath = normalizePath(window.location.pathname)
   const isAuthenticated = Boolean(auth.currentUser)
   const currentRole = normalizeRole(auth.currentUser?.role)
+
+  useEffect(() => {
+    let active = true
+    fetchCurrentSession().then(session => {
+      if (active) { storeSessionUser(session.user); setAuth({ currentUser: session.user }) }
+    }).catch(error => {
+      if (!active) return
+      if (error.status === 401 || error.status === 403) {
+        clearStoredSession()
+        setAuth({ currentUser: null })
+      } else {
+        setSessionError(error.message || 'Unable to check your saved session.')
+      }
+    }).finally(() => { if (active) setCheckingSession(false) })
+    return () => { active = false }
+  }, [sessionRevision])
 
   async function logout() {
     try {
@@ -218,6 +237,10 @@ function App() {
       currentUser: null,
     })
     window.location.assign('/login')
+  }
+
+  if (checkingSession || sessionError) {
+    return <main className="auth-page"><section className="auth-panel auth-panel-small"><div className="auth-form-wrap"><p className="auth-brand">ACES</p><h1>{checkingSession ? 'Restoring your session...' : 'Unable to restore your session'}</h1>{sessionError ? <><p className="auth-subtitle" role="alert">{sessionError}</p><button className="primary-button" onClick={() => { setCheckingSession(true); setSessionError(''); setSessionRevision(value => value + 1) }}>Retry</button></> : <p className="auth-subtitle" role="status">Checking your saved login.</p>}</div></section></main>
   }
 
   if (isAuthenticated && ['/', '/home', '/login', '/forgot-password', '/reset-password', '/login-success'].includes(currentPath)) {

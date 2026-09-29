@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react'
 import AppLayout from '../../layouts/app_layout'
 import { deleteConversationData, fetchAccountSyncStates, fetchConfigSettings, updateAccountSyncState, updateConfigSettings } from '../../services/configApi'
 import './config.css'
+import AuditLogMaintenance from './AuditLogMaintenance'
 
 const SECTION_LABELS = {
   api: 'API Limits',
@@ -183,6 +184,7 @@ export default function Config({ currentUser, onLogout }) {
             ))}
           </div>
         </section>
+        <AuditLogMaintenance />
         <section className="table-card config-section config-danger-section">
           <div className="config-section-header">
             <div>

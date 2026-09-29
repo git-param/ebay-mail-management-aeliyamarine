@@ -1358,14 +1358,7 @@ def assign_conversation(
         assigned_by=current_user.id,
     )
     create_assignment_notification(db, conversation=conversation, assignment=assignment, assigned_to=payload.assigned_to, assigned_by_user=current_user)
-    AuditService(db).log(
-        action='CONVERSATION_ASSIGNED',
-        user_id=current_user.id,
-        entity_type='CONVERSATION',
-        entity_id=conversation_id,
-        category='ASSIGNMENT',
-        metadata={'assigned_to': str(payload.assigned_to)},
-    )
+
     db.commit()
     db.refresh(assignment)
     return serialize_assignment(assignment)
@@ -1400,18 +1393,9 @@ def unassign_conversation(
 
     assignment = assignment_service.unassign_conversation(
         conversation_id=conversation_id,
+        actor_id=current_user.id,
     )
-    AuditService(db).log(
-        action='CONVERSATION_UNASSIGNED',
-        user_id=current_user.id,
-        entity_type='CONVERSATION',
-        entity_id=conversation_id,
-        category='ASSIGNMENT',
-        metadata={
-            'previous_assignee': str(assignment.assigned_to),
-            'self_unassigned': assignment.assigned_to == current_user.id,
-        },
-    )
+
     db.commit()
     db.refresh(assignment)
     return serialize_assignment(assignment)
@@ -1502,14 +1486,7 @@ def update_conversation_status(
         changed_by=current_user.id,
         note=payload.note,
     )
-    AuditService(db).log(
-        action='MESSAGE_STATUS_CHANGED',
-        user_id=current_user.id,
-        entity_type='CONVERSATION',
-        entity_id=conversation_id,
-        category='MESSAGE_MANAGEMENT',
-        metadata={'status': payload.status.value},
-    )
+
     db.commit()
     seller_account = db.get(EbayAccount, conversation.provider_account_id) if conversation.provider_account_id else None
     product_service = ConversationProductContextService(db)
@@ -1537,14 +1514,7 @@ def update_conversation_category(
         changed_by=current_user.id,
         note=payload.note,
     )
-    AuditService(db).log(
-        action='MESSAGE_CATEGORY_CHANGED',
-        user_id=current_user.id,
-        entity_type='CONVERSATION',
-        entity_id=conversation_id,
-        category='MESSAGE_MANAGEMENT',
-        metadata={'category_id': str(payload.category_id) if payload.category_id else None},
-    )
+
     db.commit()
     seller_account = db.get(EbayAccount, conversation.provider_account_id) if conversation.provider_account_id else None
     product_service = ConversationProductContextService(db)

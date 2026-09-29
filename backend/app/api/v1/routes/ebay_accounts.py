@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.api.dependencies import get_current_user
 from app.db.session import get_db
-from app.models.audit_log import AuditLog
+from app.services.audit_service import AuditService
 from app.models.ebay_account import EbayAccount, EbayConnectionStatus
 from app.schemas.ebay_account import EbayAccountCreateRequest, EbayAccountResponse, EbayAccountUpdateRequest
 
@@ -80,14 +80,8 @@ def serialize_account(account: EbayAccount) -> EbayAccountResponse:
 
 
 def add_account_audit_log(db: Session, *, action: str, actor_id: UUID, account_id: UUID) -> None:
-    db.add(
-        AuditLog(
-            user_id=actor_id,
-            action=action,
-            entity_type=EBAY_ACCOUNT_ENTITY_TYPE,
-            entity_id=account_id,
-        )
-    )
+    AuditService(db).log(user_id=actor_id, action=action,
+        entity_type=EBAY_ACCOUNT_ENTITY_TYPE, entity_id=account_id)
 
 
 @router.get('', response_model=list[EbayAccountResponse])
