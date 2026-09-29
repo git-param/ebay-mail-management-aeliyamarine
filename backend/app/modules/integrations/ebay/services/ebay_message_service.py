@@ -195,7 +195,7 @@ class EbayMessageService:
             )
 
             if not message_id:
-                continue
+                raise ValueError('eBay message payload missing messageId')
 
             sent_at = (
                 self._parse_ebay_datetime(
@@ -607,56 +607,17 @@ class EbayMessageService:
         conversation_summary: dict,
         messages: list[dict],
     ) -> str | None:
-        for message in messages:
-            sender_username = self._string_or_none(
-                message.get('senderUsername')
-            )
-
-            recipient_username = self._string_or_none(
-                message.get('recipientUsername')
-            )
-
-            if (
-                sender_username
-                and sender_username
-                != account.ebay_username
-            ):
-                return sender_username
-
-            if (
-                recipient_username
-                and recipient_username
-                != account.ebay_username
-            ):
-                return recipient_username
-
-        latest_message = conversation_summary.get(
-            'latestMessage'
-        )
-
+        seller = (account.ebay_username or '').strip().lower()
+        latest_message = conversation_summary.get('latestMessage')
+        candidates = [*messages]
         if isinstance(latest_message, dict):
-            sender_username = self._string_or_none(
-                latest_message.get('senderUsername')
-            )
-
-            recipient_username = self._string_or_none(
-                latest_message.get('recipientUsername')
-            )
-
-            if (
-                sender_username
-                and sender_username
-                != account.ebay_username
-            ):
-                return sender_username
-
-            if (
-                recipient_username
-                and recipient_username
-                != account.ebay_username
-            ):
-                return recipient_username
-
+            candidates.append(latest_message)
+        for message in candidates:
+            for key in ('senderUsername', 'recipientUsername'):
+                username = self._string_or_none(message.get(key))
+                if username and username.lower() not in (seller, 'ebay'):
+                    return username
+        # System-only conversations have no buyer.
         return None
 
     def _required_string(
