@@ -3,6 +3,7 @@ import json
 import logging
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from uuid import uuid4
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode, urljoin
@@ -395,8 +396,14 @@ class EbayAuthClient:
         conversation_type: str = 'FROM_MEMBERS',
         limit: int = 10,
         offset: int = 0,
+        start_time: datetime | None = None,
     ) -> EbayRawApiResponse:
-        request_url = f'{self.conversations_url}?{urlencode({"conversation_type": conversation_type, "limit": limit, "offset": offset})}'
+        query = {'conversation_type': conversation_type, 'limit': limit, 'offset': offset}
+        # eBay supports time filters only for member conversations.
+        if start_time is not None and conversation_type == 'FROM_MEMBERS':
+            normalized_start = start_time.astimezone(UTC) if start_time.tzinfo else start_time.replace(tzinfo=UTC)
+            query['start_time'] = normalized_start.isoformat(timespec='milliseconds').replace('+00:00', 'Z')
+        request_url = f'{self.conversations_url}?{urlencode(query)}'
         return self._request_message_api_raw(access_token, request_url=request_url, method='GET')
 
     def get_conversations(
@@ -406,12 +413,14 @@ class EbayAuthClient:
         conversation_type: str = 'FROM_MEMBERS',
         limit: int = 50,
         offset: int = 0,
+        start_time: datetime | None = None,
     ) -> dict:
         response = self.get_conversations_raw(
             access_token,
             conversation_type=conversation_type,
             limit=limit,
             offset=offset,
+            start_time=start_time,
         )
         if not response.ok or not isinstance(response.payload, dict):
             logger.warning('eBay conversation list request failed with status %s', response.status_code)

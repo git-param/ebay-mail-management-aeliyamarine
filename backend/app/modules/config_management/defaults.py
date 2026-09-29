@@ -1,5 +1,13 @@
 DEFAULT_CONFIGS = [
     {
+        'section': 'api',
+        'config_key': 'api.ebay_notification_sync_interval_minutes',
+        'label': 'eBay system notification sync interval',
+        'value': '60',
+        'value_type': 'integer',
+        'description': 'Minutes between system notification scans and member history reconciliation per account. Routine buyer/seller syncs use the regular interval and stop at an old summary page.',
+    },
+    {
         'section': 'offer',
         'config_key': 'offer.high_value_amount',
         'label': 'High value amount',

@@ -4,6 +4,7 @@ from datetime import datetime
 from uuid import UUID
 
 from sqlalchemy import and_, exists, false, func, or_, select
+from sqlalchemy.dialects.postgresql import insert as postgresql_insert
 from sqlalchemy.orm import (
     Session,
     joinedload,
@@ -276,10 +277,11 @@ class ConversationRepository:
         provider_conversation_id: str,
         values: dict,
     ) -> tuple[Conversation, bool]:
-        conversation = self.get_by_provider_id(
-            provider,
-            provider_conversation_id,
-        )
+        with self.db.no_autoflush:
+            conversation = self.get_by_provider_id(provider, provider_conversation_id)
+
+        if conversation is None and self.db.bind is not None and self.db.bind.dialect.name == 'postgresql':
+            return self._upsert_postgresql(provider, provider_conversation_id, values)
 
         created = conversation is None
 
@@ -312,6 +314,33 @@ class ConversationRepository:
                     )
 
         return conversation, created
+
+    def _upsert_postgresql(self, provider: str, provider_conversation_id: str, values: dict) -> tuple[Conversation, bool]:
+        # Another worker can insert the same provider thread after our lookup.
+        # Resolve that race without aborting the conversation/message savepoint.
+        insert_values = {'category_manually_selected': False, **values}
+        insert_values.update(provider=provider, provider_conversation_id=provider_conversation_id)
+        statement = (
+            postgresql_insert(Conversation)
+            .values(**insert_values)
+            .on_conflict_do_nothing(index_elements=['provider', 'provider_conversation_id'])
+            .returning(Conversation.id)
+        )
+        inserted_id = self.db.scalar(statement)
+        if inserted_id is not None:
+            conversation = self.db.get(Conversation, inserted_id)
+            if conversation is None:
+                raise RuntimeError('Inserted conversation could not be loaded')
+            return conversation, True
+
+        with self.db.no_autoflush:
+            conversation = self.get_by_provider_id(provider, provider_conversation_id)
+        if conversation is None:
+            raise RuntimeError('Conversation upsert conflict could not be reconciled')
+        for key, value in values.items():
+            if key not in ('id', 'provider', 'provider_conversation_id', 'created_at'):
+                setattr(conversation, key, value)
+        return conversation, False
 
     def _filtered_statement(
         self,
