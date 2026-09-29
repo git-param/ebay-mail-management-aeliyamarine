@@ -7,12 +7,13 @@ from typing import Any
 
 import requests
 
+from app.constants.api import ExternalApi
 from app.core.config import get_settings
 
 
 logger = logging.getLogger(__name__)
 
-ACCOUNTS_URL = 'https://accounts.zoho.in'
+ACCOUNTS_URL = ExternalApi.ZOHO_ACCOUNTS_BASE
 TOKEN_EXPIRY_SKEW_SECONDS = 120
 _refresh_lock = threading.Lock()
 
@@ -80,7 +81,7 @@ def refresh_access_token() -> str:
 
     try:
         response = requests.post(
-            f'{ACCOUNTS_URL}/oauth/v2/token',
+            ExternalApi.ZOHO_OAUTH_TOKEN.format(base_url=ACCOUNTS_URL),
             data={
                 'refresh_token': tokens['refresh_token'],
                 'client_id': client_id,

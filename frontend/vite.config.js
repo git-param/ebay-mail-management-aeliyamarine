@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite'
 import react, { reactCompilerPreset } from '@vitejs/plugin-react'
 import babel from '@rolldown/plugin-babel'
+import { API_PROXY_PREFIX, DEFAULT_BACKEND_URL } from './src/constants/api.js'
 
 function devRequestLogger() {
   return {
@@ -32,8 +33,8 @@ export default defineConfig({
     allowedHosts: [".trycloudflare.com"],
 
     proxy: {
-      "/api": {
-        target: "http://127.0.0.1:8000",
+      [API_PROXY_PREFIX]: {
+        target: DEFAULT_BACKEND_URL,
         changeOrigin: true,
       },
     },

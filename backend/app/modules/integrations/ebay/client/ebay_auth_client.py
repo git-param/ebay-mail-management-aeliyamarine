@@ -14,15 +14,17 @@ import requests
 
 from fastapi import HTTPException, status
 
+from app.constants.api import EbayTradingCalls, ExternalApi
+
 
 logger = logging.getLogger(__name__)
 
 EBAY_OAUTH_SCOPES = [
-    'https://api.ebay.com/oauth/api_scope',
-    'https://api.ebay.com/oauth/api_scope/commerce.message',
-    'https://api.ebay.com/oauth/api_scope/commerce.identity.readonly',
-    'https://api.ebay.com/oauth/api_scope/sell.inventory',
-    'https://api.ebay.com/oauth/api_scope/sell.fulfillment',
+    ExternalApi.EBAY_SCOPE_BASE,
+    ExternalApi.EBAY_SCOPE_MESSAGE,
+    ExternalApi.EBAY_SCOPE_IDENTITY,
+    ExternalApi.EBAY_SCOPE_INVENTORY,
+    ExternalApi.EBAY_SCOPE_FULFILLMENT,
 ]
 # eBay does not publish a separate ``sell.negotiation`` OAuth scope. The
 # Negotiation API is authorized by sell.inventory (included above).
@@ -90,47 +92,47 @@ class EbayAuthClient:
     @property
     def authorization_base_url(self) -> str:
         if self.environment == 'PRODUCTION':
-            return 'https://auth.ebay.com/oauth2/authorize'
-        return 'https://auth.sandbox.ebay.com/oauth2/authorize'
+            return ExternalApi.EBAY_PRODUCTION_OAUTH_AUTHORIZE
+        return ExternalApi.EBAY_SANDBOX_OAUTH_AUTHORIZE
 
     @property
     def token_url(self) -> str:
         if self.environment == 'PRODUCTION':
-            return 'https://api.ebay.com/identity/v1/oauth2/token'
-        return 'https://api.sandbox.ebay.com/identity/v1/oauth2/token'
+            return ExternalApi.EBAY_PRODUCTION_OAUTH_TOKEN
+        return ExternalApi.EBAY_SANDBOX_OAUTH_TOKEN
 
     @property
     def identity_user_url(self) -> str:
         if self.environment == 'PRODUCTION':
-            return 'https://apiz.ebay.com/commerce/identity/v1/user/'
-        return 'https://apiz.sandbox.ebay.com/commerce/identity/v1/user/'
+            return ExternalApi.EBAY_PRODUCTION_IDENTITY_USER
+        return ExternalApi.EBAY_SANDBOX_IDENTITY_USER
 
     @property
     def conversations_url(self) -> str:
         if self.environment == 'PRODUCTION':
-            return 'https://api.ebay.com/commerce/message/v1/conversation'
-        return 'https://api.sandbox.ebay.com/commerce/message/v1/conversation'
+            return ExternalApi.EBAY_PRODUCTION_CONVERSATIONS
+        return ExternalApi.EBAY_SANDBOX_CONVERSATIONS
 
     @property
     def default_media_base_url(self) -> str:
         if self.environment == 'PRODUCTION':
-            return 'https://apim.ebay.com/commerce/media/v1_beta'
-        return 'https://apim.sandbox.ebay.com/commerce/media/v1_beta'
+            return ExternalApi.EBAY_PRODUCTION_MEDIA_BASE
+        return ExternalApi.EBAY_SANDBOX_MEDIA_BASE
 
     @property
     def fulfillment_order_url(self) -> str:
         if self.environment == 'PRODUCTION':
-            return 'https://api.ebay.com/sell/fulfillment/v1/order'
-        return 'https://api.sandbox.ebay.com/sell/fulfillment/v1/order'
+            return ExternalApi.EBAY_PRODUCTION_ORDERS
+        return ExternalApi.EBAY_SANDBOX_ORDERS
 
     @property
     def negotiation_url(self) -> str:
-        host = 'https://api.ebay.com' if self.environment == 'PRODUCTION' else 'https://api.sandbox.ebay.com'
-        return f'{host}/sell/negotiation/v1'
+        host = ExternalApi.EBAY_PRODUCTION_BASE if self.environment == 'PRODUCTION' else ExternalApi.EBAY_SANDBOX_BASE
+        return ExternalApi.EBAY_NEGOTIATION_BASE.format(host=host)
 
     @property
     def trading_url(self) -> str:
-        return 'https://api.ebay.com/ws/api.dll' if self.environment == 'PRODUCTION' else 'https://api.sandbox.ebay.com/ws/api.dll'
+        return ExternalApi.EBAY_PRODUCTION_TRADING if self.environment == 'PRODUCTION' else ExternalApi.EBAY_SANDBOX_TRADING
 
     def get_best_offers_raw(
         self,
@@ -148,13 +150,13 @@ class EbayAuthClient:
         item_filter = f'<ItemID>{escape(item_id)}</ItemID>' if item_id else ''
         body = (
             '<?xml version="1.0" encoding="utf-8"?>'
-            '<GetBestOffersRequest xmlns="urn:ebay:apis:eBLBaseComponents">'
+            f'<{EbayTradingCalls.GET_BEST_OFFERS}Request xmlns="urn:ebay:apis:eBLBaseComponents">'
             f'<DetailLevel>ReturnAll</DetailLevel>{item_filter}<BestOfferStatus>{best_offer_status}</BestOfferStatus>'
             f'<Pagination><EntriesPerPage>{entries_per_page}</EntriesPerPage><PageNumber>{page}</PageNumber></Pagination>'
-            '</GetBestOffersRequest>'
+            f'</{EbayTradingCalls.GET_BEST_OFFERS}Request>'
         ).encode('utf-8')
         headers = {
-            'X-EBAY-API-CALL-NAME': 'GetBestOffers', 'X-EBAY-API-SITEID': '0',
+            'X-EBAY-API-CALL-NAME': EbayTradingCalls.GET_BEST_OFFERS, 'X-EBAY-API-SITEID': '0',
             'X-EBAY-API-COMPATIBILITY-LEVEL': '1455', 'X-EBAY-API-IAF-TOKEN': access_token,
             'Content-Type': 'text/xml',
         }
@@ -251,7 +253,7 @@ class EbayAuthClient:
         """Single attempt only. Timeout/malformed replies remain ambiguous."""
         if action not in {'Accept', 'Decline', 'Counter'}:
             raise ValueError('Unsupported Best Offer action')
-        root = ET.Element('RespondToBestOfferRequest', xmlns='urn:ebay:apis:eBLBaseComponents')
+        root = ET.Element(f'{EbayTradingCalls.RESPOND_TO_BEST_OFFER}Request', xmlns='urn:ebay:apis:eBLBaseComponents')
         for name, value in [('Action', action), ('BestOfferID', offer_id), ('ItemID', item_id), ('MessageID', correlation_id)]:
             if value is not None:
                 ET.SubElement(root, name).text = str(value)
@@ -260,7 +262,7 @@ class EbayAuthClient:
             ET.SubElement(root, 'CounterOfferQuantity').text = str(quantity)
         if message:
             ET.SubElement(root, 'SellerResponse').text = message
-        headers = {'X-EBAY-API-CALL-NAME': 'RespondToBestOffer', 'X-EBAY-API-SITEID': '0',
+        headers = {'X-EBAY-API-CALL-NAME': EbayTradingCalls.RESPOND_TO_BEST_OFFER, 'X-EBAY-API-SITEID': '0',
                    'X-EBAY-API-COMPATIBILITY-LEVEL': '1455', 'X-EBAY-API-IAF-TOKEN': access_token,
                    'Content-Type': 'text/xml'}
         request = Request(self.trading_url, data=ET.tostring(root, encoding='utf-8'), headers=headers, method='POST')
@@ -300,8 +302,8 @@ class EbayAuthClient:
                 **({'prompt': 'login'} if offer_activity else {}),
                 'state': state,
                 'scope': ' '.join(EBAY_OAUTH_SCOPES + ([
-                    'https://api.ebay.com/oauth/api_scope/commerce.notification.subscription',
-                    'https://api.ebay.com/oauth/api_scope/sell.offer',
+                    ExternalApi.EBAY_SCOPE_NOTIFICATION,
+                    ExternalApi.EBAY_SCOPE_OFFER,
                 ] if offer_activity else [])),
             }
         )
@@ -426,7 +428,7 @@ class EbayAuthClient:
         offset: int = 0,
     ) -> EbayRawApiResponse:
         query = urlencode({'conversation_type': conversation_type, 'limit': limit, 'offset': offset})
-        request_url = f'{self.conversations_url}/{conversation_id}?{query}'
+        request_url = ExternalApi.EBAY_CONVERSATION_DETAIL.format(conversations_url=self.conversations_url, conversation_id=conversation_id, query=query)
         return self._request_message_api_raw(access_token, request_url=request_url, method='GET')
 
     def get_conversation(
@@ -455,7 +457,7 @@ class EbayAuthClient:
         return response.payload
 
     def get_order_raw(self, access_token: str, *, order_id: str) -> EbayRawApiResponse:
-        request_url = f'{self.fulfillment_order_url}/{order_id}'
+        request_url = ExternalApi.EBAY_ORDER_DETAIL.format(base_url=self.fulfillment_order_url, order_id=order_id)
         return self._request_json_api_raw(access_token, request_url=request_url, method='GET')
 
     def get_orders_raw(
@@ -567,7 +569,7 @@ class EbayAuthClient:
         email_copy_to_sender: bool = True,
     ) -> EbayRawApiResponse:
         """Send a conversation reply through the eBay Message API."""
-        request_url = self.conversations_url.replace('/conversation', '/send_message')
+        request_url = self.conversations_url.replace(ExternalApi.EBAY_CONVERSATION_PATH, ExternalApi.EBAY_SEND_MESSAGE_PATH)
         payload = {
             'conversationId': conversation_id,
             'conversationType': conversation_type,
@@ -604,11 +606,11 @@ class EbayAuthClient:
         member_message = ET.SubElement(root, 'MemberMessage')
         ET.SubElement(member_message, 'Body').text = body
         ET.SubElement(member_message, 'EmailCopyToSender').text = 'true' if email_copy_to_sender else 'false'
-        if call_name == 'AddMemberMessageAAQToPartner':
+        if call_name == EbayTradingCalls.ADD_MEMBER_MESSAGE_TO_PARTNER:
             ET.SubElement(member_message, 'QuestionType').text = 'CustomizedSubject'
             ET.SubElement(member_message, 'RecipientID').text = recipient_id
             ET.SubElement(member_message, 'Subject').text = subject or 'Message from seller'
-        elif call_name == 'AddMemberMessageRTQ':
+        elif call_name == EbayTradingCalls.REPLY_TO_MEMBER_MESSAGE:
             if parent_message_id:
                 ET.SubElement(member_message, 'ParentMessageID').text = parent_message_id
             ET.SubElement(member_message, 'RecipientID').text = recipient_id
@@ -839,7 +841,7 @@ class EbayAuthClient:
 
         media_base_url = self.media_base_url or self.default_media_base_url
 
-        create_url = f"{media_base_url.rstrip('/')}/image/create_image_from_file"
+        create_url = ExternalApi.EBAY_MEDIA_CREATE_IMAGE.format(base_url=media_base_url.rstrip('/'))
 
         headers = {
             "Authorization": f"Bearer {access_token}",
@@ -971,7 +973,7 @@ class EbayAuthClient:
         
         xml_parts = [
             '<?xml version="1.0" encoding="utf-8"?>',
-            '<GetMyMessagesRequest xmlns="urn:ebay:apis:eBLBaseComponents">',
+            f'<{EbayTradingCalls.GET_MY_MESSAGES}Request xmlns="urn:ebay:apis:eBLBaseComponents">',
             f'<DetailLevel>{detail_level}</DetailLevel>',
         ]
         
@@ -989,11 +991,11 @@ class EbayAuthClient:
                 '</Pagination>',
             ])
         
-        xml_parts.append('</GetMyMessagesRequest>')
+        xml_parts.append(f'</{EbayTradingCalls.GET_MY_MESSAGES}Request>')
         body = ''.join(xml_parts).encode('utf-8')
         
         headers = {
-            'X-EBAY-API-CALL-NAME': 'GetMyMessages',
+            'X-EBAY-API-CALL-NAME': EbayTradingCalls.GET_MY_MESSAGES,
             'X-EBAY-API-SITEID': '0',
             'X-EBAY-API-COMPATIBILITY-LEVEL': '1455',
             'X-EBAY-API-IAF-TOKEN': access_token,
@@ -1089,18 +1091,18 @@ class EbayAuthClient:
         # Build XML request with MessageID list
         xml_parts = [
             '<?xml version="1.0" encoding="utf-8"?>',
-            '<GetMyMessagesRequest xmlns="urn:ebay:apis:eBLBaseComponents">',
+            f'<{EbayTradingCalls.GET_MY_MESSAGES}Request xmlns="urn:ebay:apis:eBLBaseComponents">',
             '<DetailLevel>ReturnMessages</DetailLevel>',
         ]
         
         for msg_id in message_ids:
             xml_parts.append(f'<MessageID>{msg_id}</MessageID>')
         
-        xml_parts.append('</GetMyMessagesRequest>')
+        xml_parts.append(f'</{EbayTradingCalls.GET_MY_MESSAGES}Request>')
         body = ''.join(xml_parts).encode('utf-8')
         
         headers = {
-            'X-EBAY-API-CALL-NAME': 'GetMyMessages',
+            'X-EBAY-API-CALL-NAME': EbayTradingCalls.GET_MY_MESSAGES,
             'X-EBAY-API-SITEID': '0',
             'X-EBAY-API-COMPATIBILITY-LEVEL': '1455',
             'X-EBAY-API-IAF-TOKEN': access_token,
@@ -1142,7 +1144,7 @@ class EbayAuthClient:
         """
         Fetch detailed information about a specific offer.
         """
-        request_url = f"https://api.ebay.com/sell/negotiation/v1/offer/{offer_id}"
+        request_url = ExternalApi.EBAY_OFFER_DETAIL.format(offer_id=offer_id)
         return self._request_raw(
             access_token=access_token,
             request_url=request_url,
@@ -1160,7 +1162,7 @@ class EbayAuthClient:
         
         xml_parts = [
             '<?xml version="1.0" encoding="utf-8"?>',
-            '<GetMyMessagesRequest xmlns="urn:ebay:apis:eBLBaseComponents">',
+            f'<{EbayTradingCalls.GET_MY_MESSAGES}Request xmlns="urn:ebay:apis:eBLBaseComponents">',
             f'<DetailLevel>{detail_level}</DetailLevel>',
         ]
         
@@ -1172,13 +1174,13 @@ class EbayAuthClient:
             '    <EntriesPerPage>20</EntriesPerPage>',
             '    <PageNumber>1</PageNumber>',
             '</Pagination>',
-            '</GetMyMessagesRequest>'
+            f'</{EbayTradingCalls.GET_MY_MESSAGES}Request>'
         ])
         
         xml_body = ''.join(xml_parts).encode('utf-8')
         
         headers = {
-            'X-EBAY-API-CALL-NAME': 'GetMyMessages',
+            'X-EBAY-API-CALL-NAME': EbayTradingCalls.GET_MY_MESSAGES,
             'X-EBAY-API-SITEID': '0',
             'X-EBAY-API-COMPATIBILITY-LEVEL': '1455',
             'X-EBAY-API-IAF-TOKEN': access_token,

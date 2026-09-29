@@ -8,6 +8,7 @@ from fastapi.responses import JSONResponse, RedirectResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import func, select
 
+from app.constants.api import EbayOAuthRoutes
 from app.api.dependencies import get_current_user
 from app.core.config import get_settings
 from app.db.session import get_db
@@ -58,7 +59,7 @@ def require_ebay_sync_access(current_user=Depends(get_current_user)):
     return current_user
 
 
-@router.post('/connect', response_model=EbayConnectResponse)
+@router.post(EbayOAuthRoutes.CONNECT, response_model=EbayConnectResponse)
 def connect_ebay_account(
     payload: EbayConnectRequest,
     db: Session = Depends(get_db),
@@ -76,7 +77,7 @@ def connect_ebay_account(
     return EbayConnectResponse(authorization_url=authorization_url, state=state)
 
 
-@router.post('/manual-callback', response_model=EbayOAuthCallbackResponse)
+@router.post(EbayOAuthRoutes.MANUAL_CALLBACK, response_model=EbayOAuthCallbackResponse)
 def submit_manual_ebay_callback(
     payload: EbayManualCallbackRequest,
     db: Session = Depends(get_db),
@@ -104,7 +105,7 @@ def submit_manual_ebay_callback(
     )
 
 
-@router.get('/callback')
+@router.get(EbayOAuthRoutes.CALLBACK)
 def handle_ebay_oauth_callback(
     code: str | None = Query(default=None),
     state: str | None = Query(default=None),
@@ -137,7 +138,7 @@ def handle_ebay_oauth_callback(
     )
 
 
-@router.post('/refresh-token/{account_id}', response_model=EbayRefreshTokenResponse)
+@router.post(EbayOAuthRoutes.REFRESH_TOKEN_BY_ACCOUNT_ID, response_model=EbayRefreshTokenResponse)
 def refresh_ebay_access_token(
     account_id: UUID,
     db: Session = Depends(get_db),
@@ -152,7 +153,7 @@ def refresh_ebay_access_token(
     )
 
 
-@router.get('/test-connection/{account_id}', response_model=EbayTestConnectionResponse)
+@router.get(EbayOAuthRoutes.TEST_CONNECTION_BY_ACCOUNT_ID, response_model=EbayTestConnectionResponse)
 def test_ebay_connection(
     account_id: UUID,
     db: Session = Depends(get_db),
@@ -177,7 +178,7 @@ def serialize_api_usage(usage: EbayApiUsageSummary) -> EbayApiUsageResponse:
     )
 
 
-@router.get('/api-usage', response_model=EbayApiUsageListResponse)
+@router.get(EbayOAuthRoutes.API_USAGE, response_model=EbayApiUsageListResponse)
 def get_ebay_api_usage(
     db: Session = Depends(get_db),
     current_user=Depends(require_ebay_sync_access),
@@ -212,7 +213,7 @@ def auto_sync_status(db: Session) -> EbayAutoSyncStatusResponse:
     )
 
 
-@router.get('/auto-sync', response_model=EbayAutoSyncStatusResponse)
+@router.get(EbayOAuthRoutes.AUTO_SYNC, response_model=EbayAutoSyncStatusResponse)
 def get_ebay_auto_sync_status(
     db: Session = Depends(get_db),
     current_user=Depends(require_ebay_sync_access),
@@ -221,7 +222,7 @@ def get_ebay_auto_sync_status(
     return auto_sync_status(db)
 
 
-@router.patch('/auto-sync', response_model=EbayAutoSyncStatusResponse)
+@router.patch(EbayOAuthRoutes.AUTO_SYNC, response_model=EbayAutoSyncStatusResponse)
 def set_ebay_auto_sync_status(
     payload: EbayAutoSyncToggleRequest,
     db: Session = Depends(get_db),
@@ -321,7 +322,7 @@ def _start_queued_syncs(
     return [_queued_sync_result(account, sync_log) for account, sync_log in jobs]
 
 
-@router.post('/sync/{account_id}', response_model=EbaySyncResultResponse)
+@router.post(EbayOAuthRoutes.SYNC_BY_ACCOUNT_ID, response_model=EbaySyncResultResponse)
 def sync_ebay_account(
     account_id: UUID,
     max_conversations: int | None = Query(default=None, ge=1, le=100),
@@ -380,7 +381,7 @@ def sync_ebay_account(
     )
 
 
-@router.post('/sync-all', response_model=EbaySyncAllResponse)
+@router.post(EbayOAuthRoutes.SYNC_ALL, response_model=EbaySyncAllResponse)
 def sync_all_ebay_accounts(
     db: Session = Depends(get_db),
     current_user=Depends(require_ebay_sync_access),
@@ -449,7 +450,7 @@ def sync_all_ebay_accounts(
     )
 
 
-@router.get('/sync-status/{sync_log_id}')
+@router.get(EbayOAuthRoutes.SYNC_STATUS_BY_SYNC_LOG_ID)
 def get_ebay_sync_status(
     sync_log_id: UUID,
     db: Session = Depends(get_db),
@@ -490,7 +491,7 @@ def get_ebay_sync_status(
     }
 
 
-@router.post('/test-conversations/{account_id}')
+@router.post(EbayOAuthRoutes.TEST_CONVERSATIONS_BY_ACCOUNT_ID)
 def test_ebay_conversations(
     account_id: UUID,
     conversation_type: str = Query(default='FROM_MEMBERS'),
@@ -532,7 +533,7 @@ def test_ebay_conversations(
     return response.payload
 
 
-@router.get('/test-conversation/{account_id}/{conversation_id}')
+@router.get(EbayOAuthRoutes.TEST_CONVERSATION_BY_ACCOUNT_ID_BY_CONVERSATION_ID)
 def test_ebay_conversation(
     account_id: UUID,
     conversation_id: str,

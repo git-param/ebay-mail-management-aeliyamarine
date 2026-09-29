@@ -12,6 +12,7 @@ from uuid import UUID
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
+from app.constants.api import ExternalApi
 from app.core.config import get_settings
 from app.models.conversation import Conversation
 from app.models.ebay_account import EbayAccount
@@ -325,9 +326,9 @@ class ConversationProductContextService:
         raise BrowseApiError(None, None, 'retry limit exhausted', transient=True)
 
     def _request_item_by_legacy_id(self, reference_id: str, *, environment: str) -> dict:
-        base_url = 'https://api.ebay.com/buy/browse/v1/item/get_item_by_legacy_id'
+        base_url = ExternalApi.EBAY_PRODUCTION_BROWSE_ITEM
         if environment != 'PRODUCTION':
-            base_url = 'https://api.sandbox.ebay.com/buy/browse/v1/item/get_item_by_legacy_id'
+            base_url = ExternalApi.EBAY_SANDBOX_BROWSE_ITEM
         request_url = f'{base_url}?{urlencode({"legacy_item_id": reference_id})}'
         try:
             token = self._get_app_token(environment=environment)
@@ -369,13 +370,13 @@ class ConversationProductContextService:
         ):
             return self._app_token
 
-        token_url = 'https://api.ebay.com/identity/v1/oauth2/token'
+        token_url = ExternalApi.EBAY_PRODUCTION_OAUTH_TOKEN
         if environment != 'PRODUCTION':
-            token_url = 'https://api.sandbox.ebay.com/identity/v1/oauth2/token'
+            token_url = ExternalApi.EBAY_SANDBOX_OAUTH_TOKEN
         body = urlencode(
             {
                 'grant_type': 'client_credentials',
-                'scope': 'https://api.ebay.com/oauth/api_scope',
+                'scope': ExternalApi.EBAY_SCOPE_BASE,
             }
         ).encode('utf-8')
         credentials = base64.b64encode(
@@ -482,7 +483,7 @@ class ConversationProductContextService:
         return None, fallback or 'Unknown Browse API error'
 
     def _item_url(self, reference_id: str) -> str:
-        return f'https://www.ebay.com/itm/{reference_id}'
+        return ExternalApi.EBAY_REFERENCE_LISTING_PAGE.format(reference_id=reference_id)
 
     def _string(self, value: object) -> str | None:
         return value.strip() if isinstance(value, str) and value.strip() else None

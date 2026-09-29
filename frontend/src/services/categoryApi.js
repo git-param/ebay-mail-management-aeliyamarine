@@ -1,3 +1,4 @@
+import { API, apiPath } from '../constants/api'
 import { apiRequest } from './http'
 
 function getErrorMessage(status, data) {
@@ -21,60 +22,60 @@ async function request(path, options = {}) {
 }
 
 export function fetchCategories() {
-  return request('/categories')
+  return request(API.CATEGORIES.ROOT)
 }
 
 export function fetchCategory(categoryId) {
-  return request(`/categories/${categoryId}`)
+  return request(apiPath(API.CATEGORIES.BY_CATEGORY_ID, { categoryId }))
 }
 
 export function createCategory(payload) {
-  return request('/categories', {
+  return request(API.CATEGORIES.ROOT, {
     method: 'POST',
     body: JSON.stringify(payload),
   })
 }
 
 export function updateCategory(categoryId, payload) {
-  return request(`/categories/${categoryId}`, {
+  return request(apiPath(API.CATEGORIES.BY_CATEGORY_ID, { categoryId }), {
     method: 'PUT',
     body: JSON.stringify(payload),
   })
 }
 
 export function activateCategory(categoryId) {
-  return request(`/categories/${categoryId}/activate`, {
+  return request(apiPath(API.CATEGORIES.BY_CATEGORY_ID_ACTIVATE, { categoryId }), {
     method: 'PATCH',
   })
 }
 
 export function deactivateCategory(categoryId) {
-  return request(`/categories/${categoryId}/deactivate`, {
+  return request(apiPath(API.CATEGORIES.BY_CATEGORY_ID_DEACTIVATE, { categoryId }), {
     method: 'PATCH',
   })
 }
 
 export function deleteCategory(categoryId) {
-  return request(`/categories/${categoryId}`, {
+  return request(apiPath(API.CATEGORIES.BY_CATEGORY_ID, { categoryId }), {
     method: 'DELETE',
   })
 }
 
 export function createCategoryKeyword(categoryId, payload) {
-  return request(`/categories/${categoryId}/keywords`, {
+  return request(apiPath(API.CATEGORIES.BY_CATEGORY_ID_KEYWORDS, { categoryId }), {
     method: 'POST',
     body: JSON.stringify(payload),
   })
 }
 
 export function deleteCategoryKeyword(categoryId, keywordId) {
-  return request(`/categories/${categoryId}/keywords/${keywordId}`, {
+  return request(apiPath(API.CATEGORIES.BY_CATEGORY_ID_KEYWORDS_BY_KEYWORD_ID, { categoryId, keywordId }), {
     method: 'DELETE',
   })
 }
 
 export function updateUserCategoryAssignments(userId, categoryIds) {
-  return request(`/categories/users/${userId}/assignments`, {
+  return request(apiPath(API.CATEGORIES.USERS_BY_USER_ID_ASSIGNMENTS, { userId }), {
     method: 'PUT',
     body: JSON.stringify({ category_ids: categoryIds }),
   })

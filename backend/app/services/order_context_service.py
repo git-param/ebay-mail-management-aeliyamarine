@@ -4,6 +4,7 @@ from uuid import UUID
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.constants.api import ExternalApi
 from app.models.conversation import Conversation
 from app.models.order_context import ConversationOrderContext, EbayOrder, EbayOrderLineItem
 from app.repositories.order_context_repository import OrderContextRepository
@@ -31,7 +32,7 @@ class OrderContextService:
                 'requires_manual_selection': not selected_order and len(candidates) > 1,
             },
             'deep_links': {
-                'messages': 'https://my.ebay.com/ws/eBayISAPI.dll?MyMessages&FolderId=0',
+                'messages': ExternalApi.EBAY_MESSAGES_PAGE,
             },
         }
 
@@ -345,7 +346,7 @@ class OrderContextService:
                         return_reason=r.return_reason,
                         return_state=r.return_state,
                         created_date=r.created_date,
-                        ebay_url=f"https://www.ebay.com/itm/{order.order_id}",
+                        ebay_url=ExternalApi.EBAY_ORDER_LISTING_PAGE.format(order_id=order.order_id),
                     )
                     for r in (order.returns or [])
                 ],
@@ -357,11 +358,11 @@ class OrderContextService:
                         cancel_reason=c.cancel_reason,
                         requester=c.requester,
                         created_date=None,
-                        ebay_url=f"https://www.ebay.com/itm/{order.order_id}",
+                        ebay_url=ExternalApi.EBAY_ORDER_LISTING_PAGE.format(order_id=order.order_id),
                     )
                     for c in (order.cancellations or [])
                 ],
-                ebay_url=f"https://www.ebay.com/itm/{order.order_id}",
+                ebay_url=ExternalApi.EBAY_ORDER_LISTING_PAGE.format(order_id=order.order_id),
             ),
 
             candidate_orders=[],

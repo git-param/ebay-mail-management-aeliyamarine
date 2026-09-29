@@ -4,6 +4,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
+from app.constants.api import SoldPostingRoutes
 from app.api.dependencies import get_current_user
 from app.db.session import get_db
 from app.models.ebay_account import EbayAccount
@@ -29,7 +30,7 @@ def _csv(value: str | None) -> list[str]:
     return [item.strip() for item in value.split(',') if item.strip()] if value else []
 
 
-@router.get('/orders', response_model=SoldPostingListResponse)
+@router.get(SoldPostingRoutes.ORDERS, response_model=SoldPostingListResponse)
 def list_orders(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
@@ -66,7 +67,7 @@ def list_orders(
     return SoldPostingService(db).list_rows(filters, page, page_size, sort_by, sort_direction)
 
 
-@router.get('/orders/{order_id}', response_model=SoldPostingOrderDetail)
+@router.get(SoldPostingRoutes.ORDERS_BY_ORDER_ID, response_model=SoldPostingOrderDetail)
 def order_detail(order_id: str, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     _ = current_user
     order = SoldPostingService(db).detail(order_id)
@@ -77,31 +78,31 @@ def order_detail(order_id: str, db: Session = Depends(get_db), current_user=Depe
     }
 
 
-@router.put('/line-items/{line_item_record_id}', response_model=SoldPostingRow)
+@router.put(SoldPostingRoutes.LINE_ITEMS_BY_LINE_ITEM_RECORD_ID, response_model=SoldPostingRow)
 def update_line_item(line_item_record_id: UUID, payload: SoldPostingEditRequest, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     _ = current_user
     return SoldPostingService(db).update_line_order_fields(line_item_record_id, payload)
 
 
-@router.post('/line-items/{line_item_record_id}/copied', response_model=SoldPostingRow)
+@router.post(SoldPostingRoutes.LINE_ITEMS_BY_LINE_ITEM_RECORD_ID_COPIED, response_model=SoldPostingRow)
 def mark_line_item_copied(line_item_record_id: UUID, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     return SoldPostingService(db).mark_line_copied(line_item_record_id, current_user.id)
 
 
-@router.post('/sync', response_model=SoldPostingSyncResponse)
+@router.post(SoldPostingRoutes.SYNC, response_model=SoldPostingSyncResponse)
 def sync(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     service = SoldPostingService(db)
     # service.assert_admin_can_sync(current_user)
     return service.sync_all_accounts()
 
 
-@router.get('/sync-status')
+@router.get(SoldPostingRoutes.SYNC_STATUS)
 def sync_status(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     _ = current_user
     return SoldPostingService(db).sync_info()
 
 
-@router.get('/filter-options', response_model=SoldPostingFilterOptions)
+@router.get(SoldPostingRoutes.FILTER_OPTIONS, response_model=SoldPostingFilterOptions)
 def filter_options(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     _ = current_user
     accounts = db.query(EbayAccount).filter(EbayAccount.is_active.is_(True)).order_by(EbayAccount.account_name.asc()).all()

@@ -1,3 +1,4 @@
+import { API, apiPath } from '../constants/api'
 import { apiRequest } from './http'
 
 function validationMessage(detail) {
@@ -32,67 +33,67 @@ function qs(params = {}) {
 }
 
 export function fetchLeavePolicy() {
-  return apiRequest('/leave-management/policy', {}, getLeaveErrorMessage)
+  return apiRequest(API.LEAVE_MANAGEMENT.POLICY, {}, getLeaveErrorMessage)
 }
 
 export function updateLeavePolicy(payload) {
-  return apiRequest('/leave-management/policy', {
+  return apiRequest(API.LEAVE_MANAGEMENT.POLICY, {
     method: 'PUT',
     body: JSON.stringify(payload),
   }, getLeaveErrorMessage)
 }
 
 export function createLeaveRequest(payload) {
-  return apiRequest('/leave-management/requests', {
+  return apiRequest(API.LEAVE_MANAGEMENT.REQUESTS, {
     method: 'POST',
     body: JSON.stringify(payload),
   }, getLeaveErrorMessage)
 }
 
 export function fetchLeaveRequests(params) {
-  return apiRequest(`/leave-management/requests${qs(params)}`, {}, getLeaveErrorMessage)
+  return apiRequest(API.LEAVE_MANAGEMENT.REQUESTS + (qs(params)), {}, getLeaveErrorMessage)
 }
 
 export function reviewLeaveRequest(requestId, payload) {
-  return apiRequest(`/leave-management/requests/${requestId}/review`, {
+  return apiRequest(apiPath(API.LEAVE_MANAGEMENT.REQUESTS_BY_REQUEST_ID_REVIEW, { requestId }), {
     method: 'POST',
     body: JSON.stringify(payload),
   }, getLeaveErrorMessage)
 }
 
 export function cancelLeaveRequest(requestId) {
-  return apiRequest(`/leave-management/requests/${requestId}/cancel`, {
+  return apiRequest(apiPath(API.LEAVE_MANAGEMENT.REQUESTS_BY_REQUEST_ID_CANCEL, { requestId }), {
     method: 'POST',
     body: JSON.stringify({}),
   }, getLeaveErrorMessage)
 }
 
 export function fetchLeaveBalances(params) {
-  return apiRequest(`/leave-management/balances${qs(params)}`, {}, getLeaveErrorMessage)
+  return apiRequest(API.LEAVE_MANAGEMENT.BALANCES + (qs(params)), {}, getLeaveErrorMessage)
 }
 
 export function fetchLeaveAdminSummary(params) {
-  return apiRequest(`/leave-management/admin-summary${qs(params)}`, {}, getLeaveErrorMessage)
+  return apiRequest(API.LEAVE_MANAGEMENT.ADMIN_SUMMARY + (qs(params)), {}, getLeaveErrorMessage)
 }
 
 export function updateLeaveAdminSummary(payload) {
-  return apiRequest('/leave-management/admin-summary', {
+  return apiRequest(API.LEAVE_MANAGEMENT.ADMIN_SUMMARY, {
     method: 'PUT',
     body: JSON.stringify(payload),
   }, getLeaveErrorMessage)
 }
 
 export function fetchLeaveCarryForward(params) {
-  return apiRequest(`/leave-management/carry-forward${qs(params)}`, {}, getLeaveErrorMessage)
+  return apiRequest(API.LEAVE_MANAGEMENT.CARRY_FORWARD + (qs(params)), {}, getLeaveErrorMessage)
 }
 
 export function updateLeaveCarryForward(payload) {
-  return apiRequest('/leave-management/carry-forward', {
+  return apiRequest(API.LEAVE_MANAGEMENT.CARRY_FORWARD, {
     method: 'PUT',
     body: JSON.stringify(payload),
   }, getLeaveErrorMessage)
 }
 
 export function fetchMyLeaveBalance(params) {
-  return apiRequest(`/leave-management/balances/me${qs(params)}`, {}, getLeaveErrorMessage)
+  return apiRequest(API.LEAVE_MANAGEMENT.BALANCES_ME + (qs(params)), {}, getLeaveErrorMessage)
 }

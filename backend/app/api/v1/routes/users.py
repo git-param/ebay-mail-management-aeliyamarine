@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session, joinedload, selectinload
 
+from app.constants.api import UsersRoutes
 from app.api.dependencies import get_current_user
 from app.core.security import hash_password
 from app.db.session import get_db
@@ -118,7 +119,7 @@ def add_user_audit_log(db: Session, *, action: str, actor_id: UUID, target_user_
         entity_type=USER_ENTITY_TYPE, entity_id=target_user_id)
 
 
-@router.get('', response_model=list[UserResponse])
+@router.get(UsersRoutes.ROOT, response_model=list[UserResponse])
 def list_users(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
@@ -132,7 +133,7 @@ def list_users(
     return [serialize_user(user) for user in db.scalars(statement)]
 
 
-@router.post('', response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+@router.post(UsersRoutes.ROOT, response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 def create_user(
     payload: UserCreateRequest,
     db: Session = Depends(get_db),
@@ -174,7 +175,7 @@ def create_user(
     return serialize_user(user)
 
 
-@router.get('/{user_id}', response_model=UserResponse)
+@router.get(UsersRoutes.BY_USER_ID, response_model=UserResponse)
 def get_user(
     user_id: UUID,
     db: Session = Depends(get_db),
@@ -183,7 +184,7 @@ def get_user(
     return serialize_user(get_user_or_404(db, user_id))
 
 
-@router.put('/{user_id}', response_model=UserResponse)
+@router.put(UsersRoutes.BY_USER_ID, response_model=UserResponse)
 def update_user(
     user_id: UUID,
     payload: UserUpdateRequest,
@@ -222,7 +223,7 @@ def update_user(
     return serialize_user(user)
 
 
-@router.patch('/{user_id}/activate', response_model=UserResponse)
+@router.patch(UsersRoutes.BY_USER_ID_ACTIVATE, response_model=UserResponse)
 def activate_user(
     user_id: UUID,
     db: Session = Depends(get_db),
@@ -241,7 +242,7 @@ def activate_user(
     return serialize_user(user)
 
 
-@router.patch('/{user_id}/deactivate', response_model=UserResponse)
+@router.patch(UsersRoutes.BY_USER_ID_DEACTIVATE, response_model=UserResponse)
 def deactivate_user(
     user_id: UUID,
     db: Session = Depends(get_db),
@@ -260,7 +261,7 @@ def deactivate_user(
     return serialize_user(user)
 
 
-@router.delete('/{user_id}', status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(UsersRoutes.BY_USER_ID, status_code=status.HTTP_204_NO_CONTENT)
 def delete_user(
     user_id: UUID,
     db: Session = Depends(get_db),
@@ -291,7 +292,7 @@ def delete_user(
     db.commit()
 
 
-@router.post('/{user_id}/reset-password')
+@router.post(UsersRoutes.BY_USER_ID_RESET_PASSWORD)
 def reset_user_password(
     user_id: UUID,
     db: Session = Depends(get_db),

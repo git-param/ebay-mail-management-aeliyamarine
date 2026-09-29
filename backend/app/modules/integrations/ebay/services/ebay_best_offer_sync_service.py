@@ -8,6 +8,7 @@ from sqlalchemy import func, select, or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.constants.api import EbayTradingCalls
 from app.models.conversation import Conversation
 from app.models.ebay_account import EbayAccount
 from app.models.ebay_best_offer_listing_sync_state import EbayBestOfferListingSyncState
@@ -264,7 +265,7 @@ class EbayBestOfferSyncService:
 
     def _current_request(self, account, *, page=1, listing_id=None, job_id=None):
         for retry in range(2):
-            attempt = self.api_usage.reserve_attempt(account_id=account.id, operation='GetBestOffers',
+            attempt = self.api_usage.reserve_attempt(account_id=account.id, operation=EbayTradingCalls.GET_BEST_OFFERS,
                 job_id=job_id, attempt_number=retry + 1)
             self._current_api_calls = getattr(self, '_current_api_calls', 0) + 1
             try:
@@ -546,7 +547,7 @@ class EbayBestOfferSyncService:
         retry_count = 0
         started_at = perf_counter()
         for retry_count in range(2):
-            attempt = self.api_usage.reserve_attempt(account_id=account.id, operation='GetBestOffers', attempt_number=retry_count + 1)
+            attempt = self.api_usage.reserve_attempt(account_id=account.id, operation=EbayTradingCalls.GET_BEST_OFFERS, attempt_number=retry_count + 1)
             try:
                 response = self.tokens.client.get_best_offers_raw(account.access_token,
                     page=page, best_offer_status='All', item_id=listing_id)

@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.constants.api import EbayAccountsRoutes
 from app.api.dependencies import get_current_user
 from app.db.session import get_db
 from app.services.audit_service import AuditService
@@ -84,7 +85,7 @@ def add_account_audit_log(db: Session, *, action: str, actor_id: UUID, account_i
         entity_type=EBAY_ACCOUNT_ENTITY_TYPE, entity_id=account_id)
 
 
-@router.get('', response_model=list[EbayAccountResponse])
+@router.get(EbayAccountsRoutes.ROOT, response_model=list[EbayAccountResponse])
 def list_ebay_accounts(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
@@ -94,7 +95,7 @@ def list_ebay_accounts(
     return [serialize_account(account) for account in db.scalars(statement)]
 
 
-@router.post('', response_model=EbayAccountResponse, status_code=status.HTTP_201_CREATED)
+@router.post(EbayAccountsRoutes.ROOT, response_model=EbayAccountResponse, status_code=status.HTTP_201_CREATED)
 def create_ebay_account(
     payload: EbayAccountCreateRequest,
     db: Session = Depends(get_db),
@@ -136,7 +137,7 @@ def create_ebay_account(
     return serialize_account(account)
 
 
-@router.get('/{account_id}', response_model=EbayAccountResponse)
+@router.get(EbayAccountsRoutes.BY_ACCOUNT_ID, response_model=EbayAccountResponse)
 def get_ebay_account(
     account_id: UUID,
     db: Session = Depends(get_db),
@@ -145,7 +146,7 @@ def get_ebay_account(
     return serialize_account(get_account_or_404(db, account_id))
 
 
-@router.put('/{account_id}', response_model=EbayAccountResponse)
+@router.put(EbayAccountsRoutes.BY_ACCOUNT_ID, response_model=EbayAccountResponse)
 def update_ebay_account(
     account_id: UUID,
     payload: EbayAccountUpdateRequest,
@@ -170,7 +171,7 @@ def update_ebay_account(
     return serialize_account(account)
 
 
-@router.patch('/{account_id}/activate', response_model=EbayAccountResponse)
+@router.patch(EbayAccountsRoutes.BY_ACCOUNT_ID_ACTIVATE, response_model=EbayAccountResponse)
 def activate_ebay_account(
     account_id: UUID,
     db: Session = Depends(get_db),
@@ -189,7 +190,7 @@ def activate_ebay_account(
     return serialize_account(account)
 
 
-@router.patch('/{account_id}/deactivate', response_model=EbayAccountResponse)
+@router.patch(EbayAccountsRoutes.BY_ACCOUNT_ID_DEACTIVATE, response_model=EbayAccountResponse)
 def deactivate_ebay_account(
     account_id: UUID,
     db: Session = Depends(get_db),
@@ -208,7 +209,7 @@ def deactivate_ebay_account(
     return serialize_account(account)
 
 
-@router.delete('/{account_id}')
+@router.delete(EbayAccountsRoutes.BY_ACCOUNT_ID)
 def delete_ebay_account(
     account_id: UUID,
     db: Session = Depends(get_db),

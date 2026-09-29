@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, Query, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
+from app.constants.api import BreakManagementRoutes
 from app.api.dependencies import get_current_user, require_operations_manager_or_admin
 from app.db.session import get_db
 from .schemas import (
@@ -21,22 +22,22 @@ from .export import export_break_workbook
 router = APIRouter()
 
 
-@router.get('/status', response_model=BreakStatusResponse)
+@router.get(BreakManagementRoutes.STATUS, response_model=BreakStatusResponse)
 def get_status(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     return BreakManagementService(db).status(current_user)
 
 
-@router.post('/start', response_model=BreakSessionResponse, status_code=status.HTTP_201_CREATED)
+@router.post(BreakManagementRoutes.START, response_model=BreakSessionResponse, status_code=status.HTTP_201_CREATED)
 def start_break(payload: BreakStartRequest, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     return BreakManagementService(db).start_break(current_user, payload)
 
 
-@router.post('/end', response_model=BreakSessionResponse)
+@router.post(BreakManagementRoutes.END, response_model=BreakSessionResponse)
 def end_break(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     return BreakManagementService(db).end_break(current_user)
 
 
-@router.get('/history', response_model=BreakHistoryResponse)
+@router.get(BreakManagementRoutes.HISTORY, response_model=BreakHistoryResponse)
 def get_history(
     user_id: UUID | None = Query(default=None),
     date_from: date | None = Query(default=None),
@@ -47,7 +48,7 @@ def get_history(
     return BreakManagementService(db).history(current_user, user_id, date_from, date_to)
 
 
-@router.get('/overview', response_model=BreakOverviewResponse)
+@router.get(BreakManagementRoutes.OVERVIEW, response_model=BreakOverviewResponse)
 def get_overview(
     selected_date: date | None = Query(default=None, alias='date'),
     db: Session = Depends(get_db),
@@ -56,7 +57,7 @@ def get_overview(
     return BreakManagementService(db).overview(selected_date)
 
 
-@router.get('/employees')
+@router.get(BreakManagementRoutes.EMPLOYEES)
 def list_export_employees(
     db: Session = Depends(get_db),
     current_user=Depends(require_operations_manager_or_admin),
@@ -65,7 +66,7 @@ def list_export_employees(
     return {'items': [{'id': user.id, 'name': user.full_name, 'role': user.role.name if user.role else ''} for user in users]}
 
 
-@router.get('/export')
+@router.get(BreakManagementRoutes.EXPORT)
 def export_breaks(
     date_from: date = Query(...),
     date_to: date = Query(...),

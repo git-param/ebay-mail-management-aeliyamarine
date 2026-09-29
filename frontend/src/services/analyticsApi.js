@@ -1,3 +1,4 @@
+import { API } from '../constants/api'
 import { apiFetch } from './http'
 
 /**
@@ -42,7 +43,7 @@ function buildQuery(params = {}) {
  * The backend enforces role scoping, including personal-only analytics for agents.
  */
 export async function fetchAnalyticsDashboard(params = {}) {
-  const response = await apiFetch(`/analytics/dashboard${buildQuery(params)}`)
+  const response = await apiFetch(API.ANALYTICS.DASHBOARD + (buildQuery(params)))
   const data = await response.json().catch(() => ({}))
   if (!response.ok) {
     throw new Error(data.detail || data.message || 'Unable to load analytics')
@@ -66,7 +67,7 @@ export async function fetchAnalyticsDashboard(params = {}) {
  * Uses the same filters as the dashboard so exported values match visible metrics.
  */
 export async function exportAnalyticsDashboard(params = {}) {
-  const response = await apiFetch(`/analytics/dashboard/export${buildQuery(params)}`)
+  const response = await apiFetch(API.ANALYTICS.DASHBOARD_EXPORT + (buildQuery(params)))
   if (!response.ok) {
     const data = await response.json().catch(() => ({}))
     throw new Error(data.detail || data.message || 'Unable to export analytics')

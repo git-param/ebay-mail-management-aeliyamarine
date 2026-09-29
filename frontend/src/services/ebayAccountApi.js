@@ -1,3 +1,4 @@
+import { API, apiPath } from '../constants/api'
 import { apiRequest } from './http'
 
 function getErrorMessage(status, data) {
@@ -21,86 +22,86 @@ async function request(path, options = {}) {
 }
 
 export function fetchEbayAccounts() {
-  return request('/ebay-accounts')
+  return request(API.EBAY_ACCOUNTS.ROOT)
 }
 
 export function fetchEbayAccount(accountId) {
-  return request(`/ebay-accounts/${accountId}`)
+  return request(apiPath(API.EBAY_ACCOUNTS.BY_ACCOUNT_ID, { accountId }))
 }
 
 export function createEbayAccount(payload) {
-  return request('/ebay-accounts', {
+  return request(API.EBAY_ACCOUNTS.ROOT, {
     method: 'POST',
     body: JSON.stringify(payload),
   })
 }
 
 export function fetchEbaySyncStatus(syncLogId) {
-  return request(`/integrations/ebay/sync-status/${syncLogId}`)
+  return request(apiPath(API.EBAY_INTEGRATION.SYNC_STATUS_BY_SYNC_LOG_ID, { syncLogId }))
 }
 
 export function updateEbayAccount(accountId, payload) {
-  return request(`/ebay-accounts/${accountId}`, {
+  return request(apiPath(API.EBAY_ACCOUNTS.BY_ACCOUNT_ID, { accountId }), {
     method: 'PUT',
     body: JSON.stringify(payload),
   })
 }
 
 export function activateEbayAccount(accountId) {
-  return request(`/ebay-accounts/${accountId}/activate`, {
+  return request(apiPath(API.EBAY_ACCOUNTS.BY_ACCOUNT_ID_ACTIVATE, { accountId }), {
     method: 'PATCH',
   })
 }
 
 export function deactivateEbayAccount(accountId) {
-  return request(`/ebay-accounts/${accountId}/deactivate`, {
+  return request(apiPath(API.EBAY_ACCOUNTS.BY_ACCOUNT_ID_DEACTIVATE, { accountId }), {
     method: 'PATCH',
   })
 }
 
 export function deleteEbayAccount(accountId) {
-  return request(`/ebay-accounts/${accountId}`, {
+  return request(apiPath(API.EBAY_ACCOUNTS.BY_ACCOUNT_ID, { accountId }), {
     method: 'DELETE',
   })
 }
 
 export function connectEbayAccount(accountId) {
-  return request('/integrations/ebay/connect', {
+  return request(API.EBAY_INTEGRATION.CONNECT, {
     method: 'POST',
     body: JSON.stringify({ account_id: accountId }),
   })
 }
 
 export function submitManualEbayCallback(payload) {
-  return request('/integrations/ebay/manual-callback', {
+  return request(API.EBAY_INTEGRATION.MANUAL_CALLBACK, {
     method: 'POST',
     body: JSON.stringify(payload),
   })
 }
 
 export function fetchEbayApiUsage() {
-  return request('/integrations/ebay/api-usage')
+  return request(API.EBAY_INTEGRATION.API_USAGE)
 }
 
 export function fetchEbayAutoSyncStatus() {
-  return request('/integrations/ebay/auto-sync')
+  return request(API.EBAY_INTEGRATION.AUTO_SYNC)
 }
 
 export function updateEbayAutoSyncStatus(enabled, intervalMinutes) {
-  return request('/integrations/ebay/auto-sync', {
+  return request(API.EBAY_INTEGRATION.AUTO_SYNC, {
     method: 'PATCH',
     body: JSON.stringify({ enabled, interval_minutes: intervalMinutes }),
   })
 }
 
 export function syncEbayAccount(accountId) {
-  return request(`/integrations/ebay/sync/${accountId}`, {
+  return request(apiPath(API.EBAY_INTEGRATION.SYNC_BY_ACCOUNT_ID, { accountId }), {
     method: 'POST',
   })
 }
 
 export function syncAllEbayAccounts() {
-  return request('/integrations/ebay/sync-all', {
+  return request(API.EBAY_INTEGRATION.SYNC_ALL, {
     method: 'POST',
   })
 }

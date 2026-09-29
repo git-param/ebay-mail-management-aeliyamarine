@@ -1,3 +1,4 @@
+import { API, apiPath } from '../constants/api'
 import { apiFetch, apiFormRequest, apiRequest } from './http'
 
 function query(params = {}) {
@@ -21,39 +22,39 @@ function request(path, options = {}) {
 }
 
 export function fetchOfferEntries(params) {
-  return request(`/offer-management${query(params)}`)
+  return request(API.OFFER_MANAGEMENT.ROOT + (query(params)))
 }
 
 export function fetchOfferSummary(params) {
-  return request(`/offer-management/summary${query(params)}`)
+  return request(API.OFFER_MANAGEMENT.SUMMARY + (query(params)))
 }
 
 export function fetchOfferLookups() {
-  return request('/offer-management/lookups')
+  return request(API.OFFER_MANAGEMENT.LOOKUPS)
 }
 
 export function lookupOfferListing(listing) {
-  return request(`/offer-management/lookup${query({ listing })}`)
+  return request(API.OFFER_MANAGEMENT.LOOKUP + (query({ listing })))
 }
 
 export function checkOfferListingDuplicate(listing) {
-  return request(`/offer-management/duplicate-check${query({ listing })}`)
+  return request(API.OFFER_MANAGEMENT.DUPLICATE_CHECK + (query({ listing })))
 }
 
 export function createOfferEntry(payload) {
-  return request('/offer-management', { method: 'POST', body: JSON.stringify(payload) })
+  return request(API.OFFER_MANAGEMENT.ROOT, { method: 'POST', body: JSON.stringify(payload) })
 }
 
 export function updateOfferEntry(id, payload) {
-  return request(`/offer-management/${id}`, { method: 'PUT', body: JSON.stringify(payload) })
+  return request(apiPath(API.OFFER_MANAGEMENT.BY_ID, { id }), { method: 'PUT', body: JSON.stringify(payload) })
 }
 
 export function deleteOfferEntry(id) {
-  return request(`/offer-management/${id}`, { method: 'DELETE' })
+  return request(apiPath(API.OFFER_MANAGEMENT.BY_ID, { id }), { method: 'DELETE' })
 }
 
 export function bulkDeleteOfferEntries(entryIds) {
-  return request('/offer-management/bulk-delete', {
+  return request(API.OFFER_MANAGEMENT.BULK_DELETE, {
     method: 'POST',
     body: JSON.stringify({ entry_ids: entryIds }),
   })
@@ -62,19 +63,19 @@ export function bulkDeleteOfferEntries(entryIds) {
 export function importOfferEntriesExcel(file) {
   const formData = new FormData()
   formData.append('file', file)
-  return apiFormRequest('/offer-management/import-excel', formData, (status, data) => data.detail || data.message || `Offer import failed (${status})`)
+  return apiFormRequest(API.OFFER_MANAGEMENT.IMPORT_EXCEL, formData, (status, data) => data.detail || data.message || `Offer import failed (${status})`)
 }
 
 export function fetchOfferEntry(id) {
-  return request(`/offer-management/${id}`)
+  return request(apiPath(API.OFFER_MANAGEMENT.BY_ID, { id }))
 }
 
 export function fetchOfferHistory(id) {
-  return request(`/offer-management/${id}/history`)
+  return request(apiPath(API.OFFER_MANAGEMENT.BY_ID_HISTORY, { id }))
 }
 
 export async function exportOfferEntries(params) {
-  const response = await apiFetch(`/offer-management/export${query(params)}`)
+  const response = await apiFetch(API.OFFER_MANAGEMENT.EXPORT + (query(params)))
   if (!response.ok) {
     const data = await response.json().catch(() => ({}))
     throw new Error(data.detail || 'Unable to export offer entries.')

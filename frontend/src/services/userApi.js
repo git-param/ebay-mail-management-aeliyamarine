@@ -1,3 +1,4 @@
+import { API, apiPath } from '../constants/api'
 import { apiRequest } from './http'
 
 function getErrorMessage(status, data) {
@@ -21,47 +22,47 @@ async function request(path, options = {}) {
 }
 
 export function fetchUsers() {
-  return request('/users')
+  return request(API.USERS.ROOT)
 }
 
 export function fetchUser(userId) {
-  return request(`/users/${userId}`)
+  return request(apiPath(API.USERS.BY_USER_ID, { userId }))
 }
 
 export function createUser(payload) {
-  return request('/users', {
+  return request(API.USERS.ROOT, {
     method: 'POST',
     body: JSON.stringify(payload),
   })
 }
 
 export function updateUser(userId, payload) {
-  return request(`/users/${userId}`, {
+  return request(apiPath(API.USERS.BY_USER_ID, { userId }), {
     method: 'PUT',
     body: JSON.stringify(payload),
   })
 }
 
 export function deleteUser(userId) {
-  return request(`/users/${userId}`, {
+  return request(apiPath(API.USERS.BY_USER_ID, { userId }), {
     method: 'DELETE',
   })
 }
 
 export function activateUser(userId) {
-  return request(`/users/${userId}/activate`, {
+  return request(apiPath(API.USERS.BY_USER_ID_ACTIVATE, { userId }), {
     method: 'PATCH',
   })
 }
 
 export function deactivateUser(userId) {
-  return request(`/users/${userId}/deactivate`, {
+  return request(apiPath(API.USERS.BY_USER_ID_DEACTIVATE, { userId }), {
     method: 'PATCH',
   })
 }
 
 export function resetUserPassword(userId) {
-  return request(`/users/${userId}/reset-password`, {
+  return request(apiPath(API.USERS.BY_USER_ID_RESET_PASSWORD, { userId }), {
     method: 'POST',
   })
 }

@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session, joinedload
 
+from app.constants.api import AuditLogsRoutes
 from app.api.dependencies import require_admin
 from app.db.session import get_db
 from app.models.audit_log import AuditLog
@@ -113,7 +114,7 @@ def filtered_statement(
     return statement
 
 
-@router.get('/filters')
+@router.get(AuditLogsRoutes.FILTERS)
 def audit_filter_options(db: Session = Depends(get_db), current_user=Depends(require_admin)):
     return {
         key: [value for value in db.scalars(select(column).distinct().order_by(column)) if value]
@@ -126,7 +127,7 @@ def audit_filter_options(db: Session = Depends(get_db), current_user=Depends(req
     }
 
 
-@router.get('', response_model=AuditLogPageResponse)
+@router.get(AuditLogsRoutes.ROOT, response_model=AuditLogPageResponse)
 def list_audit_logs(
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
@@ -162,7 +163,7 @@ def list_audit_logs(
     return AuditLogPageResponse(items=[serialize_audit_log(item, presenter) for item in items], total=total, limit=limit, offset=offset)
 
 
-@router.get('/export')
+@router.get(AuditLogsRoutes.EXPORT)
 def export_audit_logs(
     category: str | None = Query(default=None),
     action: str | None = Query(default=None),
@@ -197,13 +198,13 @@ def deletion_criteria(date_from, date_to):
     return (AuditLog.created_at >= start, AuditLog.created_at < end)
 
 
-@router.get('/deletion-preview')
+@router.get(AuditLogsRoutes.DELETION_PREVIEW)
 def preview_audit_deletion(date_from: date, date_to: date, db: Session = Depends(get_db), current_user=Depends(require_admin)):
     count = db.scalar(select(func.count()).select_from(AuditLog).where(*deletion_criteria(date_from, date_to)))
     return {'count': count or 0, 'timezone': 'Asia/Kolkata'}
 
 
-@router.delete('')
+@router.delete(AuditLogsRoutes.ROOT)
 def delete_audit_logs(payload: AuditLogDeleteRequest, db: Session = Depends(get_db), current_user=Depends(require_admin)):
     if payload.confirmation != 'DELETE AUDIT LOGS':
         raise HTTPException(422, 'Type DELETE AUDIT LOGS to confirm')

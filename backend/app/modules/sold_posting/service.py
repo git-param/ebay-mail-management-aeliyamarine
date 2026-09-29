@@ -19,6 +19,7 @@ from uuid import UUID
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.constants.api import ExternalApi
 from app.api.dependencies import is_admin
 from app.models.ebay_account import EbayAccount
 from app.modules.integrations.ebay.oauth.token_service import EbayTokenService
@@ -463,7 +464,7 @@ class SoldPostingService:
             "copied_at": line.copied_at,
             "copied_by_user_id": line.copied_by_user_id,
             "copy_count": line.copy_count or 0,
-            "seller_hub_url": f"https://www.ebay.com/sh/ord/details?orderid={order.order_id}",
+            "seller_hub_url": ExternalApi.EBAY_SELLER_HUB_ORDER_PAGE.format(order_id=order.order_id),
         }
 
     def _apply_state_counts(self, state, result: AccountSyncResult) -> None:

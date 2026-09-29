@@ -10,6 +10,8 @@ from typing import Any
 
 import requests
 
+from app.constants.api import ExternalApi
+
 EBAY_PROVIDER_NAME = 'EBAY'
 
 
@@ -55,13 +57,13 @@ def upload_message_media(
     media_base_url = getattr(
         self,
         "media_base_url",
-        "https://apim.ebay.com/commerce/media/v1_beta",
+        ExternalApi.EBAY_PRODUCTION_MEDIA_BASE,
     )
 
     # If your app is using sandbox, set this somewhere in your client:
-    # self.media_base_url = "https://apim.sandbox.ebay.com/commerce/media/v1_beta"
+    # self.media_base_url = ExternalApi.EBAY_SANDBOX_MEDIA_BASE
 
-    url = f"{media_base_url.rstrip('/')}/image/create_image_from_file"
+    url = ExternalApi.EBAY_MEDIA_CREATE_IMAGE.format(base_url=media_base_url.rstrip('/'))
 
     headers = {
         "Authorization": f"Bearer {access_token}",

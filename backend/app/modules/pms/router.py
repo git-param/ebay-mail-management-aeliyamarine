@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, Query, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
+from app.constants.api import PmsRoutes
 from app.api.dependencies import get_current_user, require_admin, require_operations_manager_or_admin
 from app.db.session import get_db
 from app.modules.pms.export import export_monthly_table, export_monthly_tables, fiscal_year_label, month_token
@@ -33,26 +34,26 @@ router = APIRouter()
 # Configuration — Admin manages, Admin/Ops Manager can read
 # ----------------------------------------------------------------------
 
-@router.get('/config', response_model=PmsMetricConfigListResponse)
+@router.get(PmsRoutes.CONFIG, response_model=PmsMetricConfigListResponse)
 def list_config(db: Session = Depends(get_db), current_user=Depends(require_operations_manager_or_admin)):
     service = PmsService(db)
     items, total_active_weight = service.list_config()
     return {'items': items, 'total_active_weight': total_active_weight}
 
 
-@router.post('/config', response_model=PmsMetricConfigResponse)
+@router.post(PmsRoutes.CONFIG, response_model=PmsMetricConfigResponse)
 def create_config(payload: PmsMetricConfigCreate, db: Session = Depends(get_db), current_user=Depends(require_admin)):
     service = PmsService(db)
     return service.create_config(current_user, payload)
 
 
-@router.put('/config/{config_id}', response_model=PmsMetricConfigResponse)
+@router.put(PmsRoutes.CONFIG_BY_CONFIG_ID, response_model=PmsMetricConfigResponse)
 def update_config(config_id: UUID, payload: PmsMetricConfigUpdate, db: Session = Depends(get_db), current_user=Depends(require_admin)):
     service = PmsService(db)
     return service.update_config(current_user, config_id, payload)
 
 
-@router.delete('/config/{config_id}', status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(PmsRoutes.CONFIG_BY_CONFIG_ID, status_code=status.HTTP_204_NO_CONTENT)
 def delete_config(config_id: UUID, db: Session = Depends(get_db), current_user=Depends(require_admin)):
     service = PmsService(db)
     service.delete_config(current_user, config_id)
@@ -62,7 +63,7 @@ def delete_config(config_id: UUID, db: Session = Depends(get_db), current_user=D
 # Monthly PMS
 # ----------------------------------------------------------------------
 
-@router.get('/monthly/available-periods')
+@router.get(PmsRoutes.MONTHLY_AVAILABLE_PERIODS)
 def get_monthly_available_periods(
     search: str | None = Query(default=None),
     db: Session = Depends(get_db),
@@ -72,7 +73,7 @@ def get_monthly_available_periods(
     return {'items': service.get_available_monthly_periods(current_user, search=search)}
 
 
-@router.get('/monthly', response_model=PmsMonthlyTableResponse)
+@router.get(PmsRoutes.MONTHLY, response_model=PmsMonthlyTableResponse)
 def get_monthly_table(
     year: int = Query(...),
     month: int = Query(..., ge=1, le=12),
@@ -84,7 +85,7 @@ def get_monthly_table(
     return service.get_monthly_table(current_user, year, month, search)
 
 
-@router.get('/monthly/target-achievement', response_model=PmsTargetAchievementResponse)
+@router.get(PmsRoutes.MONTHLY_TARGET_ACHIEVEMENT, response_model=PmsTargetAchievementResponse)
 def get_target_achievement(
     year: int = Query(...),
     month: int = Query(..., ge=1, le=12),
@@ -95,7 +96,7 @@ def get_target_achievement(
     return service.get_target_achievement(current_user, year, month)
 
 
-@router.put('/monthly/target-achievement', response_model=PmsTargetAchievementResponse)
+@router.put(PmsRoutes.MONTHLY_TARGET_ACHIEVEMENT, response_model=PmsTargetAchievementResponse)
 def update_target_achievement(
     payload: PmsTargetAchievementUpdateRequest,
     db: Session = Depends(get_db),
@@ -105,7 +106,7 @@ def update_target_achievement(
     return service.update_target_achievement(current_user, payload)
 
 
-@router.get('/monthly/export')
+@router.get(PmsRoutes.MONTHLY_EXPORT)
 def export_monthly_table_excel(
     year: int | None = Query(default=None),
     month: int | None = Query(default=None, ge=1, le=12),
@@ -166,7 +167,7 @@ def export_monthly_table_excel(
     )
 
 
-@router.get('/monthly/{user_id}', response_model=PmsMonthlyRecordResponse)
+@router.get(PmsRoutes.MONTHLY_BY_USER_ID, response_model=PmsMonthlyRecordResponse)
 def get_monthly_record(
     user_id: UUID,
     year: int = Query(...),
@@ -180,13 +181,13 @@ def get_monthly_record(
     return service.get_monthly_record(current_user, user_id, year, month)
 
 
-@router.post('/monthly/refresh', response_model=PmsMonthlyRecordResponse)
+@router.post(PmsRoutes.MONTHLY_REFRESH, response_model=PmsMonthlyRecordResponse)
 def refresh_auto_values(payload: PmsMonthlyRefreshRequest, db: Session = Depends(get_db), current_user=Depends(require_admin)):
     service = PmsService(db)
     return service.refresh_auto_values(current_user, payload)
 
 
-@router.post('/monthly', response_model=PmsMonthlyRecordResponse)
+@router.post(PmsRoutes.MONTHLY, response_model=PmsMonthlyRecordResponse)
 def save_monthly(payload: PmsMonthlySaveRequest, db: Session = Depends(get_db), current_user=Depends(require_admin)):
     service = PmsService(db)
     return service.save_monthly(current_user, payload)
@@ -196,7 +197,7 @@ def save_monthly(payload: PmsMonthlySaveRequest, db: Session = Depends(get_db), 
 # History
 # ----------------------------------------------------------------------
 
-@router.get('/history', response_model=PmsHistoryResponse)
+@router.get(PmsRoutes.HISTORY, response_model=PmsHistoryResponse)
 def get_history(
     year: int | None = Query(default=None),
     month: int | None = Query(default=None, ge=1, le=12),
@@ -215,7 +216,7 @@ def get_history(
 # Employee of the Month
 # ----------------------------------------------------------------------
 
-@router.get('/employee-of-month', response_model=PmsEmployeeOfMonthResponse)
+@router.get(PmsRoutes.EMPLOYEE_OF_MONTH, response_model=PmsEmployeeOfMonthResponse)
 def get_employee_of_month(
     year: int = Query(...),
     month: int = Query(..., ge=1, le=12),
@@ -226,13 +227,13 @@ def get_employee_of_month(
     return service.get_employee_of_month(current_user, year, month)
 
 
-@router.get('/employee-of-month/stats', response_model=PmsEmployeeOfMonthStatsResponse)
+@router.get(PmsRoutes.EMPLOYEE_OF_MONTH_STATS, response_model=PmsEmployeeOfMonthStatsResponse)
 def get_employee_of_month_stats(db: Session = Depends(get_db), current_user=Depends(require_operations_manager_or_admin)):
     service = PmsService(db)
     return service.get_employee_of_month_stats(current_user)
 
 
-@router.post('/employee-of-month/resolve', response_model=PmsEmployeeOfMonthResponse)
+@router.post(PmsRoutes.EMPLOYEE_OF_MONTH_RESOLVE, response_model=PmsEmployeeOfMonthResponse)
 def resolve_employee_of_month(payload: PmsEmployeeOfMonthResolveRequest, db: Session = Depends(get_db), current_user=Depends(require_admin)):
     service = PmsService(db)
     return service.resolve_employee_of_month(current_user, payload)

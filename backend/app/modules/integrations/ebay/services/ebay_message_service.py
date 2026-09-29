@@ -3,6 +3,7 @@ from datetime import UTC, datetime, timedelta
 
 from sqlalchemy.orm import Session
 
+from app.constants.api import ExternalApi
 from app.models.conversation import (
     Conversation,
     ConversationStatus,
@@ -565,8 +566,7 @@ class EbayMessageService:
             return media_url
 
         return (
-            'https://i.ebayimg.com/images/g/'
-            f'{match.group("image_id")}/s-l1600.jpg'
+            ExternalApi.EBAY_IMAGE_LARGE.format(image_id=match.group("image_id"))
         )
 
     def _latest_message_at(

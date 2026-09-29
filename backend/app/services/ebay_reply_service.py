@@ -22,6 +22,7 @@ from uuid import UUID, uuid4
 from fastapi import HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
 
+from app.constants.api import EbayTradingCalls
 from app.models.conversation import Message, MessageSenderType
 from app.models.ebay_account import EbayAccount
 from app.modules.integrations.ebay.oauth.token_service import EbayTokenService
@@ -446,7 +447,7 @@ class EbayReplyService:
         if order_mapping and (order_mapping.ebay_item_id or order_mapping.listing_id or conversation.reference_id):
             return {
                 'transport': 'trading',
-                'call_name': 'AddMemberMessageAAQToPartner',
+                'call_name': EbayTradingCalls.ADD_MEMBER_MESSAGE_TO_PARTNER,
                 'item_id': order_mapping.ebay_item_id or order_mapping.listing_id or conversation.reference_id,
                 'recipient_id': recipient_id,
                 'subject': conversation.subject or 'Message from seller',
@@ -457,7 +458,7 @@ class EbayReplyService:
         if linked_item_id:
             return {
                 'transport': 'trading',
-                'call_name': 'AddMemberMessageAAQToPartner',
+                'call_name': EbayTradingCalls.ADD_MEMBER_MESSAGE_TO_PARTNER,
                 'item_id': linked_item_id,
                 'recipient_id': recipient_id,
                 'subject': conversation.subject or 'Message from seller',
@@ -468,7 +469,7 @@ class EbayReplyService:
         if item_id and parent_message:
             return {
                 'transport': 'trading',
-                'call_name': 'AddMemberMessageRTQ',
+                'call_name': EbayTradingCalls.REPLY_TO_MEMBER_MESSAGE,
                 'item_id': item_id,
                 'recipient_id': recipient_id,
                 'parent_message_id': parent_message.provider_message_id,

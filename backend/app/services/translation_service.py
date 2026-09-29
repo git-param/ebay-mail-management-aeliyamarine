@@ -4,6 +4,7 @@ from urllib.parse import urlparse
 
 import requests
 
+from app.constants.api import ExternalApi
 from app.core.config import get_settings
 
 
@@ -49,12 +50,12 @@ class TranslationService:
         )
 
         if normalized_url.endswith(
-            '/translate'
+            ExternalApi.TRANSLATION_PATH
         ):
             return normalized_url
 
         return (
-            f'{normalized_url}/translate'
+            ExternalApi.TRANSLATION_URL.format(normalized_url=normalized_url)
         )
 
     def translate(

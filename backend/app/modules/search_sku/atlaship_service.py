@@ -7,6 +7,7 @@ from urllib.parse import quote_plus
 import requests
 from bs4 import BeautifulSoup
 
+from app.constants.api import ExternalApi
 from app.modules.search_sku.schemas import PlatformProduct
 
 
@@ -20,7 +21,7 @@ class AtlashipSearchError(RuntimeError):
 class AtlasFeedExtractor:
     def __init__(self) -> None:
         self.blog_id = '4779734925367992915'
-        self.feed_url = f'https://www.blogger.com/feeds/{self.blog_id}/posts/default'
+        self.feed_url = ExternalApi.BLOGGER_POSTS_FEED.format(blog_id=self.blog_id)
         self.headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
         self.field_patterns = {
             'type_designation': [r'TYPE\s+DESIGNATION\s*[:：]\s*([A-Z0-9\s\-]+)', r'TYPE\s+DESIGNATION\s*[:：]\s*([^\n]+)'],

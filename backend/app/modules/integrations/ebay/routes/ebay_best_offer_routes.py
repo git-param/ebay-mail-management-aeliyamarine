@@ -2,6 +2,7 @@ from uuid import UUID
 from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import select
+from app.constants.api import EbayBestOfferRoutes
 from app.api.dependencies import get_current_user, require_operations_manager_or_admin, normalized_role_name
 from app.db.session import get_db
 from app.models.conversation import SyncLog
@@ -21,7 +22,7 @@ def require_offer_view(user=Depends(get_current_user)):
     return user
 
 
-@router.get('/current')
+@router.get(EbayBestOfferRoutes.CURRENT)
 def current(account_id: UUID | None = None, status: str | None = None,
             lifecycle: Literal['OPEN','AGREED','COMPLETED','CLOSED','UNKNOWN'] | None = None,
             view: Literal['current', 'history'] = 'current',
@@ -35,28 +36,28 @@ def current(account_id: UUID | None = None, status: str | None = None,
         item_id=item_id, role=role, sort=sort, page=page, page_size=page_size, can_respond=allowed)
 
 
-@router.get('/accounts')
+@router.get(EbayBestOfferRoutes.ACCOUNTS)
 def accounts(db=Depends(get_db), user=Depends(require_offer_view)):
     from app.models.ebay_account import EbayAccount
     return {'items': [{'id': a.id, 'name': a.account_name} for a in db.scalars(select(EbayAccount).order_by(EbayAccount.account_name))]}
 
 
-@router.get('/config')
+@router.get(EbayBestOfferRoutes.CONFIG)
 def config(db=Depends(get_db), user=Depends(require_operations_manager_or_admin)):
     return EbayBestOfferJobService(db).config()
 
 
-@router.patch('/config')
+@router.patch(EbayBestOfferRoutes.CONFIG)
 def update_config(payload: BestOfferConfigUpdate, db=Depends(get_db), user=Depends(require_operations_manager_or_admin)):
     return EbayBestOfferJobService(db).update_config(payload, user)
 
 
-@router.post('/sync', status_code=202)
+@router.post(EbayBestOfferRoutes.SYNC, status_code=202)
 def sync(payload: BestOfferSyncRequest, db=Depends(get_db), user=Depends(require_operations_manager_or_admin)):
     return dispatch(EbayBestOfferJobService(db).reserve(payload.account_ids, user=user, include_history=payload.include_history))
 
 
-@router.get('/jobs/{job_id}')
+@router.get(EbayBestOfferRoutes.JOBS_BY_JOB_ID)
 def job(job_id: UUID, db=Depends(get_db), user=Depends(require_operations_manager_or_admin)):
     record = db.get(SyncLog, job_id)
     if not record or record.sync_type not in {ACCOUNT, BATCH}:
@@ -68,24 +69,24 @@ def job(job_id: UUID, db=Depends(get_db), user=Depends(require_operations_manage
     return result
 
 
-@router.post('/{offer_id}/respond')
+@router.post(EbayBestOfferRoutes.BY_OFFER_ID_RESPOND)
 def respond(offer_id: UUID, payload: BestOfferActionRequest, db=Depends(get_db), user=Depends(require_offer_view)):
     # Synchronous route runs in FastAPI's thread pool, never the event loop.
     return EbayBestOfferActionService(db).respond(offer_id, payload, user)
 
 
-@router.post('/jobs/{job_id}/cancel')
+@router.post(EbayBestOfferRoutes.JOBS_BY_JOB_ID_CANCEL)
 def cancel_job(job_id: UUID, db=Depends(get_db), user=Depends(require_operations_manager_or_admin)):
     return EbayBestOfferJobService(db).cancel(job_id, user)
 
 
-@router.get('/activity/{account_id}')
+@router.get(EbayBestOfferRoutes.ACTIVITY_BY_ACCOUNT_ID)
 def activity_challenge(account_id: UUID, challenge_code: str = Query(min_length=1, max_length=512), db=Depends(get_db)):
     from app.modules.integrations.ebay.services.ebay_offer_activity_service import EbayOfferActivityService
     return EbayOfferActivityService(db).challenge(account_id, challenge_code)
 
 
-@router.post('/activity/{account_id}')
+@router.post(EbayBestOfferRoutes.ACTIVITY_BY_ACCOUNT_ID)
 async def activity_receive(account_id: UUID, request: Request, db=Depends(get_db)):
     from starlette.concurrency import run_in_threadpool
     from app.modules.integrations.ebay.services.ebay_offer_activity_service import EbayOfferActivityService
@@ -97,7 +98,7 @@ async def activity_receive(account_id: UUID, request: Request, db=Depends(get_db
     return await run_in_threadpool(EbayOfferActivityService(db).receive, account_id, bytes(body), request.headers.get('x-ebay-signature'))
 
 
-@router.post('/activity/{account_id}/authorize')
+@router.post(EbayBestOfferRoutes.ACTIVITY_BY_ACCOUNT_ID_AUTHORIZE)
 def authorize_activity(account_id: UUID, db=Depends(get_db), user=Depends(require_operations_manager_or_admin)):
     if normalized_role_name(user) != 'ADMIN':
         raise HTTPException(403, 'Only admins can reconnect eBay accounts')
@@ -110,7 +111,7 @@ def authorize_activity(account_id: UUID, db=Depends(get_db), user=Depends(requir
     return {'authorization_url': url}
 
 
-@router.post('/activity/{account_id}/setup')
+@router.post(EbayBestOfferRoutes.ACTIVITY_BY_ACCOUNT_ID_SETUP)
 def setup_activity(account_id: UUID, db=Depends(get_db), user=Depends(require_operations_manager_or_admin)):
     from app.modules.integrations.ebay.services.ebay_offer_activity_service import EbayOfferActivityService
     from app.services.audit_service import AuditService

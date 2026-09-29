@@ -4,6 +4,7 @@ from typing import Any
 
 import requests
 
+from app.constants.api import ExternalApi
 from app.core.config import get_settings
 from app.modules.search_sku.schemas import PlatformProduct
 from app.modules.search_sku.zoho_auth import ZohoAuthError, get_access_token, refresh_access_token
@@ -11,7 +12,7 @@ from app.modules.search_sku.zoho_auth import ZohoAuthError, get_access_token, re
 
 logger = logging.getLogger(__name__)
 
-API_URL = 'https://www.zohoapis.in/inventory/v1'
+API_URL = ExternalApi.ZOHO_INVENTORY_BASE
 
 
 class ZohoSearchError(RuntimeError):
@@ -30,8 +31,7 @@ def _image_url(image_document_id: str | None, organization_id: str) -> str | Non
     if not image_document_id:
         return None
     return (
-        f'https://inventory.zoho.in/DocTemplates_ItemImage_Small_{image_document_id}.zbfs'
-        f'?organization_id={organization_id}'
+        ExternalApi.ZOHO_ITEM_IMAGE.format(image_document_id=image_document_id, organization_id=organization_id)
     )
 
 
@@ -54,9 +54,9 @@ def normalize_zoho_item(item: dict[str, Any]) -> PlatformProduct:
         sku=item.get('sku') or None,
         image_url=_image_url(image_document_id, settings.zoho_organization_id),
         product_url=(
-            f'https://inventory.zoho.in/app/{settings.zoho_organization_id}#/inventory/items/{item_id}'
+            ExternalApi.ZOHO_ITEM_PAGE.format(zoho_organization_id=settings.zoho_organization_id, item_id=item_id)
             if item_id and settings.zoho_organization_id
-            else 'https://inventory.zoho.in/app'
+            else ExternalApi.ZOHO_APP_PAGE
         ),
         metadata={key: value for key, value in metadata.items() if value not in (None, '')},
     )
@@ -79,7 +79,7 @@ def _zoho_get_items(query: str, limit: int) -> list[dict[str, Any]]:
 
     def request_with_token(access_token: str) -> requests.Response:
         return requests.get(
-            f'{API_URL}/items',
+            ExternalApi.ZOHO_ITEMS.format(base_url=API_URL),
             headers={'Authorization': f'Zoho-oauthtoken {access_token}'},
             params=params,
             timeout=30,

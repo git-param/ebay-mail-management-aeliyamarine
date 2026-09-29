@@ -3,6 +3,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
+from app.constants.api import NotificationsRoutes
 from app.api.dependencies import get_current_user
 from app.db.session import get_db
 from app.models.notification import Notification
@@ -27,7 +28,7 @@ def serialize_notification(notification: Notification) -> NotificationResponse:
     )
 
 
-@router.get('', response_model=NotificationPageResponse)
+@router.get(NotificationsRoutes.ROOT, response_model=NotificationPageResponse)
 def list_notifications(
     limit: int = Query(default=10, ge=1, le=50),
     offset: int = Query(default=0, ge=0),
@@ -50,7 +51,7 @@ def list_notifications(
     )
 
 
-@router.patch('/read')
+@router.patch(NotificationsRoutes.READ)
 def mark_all_read(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
@@ -60,7 +61,7 @@ def mark_all_read(
     return {'updated_count': updated_count}
 
 
-@router.patch('/{notification_id}/read')
+@router.patch(NotificationsRoutes.BY_NOTIFICATION_ID_READ)
 def mark_read(
     notification_id: UUID,
     db: Session = Depends(get_db),
@@ -71,7 +72,7 @@ def mark_read(
     return {'updated_count': updated_count}
 
 
-@router.delete('')
+@router.delete(NotificationsRoutes.ROOT)
 def delete_all_notifications(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
@@ -81,7 +82,7 @@ def delete_all_notifications(
     return {'deleted_count': deleted_count}
 
 
-@router.delete('/{notification_id}')
+@router.delete(NotificationsRoutes.BY_NOTIFICATION_ID)
 def delete_notification(
     notification_id: UUID,
     db: Session = Depends(get_db),

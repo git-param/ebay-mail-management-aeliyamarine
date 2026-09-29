@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
+from app.constants.api import MessageReportsRoutes, MessageTypesRoutes
 from app.api.dependencies import get_current_user, require_admin
 from app.db.session import get_db
 from app.schemas.message_type import MessageTypeCreate, MessageTypeResponse, MessageTypeStatus, MessageTypeUpdate
@@ -24,33 +25,33 @@ def serialize_type(item):
     }
 
 
-@router.get('', response_model=list[MessageTypeResponse])
+@router.get(MessageTypesRoutes.ROOT, response_model=list[MessageTypeResponse])
 def list_types(include_deleted: bool = False, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     return MessageTypeService(db).tree(include_deleted=include_deleted)
 
 
-@router.get('/tree', response_model=list[MessageTypeResponse])
+@router.get(MessageTypesRoutes.TREE, response_model=list[MessageTypeResponse])
 def dropdown_tree(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     return MessageTypeService(db).tree(active_only=True)
 
 
-@router.post('', response_model=MessageTypeResponse)
+@router.post(MessageTypesRoutes.ROOT, response_model=MessageTypeResponse)
 def create_type(payload: MessageTypeCreate, db: Session = Depends(get_db), current_user=Depends(require_admin)):
     item = MessageTypeService(db).create(payload, current_user.id)
     return serialize_type(item)
 
 
-@router.put('/{item_id}', response_model=MessageTypeResponse)
+@router.put(MessageTypesRoutes.BY_ITEM_ID, response_model=MessageTypeResponse)
 def update_type(item_id: UUID, payload: MessageTypeUpdate, db: Session = Depends(get_db), current_user=Depends(require_admin)):
     item = MessageTypeService(db).update(item_id, payload, current_user.id); return serialize_type(item)
 
 
-@router.delete('/{item_id}')
+@router.delete(MessageTypesRoutes.BY_ITEM_ID)
 def delete_type(item_id: UUID, db: Session = Depends(get_db), current_user=Depends(require_admin)):
     item = MessageTypeService(db).delete(item_id, current_user.id); return {'id': item.id, 'is_active': item.is_active, 'is_deleted': item.is_deleted}
 
 
-@router.patch('/{item_id}/status')
+@router.patch(MessageTypesRoutes.BY_ITEM_ID_STATUS)
 def status_type(item_id: UUID, payload: MessageTypeStatus, db: Session = Depends(get_db), current_user=Depends(require_admin)):
     service = MessageTypeService(db); item = service.repo.get(item_id)
     if not item: from fastapi import HTTPException; raise HTTPException(404, 'Message type not found')
@@ -73,7 +74,7 @@ def report_filters(current_user, **kwargs):
     return kwargs
 
 
-@reports_router.get('/message-types')
+@reports_router.get(MessageReportsRoutes.MESSAGE_TYPES)
 def report(date_from: date | None=None, date_to: date | None=None, seller_account_id: UUID | None=None,
            user_id: UUID | None=None, category_id: UUID | None=None, subcategory_id: UUID | None=None,
            conversation_id: UUID | None=None, search: str | None=None, limit: int=Query(50, ge=1, le=500),
@@ -83,7 +84,7 @@ def report(date_from: date | None=None, date_to: date | None=None, seller_accoun
     return MessageReportService(db).report(scoped, limit, offset, sort_by, sort_dir)
 
 
-@reports_router.get('/message-types/export')
+@reports_router.get(MessageReportsRoutes.MESSAGE_TYPES_EXPORT)
 def export_report(date_from: date | None=None, date_to: date | None=None, seller_account_id: UUID | None=None,
                   user_id: UUID | None=None, category_id: UUID | None=None, subcategory_id: UUID | None=None,
                   conversation_id: UUID | None=None, search: str | None=None, db: Session=Depends(get_db), current_user=Depends(get_current_user)):

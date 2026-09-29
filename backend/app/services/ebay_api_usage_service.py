@@ -5,6 +5,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.constants.api import EbayTradingCalls
 from app.models.ebay_api_usage import EbayApiUsage
 
 
@@ -110,7 +111,7 @@ class EbayApiUsageService:
         for account_id, name, operation, count in rows:
             key = str(account_id) if account_id else 'unassigned'
             item = grouped.setdefault(key, {'account_id': account_id, 'account_name': name or 'Unassigned',
-                'GetBestOffers': 0, 'RespondToBestOffer': 0, 'total': 0})
+                EbayTradingCalls.GET_BEST_OFFERS: 0, EbayTradingCalls.RESPOND_TO_BEST_OFFER: 0, 'total': 0})
             item[operation] = count
             item['total'] += count
         return list(grouped.values())

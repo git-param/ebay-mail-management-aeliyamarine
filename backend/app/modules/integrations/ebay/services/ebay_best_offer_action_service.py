@@ -5,6 +5,7 @@ import hashlib
 import json
 from sqlalchemy import select
 from fastapi import HTTPException
+from app.constants.api import EbayTradingCalls
 from app.models.offer import Offer
 from app.models.ebay_account import EbayAccount
 from app.models.ebay_best_offer_action import EbayBestOfferAction
@@ -81,7 +82,7 @@ class EbayBestOfferActionService:
                     raise HTTPException(409, 'Account environment does not match the configured eBay OAuth environment')
                 if not account.access_token or (account.access_token_expires_at and account.access_token_expires_at <= datetime.now(UTC)):
                     account = tokens.refresh_access_token(account.id)
-                attempt = usage.reserve_attempt(account_id=account_id, operation='RespondToBestOffer', action_id=action_id)
+                attempt = usage.reserve_attempt(account_id=account_id, operation=EbayTradingCalls.RESPOND_TO_BEST_OFFER, action_id=action_id)
                 action.state = 'DISPATCHING'
                 action.dispatched_at = datetime.now(UTC)
                 offer.reconciliation_required = True

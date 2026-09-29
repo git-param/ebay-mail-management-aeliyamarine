@@ -1,3 +1,4 @@
+import { API, apiPath } from '../constants/api'
 import { apiFormRequest, apiRequest } from './http'
 
 function getErrorMessage(status, data) {
@@ -34,91 +35,91 @@ async function request(path, options = {}) {
 }
 
 export function fetchConversations(params) {
-  return request(`/conversations${buildQuery(params)}`)
+  return request(API.CONVERSATIONS.ROOT + (buildQuery(params)))
 }
 
 export function fetchConversation(conversationId) {
-  return request(`/conversations/${conversationId}`)
+  return request(apiPath(API.CONVERSATIONS.BY_CONVERSATION_ID, { conversationId }))
 }
 
 export function fetchConversationContext(conversationId) {
-  return request(`/conversations/${conversationId}/context`)
+  return request(apiPath(API.CONVERSATIONS.BY_CONVERSATION_ID_CONTEXT, { conversationId }))
 }
 
 export function translateMessage(text, targetLanguage = 'en') {
-  return request('/conversations/translate', {
+  return request(API.CONVERSATIONS.TRANSLATE, {
     method: 'POST',
     body: JSON.stringify({ text, target_language: targetLanguage }),
   })
 }
 
 export function assignConversation(conversationId, assignedTo) {
-  return request(`/conversations/${conversationId}/assign`, {
+  return request(apiPath(API.CONVERSATIONS.BY_CONVERSATION_ID_ASSIGN, { conversationId }), {
     method: 'POST',
     body: JSON.stringify({ assigned_to: assignedTo }),
   })
 }
 
 export function bulkUpdateConversations(payload) {
-  return request('/conversations/bulk-update', {
+  return request(API.CONVERSATIONS.BULK_UPDATE, {
     method: 'POST',
     body: JSON.stringify(payload),
   })
 }
 
 export function fetchConversationNotes(conversationId) {
-  return request(`/conversations/${conversationId}/notes`)
+  return request(apiPath(API.CONVERSATIONS.BY_CONVERSATION_ID_NOTES, { conversationId }))
 }
 
 export function createConversationNote(conversationId, body) {
-  return request(`/conversations/${conversationId}/notes`, {
+  return request(apiPath(API.CONVERSATIONS.BY_CONVERSATION_ID_NOTES, { conversationId }), {
     method: 'POST',
     body: JSON.stringify({ body }),
   })
 }
 
 export function unassignConversation(conversationId) {
-  return request(`/conversations/${conversationId}/unassign`, {
+  return request(apiPath(API.CONVERSATIONS.BY_CONVERSATION_ID_UNASSIGN, { conversationId }), {
     method: 'POST',
   })
 }
 
 export function updateConversationNote(conversationId, noteId, body) {
-  return request(`/conversations/${conversationId}/notes/${noteId}`, {
+  return request(apiPath(API.CONVERSATIONS.BY_CONVERSATION_ID_NOTES_BY_NOTE_ID, { conversationId, noteId }), {
     method: 'PATCH',
     body: JSON.stringify({ body }),
   })
 }
 
 export function deleteConversationNote(conversationId, noteId) {
-  return request(`/conversations/${conversationId}/notes/${noteId}`, {
+  return request(apiPath(API.CONVERSATIONS.BY_CONVERSATION_ID_NOTES_BY_NOTE_ID, { conversationId, noteId }), {
     method: 'DELETE',
   })
 }
 
 export function updateConversationCategory(conversationId, categoryId) {
-  return request(`/conversations/${conversationId}/category`, {
+  return request(apiPath(API.CONVERSATIONS.BY_CONVERSATION_ID_CATEGORY, { conversationId }), {
     method: 'PATCH',
     body: JSON.stringify({ category_id: categoryId || null }),
   })
 }
 
 export function updateConversationStatus(conversationId, status) {
-  return request(`/conversations/${conversationId}/status`, {
+  return request(apiPath(API.CONVERSATIONS.BY_CONVERSATION_ID_STATUS, { conversationId }), {
     method: 'PATCH',
     body: JSON.stringify({ status }),
   })
 }
 
 export function validateConversationReply(conversationId, body) {
-  return request(`/conversations/${conversationId}/reply/validate`, {
+  return request(apiPath(API.CONVERSATIONS.BY_CONVERSATION_ID_REPLY_VALIDATE, { conversationId }), {
     method: 'POST',
     body: JSON.stringify({ body }),
   })
 }
 
 export function sendConversationReply(conversationId, body, messageTypeId, sendCopyToEmail = true) {
-  return request(`/conversations/${conversationId}/reply`, {
+  return request(apiPath(API.CONVERSATIONS.BY_CONVERSATION_ID_REPLY, { conversationId }), {
     method: 'POST',
     body: JSON.stringify({ body, message_type_id: messageTypeId, send_copy_to_email: sendCopyToEmail }),
   })
@@ -130,6 +131,6 @@ export function sendConversationReplyWithAttachments(conversationId, body, files
   formData.set('message_type_id', messageTypeId)
   formData.set('send_copy_to_email', sendCopyToEmail ? 'true' : 'false')
   files.forEach((file) => formData.append('attachments', file))
-  return apiFormRequest(`/conversations/${conversationId}/reply`, formData, getErrorMessage)
+  return apiFormRequest(apiPath(API.CONVERSATIONS.BY_CONVERSATION_ID_REPLY, { conversationId }), formData, getErrorMessage)
 }
 

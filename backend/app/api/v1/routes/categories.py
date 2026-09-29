@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
+from app.constants.api import CategoriesRoutes
 from app.api.dependencies import get_current_user, require_operations_manager_or_admin
 from app.db.session import get_db
 from app.models.audit_log import AuditLog
@@ -121,7 +122,7 @@ def replace_keywords(category: Category, keywords: list[str]) -> None:
         category.keywords.append(CategoryKeyword(keyword=keyword))
 
 
-@router.get('', response_model=list[CategoryResponse])
+@router.get(CategoriesRoutes.ROOT, response_model=list[CategoryResponse])
 def list_categories(
     db: Session = Depends(get_db),
     current_user=Depends(require_category_access),
@@ -137,7 +138,7 @@ def list_categories(
     return [serialize_category(category) for category in db.scalars(statement)]
 
 
-@router.post('', response_model=CategoryResponse, status_code=status.HTTP_201_CREATED)
+@router.post(CategoriesRoutes.ROOT, response_model=CategoryResponse, status_code=status.HTTP_201_CREATED)
 def create_category(
     payload: CategoryCreateRequest,
     db: Session = Depends(get_db),
@@ -161,7 +162,7 @@ def create_category(
     return serialize_category(get_category_or_404(db, category.id))
 
 
-@router.get('/{category_id}', response_model=CategoryResponse)
+@router.get(CategoriesRoutes.BY_CATEGORY_ID, response_model=CategoryResponse)
 def get_category(
     category_id: UUID,
     db: Session = Depends(get_db),
@@ -170,7 +171,7 @@ def get_category(
     return serialize_category(get_category_or_404(db, category_id))
 
 
-@router.put('/users/{user_id}/assignments', response_model=list[CategoryResponse])
+@router.put(CategoriesRoutes.USERS_BY_USER_ID_ASSIGNMENTS, response_model=list[CategoryResponse])
 def set_user_category_assignments(
     user_id: UUID,
     payload: UserCategoryAssignmentRequest,
@@ -196,7 +197,7 @@ def set_user_category_assignments(
     return [serialize_category(category) for category in db.scalars(statement)]
 
 
-@router.put('/{category_id}', response_model=CategoryResponse)
+@router.put(CategoriesRoutes.BY_CATEGORY_ID, response_model=CategoryResponse)
 def update_category(
     category_id: UUID,
     payload: CategoryUpdateRequest,
@@ -217,7 +218,7 @@ def update_category(
     return serialize_category(get_category_or_404(db, category.id))
 
 
-@router.patch('/{category_id}/activate', response_model=CategoryResponse)
+@router.patch(CategoriesRoutes.BY_CATEGORY_ID_ACTIVATE, response_model=CategoryResponse)
 def activate_category(
     category_id: UUID,
     db: Session = Depends(get_db),
@@ -230,7 +231,7 @@ def activate_category(
     return serialize_category(get_category_or_404(db, category.id))
 
 
-@router.patch('/{category_id}/deactivate', response_model=CategoryResponse)
+@router.patch(CategoriesRoutes.BY_CATEGORY_ID_DEACTIVATE, response_model=CategoryResponse)
 def deactivate_category(
     category_id: UUID,
     db: Session = Depends(get_db),
@@ -243,7 +244,7 @@ def deactivate_category(
     return serialize_category(get_category_or_404(db, category.id))
 
 
-@router.delete('/{category_id}')
+@router.delete(CategoriesRoutes.BY_CATEGORY_ID)
 def delete_category(
     category_id: UUID,
     db: Session = Depends(get_db),
@@ -256,7 +257,7 @@ def delete_category(
     return {'message': 'Category deleted successfully'}
 
 
-@router.post('/{category_id}/keywords', response_model=CategoryKeywordResponse, status_code=status.HTTP_201_CREATED)
+@router.post(CategoriesRoutes.BY_CATEGORY_ID_KEYWORDS, response_model=CategoryKeywordResponse, status_code=status.HTTP_201_CREATED)
 def create_category_keyword(
     category_id: UUID,
     payload: CategoryKeywordCreateRequest,
@@ -273,7 +274,7 @@ def create_category_keyword(
     return serialize_keyword(keyword)
 
 
-@router.delete('/{category_id}/keywords/{keyword_id}')
+@router.delete(CategoriesRoutes.BY_CATEGORY_ID_KEYWORDS_BY_KEYWORD_ID)
 def delete_category_keyword(
     category_id: UUID,
     keyword_id: UUID,

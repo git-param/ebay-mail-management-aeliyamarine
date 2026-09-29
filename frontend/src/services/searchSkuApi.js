@@ -1,3 +1,4 @@
+import { API } from '../constants/api'
 import { apiRequest } from './http'
 
 function buildQuery(params = {}) {
@@ -13,7 +14,7 @@ function buildQuery(params = {}) {
 
 export function searchAcrossPlatforms(query, limit = 10, signal) {
   return apiRequest(
-    `/search-sku${buildQuery({ q: query, limit })}`,
+    API.SEARCH_SKU.ROOT + (buildQuery({ q: query, limit })),
     { signal },
     (status, data) => data.detail || data.message || `Cross-platform search failed (${status}).`,
   )

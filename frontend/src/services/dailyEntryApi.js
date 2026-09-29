@@ -1,3 +1,4 @@
+import { API } from '../constants/api'
 import { apiRequest } from './http'
 
 function qs(params = {}) {
@@ -10,38 +11,38 @@ function qs(params = {}) {
 }
 
 export function fetchDailyEntryDraft(params) {
-  return apiRequest(`/dailyEntry/draft${qs(params)}`)
+  return apiRequest(API.DAILY_ENTRY.DRAFT + (qs(params)))
 }
 
 export function fetchDailyEntries(params) {
-  return apiRequest(`/dailyEntry/entries${qs(params)}`)
+  return apiRequest(API.DAILY_ENTRY.ENTRIES + (qs(params)))
 }
 
 export function saveDailyEntry(payload) {
-  return apiRequest('/dailyEntry/entries', {
+  return apiRequest(API.DAILY_ENTRY.ENTRIES, {
     method: 'POST',
     body: JSON.stringify(payload),
   })
 }
 
 export function loadDailyEntries(params) {
-  return apiRequest(`/dailyEntry/daily-entries/load${qs(params)}`)
+  return apiRequest(API.DAILY_ENTRY.DAILY_ENTRIES_LOAD + (qs(params)))
 }
 
 export function uploadDailyEntries(entries) {
-  return apiRequest('/dailyEntry/daily-entries/upload', {
+  return apiRequest(API.DAILY_ENTRY.DAILY_ENTRIES_UPLOAD, {
     method: 'POST',
     body: JSON.stringify({ entries }),
   })
 }
 
 export function deleteDailyEntries(payload) {
-  return apiRequest('/dailyEntry/daily-entries/delete', {
+  return apiRequest(API.DAILY_ENTRY.DAILY_ENTRIES_DELETE, {
     method: 'POST',
     body: JSON.stringify(payload),
   })
 }
 
 export function fetchDailyEntrySlaReview(params) {
-  return apiRequest(`/dailyEntry/sla-review${qs(params)}`)
+  return apiRequest(API.DAILY_ENTRY.SLA_REVIEW + (qs(params)))
 }

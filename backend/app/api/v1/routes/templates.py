@@ -3,6 +3,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Response, status
 from sqlalchemy.orm import Session
 
+from app.constants.api import TemplatesRoutes
 from app.api.dependencies import get_current_user, require_admin
 from app.db.session import get_db
 from app.schemas.template import (
@@ -67,7 +68,7 @@ def serialize_permission(permission) -> PermissionResponse:
     return PermissionResponse(code=permission.code, description=permission.description)
 
 
-@router.get('', response_model=list[ReplyTemplateResponse])
+@router.get(TemplatesRoutes.ROOT, response_model=list[ReplyTemplateResponse])
 def list_templates(
     include_inactive: bool = False,
     db: Session = Depends(get_db),
@@ -79,7 +80,7 @@ def list_templates(
     return [serialize_template(template) for template in templates]
 
 
-@router.post('', response_model=ReplyTemplateResponse, status_code=status.HTTP_201_CREATED)
+@router.post(TemplatesRoutes.ROOT, response_model=ReplyTemplateResponse, status_code=status.HTTP_201_CREATED)
 def create_template(
     payload: ReplyTemplateCreateRequest,
     db: Session = Depends(get_db),
@@ -97,7 +98,7 @@ def create_template(
     return serialize_template(template)
 
 
-@router.put('/{template_id}', response_model=ReplyTemplateResponse)
+@router.put(TemplatesRoutes.BY_TEMPLATE_ID, response_model=ReplyTemplateResponse)
 def update_template(
     template_id: UUID,
     payload: ReplyTemplateUpdateRequest,
@@ -114,7 +115,7 @@ def update_template(
     return serialize_template(template)
 
 
-@router.delete('/{template_id}', status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(TemplatesRoutes.BY_TEMPLATE_ID, status_code=status.HTTP_204_NO_CONTENT)
 def delete_template(
     template_id: UUID,
     db: Session = Depends(get_db),
@@ -126,7 +127,7 @@ def delete_template(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.get('/categories', response_model=list[ReplyTemplateCategoryResponse])
+@router.get(TemplatesRoutes.CATEGORIES, response_model=list[ReplyTemplateCategoryResponse])
 def list_template_categories(
     include_inactive: bool = False,
     db: Session = Depends(get_db),
@@ -138,7 +139,7 @@ def list_template_categories(
     return [serialize_category(category) for category in categories]
 
 
-@router.post('/categories', response_model=ReplyTemplateCategoryResponse, status_code=status.HTTP_201_CREATED)
+@router.post(TemplatesRoutes.CATEGORIES, response_model=ReplyTemplateCategoryResponse, status_code=status.HTTP_201_CREATED)
 def create_template_category(
     payload: ReplyTemplateCategoryCreateRequest,
     db: Session = Depends(get_db),
@@ -155,7 +156,7 @@ def create_template_category(
     return serialize_category(category)
 
 
-@router.put('/categories/{category_id}', response_model=ReplyTemplateCategoryResponse)
+@router.put(TemplatesRoutes.CATEGORIES_BY_CATEGORY_ID, response_model=ReplyTemplateCategoryResponse)
 def update_template_category(
     category_id: UUID,
     payload: ReplyTemplateCategoryUpdateRequest,
@@ -172,7 +173,7 @@ def update_template_category(
     return serialize_category(category)
 
 
-@router.delete('/categories/{category_id}', status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(TemplatesRoutes.CATEGORIES_BY_CATEGORY_ID, status_code=status.HTTP_204_NO_CONTENT)
 def delete_template_category(
     category_id: UUID,
     db: Session = Depends(get_db),
@@ -184,7 +185,7 @@ def delete_template_category(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.get('/roles/{role_id}/permissions', response_model=list[PermissionResponse])
+@router.get(TemplatesRoutes.ROLES_BY_ROLE_ID_PERMISSIONS, response_model=list[PermissionResponse])
 def list_role_permissions(
     role_id: UUID,
     db: Session = Depends(get_db),
@@ -195,7 +196,7 @@ def list_role_permissions(
     return [serialize_permission(permission) for permission in permissions]
 
 
-@router.put('/roles/{role_id}/permissions', response_model=list[PermissionResponse])
+@router.put(TemplatesRoutes.ROLES_BY_ROLE_ID_PERMISSIONS, response_model=list[PermissionResponse])
 def update_role_permissions(
     role_id: UUID,
     payload: RolePermissionUpdateRequest,

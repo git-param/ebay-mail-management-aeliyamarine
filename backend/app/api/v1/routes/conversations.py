@@ -11,6 +11,7 @@ from fastapi.responses import FileResponse
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.constants.api import ConversationsRoutes, ExternalApi
 from app.api.dependencies import can_manage_operations, get_current_user, is_admin, is_operations_manager, is_support_agent
 from app.db.session import get_db
 from app.models.category import Category
@@ -68,7 +69,7 @@ SELLER_COUNTEROFFER_EXPIRY_DURATION = timedelta(days=4)
 ACCEPTED_COUNTEROFFER_SEQUENCE_OFFSET = timedelta(minutes=70)
 
 
-@router.post('/translate', response_model=TranslationResponse)
+@router.post(ConversationsRoutes.TRANSLATE, response_model=TranslationResponse)
 def translate_message(payload: TranslationRequest, current_user: User = Depends(get_current_user)) -> TranslationResponse:
     """Translate message text without persisting or logging its contents."""
     try:
@@ -621,7 +622,7 @@ def serialize_order_context_order(order):
                 'return_reason': item.return_reason,
                 'return_state': item.return_state,
                 'created_date': item.created_date,
-                'ebay_url': f'https://www.ebay.com/sh/ord/returns?returnId={item.return_id}',
+                'ebay_url': ExternalApi.EBAY_RETURN_PAGE.format(return_id=item.return_id),
             }
             for item in order.returns
         ],
@@ -633,11 +634,11 @@ def serialize_order_context_order(order):
                 'cancel_reason': item.cancel_reason,
                 'requester': item.requester,
                 'created_date': item.created_date,
-                'ebay_url': f'https://www.ebay.com/sh/ord/cancellations?cancelId={item.cancel_id}',
+                'ebay_url': ExternalApi.EBAY_CANCELLATION_PAGE.format(cancel_id=item.cancel_id),
             }
             for item in order.cancellations
         ],
-        'ebay_url': f'https://www.ebay.com/sh/ord/details?orderId={order.order_id}',
+        'ebay_url': ExternalApi.EBAY_ORDER_PAGE.format(order_id=order.order_id),
     }
 
 
@@ -1087,7 +1088,7 @@ def calculated_conversation_status(conversation: Conversation) -> str:
         return 'Replied'
     return conversation.status.value
 
-@router.get('', response_model=ConversationPageResponse)
+@router.get(ConversationsRoutes.ROOT, response_model=ConversationPageResponse)
 def list_conversations(
     limit: int = Query(default=25, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
@@ -1156,7 +1157,7 @@ def list_conversations(
     )
 
 
-@router.get('/attachments/{stored_name}')
+@router.get(ConversationsRoutes.ATTACHMENTS_BY_STORED_NAME)
 def download_reply_attachment(
     stored_name: str,
     db: Session = Depends(get_db),
@@ -1179,7 +1180,7 @@ def download_reply_attachment(
     return FileResponse(path, media_type=attachment.mime_type, filename=attachment.file_name)
 
 
-@router.get('/public/attachments/{attachment_id}/download')
+@router.get(ConversationsRoutes.PUBLIC_ATTACHMENTS_BY_ATTACHMENT_ID_DOWNLOAD)
 def download_public_reply_attachment(
     attachment_id: UUID,
     db: Session = Depends(get_db),
@@ -1192,7 +1193,7 @@ def download_public_reply_attachment(
     return FileResponse(path, media_type=attachment.mime_type, filename=attachment.file_name)
 
 
-@router.get('/{conversation_id}', response_model=ConversationDetailResponse)
+@router.get(ConversationsRoutes.BY_CONVERSATION_ID, response_model=ConversationDetailResponse)
 def get_conversation(
     conversation_id: UUID,
     db: Session = Depends(get_db),
@@ -1222,7 +1223,7 @@ def get_conversation(
     )
 
 
-@router.patch('/{conversation_id}/order', response_model=ConversationDetailResponse)
+@router.patch(ConversationsRoutes.BY_CONVERSATION_ID_ORDER, response_model=ConversationDetailResponse)
 def select_conversation_order(
     conversation_id: UUID,
     payload: SelectConversationOrderRequest,
@@ -1244,7 +1245,7 @@ def select_conversation_order(
     return serialize_conversation(conversation, service.get_current_assignee_id(conversation.id), seller_account, product_context, order_context, offers=offers)
 
 
-@router.get('/{conversation_id}/context', response_model=ConversationProductContextResponse | None)
+@router.get(ConversationsRoutes.BY_CONVERSATION_ID_CONTEXT, response_model=ConversationProductContextResponse | None)
 def get_conversation_context(
     conversation_id: UUID,
     db: Session = Depends(get_db),
@@ -1259,7 +1260,7 @@ def get_conversation_context(
     return context
 
 
-@router.get('/{conversation_id}/messages', response_model=list[MessageResponse])
+@router.get(ConversationsRoutes.BY_CONVERSATION_ID_MESSAGES, response_model=list[MessageResponse])
 def list_conversation_messages(
     conversation_id: UUID,
     db: Session = Depends(get_db),
@@ -1271,7 +1272,7 @@ def list_conversation_messages(
     return [serialize_message(message) for message in MessageService(db).list_messages(conversation_id)]
 
 
-@router.post('/{conversation_id}/reply/validate', response_model=ReplyValidationResponse)
+@router.post(ConversationsRoutes.BY_CONVERSATION_ID_REPLY_VALIDATE, response_model=ReplyValidationResponse)
 def validate_reply(
     conversation_id: UUID,
     payload: ReplyConversationRequest,
@@ -1289,7 +1290,7 @@ def validate_reply(
     return ReplyValidationResponse(valid=not violations, violations=violations)
 
 
-@router.post('/{conversation_id}/reply', response_model=MessageResponse)
+@router.post(ConversationsRoutes.BY_CONVERSATION_ID_REPLY, response_model=MessageResponse)
 async def reply_to_conversation(
     conversation_id: UUID,
     request: Request,
@@ -1338,7 +1339,7 @@ async def reply_to_conversation(
     return serialize_message(message)
 
 
-@router.post('/{conversation_id}/assign', response_model=ConversationAssignmentResponse)
+@router.post(ConversationsRoutes.BY_CONVERSATION_ID_ASSIGN, response_model=ConversationAssignmentResponse)
 def assign_conversation(
     conversation_id: UUID,
     payload: AssignConversationRequest,
@@ -1364,7 +1365,7 @@ def assign_conversation(
     return serialize_assignment(assignment)
 
 
-@router.post('/{conversation_id}/unassign', response_model=ConversationAssignmentResponse)
+@router.post(ConversationsRoutes.BY_CONVERSATION_ID_UNASSIGN, response_model=ConversationAssignmentResponse)
 def unassign_conversation(
     conversation_id: UUID,
     db: Session = Depends(get_db),
@@ -1401,7 +1402,7 @@ def unassign_conversation(
     return serialize_assignment(assignment)
 
 
-@router.post('/{conversation_id}/notes', response_model=ConversationNoteResponse)
+@router.post(ConversationsRoutes.BY_CONVERSATION_ID_NOTES, response_model=ConversationNoteResponse)
 def create_conversation_note(
     conversation_id: UUID,
     payload: ConversationNoteCreateRequest,
@@ -1421,7 +1422,7 @@ def create_conversation_note(
     return serialize_note(note)
 
 
-@router.get('/{conversation_id}/notes', response_model=list[ConversationNoteResponse])
+@router.get(ConversationsRoutes.BY_CONVERSATION_ID_NOTES, response_model=list[ConversationNoteResponse])
 def list_conversation_notes(
     conversation_id: UUID,
     db: Session = Depends(get_db),
@@ -1433,7 +1434,7 @@ def list_conversation_notes(
     return [serialize_note(note) for note in ConversationNoteService(db).list_notes(conversation_id)]
 
 
-@router.patch('/{conversation_id}/notes/{note_id}', response_model=ConversationNoteResponse)
+@router.patch(ConversationsRoutes.BY_CONVERSATION_ID_NOTES_BY_NOTE_ID, response_model=ConversationNoteResponse)
 def update_conversation_note(
     conversation_id: UUID,
     note_id: UUID,
@@ -1455,7 +1456,7 @@ def update_conversation_note(
     return serialize_note(note)
 
 
-@router.delete('/{conversation_id}/notes/{note_id}', status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(ConversationsRoutes.BY_CONVERSATION_ID_NOTES_BY_NOTE_ID, status_code=status.HTTP_204_NO_CONTENT)
 def delete_conversation_note(
     conversation_id: UUID,
     note_id: UUID,
@@ -1469,7 +1470,7 @@ def delete_conversation_note(
     )
 
 
-@router.patch('/{conversation_id}/status', response_model=ConversationDetailResponse)
+@router.patch(ConversationsRoutes.BY_CONVERSATION_ID_STATUS, response_model=ConversationDetailResponse)
 def update_conversation_status(
     conversation_id: UUID,
     payload: UpdateConversationStatusRequest,
@@ -1496,7 +1497,7 @@ def update_conversation_status(
     return serialize_conversation(conversation, service.get_current_assignee_id(conversation.id), seller_account, product_context, offers=offers)
 
 
-@router.patch('/{conversation_id}/category', response_model=ConversationDetailResponse)
+@router.patch(ConversationsRoutes.BY_CONVERSATION_ID_CATEGORY, response_model=ConversationDetailResponse)
 def update_conversation_category(
     conversation_id: UUID,
     payload: UpdateConversationCategoryRequest,
@@ -1524,7 +1525,7 @@ def update_conversation_category(
     return serialize_conversation(conversation, service.get_current_assignee_id(conversation.id), seller_account, product_context, offers=offers)
 
 
-@router.post('/bulk-update', response_model=BulkConversationUpdateResponse)
+@router.post(ConversationsRoutes.BULK_UPDATE, response_model=BulkConversationUpdateResponse)
 def bulk_update_conversations(
     payload: BulkConversationUpdateRequest,
     db: Session = Depends(get_db),

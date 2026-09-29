@@ -1,3 +1,4 @@
+import { API } from '../constants/api'
 import { apiFetch, apiRequest } from './http'
 
 function getErrorMessage(status, data) {
@@ -32,39 +33,39 @@ function withQuery(path, params = {}) {
 }
 
 export function fetchBreakStatus() {
-  return request('/break-management/status')
+  return request(API.BREAK_MANAGEMENT.STATUS)
 }
 
 export function startBreak(reason) {
-  return request('/break-management/start', {
+  return request(API.BREAK_MANAGEMENT.START, {
     method: 'POST',
     body: JSON.stringify({ reason }),
   })
 }
 
 export function endBreak() {
-  return request('/break-management/end', {
+  return request(API.BREAK_MANAGEMENT.END, {
     method: 'POST',
     body: JSON.stringify({}),
   })
 }
 
 export function fetchBreakHistory(params = {}) {
-  return request(withQuery('/break-management/history', params))
+  return request(withQuery(API.BREAK_MANAGEMENT.HISTORY, params))
 }
 
 export function fetchBreakOverview(params = {}) {
-  return request(withQuery('/break-management/overview', params))
+  return request(withQuery(API.BREAK_MANAGEMENT.OVERVIEW, params))
 }
 
 export function fetchBreakEmployees() {
-  return request('/break-management/employees')
+  return request(API.BREAK_MANAGEMENT.EMPLOYEES)
 }
 
 export async function exportBreakReport({ date_from, date_to, user_ids }) {
   const query = new URLSearchParams({ date_from, date_to })
   user_ids?.forEach((id) => query.append('user_ids', id))
-  const response = await apiFetch(`/break-management/export?${query}`)
+  const response = await apiFetch(API.BREAK_MANAGEMENT.EXPORT + '?' + (query))
   if (!response.ok) {
     const data = await response.json().catch(() => ({}))
     throw new Error(data.detail || 'Unable to export break report.')

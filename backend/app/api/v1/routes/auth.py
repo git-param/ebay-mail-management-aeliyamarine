@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Body, Cookie, Depends, Request, Response, status
 from sqlalchemy.orm import Session
 
+from app.constants.api import AuthRoutes
 from app.api.dependencies import get_current_user
 from app.constants.auth_constants import AuthMessages
 from app.core.config import get_settings
@@ -55,7 +56,7 @@ def clear_auth_cookies(response: Response) -> None:
     response.delete_cookie(REFRESH_COOKIE_NAME, path='/')
 
 
-@router.post('/login', response_model=TokenResponse)
+@router.post(AuthRoutes.LOGIN, response_model=TokenResponse)
 def login(payload: LoginRequest, request: Request, response: Response, db: Session = Depends(get_db)) -> TokenResponse:
     token_response = AuthService(db).login(
         email=payload.email,
@@ -66,7 +67,7 @@ def login(payload: LoginRequest, request: Request, response: Response, db: Sessi
     return set_auth_cookies(response, token_response)
 
 
-@router.post('/refresh', response_model=TokenResponse)
+@router.post(AuthRoutes.REFRESH, response_model=TokenResponse)
 def refresh(
     request: Request,
     response: Response,
@@ -79,7 +80,7 @@ def refresh(
     return set_auth_cookies(response, token_response)
 
 
-@router.get('/me', response_model=TokenResponse)
+@router.get(AuthRoutes.ME, response_model=TokenResponse)
 def me(request: Request, current_user=Depends(get_current_user), db: Session = Depends(get_db)) -> TokenResponse:
     """Return the current session user without exposing token values."""
     record_daily_login(db, current_user, ip_address=request.client.host if request.client else None,
@@ -97,7 +98,7 @@ def me(request: Request, current_user=Depends(get_current_user), db: Session = D
     )
 
 
-@router.post('/logout', response_model=MessageResponse)
+@router.post(AuthRoutes.LOGOUT, response_model=MessageResponse)
 def logout(
     payload: LogoutRequest,
     response: Response,
@@ -109,13 +110,13 @@ def logout(
     return MessageResponse(message=AuthMessages.LOGOUT_SUCCESS)
 
 
-@router.post('/forgot-password', response_model=MessageResponse, status_code=status.HTTP_202_ACCEPTED)
+@router.post(AuthRoutes.FORGOT_PASSWORD, response_model=MessageResponse, status_code=status.HTTP_202_ACCEPTED)
 def forgot_password(payload: ForgotPasswordRequest, db: Session = Depends(get_db)) -> MessageResponse:
     AuthService(db).request_password_reset(email=payload.email)
     return MessageResponse(message=AuthMessages.PASSWORD_RESET_SENT)
 
 
-@router.post('/reset-password', response_model=MessageResponse)
+@router.post(AuthRoutes.RESET_PASSWORD, response_model=MessageResponse)
 def reset_password(payload: ResetPasswordRequest, db: Session = Depends(get_db)) -> MessageResponse:
     AuthService(db).reset_password(token=payload.token, new_password=payload.new_password)
     return MessageResponse(message=AuthMessages.PASSWORD_RESET_SUCCESS)

@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, Query
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
+from app.constants.api import AnalyticsRoutes
 from app.api.dependencies import get_current_user
 from app.db.session import get_db
 from app.models.conversation import ConversationStatus
@@ -38,7 +39,7 @@ def metric(label: str, value) -> MetricResponse:
     return MetricResponse(label=label, value=value)
 
 
-@router.get('/dashboard', response_model=AnalyticsDashboardResponse)
+@router.get(AnalyticsRoutes.DASHBOARD, response_model=AnalyticsDashboardResponse)
 def get_dashboard_analytics(
     start_date: date | None = Query(default=None),
     end_date: date | None = Query(default=None),
@@ -84,7 +85,7 @@ def get_dashboard_analytics(
     )
 
 
-@router.get('/dashboard/export')
+@router.get(AnalyticsRoutes.DASHBOARD_EXPORT)
 def export_dashboard_analytics(
     start_date: date | None = Query(default=None),
     end_date: date | None = Query(default=None),

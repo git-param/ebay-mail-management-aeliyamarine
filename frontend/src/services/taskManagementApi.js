@@ -1,3 +1,4 @@
+import { API, apiPath } from '../constants/api'
 import { apiRequest } from './http'
 
 function qs(params = {}) {
@@ -9,34 +10,34 @@ function qs(params = {}) {
   return value ? `?${value}` : ''
 }
 
-export const fetchTaskCategories = () => apiRequest('/task-management/categories')
-export const saveTaskCategory = (payload, id = '') => apiRequest(`/task-management/categories${id ? `/${id}` : ''}`, {
+export const fetchTaskCategories = () => apiRequest(API.TASK_MANAGEMENT.CATEGORIES)
+export const saveTaskCategory = (payload, id = '') => apiRequest(id ? apiPath(API.TASK_MANAGEMENT.CATEGORIES_BY_ID, { id }) : API.TASK_MANAGEMENT.CATEGORIES, {
   method: id ? 'PATCH' : 'POST',
   body: JSON.stringify(payload),
 })
-export const deleteTaskCategory = (id) => apiRequest(`/task-management/categories/${id}`, {
+export const deleteTaskCategory = (id) => apiRequest(apiPath(API.TASK_MANAGEMENT.CATEGORIES_BY_ID, { id }), {
   method: 'DELETE',
 })
-export const saveSubtask = (payload, id = '') => apiRequest(`/task-management/subtasks${id ? `/${id}` : ''}`, {
+export const saveSubtask = (payload, id = '') => apiRequest(id ? apiPath(API.TASK_MANAGEMENT.SUBTASKS_BY_ID, { id }) : API.TASK_MANAGEMENT.SUBTASKS, {
   method: id ? 'PATCH' : 'POST',
   body: JSON.stringify(payload),
 })
-export const deleteSubtask = (id) => apiRequest(`/task-management/subtasks/${id}`, {
+export const deleteSubtask = (id) => apiRequest(apiPath(API.TASK_MANAGEMENT.SUBTASKS_BY_ID, { id }), {
   method: 'DELETE',
 })
-export const saveSubSubtask = (payload, id = '') => apiRequest(`/task-management/sub-subtasks${id ? `/${id}` : ''}`, {
+export const saveSubSubtask = (payload, id = '') => apiRequest(id ? apiPath(API.TASK_MANAGEMENT.SUB_SUBTASKS_BY_ID, { id }) : API.TASK_MANAGEMENT.SUB_SUBTASKS, {
   method: id ? 'PATCH' : 'POST',
   body: JSON.stringify(payload),
 })
-export const deleteSubSubtask = (id) => apiRequest(`/task-management/sub-subtasks/${id}`, {
+export const deleteSubSubtask = (id) => apiRequest(apiPath(API.TASK_MANAGEMENT.SUB_SUBTASKS_BY_ID, { id }), {
   method: 'DELETE',
 })
-export const fetchUserTaskAssignments = (userId) => apiRequest(`/task-management/assignments${qs({ user_id: userId })}`)
-export const saveUserTaskAssignment = (payload, id = '') => apiRequest(`/task-management/assignments${id ? `/${id}` : ''}`, {
+export const fetchUserTaskAssignments = (userId) => apiRequest(API.TASK_MANAGEMENT.ASSIGNMENTS + (qs({ user_id: userId })))
+export const saveUserTaskAssignment = (payload, id = '') => apiRequest(id ? apiPath(API.TASK_MANAGEMENT.ASSIGNMENTS_BY_ID, { id }) : API.TASK_MANAGEMENT.ASSIGNMENTS, {
   method: id ? 'PATCH' : 'POST',
   body: JSON.stringify(payload),
 })
-export const saveTaskAssignment = (payload) => apiRequest('/task-management/task-assignments', {
+export const saveTaskAssignment = (payload) => apiRequest(API.TASK_MANAGEMENT.TASK_ASSIGNMENTS, {
   method: 'POST',
   body: JSON.stringify(payload),
 })

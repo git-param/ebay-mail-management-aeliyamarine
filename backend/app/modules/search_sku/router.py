@@ -4,6 +4,7 @@ import time
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
+from app.constants.api import SearchSkuRoutes
 from app.api.dependencies import get_current_user
 from app.modules.search_sku.alreza_service import search_alreza
 from app.modules.search_sku.atlaship_service import search_atlaship
@@ -29,7 +30,7 @@ def _platform_result(platform: PlatformName, result: object) -> PlatformSearchRe
     return PlatformSearchResult(platform=platform, success=True, count=len(items), items=items)
 
 
-@router.get('/search-sku', response_model=CrossPlatformSearchResponse)
+@router.get(SearchSkuRoutes.SEARCH_SKU, response_model=CrossPlatformSearchResponse)
 async def search_sku(
     q: str = Query(..., min_length=1),
     limit: int = Query(default=10, ge=1, le=50),

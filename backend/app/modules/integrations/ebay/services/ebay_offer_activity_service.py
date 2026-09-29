@@ -15,6 +15,7 @@ from cryptography.hazmat.primitives.asymmetric import ec
 from fastapi import HTTPException
 from sqlalchemy import select
 
+from app.constants.api import ExternalApi
 from app.core.config import get_settings
 from app.models.app_config import AppConfigSetting
 from app.models.conversation import SyncLog, SyncLogStatus
@@ -44,8 +45,11 @@ class EbayOfferActivityService:
     def __init__(self, db):
         self.db = db
         self.client = EbayTokenService(db).client
-        host = 'api.ebay.com' if self.client.environment == 'PRODUCTION' else 'api.sandbox.ebay.com'
-        self.base = f'https://{host}/commerce/notification/v1'
+        self.base = (
+            ExternalApi.EBAY_PRODUCTION_NOTIFICATION_BASE
+            if self.client.environment == 'PRODUCTION'
+            else ExternalApi.EBAY_SANDBOX_NOTIFICATION_BASE
+        )
         self._app_token = None
 
     def settings(self, account_id, create=False):
@@ -62,7 +66,7 @@ class EbayOfferActivityService:
         base = get_settings().public_backend_url.rstrip('/')
         if not base.startswith('https://'):
             raise HTTPException(422, 'PUBLIC_BACKEND_URL must expose this backend over HTTPS')
-        return f'{base}/api/v1/integrations/ebay/best-offers/activity/{account_id}'
+        return ExternalApi.EBAY_ACTIVITY_CALLBACK.format(base=base, account_id=account_id)
 
     def challenge(self, account_id, code):
         row = self.settings(account_id)
@@ -78,7 +82,7 @@ class EbayOfferActivityService:
         if cached and cached[1] > datetime.now(UTC):
             return cached[0]
         token = self.client._request_tokens({'grant_type': 'client_credentials',
-            'scope': 'https://api.ebay.com/oauth/api_scope'})
+            'scope': ExternalApi.EBAY_SCOPE_BASE})
         if len(_TOKEN_CACHE) >= 8:
             _TOKEN_CACHE.clear()
         _TOKEN_CACHE[cache_key] = (token.access_token, datetime.now(UTC)+timedelta(seconds=max(0, (token.expires_in or 0)-60)))
@@ -127,7 +131,7 @@ class EbayOfferActivityService:
             row.value = json.dumps(settings)
             self.db.commit()  # eBay's challenge arrives through a separate session.
             if not settings.get('destination_id'):
-                _, headers = self.request('POST', '/destination', self.app_token(),
+                _, headers = self.request('POST', ExternalApi.EBAY_NOTIFICATION_DESTINATION, self.app_token(),
                     {'name': 'ACES offers '+str(account_id), 'status': 'ENABLED',
                      'deliveryConfig': {'endpoint': endpoint, 'verificationToken': settings['verification_token']}})
                 location = headers.get('Location') or headers.get('location')
@@ -139,7 +143,7 @@ class EbayOfferActivityService:
             if not settings.get('subscription_id'):
                 if not account.access_token_expires_at or account.access_token_expires_at <= datetime.now(UTC):
                     account = EbayTokenService(self.db).refresh_access_token(account_id)
-                _, headers = self.request('POST', '/subscription', account.access_token,
+                _, headers = self.request('POST', ExternalApi.EBAY_NOTIFICATION_SUBSCRIPTION, account.access_token,
                     {'topicId': 'OFFER_ACTIVITY', 'status': 'ENABLED', 'destinationId': settings['destination_id'],
                      'payload': {'format': 'JSON', 'schemaVersion': '1.0', 'deliveryProtocol': 'HTTPS'}})
                 location = headers.get('Location') or headers.get('location')
@@ -166,7 +170,7 @@ class EbayOfferActivityService:
         if cached and cached[1] > datetime.now(UTC):
             public_key = cached[0]
         else:
-            public_key, _ = self.request('GET', '/public_key/'+quote(kid, safe=''), self.app_token())
+            public_key, _ = self.request('GET', ExternalApi.EBAY_NOTIFICATION_PUBLIC_KEY.format(key_id=quote(kid, safe='')), self.app_token())
             if len(_KEY_CACHE) >= 128:
                 _KEY_CACHE.clear()
             _KEY_CACHE[cache_key] = (public_key, datetime.now(UTC)+timedelta(hours=1))

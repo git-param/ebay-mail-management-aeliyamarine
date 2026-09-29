@@ -23,6 +23,7 @@ from uuid import UUID, uuid4
 
 from fastapi import HTTPException, UploadFile, status
 
+from app.constants.api import ExternalApi
 from app.core.config import BACKEND_DIR, get_settings
 from app.models.conversation import MessageAttachment
 from app.modules.integrations.ebay.providers import EBAY_PROVIDER_NAME
@@ -206,7 +207,7 @@ class ReplyAttachmentService:
                     mime_type=mime_type,
                     file_size=len(content),
                     storage_path=str(storage_path),
-                    download_url=f'/api/v1/conversations/attachments/{stored_name}',
+                    download_url=ExternalApi.LOCAL_REPLY_ATTACHMENT.format(stored_name=stored_name),
                     raw_payload={'delivery': 'local_saved', 'ebay_attachment_supported': True},
                 )
             )
@@ -492,7 +493,7 @@ class ReplyAttachmentService:
         """
         legacy_match = self.EBAY_LEGACY_IMAGE_URL_PATTERN.match(media_url)
         if legacy_match:
-            return f'https://i.ebayimg.com/images/g/{legacy_match.group("image_id")}/s-l1600.jpg'
+            return ExternalApi.EBAY_IMAGE_LARGE.format(image_id=legacy_match.group("image_id"))
 
         sized_match = self.EBAY_SIZED_IMAGE_URL_PATTERN.match(media_url)
         if sized_match:

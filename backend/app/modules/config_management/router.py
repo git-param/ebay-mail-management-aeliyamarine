@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from app.constants.api import ConfigManagementRoutes
 from app.api.dependencies import require_admin
 from app.db.session import get_db
 from app.modules.config_management.service import ConfigService
@@ -60,30 +61,30 @@ class DeleteConversationsRequest(BaseModel):
     date_to: date | None = None
 
 
-@router.get('', response_model=list[ConfigSettingResponse])
+@router.get(ConfigManagementRoutes.ROOT, response_model=list[ConfigSettingResponse])
 def list_config(db: Session = Depends(get_db), current_user=Depends(require_admin)):
     _ = current_user
     return ConfigService(db).list_settings()
 
 
-@router.put('', response_model=list[ConfigSettingResponse])
+@router.put(ConfigManagementRoutes.ROOT, response_model=list[ConfigSettingResponse])
 def update_config(payload: ConfigUpdateRequest, db: Session = Depends(get_db), current_user=Depends(require_admin)):
     return ConfigService(db).update_settings([item.model_dump() for item in payload.settings], current_user)
 
 
-@router.get('/account-sync', response_model=list[AccountSyncStateResponse])
+@router.get(ConfigManagementRoutes.ACCOUNT_SYNC, response_model=list[AccountSyncStateResponse])
 def list_account_sync(db: Session = Depends(get_db), current_user=Depends(require_admin)):
     _ = current_user
     return ConfigService(db).list_account_sync_states()
 
 
-@router.put('/account-sync')
+@router.put(ConfigManagementRoutes.ACCOUNT_SYNC)
 def update_account_sync(payload: AccountSyncUpdateRequest, db: Session = Depends(get_db), current_user=Depends(require_admin)):
     _ = current_user
     return ConfigService(db).update_account_sync_cursor(account_id=payload.account_id, last_sync_at=payload.last_sync_at, apply_to_all=payload.apply_to_all)
 
 
-@router.delete('/conversation-data')
+@router.delete(ConfigManagementRoutes.CONVERSATION_DATA)
 def delete_conversation_data(payload: DeleteConversationsRequest, db: Session = Depends(get_db), current_user=Depends(require_admin)):
     _ = current_user
     if payload.confirmation.strip() != 'DELETE CONVERSATIONS':

@@ -4,6 +4,8 @@ from pathlib import Path
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from app.constants.api import ExternalApi
+
 
 BACKEND_DIR = Path(__file__).resolve().parents[2]
 ENV_FILE = BACKEND_DIR / '.env'
@@ -32,13 +34,10 @@ class Settings(BaseSettings):
         default=30,
         validation_alias='PASSWORD_RESET_TOKEN_EXPIRE_MINUTES',
     )
-    frontend_url: str = Field(default='http://localhost:5173 ', validation_alias='FRONTEND_URL')
+    frontend_url: str = Field(default=ExternalApi.DEFAULT_FRONTEND_URL, validation_alias='FRONTEND_URL')
     public_backend_url: str = Field(default='', validation_alias='PUBLIC_BACKEND_URL')
     backend_cors_origins: str = Field(
-        default=(
-        "http://localhost:5173,"
-        "http://127.0.0.1:5173,"
-    ),
+        default=ExternalApi.DEFAULT_CORS_ORIGINS,
         validation_alias='BACKEND_CORS_ORIGINS',
     )
     smtp_host: str = Field(default='', validation_alias='SMTP_HOST')
@@ -64,7 +63,7 @@ class Settings(BaseSettings):
     reply_attachment_max_bytes: int = Field(default=5 * 1024 * 1024, validation_alias='REPLY_ATTACHMENT_MAX_BYTES')
     reply_attachment_upload_dir: str = Field(default='uploads/reply_attachments', validation_alias='REPLY_ATTACHMENT_UPLOAD_DIR')
     translation_api_url: str = Field(
-        default='http://127.0.0.1:5001',
+        default=ExternalApi.TRANSLATION_DEFAULT_BASE,
         validation_alias='TRANSLATION_API_URL',
     )
 

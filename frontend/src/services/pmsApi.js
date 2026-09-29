@@ -1,3 +1,4 @@
+import { API, apiPath } from '../constants/api'
 import { apiFetch, apiRequest } from './http'
 
 function qs(params = {}) {
@@ -12,25 +13,25 @@ function qs(params = {}) {
 // ---- Configuration ----
 
 export function fetchPmsConfig() {
-  return apiRequest('/pms/config')
+  return apiRequest(API.PMS.CONFIG)
 }
 
 export function createPmsConfig(payload) {
-  return apiRequest('/pms/config', {
+  return apiRequest(API.PMS.CONFIG, {
     method: 'POST',
     body: JSON.stringify(payload),
   })
 }
 
 export function updatePmsConfig(configId, payload) {
-  return apiRequest(`/pms/config/${configId}`, {
+  return apiRequest(apiPath(API.PMS.CONFIG_BY_CONFIG_ID, { configId }), {
     method: 'PUT',
     body: JSON.stringify(payload),
   })
 }
 
 export function deletePmsConfig(configId) {
-  return apiRequest(`/pms/config/${configId}`, {
+  return apiRequest(apiPath(API.PMS.CONFIG_BY_CONFIG_ID, { configId }), {
     method: 'DELETE',
   })
 }
@@ -38,26 +39,26 @@ export function deletePmsConfig(configId) {
 // ---- Monthly PMS ----
 
 export function fetchPmsMonthlyTable(params) {
-  return apiRequest(`/pms/monthly${qs(params)}`)
+  return apiRequest(API.PMS.MONTHLY + (qs(params)))
 }
 
 export function fetchPmsTargetAchievement(params) {
-  return apiRequest(`/pms/monthly/target-achievement${qs(params)}`)
+  return apiRequest(API.PMS.MONTHLY_TARGET_ACHIEVEMENT + (qs(params)))
 }
 
 export function updatePmsTargetAchievement(payload) {
-  return apiRequest('/pms/monthly/target-achievement', {
+  return apiRequest(API.PMS.MONTHLY_TARGET_ACHIEVEMENT, {
     method: 'PUT',
     body: JSON.stringify(payload),
   })
 }
 
 export function fetchPmsAvailablePeriods(params) {
-  return apiRequest(`/pms/monthly/available-periods${qs(params)}`)
+  return apiRequest(API.PMS.MONTHLY_AVAILABLE_PERIODS + (qs(params)))
 }
 
 export async function exportPmsMonthlyTable(params) {
-  const response = await apiFetch(`/pms/monthly/export${qs(params)}`)
+  const response = await apiFetch(API.PMS.MONTHLY_EXPORT + (qs(params)))
   if (!response.ok) {
     const data = await response.json().catch(() => ({}))
     throw new Error(data.detail || data.message || 'Unable to export PMS data.')
@@ -66,18 +67,18 @@ export async function exportPmsMonthlyTable(params) {
 }
 
 export function fetchPmsMonthlyRecord(userId, params) {
-  return apiRequest(`/pms/monthly/${userId}${qs(params)}`)
+  return apiRequest(apiPath(API.PMS.MONTHLY_BY_USER_ID, { userId }) + (qs(params)))
 }
 
 export function refreshPmsAutoValues(payload) {
-  return apiRequest('/pms/monthly/refresh', {
+  return apiRequest(API.PMS.MONTHLY_REFRESH, {
     method: 'POST',
     body: JSON.stringify(payload),
   })
 }
 
 export function savePmsMonthly(payload) {
-  return apiRequest('/pms/monthly', {
+  return apiRequest(API.PMS.MONTHLY, {
     method: 'POST',
     body: JSON.stringify(payload),
   })
@@ -86,21 +87,21 @@ export function savePmsMonthly(payload) {
 // ---- History ----
 
 export function fetchPmsHistory(params) {
-  return apiRequest(`/pms/history${qs(params)}`)
+  return apiRequest(API.PMS.HISTORY + (qs(params)))
 }
 
 // ---- Employee of the Month ----
 
 export function fetchPmsEmployeeOfMonth(params) {
-  return apiRequest(`/pms/employee-of-month${qs(params)}`)
+  return apiRequest(API.PMS.EMPLOYEE_OF_MONTH + (qs(params)))
 }
 
 export function fetchPmsEmployeeOfMonthStats() {
-  return apiRequest('/pms/employee-of-month/stats')
+  return apiRequest(API.PMS.EMPLOYEE_OF_MONTH_STATS)
 }
 
 export function resolvePmsEmployeeOfMonth(payload) {
-  return apiRequest('/pms/employee-of-month/resolve', {
+  return apiRequest(API.PMS.EMPLOYEE_OF_MONTH_RESOLVE, {
     method: 'POST',
     body: JSON.stringify(payload),
   })

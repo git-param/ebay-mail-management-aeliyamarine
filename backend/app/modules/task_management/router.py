@@ -3,6 +3,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
+from app.constants.api import TaskManagementRoutes
 from app.api.dependencies import require_admin
 from app.db.session import get_db
 from app.modules.task_management.models import SubSubtask, Subtask, TaskCategory, UserSubtaskAssignment
@@ -88,61 +89,61 @@ def serialize_assignment(assignment: UserSubtaskAssignment) -> AssignmentRespons
     )
 
 
-@router.get('/categories', response_model=list[TaskCategoryResponse])
+@router.get(TaskManagementRoutes.CATEGORIES, response_model=list[TaskCategoryResponse])
 def list_categories(db: Session = Depends(get_db), current_user=Depends(require_admin)):
     _ = current_user
     return [serialize_category(category) for category in TaskManagementService(db).list_categories()]
 
 
-@router.post('/categories', response_model=TaskCategoryResponse)
+@router.post(TaskManagementRoutes.CATEGORIES, response_model=TaskCategoryResponse)
 def create_category(payload: TaskCategoryPayload, db: Session = Depends(get_db), current_user=Depends(require_admin)):
     return serialize_category(TaskManagementService(db).save_category(payload, current_user))
 
 
-@router.patch('/categories/{category_id}', response_model=TaskCategoryResponse)
+@router.patch(TaskManagementRoutes.CATEGORIES_BY_CATEGORY_ID, response_model=TaskCategoryResponse)
 def update_category(category_id: UUID, payload: TaskCategoryPayload, db: Session = Depends(get_db), current_user=Depends(require_admin)):
     return serialize_category(TaskManagementService(db).save_category(payload, current_user, category_id))
 
 
-@router.delete('/categories/{category_id}')
+@router.delete(TaskManagementRoutes.CATEGORIES_BY_CATEGORY_ID)
 def delete_category(category_id: UUID, db: Session = Depends(get_db), current_user=Depends(require_admin)):
     TaskManagementService(db).delete_category(category_id, current_user)
     return {'message': 'Task category deleted.'}
 
 
-@router.post('/subtasks', response_model=SubtaskResponse)
+@router.post(TaskManagementRoutes.SUBTASKS, response_model=SubtaskResponse)
 def create_subtask(payload: SubtaskPayload, db: Session = Depends(get_db), current_user=Depends(require_admin)):
     return serialize_subtask(TaskManagementService(db).save_subtask(payload, current_user))
 
 
-@router.patch('/subtasks/{subtask_id}', response_model=SubtaskResponse)
+@router.patch(TaskManagementRoutes.SUBTASKS_BY_SUBTASK_ID, response_model=SubtaskResponse)
 def update_subtask(subtask_id: UUID, payload: SubtaskPayload, db: Session = Depends(get_db), current_user=Depends(require_admin)):
     return serialize_subtask(TaskManagementService(db).save_subtask(payload, current_user, subtask_id))
 
 
-@router.delete('/subtasks/{subtask_id}')
+@router.delete(TaskManagementRoutes.SUBTASKS_BY_SUBTASK_ID)
 def delete_subtask(subtask_id: UUID, db: Session = Depends(get_db), current_user=Depends(require_admin)):
     TaskManagementService(db).delete_subtask(subtask_id, current_user)
     return {'message': 'Subtask deleted.'}
 
 
-@router.post('/sub-subtasks', response_model=SubSubtaskResponse)
+@router.post(TaskManagementRoutes.SUB_SUBTASKS, response_model=SubSubtaskResponse)
 def create_sub_subtask(payload: SubSubtaskPayload, db: Session = Depends(get_db), current_user=Depends(require_admin)):
     return serialize_sub_subtask(TaskManagementService(db).save_sub_subtask(payload, current_user))
 
 
-@router.patch('/sub-subtasks/{sub_subtask_id}', response_model=SubSubtaskResponse)
+@router.patch(TaskManagementRoutes.SUB_SUBTASKS_BY_SUB_SUBTASK_ID, response_model=SubSubtaskResponse)
 def update_sub_subtask(sub_subtask_id: UUID, payload: SubSubtaskPayload, db: Session = Depends(get_db), current_user=Depends(require_admin)):
     return serialize_sub_subtask(TaskManagementService(db).save_sub_subtask(payload, current_user, sub_subtask_id))
 
 
-@router.delete('/sub-subtasks/{sub_subtask_id}')
+@router.delete(TaskManagementRoutes.SUB_SUBTASKS_BY_SUB_SUBTASK_ID)
 def delete_sub_subtask(sub_subtask_id: UUID, db: Session = Depends(get_db), current_user=Depends(require_admin)):
     TaskManagementService(db).delete_sub_subtask(sub_subtask_id, current_user)
     return {'message': 'Sub-subtask deleted.'}
 
 
-@router.get('/assignments', response_model=UserAssignmentSummary)
+@router.get(TaskManagementRoutes.ASSIGNMENTS, response_model=UserAssignmentSummary)
 def list_user_assignments(user_id: UUID, db: Session = Depends(get_db), current_user=Depends(require_admin)):
     _ = current_user
     service = TaskManagementService(db)
@@ -153,17 +154,17 @@ def list_user_assignments(user_id: UUID, db: Session = Depends(get_db), current_
     )
 
 
-@router.post('/assignments', response_model=AssignmentResponse)
+@router.post(TaskManagementRoutes.ASSIGNMENTS, response_model=AssignmentResponse)
 def create_assignment(payload: AssignmentPayload, db: Session = Depends(get_db), current_user=Depends(require_admin)):
     return serialize_assignment(TaskManagementService(db).save_assignment(payload, current_user))
 
 
-@router.patch('/assignments/{assignment_id}', response_model=AssignmentResponse)
+@router.patch(TaskManagementRoutes.ASSIGNMENTS_BY_ASSIGNMENT_ID, response_model=AssignmentResponse)
 def update_assignment(assignment_id: UUID, payload: AssignmentPayload, db: Session = Depends(get_db), current_user=Depends(require_admin)):
     return serialize_assignment(TaskManagementService(db).save_assignment(payload, current_user, assignment_id))
 
 
-@router.post('/task-assignments', response_model=UserAssignmentSummary)
+@router.post(TaskManagementRoutes.TASK_ASSIGNMENTS, response_model=UserAssignmentSummary)
 def create_task_assignment(payload: TaskAssignmentPayload, db: Session = Depends(get_db), current_user=Depends(require_admin)):
     """Assign every subtask under one task/category to a single agent in one action."""
     service = TaskManagementService(db)

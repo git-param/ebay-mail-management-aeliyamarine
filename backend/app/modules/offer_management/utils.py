@@ -2,6 +2,8 @@ import re
 from datetime import date
 from decimal import Decimal
 
+from app.constants.api import ExternalApi
+
 
 LISTING_ID_RE = re.compile(r'(?:/itm/|itm=|item=)?(\d{9,15})(?:[/?#&]|$)', re.IGNORECASE)
 
@@ -19,7 +21,7 @@ def extract_listing_id(value: str | None) -> str:
 
 
 def default_listing_url(listing_id: str) -> str:
-    return f'https://www.ebay.com/itm/{listing_id}'
+    return ExternalApi.EBAY_LISTING_PAGE.format(listing_id=listing_id)
 
 
 def is_high_value_amount(*values, threshold: Decimal = Decimal('500'), quantity: int | None = None) -> bool:

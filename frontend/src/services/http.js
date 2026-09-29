@@ -1,4 +1,6 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api/v1'
+import { API, getApiBaseUrl } from '../constants/api'
+
+const API_BASE_URL = getApiBaseUrl()
 
 let refreshPromise = null
 
@@ -28,7 +30,7 @@ function buildHeaders(options = {}) {
 
 async function refreshSession() {
   if (!refreshPromise) {
-    refreshPromise = fetch(`${API_BASE_URL}/auth/refresh`, {
+    refreshPromise = fetch(`${API_BASE_URL}${API.AUTH.REFRESH}`, {
       method: 'POST',
       credentials: 'include',
       headers: {
@@ -54,7 +56,7 @@ async function refreshSession() {
 }
 
 export async function apiFetch(path, options = {}) {
-  const shouldAttemptRefresh = options.authRetry !== false && !path.startsWith('/auth/refresh') && !path.startsWith('/auth/login')
+  const shouldAttemptRefresh = options.authRetry !== false && !path.startsWith(API.AUTH.REFRESH) && !path.startsWith(API.AUTH.LOGIN)
   const requestOptions = {
     credentials: 'include',
     ...options,

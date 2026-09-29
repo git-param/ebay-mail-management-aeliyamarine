@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, File, Query, Response, UploadFile, statu
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
+from app.constants.api import OfferManagementRoutes
 from app.api.dependencies import get_current_user
 from app.db.session import get_db
 from app.modules.offer_management.export import export_entries
@@ -56,12 +57,12 @@ def collect_filters(
     return locals()
 
 
-@router.post('', response_model=OfferEntryResponse)
+@router.post(OfferManagementRoutes.ROOT, response_model=OfferEntryResponse)
 def create_entry(payload: OfferEntryCreate, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     return serialize_entry(OfferManagementService(db).create(payload, current_user))
 
 
-@router.get('', response_model=OfferEntryListResponse)
+@router.get(OfferManagementRoutes.ROOT, response_model=OfferEntryListResponse)
 def list_entries(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
@@ -81,26 +82,26 @@ def list_entries(
     return {'items': [serialize_entry(item) for item in items], 'total': total, 'page': page, 'page_size': page_size}
 
 
-@router.get('/lookup', response_model=OfferLookupResponse)
+@router.get(OfferManagementRoutes.LOOKUP, response_model=OfferLookupResponse)
 def lookup_listing(listing: str = Query(...), db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     _ = current_user
     return OfferManagementService(db).lookup(listing)
 
 
-@router.get('/duplicate-check', response_model=OfferDuplicateCheckResponse)
+@router.get(OfferManagementRoutes.DUPLICATE_CHECK, response_model=OfferDuplicateCheckResponse)
 def duplicate_check(listing: str = Query(...), db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     _ = current_user
     return OfferManagementService(db).duplicate_check(listing)
 
 
-@router.get('/summary', response_model=OfferSummaryResponse)
+@router.get(OfferManagementRoutes.SUMMARY, response_model=OfferSummaryResponse)
 def summary(db: Session = Depends(get_db), current_user=Depends(get_current_user), filters: dict = Depends(collect_filters)):
     service = OfferManagementService(db)
     query = service.repo.query_entries(service.filters_for_user(filters, current_user), current_user)
     return service.repo.summary(query)
 
 
-@router.get('/lookups')
+@router.get(OfferManagementRoutes.LOOKUPS)
 def lookups(current_user=Depends(get_current_user)):
     _ = current_user
     return {
@@ -119,7 +120,7 @@ def lookups(current_user=Depends(get_current_user)):
     }
 
 
-@router.get('/export')
+@router.get(OfferManagementRoutes.EXPORT)
 def export(db: Session = Depends(get_db), current_user=Depends(get_current_user), filters: dict = Depends(collect_filters)):
     service = OfferManagementService(db)
     query = service.repo.query_entries(service.filters_for_user(filters, current_user), current_user).order_by(OfferManagementEntry.offer_date.asc())
@@ -133,34 +134,34 @@ def export(db: Session = Depends(get_db), current_user=Depends(get_current_user)
     )
 
 
-@router.post('/import-excel', response_model=OfferImportResponse)
+@router.post(OfferManagementRoutes.IMPORT_EXCEL, response_model=OfferImportResponse)
 async def import_excel(file: UploadFile = File(...), db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     return await OfferExcelImportService(db).import_file(file, current_user)
 
 
-@router.get('/{entry_id}', response_model=OfferEntryResponse)
+@router.get(OfferManagementRoutes.BY_ENTRY_ID, response_model=OfferEntryResponse)
 def read_entry(entry_id: UUID, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     return serialize_entry(OfferManagementService(db).get(entry_id, current_user))
 
 
-@router.put('/{entry_id}', response_model=OfferEntryResponse)
+@router.put(OfferManagementRoutes.BY_ENTRY_ID, response_model=OfferEntryResponse)
 def update_entry(entry_id: UUID, payload: OfferEntryUpdate, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     return serialize_entry(OfferManagementService(db).update(entry_id, payload, current_user))
 
 
-@router.delete('/{entry_id}', status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(OfferManagementRoutes.BY_ENTRY_ID, status_code=status.HTTP_204_NO_CONTENT)
 def delete_entry(entry_id: UUID, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     OfferManagementService(db).delete(entry_id, current_user)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.post('/bulk-delete', response_model=OfferBulkDeleteResponse)
+@router.post(OfferManagementRoutes.BULK_DELETE, response_model=OfferBulkDeleteResponse)
 def bulk_delete_entries(payload: OfferBulkDeleteRequest, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     deleted_count = OfferManagementService(db).delete_many(payload.entry_ids, current_user)
     return {'deleted_count': deleted_count}
 
 
-@router.get('/{entry_id}/history', response_model=list[OfferEntryHistoryResponse])
+@router.get(OfferManagementRoutes.BY_ENTRY_ID_HISTORY, response_model=list[OfferEntryHistoryResponse])
 def entry_history(entry_id: UUID, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     require_offer_history_access(current_user)
     service = OfferManagementService(db)

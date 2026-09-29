@@ -7,6 +7,7 @@ from urllib.parse import quote_plus, urljoin
 import requests
 from bs4 import BeautifulSoup
 
+from app.constants.api import ExternalApi
 from app.modules.search_sku.schemas import PlatformProduct
 
 
@@ -19,7 +20,7 @@ class AlrezaSearchError(RuntimeError):
 
 class AlRezaExtractor:
     def __init__(self) -> None:
-        self.base_url = 'https://www.alrezaenterprise.com'
+        self.base_url = ExternalApi.ALREZA_BASE
         self.headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
         self.patterns = {
             'brand': [r'BRAND\s*[:：]\s*([A-Z0-9\-]+)'],
@@ -39,7 +40,7 @@ class AlRezaExtractor:
 
     def search_blog(self, query: str, limit: int) -> list[dict[str, str]]:
         try:
-            response = requests.get(f'{self.base_url}/search?q={quote_plus(query)}', headers=self.headers, timeout=15)
+            response = requests.get(ExternalApi.ALREZA_SEARCH.format(base_url=self.base_url, query=quote_plus(query)), headers=self.headers, timeout=15)
             response.raise_for_status()
         except requests.Timeout as exc:
             raise AlrezaSearchError('Alreza search timed out.') from exc

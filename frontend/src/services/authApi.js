@@ -1,3 +1,4 @@
+import { API } from '../constants/api'
 import { apiRequest } from './http'
 
 async function request(path, options = {}) {
@@ -5,32 +6,32 @@ async function request(path, options = {}) {
 }
 
 export function loginUser(credentials) {
-  return request('/auth/login', {
+  return request(API.AUTH.LOGIN, {
     method: 'POST',
     body: JSON.stringify(credentials),
   })
 }
 
 export function requestPasswordReset(payload) {
-  return request('/auth/forgot-password', {
+  return request(API.AUTH.FORGOT_PASSWORD, {
     method: 'POST',
     body: JSON.stringify(payload),
   })
 }
 
 export function resetPassword(payload) {
-  return request('/auth/reset-password', {
+  return request(API.AUTH.RESET_PASSWORD, {
     method: 'POST',
     body: JSON.stringify(payload),
   })
 }
 
 export function fetchCurrentSession() {
-  return request('/auth/me')
+  return request(API.AUTH.ME)
 }
 
 export function logoutUser() {
-  return request('/auth/logout', {
+  return request(API.AUTH.LOGOUT, {
     method: 'POST',
     body: JSON.stringify({}),
   })

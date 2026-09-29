@@ -1,3 +1,4 @@
+import { API, apiPath } from '../constants/api'
 import { apiRequest } from './http'
 
 async function request(path, options = {}) {
@@ -5,17 +6,17 @@ async function request(path, options = {}) {
 }
 
 export function fetchNotifications() {
-  return request('/notifications?limit=10')
+  return request(API.NOTIFICATIONS.ROOT + "?limit=10")
 }
 
 export function markNotificationsRead() {
-  return request('/notifications/read', { method: 'PATCH' })
+  return request(API.NOTIFICATIONS.READ, { method: 'PATCH' })
 }
 
 export function deleteNotification(notificationId) {
-  return request(`/notifications/${encodeURIComponent(notificationId)}`, { method: 'DELETE' })
+  return request(apiPath(API.NOTIFICATIONS.BY_NOTIFICATION_ID, { notificationId: encodeURIComponent(notificationId) }), { method: 'DELETE' })
 }
 
 export function deleteAllNotifications() {
-  return request('/notifications', { method: 'DELETE' })
+  return request(API.NOTIFICATIONS.ROOT, { method: 'DELETE' })
 }
