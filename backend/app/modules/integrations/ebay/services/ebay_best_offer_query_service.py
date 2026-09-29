@@ -90,6 +90,14 @@ class EbayBestOfferQueryService:
                 newer.provider_offer_id != Offer.provider_offer_id,
                 or_(newer_at > own_at, (newer_at == own_at) & (newer_number > own_number)),
             ).exists())
+            criteria.append(~select(newer.id).where(
+                newer.provider == 'EBAY', newer.record_source == 'TRADING',
+                newer.provider_role.in_(['Seller', 'Buyer']),
+                newer.listing_id == Offer.listing_id,
+                newer.provider_offer_id == Offer.provider_offer_id,
+                func.lower(func.trim(newer.buyer_username)) == func.lower(func.trim(Offer.buyer_username)),
+                func.upper(func.trim(newer.provider_status)).in_(CLOSED_STATUSES | {'ACCEPTED'}),
+            ).exists())
             criteria.append(~normalized_status.in_(CLOSED_STATUSES | {'ACCEPTED'}))
         else:
             criteria.append(~normalized_status.in_(OPEN_STATUSES | AGREED_STATUSES))

@@ -736,6 +736,14 @@ class EbayBestOfferSyncService:
         )
         created = offer is None
 
+        if (offer is not None and offer.record_source == 'TRADING'
+                and status_group(offer.provider_status) in {'CLOSED', 'COMPLETED'}
+                and status_group(raw.get('status')) in {'OPEN', 'AGREED'}):
+            # A delayed account/listing response must not reopen the same offer
+            # after a terminal provider response has already been observed.
+            offer.last_seen_at = offer.last_synced_at = datetime.now(UTC)
+            return offer, False
+
         if offer is None:
             offer = Offer(
                 provider="EBAY",

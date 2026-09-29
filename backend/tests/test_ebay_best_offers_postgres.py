@@ -129,6 +129,31 @@ def test_closed_latest_step_hides_older_snapshot_for_both_accounts(isolated):
     assert history[0]['offer_from'] == 'seller' and history[0]['offer_to'] == 'buyer'
 
 
+def test_declined_offer_cannot_reopen_from_delayed_provider_response(isolated, monkeypatch):
+    db, _, account, _ = isolated
+    offer = seed_offer(db, account, status='Declined')
+    original = dict(offer.provider_snapshot)
+    mock_two_pass(monkeypatch, lambda item_id: [raw(status='Countered')])
+    service = EbayBestOfferSyncService(db)
+    updated, created = service._upsert(account, raw(status='Pending'), None)
+    db.commit()
+    assert not created and updated.provider_status == 'Declined'
+    service.reconcile_listing(account, '456')
+    db.refresh(offer)
+    assert offer.provider_status == 'Declined' and offer.provider_snapshot == original
+    assert EbayBestOfferQueryService(db).list(view='current')['total'] == 0
+
+
+def test_same_offer_terminal_on_other_account_hides_stale_mirror(isolated):
+    db, _, account, user = isolated
+    other = EbayAccount(account_name='Buyer account', ebay_username='buyer', environment='PRODUCTION',
+        connection_status='CONNECTED', created_by=user.id)
+    db.add(other); db.commit()
+    seed_offer(db, account, status='Declined')
+    seed_offer(db, other, status='Countered', role='Buyer')
+    assert EbayBestOfferQueryService(db).list(view='current', account_id=other.id)['total'] == 0
+
+
 def test_quota_first_use_concurrent_atomic_and_caller_rollback(isolated):
     db, engine, account, _ = isolated
     account_id = account.id
