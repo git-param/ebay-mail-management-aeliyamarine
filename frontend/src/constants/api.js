@@ -105,6 +105,7 @@ export const API = Object.freeze({
     JOBS_BY_ID: "/integrations/ebay/best-offers/jobs/{id}",
     JOBS_BY_ID_CANCEL: "/integrations/ebay/best-offers/jobs/{id}/cancel",
     BY_ID_RESPOND: "/integrations/ebay/best-offers/{id}/respond",
+    BY_ID_DONE: "/integrations/ebay/best-offers/{id}/done",
     ACTIVITY_BY_ID_AUTHORIZE: "/integrations/ebay/best-offers/activity/{id}/authorize",
     ACTIVITY_BY_ID_SETUP: "/integrations/ebay/best-offers/activity/{id}/setup",
   }),

@@ -50,6 +50,8 @@ class EbayBestOfferActionService:
                     raise HTTPException(409, 'Idempotency key belongs to a different request')
                 return serialize_action(existing)
             offer = self.db.scalar(select(Offer).where(Offer.id == offer_id).with_for_update())
+            if offer.done_at is not None:
+                raise HTTPException(409, 'This offer was marked as done. Refresh the offers view.')
             account = self.db.get(EbayAccount, account_id)
             latest = self.db.scalar(select(EbayBestOfferAction).where(EbayBestOfferAction.offer_id == offer_id)
                 .order_by(EbayBestOfferAction.created_at.desc()).limit(1))

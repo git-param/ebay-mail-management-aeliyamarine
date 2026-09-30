@@ -889,7 +889,7 @@ export default function OfferManagement({ currentUser, onLogout }) {
     >
       <nav className="offer-module-tabs" aria-label="Offer Management sections">
         <button type="button" className={activeTab === 'entries' ? 'active' : ''} onClick={() => setActiveTab('entries')}>Offer Entries</button>
-        <button type="button" className={activeTab === 'current' ? 'active' : ''} onClick={() => setActiveTab('current')}>See Current Offers</button>
+        <button type="button" className={activeTab === 'current' ? 'active' : ''} onClick={() => setActiveTab('current')}>See eBay Offers</button>
         {canManageBestOffers && <button type="button" className={activeTab === 'config' ? 'active' : ''} onClick={() => setActiveTab('config')}>Config</button>}
       </nav>
       <main className="management-page offer-management-page" style={{ display: activeTab === 'entries' ? undefined : 'none' }}>

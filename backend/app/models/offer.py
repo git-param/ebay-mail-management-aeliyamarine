@@ -72,6 +72,7 @@ class Offer(Base):
     last_synced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_seen_sync_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("sync_logs.id", ondelete="SET NULL"))
     reconciliation_required: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)
+    done_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     version: Mapped[int] = mapped_column(Integer, default=1, server_default="1", nullable=False)
 
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

@@ -129,6 +129,28 @@ def test_closed_latest_step_hides_older_snapshot_for_both_accounts(isolated):
     assert history[0]['offer_from'] == 'seller' and history[0]['offer_to'] == 'buyer'
 
 
+def test_all_offers_last_checked_filter_and_mark_done(isolated):
+    from app.modules.integrations.ebay.routes.ebay_best_offer_routes import mark_done
+
+    db, _, account, user = isolated
+    older_at = datetime(2026, 9, 1, 10, tzinfo=UTC)
+    newer_at = datetime(2026, 9, 2, 10, tzinfo=UTC)
+    older = seed_offer(db, account, offer_id='100', status='Active', createdTime=newer_at.isoformat())
+    newer = seed_offer(db, account, offer_id='101', status='Declined', createdTime=older_at.isoformat())
+    older.last_synced_at = older_at
+    newer.last_synced_at = newer_at
+    db.commit()
+    service = EbayBestOfferQueryService(db)
+    assert {item['id'] for item in service.list(view='all')['items']} == {older.id, newer.id}
+    filtered = service.list(view='all', checked_after=datetime(2026, 9, 2, tzinfo=UTC))
+    assert [item['id'] for item in filtered['items']] == [newer.id]
+    mark_done(newer.id, db=db, user=user)
+    assert [item['id'] for item in service.list(view='all')['items']] == [older.id]
+    saved = service.list(view='done')['items']
+    assert [item['id'] for item in saved] == [newer.id]
+    assert saved[0]['display_status'] == 'Declined' and saved[0]['done_at']
+
+
 def test_declined_offer_cannot_reopen_from_delayed_provider_response(isolated, monkeypatch):
     db, _, account, _ = isolated
     offer = seed_offer(db, account, status='Declined')

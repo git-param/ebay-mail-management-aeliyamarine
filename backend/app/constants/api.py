@@ -165,6 +165,7 @@ class EbayBestOfferRoutes:
     SYNC = '/sync'
     JOBS_BY_JOB_ID = '/jobs/{job_id}'
     BY_OFFER_ID_RESPOND = '/{offer_id}/respond'
+    BY_OFFER_ID_DONE = '/{offer_id}/done'
     JOBS_BY_JOB_ID_CANCEL = '/jobs/{job_id}/cancel'
     ACTIVITY_BY_ACCOUNT_ID = '/activity/{account_id}'
     ACTIVITY_BY_ACCOUNT_ID_AUTHORIZE = '/activity/{account_id}/authorize'

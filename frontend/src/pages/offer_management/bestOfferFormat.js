@@ -25,7 +25,7 @@ export function bestOfferStatusGroup(value) {
   return 'UNKNOWN'
 }
 
-export const bestOfferGroupLabels = { OPEN: 'Open', AGREED: 'Waiting for buyer', COMPLETED: 'Completed', CLOSED: 'Closed', UNKNOWN: 'Other statuses' }
+export const bestOfferGroupLabels = { OPEN: 'Ongoing', AGREED: 'Waiting for buyer', COMPLETED: 'Completed', CLOSED: 'Closed', UNKNOWN: 'Other statuses' }
 
 export function bestOfferPrices(offer) {
   const currency = String(offer.currency || '').trim().toUpperCase()

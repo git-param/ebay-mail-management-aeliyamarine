@@ -13,6 +13,7 @@ export const syncBestOffers = (accountIds, includeHistory = false) => apiRequest
 export const fetchBestOfferJob = (id) => apiRequest(apiPath(API.EBAY_BEST_OFFERS.JOBS_BY_ID, { id }))
 export const cancelBestOfferJob = (id) => apiRequest(apiPath(API.EBAY_BEST_OFFERS.JOBS_BY_ID_CANCEL, { id }), { method: 'POST' })
 export const respondToBestOffer = (id, payload) => apiRequest(apiPath(API.EBAY_BEST_OFFERS.BY_ID_RESPOND, { id }), { method: 'POST', body: JSON.stringify(payload) })
+export const markBestOfferDone = (id) => apiRequest(apiPath(API.EBAY_BEST_OFFERS.BY_ID_DONE, { id }), { method: 'POST' })
 
 export const authorizeOfferActivity = (id) => apiRequest(apiPath(API.EBAY_BEST_OFFERS.ACTIVITY_BY_ID_AUTHORIZE, { id }), { method: 'POST' })
 export const setupOfferActivity = (id) => apiRequest(apiPath(API.EBAY_BEST_OFFERS.ACTIVITY_BY_ID_SETUP, { id }), { method: 'POST' })

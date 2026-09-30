@@ -54,7 +54,7 @@ class EbayBestOfferQueryService:
         self.db = db
 
     def list(self, *, account_id=None, status=None, lifecycle=None, view='current', search=None, buyer=None, item_id=None,
-             role=None, sort='expiring', page=1, page_size=25, can_respond=False):
+             role=None, checked_after=None, sort='expiring', page=1, page_size=25, can_respond=False):
         display_status = func.coalesce(Offer.provider_status, Offer.status)
         normalized_status = func.upper(func.trim(display_status))
         criteria = [Offer.provider == 'EBAY', Offer.record_source != 'DERIVED',
@@ -67,9 +67,14 @@ class EbayBestOfferQueryService:
             # the last complete snapshot. Terminal evidence still closes old steps.
             criteria.append(or_(Offer.id.in_(all_snapshot_ids),
                 normalized_status.in_(CLOSED_STATUSES | {'ACCEPTED'})))
-        # Rank before applying any user filters. Otherwise filtering Pending can
-        # incorrectly resurrect an older Pending offer after a newer acceptance.
-        criteria = [Offer.id.in_(latest_offer_ids(criteria))]
+        if view in {'all', 'done'}:
+            # Show every stored provider offer, including earlier negotiation steps.
+            # Completion is local workflow state and does not alter the eBay status.
+            criteria.append(Offer.done_at.is_not(None) if view == 'done' else Offer.done_at.is_(None))
+        else:
+            # Rank before applying any user filters. Otherwise filtering Pending can
+            # incorrectly resurrect an older Pending offer after a newer acceptance.
+            criteria = [Offer.id.in_(latest_offer_ids(criteria))]
         if view == 'current':
             criteria.append(Offer.id.in_(snapshot_ids))
             # A newer negotiation step can be verified through the other managed
@@ -100,7 +105,7 @@ class EbayBestOfferQueryService:
                 func.upper(func.trim(newer.provider_status)).in_(CLOSED_STATUSES | {'ACCEPTED'}),
             ).exists())
             criteria.append(~normalized_status.in_(CLOSED_STATUSES | {'ACCEPTED'}))
-        else:
+        elif view == 'history':
             criteria.append(~normalized_status.in_(OPEN_STATUSES | AGREED_STATUSES))
         visible_criteria = list(criteria)
         if role == 'Unknown':
@@ -109,6 +114,8 @@ class EbayBestOfferQueryService:
             criteria.append(Offer.provider_role == role)
         if account_id:
             criteria.append(Offer.account_id == account_id)
+        if checked_after:
+            criteria.append(Offer.last_synced_at >= checked_after)
         if status:
             criteria.append(normalized_status == status_key(status))
         if lifecycle:
@@ -128,7 +135,7 @@ class EbayBestOfferQueryService:
                 Offer.listing_snapshot['sku'].astext.ilike(needle)))
         base = select(Offer).where(*criteria)
         total = self.db.scalar(select(func.count()).select_from(base.subquery()))
-        order = {'expiring': Offer.expires_at.asc().nulls_last(), 'newest': Offer.first_seen_at.desc(),
+        order = {'expiring': Offer.expires_at.asc().nulls_last(), 'newest': func.coalesce(Offer.received_at, Offer.created_at_provider, Offer.first_seen_at).desc(),
                  'amount': Offer.offer_amount.desc().nulls_last(),
                  'listing_price': cast(Offer.listing_snapshot['price'].astext, Numeric).desc().nulls_last()}[sort]
         offers = list(self.db.scalars(base.order_by(order, Offer.id).offset((page-1)*page_size).limit(page_size)))
@@ -166,6 +173,7 @@ class EbayBestOfferQueryService:
                         entry.setdefault(field, value)
                 if line.image_url and line.image_url.strip():
                     entry.setdefault('image_urls', []).append(line.image_url)
+        current_ids = current_snapshot_ids(self.db)[0] if view == 'all' and can_respond else set()
         items = []
         for offer in offers:
             raw, listing = offer.provider_snapshot or offer.raw_payload or {}, offer.listing_snapshot or {}
@@ -190,12 +198,15 @@ class EbayBestOfferQueryService:
                 'record_source': offer.record_source, 'status_verified': bool(offer.provider_snapshot),
                 'provider_role': offer.provider_role, 'amount': raw.get('amount') if raw.get('amount') is not None else offer.offer_amount, 'currency': raw.get('currency') or offer.currency,
                 'quantity': raw.get('quantity'), 'buyer_message': raw.get('buyerMessage'),
-                'listing': listing, 'received_at': offer.received_at, 'received_at_source': offer.received_at_source,
-                'first_seen_at': offer.first_seen_at, 'expires_at': offer.expires_at,
+                'listing': listing, 'received_at': offer.received_at, 'created_at_provider': offer.created_at_provider,
+                'received_at_source': offer.received_at_source,
+                'first_seen_at': offer.first_seen_at, 'expires_at': offer.expires_at, 'done_at': offer.done_at,
                 'last_synced_at': offer.last_synced_at, 'version': offer.version,
                 'reconciliation_required': offer.reconciliation_required,
                 'last_action': {'action': action.action, 'state': action.state, 'id': action.id} if action else None,
-                'can_respond': view == 'current' and can_respond and bool(account and account.is_active and account.connection_status.value == 'CONNECTED') and actionable(offer, action)})
+                'can_respond': view != 'done' and offer.done_at is None and can_respond
+                    and bool(account and account.is_active and account.connection_status.value == 'CONNECTED')
+                    and actionable(offer, action) and (view == 'current' or offer.id in current_ids)})
         summary = dict(self.db.execute(select(display_status, func.count()).where(*criteria).group_by(display_status)).all())
         groups = {key: 0 for key in ('OPEN', 'AGREED', 'COMPLETED', 'CLOSED', 'UNKNOWN')}
         for value, count in summary.items():

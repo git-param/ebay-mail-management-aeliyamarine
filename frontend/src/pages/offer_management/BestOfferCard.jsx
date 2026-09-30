@@ -2,7 +2,7 @@ import { bestOfferPrices, bestOfferDate, bestOfferStatusKey, bestOfferStatusLabe
 import { ebayMarketplaceHost, ebayListingUrl } from '../../utils/ebayUrls'
 import OfferThumbnail from './OfferThumbnail'
 
-export default function BestOfferCard({ offer, now, onAction, loading }) {
+export default function BestOfferCard({ offer, now, onAction, onDone, doneBusy, loading }) {
   const listing = offer.listing || {}
   const listingUrl = ebayListingUrl(offer.listing_id, ebayMarketplaceHost({ account_name: offer.account_name, ebay_username: offer.account_username }))
   const remaining = offer.expires_at ? Math.max(0, new Date(offer.expires_at).getTime() - now) : null
@@ -31,7 +31,7 @@ export default function BestOfferCard({ offer, now, onAction, loading }) {
         {offer.seller ? <div><dt>Seller</dt><dd>{offer.seller}</dd></div> : null}
       </dl>
       {offer.buyer_message ? <blockquote>{offer.buyer_message}</blockquote> : null}
-      <div className="bo-card-dates"><span>{offer.received_at ? `Received: ${bestOfferDate(offer.received_at)}` : `Added to ACES: ${bestOfferDate(offer.first_seen_at)}`}</span>
+      <div className="bo-card-dates"><span>{(offer.received_at || offer.created_at_provider) ? `Received by eBay: ${bestOfferDate(offer.received_at || offer.created_at_provider)}` : `Added to ACES: ${bestOfferDate(offer.first_seen_at)}`}</span>
       <span>{offer.status_verified ? 'Last checked with eBay' : 'Last processed in ACES'}: {bestOfferDate(offer.last_synced_at)}</span></div>
     </div>
     <div className="best-offer-prices">
@@ -47,6 +47,8 @@ export default function BestOfferCard({ offer, now, onAction, loading }) {
         <button className="secondary-button" onClick={() => onAction(offer, 'Counter')}>Counter Offer</button>
         <button className="secondary-button" onClick={() => onAction(offer, 'Decline')}>Decline</button>
       </div> : null}
+      {onDone ? <button className="secondary-button bo-done-button" type="button" disabled={loading || doneBusy} onClick={() => onDone(offer)}>{doneBusy ? 'Saving...' : 'Mark as done'}</button> : null}
+      {offer.done_at ? <small>Marked done: {bestOfferDate(offer.done_at)}</small> : null}
       {listingUrl ? <a className="bo-ebay-link" href={listingUrl} target="_blank" rel="noreferrer">View on eBay ↗</a> : null}
     </div>
   </article>

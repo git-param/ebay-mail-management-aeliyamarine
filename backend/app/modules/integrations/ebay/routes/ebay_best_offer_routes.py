@@ -1,4 +1,5 @@
 from uuid import UUID
+from datetime import UTC, datetime
 from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import select
@@ -6,6 +7,7 @@ from app.constants.api import EbayBestOfferRoutes
 from app.api.dependencies import get_current_user, require_operations_manager_or_admin, normalized_role_name
 from app.db.session import get_db
 from app.models.conversation import SyncLog
+from app.models.offer import Offer
 from app.repositories.permission_repository import PermissionRepository
 from app.modules.integrations.ebay.schemas.best_offer_schemas import BestOfferConfigUpdate, BestOfferSyncRequest, BestOfferActionRequest
 from app.modules.integrations.ebay.services.ebay_best_offer_query_service import EbayBestOfferQueryService
@@ -25,15 +27,30 @@ def require_offer_view(user=Depends(get_current_user)):
 @router.get(EbayBestOfferRoutes.CURRENT)
 def current(account_id: UUID | None = None, status: str | None = None,
             lifecycle: Literal['OPEN','AGREED','COMPLETED','CLOSED','UNKNOWN'] | None = None,
-            view: Literal['current', 'history'] = 'current',
+            view: Literal['current', 'history', 'all', 'done'] = 'current',
             search: str | None = Query(default=None, max_length=255), buyer: str | None = None, item_id: str | None = None,
+            checked_after: datetime | None = None,
             role: Literal['Buyer','Seller','Unknown'] | None = None,
             sort: Literal['expiring','newest','amount','listing_price']='expiring',
             page: int = Query(1, ge=1), page_size: int = Query(25, ge=1, le=100),
             db=Depends(get_db), user=Depends(require_offer_view)):
     allowed = bool(user.role_id and PermissionRepository(db).role_has_permission(user.role_id, 'offer.respond'))
     return EbayBestOfferQueryService(db).list(account_id=account_id, status=status, lifecycle=lifecycle, view=view, search=search, buyer=buyer,
-        item_id=item_id, role=role, sort=sort, page=page, page_size=page_size, can_respond=allowed)
+        item_id=item_id, role=role, checked_after=checked_after, sort=sort, page=page, page_size=page_size, can_respond=allowed)
+
+
+@router.post(EbayBestOfferRoutes.BY_OFFER_ID_DONE)
+def mark_done(offer_id: UUID, db=Depends(get_db), user=Depends(require_offer_view)):
+    offer = db.get(Offer, offer_id)
+    if not offer or offer.provider != 'EBAY':
+        raise HTTPException(404, 'Offer not found')
+    if offer.done_at is None:
+        offer.done_at = datetime.now(UTC)
+        from app.services.audit_service import AuditService
+        AuditService(db).log(action='EBAY_BEST_OFFER_MARKED_DONE', user_id=user.id,
+            entity_type='OFFER', entity_id=offer.id, category='OFFER_MANAGEMENT')
+        db.commit()
+    return {'id': offer.id, 'done_at': offer.done_at}
 
 
 @router.get(EbayBestOfferRoutes.ACCOUNTS)
