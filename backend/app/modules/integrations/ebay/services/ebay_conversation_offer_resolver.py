@@ -2,7 +2,7 @@ from decimal import Decimal, InvalidOperation
 import logging
 import re
 
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -63,18 +63,6 @@ class EbayConversationOfferResolver:
         if not account:
             return []
 
-        buyer_identifier = str(conversation.buyer_identifier or "").strip().lower()
-        linked_offers = list(self.db.scalars(select(Offer).where(
-            Offer.provider == "EBAY", Offer.account_id == account.id,
-            Offer.conversation_id == conversation.id,
-        )))
-        for offer in linked_offers:
-            wrong_buyer = bool(offer.buyer_username and str(offer.buyer_username).strip().lower() != buyer_identifier)
-            wrong_listing = bool(offer.listing_id and offer.listing_id != conversation.reference_id)
-            if wrong_buyer or wrong_listing:
-                offer.conversation_id = None
-                offer.message_id = None
-        self.db.flush()
         offers_by_provider_id = {
             offer.provider_offer_id: offer
             for offer in self.db.scalars(
@@ -88,8 +76,8 @@ class EbayConversationOfferResolver:
         }
 
         reference_id = str(conversation.reference_id or "").strip()
+        buyer_identifier = str(conversation.buyer_identifier or "").strip().lower()
         seen_offer_keys = set()
-        resolution_failed = False
 
         # Attach existing synced offers to the synced conversation.
         # This handles offers created from eBay offer APIs where message_id is missing.
@@ -99,15 +87,18 @@ class EbayConversationOfferResolver:
                     select(Offer).where(
                         Offer.provider == "EBAY",
                         Offer.account_id == account.id,
-                        Offer.listing_id == reference_id,
-                        func.lower(func.trim(func.coalesce(Offer.buyer_username, ""))) == buyer_identifier,
+                        or_(
+                            Offer.conversation_id == conversation.id,
+                            and_(
+                                Offer.listing_id == reference_id,
+                                func.lower(func.coalesce(Offer.buyer_username, "")) == buyer_identifier,
+                            ),
+                        ),
                     )
                 )
             )
 
             for offer in existing_external_offers:
-                if offer.conversation_id != conversation.id:
-                    offer.message_id = None
                 offer.conversation_id = conversation.id
                 if not offer.buyer_username and conversation.buyer_identifier:
                     offer.buyer_username = conversation.buyer_identifier
@@ -126,12 +117,6 @@ class EbayConversationOfferResolver:
 
             if not offer_data:
                 message.offer_data = None
-                continue
-
-            # An explicit buyer in the notification must match this thread.
-            extracted_buyer = str(offer_data.get('buyer_username') or '').strip().lower()
-            if extracted_buyer and extracted_buyer != buyer_identifier:
-                message.offer_data = {"notification_type": "OFFER"}
                 continue
 
             message.offer_data = {"notification_type": "OFFER"}
@@ -164,17 +149,15 @@ class EbayConversationOfferResolver:
             seen_offer_keys.add(offer_key)
 
             try:
-                with self.db.begin_nested():
-                    offer = self._upsert_offer_from_message(
-                        account=account,
-                        conversation=conversation,
-                        message=message,
-                        offer_data=offer_data,
-                        offers_by_provider_id=offers_by_provider_id,
-                    )
+                offer = self._upsert_offer_from_message(
+                    account=account,
+                    conversation=conversation,
+                    message=message,
+                    offer_data=offer_data,
+                    offers_by_provider_id=offers_by_provider_id,
+                )
             except IntegrityError:
-                resolution_failed = True
-                offers_by_provider_id.pop(provider_offer_id, None)
+                self.db.rollback()
                 logger.warning(
                     "Offer upsert integrity failure but conversation offer resolution will continue. "
                     "account_id=%s conversation_id=%s message_id=%s provider_offer_id=%s payload=%s",
@@ -186,8 +169,7 @@ class EbayConversationOfferResolver:
                 )
                 continue
             except Exception:
-                resolution_failed = True
-                offers_by_provider_id.pop(provider_offer_id, None)
+                self.db.rollback()
                 logger.exception(
                     "Unexpected offer upsert error but conversation offer resolution will continue. "
                     "account_id=%s conversation_id=%s message_id=%s provider_offer_id=%s payload=%s",
@@ -201,10 +183,6 @@ class EbayConversationOfferResolver:
 
             message.offer_data = {"notification_type": "OFFER"}
 
-        conversation.raw_payload = {
-            **(conversation.raw_payload or {}),
-            'offer_resolution_failed': resolution_failed,
-        }
         self.db.flush()
         OfferConsistencyService(self.db).sync_conversation(conversation.id)
 
@@ -256,11 +234,11 @@ class EbayConversationOfferResolver:
                 raw_text=offer_data.get("raw_text"),
                 raw_payload=offer_data.get("raw_payload"),
             )
+            self.db.add(offer)
             try:
-                with self.db.begin_nested():
-                    self.db.add(offer)
-                    self.db.flush()
+                self.db.flush()
             except IntegrityError:
+                self.db.rollback()
                 offer = self._existing_offer(account_id, provider_offer_id)
                 if not offer:
                     raise
@@ -379,9 +357,18 @@ class EbayConversationOfferResolver:
             or ""
         )
 
-        # The thread title can describe an older offer while this message is a
-        # normal question. Only this message can establish an offer event.
-        text = " ".join((message_subject, body)).replace("\xa0", " ")
+        conversation_payload = conversation.raw_payload if isinstance(conversation.raw_payload, dict) else {}
+        summary_payload = conversation_payload.get("summary") if isinstance(conversation_payload.get("summary"), dict) else {}
+        detail_payload = conversation_payload.get("detail") if isinstance(conversation_payload.get("detail"), dict) else {}
+
+        conversation_subject = str(
+            conversation.subject
+            or summary_payload.get("conversationTitle")
+            or detail_payload.get("conversationTitle")
+            or ""
+        )
+
+        text = " ".join((conversation_subject, message_subject, body)).replace("\xa0", " ")
         text = " ".join(text.split())
         logger.warning("Offer text to parse: %s", text)
         lower = text.lower()

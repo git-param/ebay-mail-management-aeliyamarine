@@ -738,13 +738,6 @@ class EbayBestOfferSyncService:
         )
         created = offer is None
 
-        # Repair stale links even when a delayed snapshot cannot change status.
-        if offer is not None:
-            matched_id = conversation.id if conversation else None
-            if offer.conversation_id != matched_id:
-                offer.message_id = None
-            offer.conversation_id = matched_id
-
         if (offer is not None and offer.record_source == 'TRADING'
                 and status_group(offer.provider_status) in {'CLOSED', 'COMPLETED'}
                 and status_group(raw.get('status')) in {'OPEN', 'AGREED'}):
@@ -926,7 +919,7 @@ class EbayBestOfferSyncService:
     def _match_conversation(self, account_id: UUID, listing_id: str, buyer: str) -> Conversation | None:
         buyer = str(buyer or '').strip()
         listing_id = str(listing_id or '').strip()
-        if not listing_id or not buyer:
+        if not listing_id:
             return None
         
         statement = select(Conversation).where(
@@ -934,9 +927,15 @@ class EbayBestOfferSyncService:
             Conversation.provider_conversation_type == 'FROM_MEMBERS',
             Conversation.reference_id == listing_id,
         )
-        return self.db.scalar(statement.where(
-            func.lower(func.trim(Conversation.buyer_identifier)) == buyer.lower()
-        ).order_by(Conversation.last_message_at.desc(), Conversation.id.asc()))
+        if buyer:
+            exact = self.db.scalar(statement.where(func.lower(Conversation.buyer_identifier) == buyer.lower()))
+            if exact:
+                return exact
+
+        candidates = list(self.db.scalars(statement))
+        if len(candidates) == 1:
+            return candidates[0]
+        return None
 
     def _status(self, value) -> OfferStatus:
         normalized = status_key(value or 'Pending')

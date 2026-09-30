@@ -1,6 +1,6 @@
 import logging
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from time import perf_counter
 from uuid import UUID
 
@@ -9,7 +9,6 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.conversation import SyncLog, SyncLogStatus
-from app.models.app_config import AppConfigSetting
 from app.models.ebay_account import EbayAccount, EbayConnectionStatus
 from app.modules.integrations.ebay.oauth.token_service import EbayTokenService
 from app.modules.integrations.ebay.providers import EBAY_PROVIDER_NAME
@@ -26,8 +25,6 @@ logger = logging.getLogger(__name__)
 
 EBAY_MESSAGE_SYNC_TYPE = 'EBAY_MESSAGE_SYNC'
 EBAY_CONVERSATION_TYPES = ('FROM_MEMBERS', 'FROM_EBAY')
-SYNC_OVERLAP = timedelta(minutes=1)
-DEFAULT_NOTIFICATION_SYNC_INTERVAL_MINUTES = 60
 
 
 @dataclass(frozen=True)
@@ -73,7 +70,7 @@ class EbaySyncService:
         sync_log_id: UUID | None = None,
     ) -> EbaySyncResult:
         account = self._get_syncable_account(account_id)
-        updated_since = self._sync_window_start(account.last_sync_at)
+        updated_since = account.last_sync_at
 
         # Worker jobs reuse the RUNNING log created by the API before the
         # child process starts. Direct callers still create their own log.
@@ -88,7 +85,6 @@ class EbaySyncService:
 
         try:
             account = self._ensure_access_token(account)
-            sync_context['notification_sync_plan'] = self._notification_sync_plan(account, sync_context['sync_started_at_utc'])
             
             # Process conversations
             self._process_conversations(account, updated_since, max_conversations, sync_log, counters, sync_context)
@@ -193,7 +189,7 @@ class EbaySyncService:
                 detail='An eBay sync is already running for this account',
             )
 
-        updated_since = self._sync_window_start(account.last_sync_at)
+        updated_since = account.last_sync_at
         sync_log = self.sync_log_service.start_sync(
             provider=EBAY_PROVIDER_NAME,
             provider_account_id=account.id,
@@ -279,11 +275,8 @@ class EbaySyncService:
             'total_conversations_available': None,
             'detail_seconds_total': 0.0,
             'sync_started_at': perf_counter(),
-            'sync_started_at_utc': datetime.now(UTC),
             'failed_conversations': [],
-            'enrichment_failed_conversation_ids': [],
             'touched_listing_ids': set(),
-            'notification_sync_plan': {'due': False, 'updated_since': updated_since},
         }
 
 
@@ -301,7 +294,6 @@ class EbaySyncService:
             account,
             max_conversations=max_conversations,
             updated_since=updated_since,
-            notification_plan=sync_context['notification_sync_plan'],
         ):
             if page_total is not None:
                 sync_context['total_conversations_available'] = page_total
@@ -349,16 +341,12 @@ class EbaySyncService:
             return
 
         try:
-            # Fetch every message page before marking this conversation imported.
-            conversation_detail = self._complete_conversation_detail(
-                account, conversation_id, conversation_type, detail_response.payload
-            )
             self._process_conversation_detail(
                 account,
                 conversation_summary,
                 conversation_id,
                 conversation_type,
-                conversation_detail,
+                detail_response,
                 detail_started_at,
                 counters,
                 sync_context
@@ -376,13 +364,14 @@ class EbaySyncService:
         conversation_summary: dict,
         conversation_id: str,
         conversation_type: str,
-        conversation_detail: dict,
+        detail_response,
         detail_started_at: float,
         counters: dict,
         sync_context: dict,
     ) -> None:
         """Process the conversation detail data."""
         with self.db.begin_nested():
+            conversation_detail = detail_response.payload
             detail_elapsed_seconds = perf_counter() - detail_started_at
             sync_context['detail_seconds_total'] += detail_elapsed_seconds
             
@@ -398,75 +387,21 @@ class EbaySyncService:
 
             self.db.flush()
 
+            self.product_context_service.enrich_conversation(conversation)
             messages_created, messages_updated = self.message_service.upsert_messages(
                 account=account,
                 conversation=conversation,
                 conversation_detail=conversation_detail,
             )
-            self.db.flush()
-            # Enrichment failures must not erase the conversation or messages.
-            enrichment_failed = False
-            for enrich in (
-                self.product_context_service.enrich_conversation,
-                self.conversation_offer_resolver.resolve_for_conversation,
-            ):
-                try:
-                    with self.db.begin_nested():
-                        enrich(conversation)
-                        self.db.flush()
-                except Exception:
-                    enrichment_failed = True
-                    logger.exception('eBay conversation enrichment failed account_id=%s conversation_id=%s', account.id, conversation_id)
-            enrichment_failed = enrichment_failed or bool(conversation.raw_payload.get('offer_resolution_failed'))
+            self.conversation_offer_resolver.resolve_for_conversation(conversation)
 
-        # Only count imports after their savepoint has successfully flushed.
-        counters['conversations_processed'] += 1
-        counters['conversations_created' if created else 'conversations_updated'] += 1
-        counters['messages_created'] += messages_created
-        counters['messages_updated'] += messages_updated
-        if enrichment_failed:
-            sync_context['enrichment_failed_conversation_ids'].append(conversation_id)
-
-    def _complete_conversation_detail(
-        self,
-        account: EbayAccount,
-        conversation_id: str,
-        conversation_type: str,
-        first_page: dict,
-    ) -> dict:
-        detail = dict(first_page)
-        if not isinstance(first_page.get('messages'), list):
-            raise ValueError('eBay conversation detail omitted messages')
-        messages = list(first_page['messages'])
-        page = first_page
-        offset = 0
-        while True:
-            total = page.get('total')
-            next_offset = offset + 50
-            if not page.get('next') and (not isinstance(total, int) or next_offset >= total):
-                break
-            response = self._get_conversation_detail_with_retry(
-                account, conversation_id=conversation_id,
-                conversation_type=conversation_type, limit=50, offset=next_offset,
-            )
-            if not response.ok or not isinstance(response.payload, dict):
-                raise RuntimeError(f'eBay conversation detail page failed at offset {next_offset}: HTTP {response.status_code}')
-            page = response.payload
-            page_messages = page.get('messages')
-            if not isinstance(page_messages, list) or not page_messages:
-                raise ValueError(f'eBay conversation detail page unexpectedly empty at offset {next_offset}')
-            messages.extend(page_messages)
-            offset = next_offset
-        detail['messages'] = messages
-        total = first_page.get('total')
-        if isinstance(total, int) and len(messages) < total:
-            raise ValueError('eBay conversation detail returned fewer messages than total')
-        for message in messages:
-            message_id = message.get('messageId') if isinstance(message, dict) else None
-            if not isinstance(message_id, str) or not message_id.strip():
-                raise ValueError('eBay conversation detail contains a message without messageId')
-        detail.pop('next', None)
-        return detail
+            counters['conversations_processed'] += 1
+            if created:
+                counters['conversations_created'] += 1
+            else:
+                counters['conversations_updated'] += 1
+            counters['messages_created'] += messages_created
+            counters['messages_updated'] += messages_updated
 
 
     def _handle_failed_conversation_detail(
@@ -644,12 +579,10 @@ class EbaySyncService:
         order_sync_error: str | None,
     ) -> EbaySyncResult:
         """Finalize the sync process."""
-        enrichment_failures = sync_context['enrichment_failed_conversation_ids']
-        if not counters['conversations_failed'] and not enrichment_failures and not sync_context['max_conversations']:
-            account.last_sync_at = sync_context['sync_started_at_utc']
+        account.last_sync_at = datetime.now(UTC)
         account.sync_status = (
             'SUCCESS_WITH_ERRORS'
-            if counters['conversations_failed'] or enrichment_failures or order_sync_error or (order_sync_result and order_sync_result.orders_failed)
+            if counters['conversations_failed'] or order_sync_error or (order_sync_result and order_sync_result.orders_failed)
             else 'SUCCESS'
         )
         
@@ -661,11 +594,6 @@ class EbaySyncService:
         )
         
         self._set_sync_error_messages(sync_log, counters, order_sync_result, order_sync_error)
-        if enrichment_failures:
-            sync_log.error_message = '; '.join(filter(None, [
-                sync_log.error_message,
-                f'{len(enrichment_failures)} conversation(s) failed during enrichment',
-            ]))
         self._set_sync_metadata(sync_log, counters, sync_context, elapsed_seconds, order_sync_result, order_sync_error)
         
         self.db.commit()
@@ -742,8 +670,6 @@ class EbaySyncService:
                 'incremental': order_sync_result.incremental if order_sync_result else None,
                 'error': order_sync_error,
             },
-            'enrichment_failed_conversation_ids': sync_context['enrichment_failed_conversation_ids'],
-            'notification_sync': self._notification_sync_metadata(counters, sync_context),
         }
 
 
@@ -799,18 +725,10 @@ class EbaySyncService:
         *,
         max_conversations: int | None = None,
         updated_since: datetime | None = None,
-        notification_plan: dict | None = None,
     ):
         limit = 50
         yielded_count = 0
-        # Routine syncs retain the former old-page stopping behavior. A due
-        # extended scan reconciles later pages using the older saved cutoff,
-        # since eBay does not guarantee ordering by latest-message activity.
-        extended_scan = notification_plan is None or notification_plan['due'] or updated_since is None
         for conversation_type in EBAY_CONVERSATION_TYPES:
-            if conversation_type == 'FROM_EBAY' and notification_plan is not None and not notification_plan['due']:
-                continue
-            cutoff = notification_plan['updated_since'] if notification_plan is not None and notification_plan['due'] else updated_since
             offset = 0
             while True:
                 response = self._get_conversations_with_retry(
@@ -818,9 +736,6 @@ class EbaySyncService:
                     conversation_type=conversation_type,
                     limit=limit,
                     offset=offset,
-                    # Provider time filtering can omit replies in older member
-                    # threads. Compare latest-message activity locally instead.
-                    start_time=None,
                 )
                 if not response.ok or not isinstance(response.payload, dict):
                     logger.warning(
@@ -841,81 +756,43 @@ class EbaySyncService:
                 page_total = total if isinstance(total, int) else None
                 conversations = payload.get('conversations') if isinstance(payload.get('conversations'), list) else []
                 logger.warning(
-                    'eBay conversation list page fetched account_id=%s type=%s offset=%s limit=%s page_count=%s total_available=%s max_conversations=%s updated_since=%s status_code=%s',
-                    account.id,
+                    'eBay conversation list page fetched type=%s offset=%s limit=%s page_count=%s total_available=%s max_conversations=%s',
                     conversation_type,
                     offset,
                     limit,
                     len(conversations),
                     page_total,
                     max_conversations,
-                    cutoff.isoformat() if cutoff else None,
-                    response.status_code,
                 )
-                if conversation_type == 'FROM_MEMBERS' and offset == 0 and cutoff and not conversations:
-                    logger.warning(
-                        'eBay returned no member conversations for window account_id=%s updated_since=%s; '
-                        'verify the account and provider response if messages are visible on eBay',
-                        account.id, cutoff.isoformat(),
-                    )
-                old_count = 0
+                yielded_from_page = 0
+                older_or_equal_count = 0
                 for conversation in conversations:
                     if isinstance(conversation, dict):
                         conversation.setdefault('conversationType', conversation_type)
                         last_activity_at = self._conversation_activity_at(conversation)
-                        if conversation_type == 'FROM_EBAY' and last_activity_at is None:
-                            last_activity_at = self._parse_ebay_datetime(conversation.get('createdDate'))
-
-                        if cutoff and last_activity_at and last_activity_at < cutoff:
-                            old_count += 1
+                        if updated_since and last_activity_at and last_activity_at <= updated_since:
+                            older_or_equal_count += 1
                             continue
-
                         yield conversation, page_total
+                        yielded_from_page += 1
                         yielded_count += 1
                         if max_conversations and yielded_count >= max_conversations:
                             return
 
                 if not conversations:
                     break
-                if not extended_scan and cutoff and old_count == len(conversations):
-                    logger.warning('Stopping routine eBay summary scan at old page account_id=%s type=%s offset=%s cutoff=%s; later pages reconcile on the extended scan',
-                                   account.id, conversation_type, offset, cutoff.isoformat())
+                if updated_since and yielded_from_page == 0 and older_or_equal_count == len(conversations):
+                    logger.info(
+                        'Stopping incremental eBay sync account_id=%s conversation_type=%s offset=%s because page is older than last_sync_at=%s',
+                        account.id,
+                        conversation_type,
+                        offset,
+                        updated_since.isoformat(),
+                    )
                     break
                 offset += limit
                 if page_total is not None and offset >= page_total:
                     break
-
-    def _notification_sync_plan(self, account: EbayAccount, now: datetime) -> dict:
-        configured_interval = self.db.scalar(select(AppConfigSetting.value).where(
-            AppConfigSetting.config_key == 'api.ebay_notification_sync_interval_minutes'))
-        interval = max(1, int(configured_interval)) if configured_interval is not None else DEFAULT_NOTIFICATION_SYNC_INTERVAL_MINUTES
-        previous = self.db.scalar(select(SyncLog).where(
-            SyncLog.provider == EBAY_PROVIDER_NAME,
-            SyncLog.provider_account_id == account.id,
-            SyncLog.sync_type == EBAY_MESSAGE_SYNC_TYPE,
-            SyncLog.status == SyncLogStatus.SUCCESS,
-            SyncLog.sync_metadata['notification_sync']['completed'].as_boolean() == True,
-        ).order_by(SyncLog.started_at.desc()).limit(1))
-        previous_at = (self._parse_ebay_datetime(previous.sync_metadata['notification_sync'].get('synced_through'))
-                       if previous is not None else None)
-        due = previous_at is None or now >= previous_at + timedelta(minutes=interval)
-        cutoff = self._sync_window_start(previous_at if previous_at is not None else account.last_sync_at)
-        logger.warning('eBay notification sync plan account_id=%s due=%s interval_minutes=%s updated_since=%s',
-                       account.id, due, interval, cutoff.isoformat() if cutoff else None)
-        return {'due': due, 'updated_since': cutoff, 'interval_minutes': interval}
-
-    def _notification_sync_metadata(self, counters: dict, sync_context: dict) -> dict:
-        plan = sync_context['notification_sync_plan']
-        completed = (plan['due'] and not counters['conversations_failed']
-                     and not sync_context['enrichment_failed_conversation_ids'] and not sync_context['max_conversations'])
-        cutoff = plan['updated_since']
-        return {
-            'included': plan['due'], 'completed': bool(completed),
-            'member_reconciliation_included': plan['due'],
-            'interval_minutes': plan.get('interval_minutes', DEFAULT_NOTIFICATION_SYNC_INTERVAL_MINUTES),
-            'updated_since': cutoff.isoformat() if cutoff else None,
-            'synced_through': sync_context['sync_started_at_utc'].isoformat() if completed else None,
-        }
 
     def _get_syncable_account(self, account_id: UUID) -> EbayAccount:
         account = self.db.get(EbayAccount, account_id)
@@ -950,7 +827,6 @@ class EbaySyncService:
         conversation_type: str,
         limit: int,
         offset: int,
-        start_time: datetime | None = None,
     ):
         self.api_usage_service.reserve_calls(1, EbayApiUsageService.COMMERCE)
         response = self.token_service.client.get_conversations_raw(
@@ -958,7 +834,6 @@ class EbaySyncService:
             conversation_type=conversation_type,
             limit=limit,
             offset=offset,
-            start_time=start_time,
         )
         if response.status_code != status.HTTP_401_UNAUTHORIZED:
             return response
@@ -970,7 +845,6 @@ class EbaySyncService:
             conversation_type=conversation_type,
             limit=limit,
             offset=offset,
-            start_time=start_time,
         )
 
     def _get_conversation_detail_with_retry(
@@ -1015,20 +889,13 @@ class EbaySyncService:
             return conversation_type.strip()
         return 'FROM_MEMBERS'
 
-    def _sync_window_start(self, last_sync_at: datetime | None) -> datetime | None:
-        if last_sync_at is None:
-            return None
-        normalized = last_sync_at.astimezone(UTC) if last_sync_at.tzinfo else last_sync_at.replace(tzinfo=UTC)
-        return normalized - SYNC_OVERLAP
-
     def _conversation_activity_at(self, conversation_summary: dict) -> datetime | None:
         latest_message = conversation_summary.get('latestMessage')
         if isinstance(latest_message, dict):
             parsed_latest_message = self._parse_ebay_datetime(latest_message.get('createdDate'))
             if parsed_latest_message:
                 return parsed_latest_message
-        # Creation time cannot establish whether an existing thread changed.
-        return None
+        return self._parse_ebay_datetime(conversation_summary.get('createdDate'))
 
     def _parse_ebay_datetime(self, value: object) -> datetime | None:
         if not isinstance(value, str) or not value.strip():
