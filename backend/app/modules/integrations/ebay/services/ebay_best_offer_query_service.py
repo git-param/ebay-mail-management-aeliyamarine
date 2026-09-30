@@ -1,7 +1,7 @@
 """Database-only buyer, seller and historical offer view. No token service or provider client dependency."""
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal, InvalidOperation
-from sqlalchemy import select, func, or_, Numeric, String, cast, case
+from sqlalchemy import select, func, or_, and_, Numeric, String, cast, case
 from sqlalchemy.orm import aliased
 from app.models.offer import Offer
 from app.models.ebay_account import EbayAccount
@@ -28,6 +28,28 @@ def latest_offer_ids(criteria):
         order_by=(latest_at.desc(), numeric_id.desc().nulls_last(), Offer.created_at.desc(), Offer.id.desc()),
     ).label('position')).where(*criteria).subquery()
     return select(ranked.c.id).where(ranked.c.position == 1)
+
+
+def negotiation_identity(offer):
+    buyer = (offer.buyer_username or '').strip().lower()
+    listing = (offer.listing_id or '').strip()
+    return (offer.account_id, listing, buyer) if listing and buyer else (offer.id,)
+
+
+def negotiation_side(offer):
+    raw = offer.provider_snapshot or offer.raw_payload or {}
+    offer_type = raw.get('offerType') or offer.offer_type
+    if offer_type in {'BuyerBestOffer', 'BuyerCounterOffer'}:
+        return 'buyer'
+    if offer_type in {'SellerBestOffer', 'SellerCounterOffer', 'SellerOffer'}:
+        return 'seller'
+    if offer.provider_role in {'Buyer', 'Seller'} and offer.direction in {'INCOMING', 'OUTGOING'}:
+        return 'buyer' if (offer.provider_role == 'Seller') == (offer.direction == 'INCOMING') else 'seller'
+    return None
+
+
+def negotiation_time(offer):
+    return offer.created_at_provider or offer.received_at or offer.first_seen_at or offer.created_at
 
 
 def actionable(offer, last_action=None):
@@ -67,14 +89,11 @@ class EbayBestOfferQueryService:
             # the last complete snapshot. Terminal evidence still closes old steps.
             criteria.append(or_(Offer.id.in_(all_snapshot_ids),
                 normalized_status.in_(CLOSED_STATUSES | {'ACCEPTED'})))
+        # Rank before user filters and completion state. Otherwise an older step
+        # could reappear after the latest step is filtered or marked done.
+        criteria = [Offer.id.in_(latest_offer_ids(criteria))]
         if view in {'all', 'done'}:
-            # Show every stored provider offer, including earlier negotiation steps.
-            # Completion is local workflow state and does not alter the eBay status.
             criteria.append(Offer.done_at.is_not(None) if view == 'done' else Offer.done_at.is_(None))
-        else:
-            # Rank before applying any user filters. Otherwise filtering Pending can
-            # incorrectly resurrect an older Pending offer after a newer acceptance.
-            criteria = [Offer.id.in_(latest_offer_ids(criteria))]
         if view == 'current':
             criteria.append(Offer.id.in_(snapshot_ids))
             # A newer negotiation step can be verified through the other managed
@@ -139,6 +158,22 @@ class EbayBestOfferQueryService:
                  'amount': Offer.offer_amount.desc().nulls_last(),
                  'listing_price': cast(Offer.listing_snapshot['price'].astext, Numeric).desc().nulls_last()}[sort]
         offers = list(self.db.scalars(base.order_by(order, Offer.id).offset((page-1)*page_size).limit(page_size)))
+        group_conditions = []
+        for offer in offers:
+            key = negotiation_identity(offer)
+            if len(key) == 1:
+                group_conditions.append(Offer.id == offer.id)
+            else:
+                group_conditions.append(and_(Offer.account_id == key[0], Offer.listing_id == key[1],
+                    func.lower(func.trim(Offer.buyer_username)) == key[2]))
+        history_by_group = {}
+        if group_conditions:
+            history_rows = self.db.scalars(select(Offer).where(Offer.provider == 'EBAY',
+                Offer.record_source != 'DERIVED', or_(*group_conditions))).all()
+            for row in history_rows:
+                history_by_group.setdefault(negotiation_identity(row), []).append(row)
+            for rows in history_by_group.values():
+                rows.sort(key=lambda row: (negotiation_time(row), row.created_at, str(row.id)))
         accounts = {a.id: a for a in self.db.scalars(select(EbayAccount).where(EbayAccount.id.in_({o.account_id for o in offers})))}
         latest = {}
         for action in self.db.scalars(select(EbayBestOfferAction).where(
@@ -185,6 +220,16 @@ class EbayBestOfferQueryService:
             offer_type = raw.get('offerType')
             seller_sent = offer_type in {'SellerCounterOffer', 'SellerBestOffer', 'SellerOffer'}
             buyer_sent = offer_type in {'BuyerBestOffer', 'BuyerCounterOffer'}
+            steps = []
+            for row in history_by_group.get(negotiation_identity(offer), [offer]):
+                side = negotiation_side(row) or 'unknown'
+                snapshot = row.provider_snapshot or row.raw_payload or {}
+                steps.append({'id': row.id, 'side': side, 'offer_id': row.provider_offer_id,
+                    'amount': snapshot.get('amount') if snapshot.get('amount') is not None else row.offer_amount,
+                    'currency': snapshot.get('currency') or row.currency,
+                    'quantity': snapshot.get('quantity') or row.quantity,
+                    'at': negotiation_time(row), 'status': status_label(row.provider_status or row.status),
+                    'message': snapshot.get('sellerMessage') if side == 'seller' else snapshot.get('buyerMessage')})
             items.append({'id': offer.id, 'account_id': offer.account_id,
                 'account_name': account.account_name if account else None,
                 'account_username': account.ebay_username if account else None,
@@ -202,6 +247,7 @@ class EbayBestOfferQueryService:
                 'received_at_source': offer.received_at_source,
                 'first_seen_at': offer.first_seen_at, 'expires_at': offer.expires_at, 'done_at': offer.done_at,
                 'last_synced_at': offer.last_synced_at, 'version': offer.version,
+                'negotiation': steps, 'latest_side': negotiation_side(offer),
                 'reconciliation_required': offer.reconciliation_required,
                 'last_action': {'action': action.action, 'state': action.state, 'id': action.id} if action else None,
                 'can_respond': view != 'done' and offer.done_at is None and can_respond

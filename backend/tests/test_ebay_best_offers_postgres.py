@@ -135,8 +135,8 @@ def test_all_offers_last_checked_filter_and_mark_done(isolated):
     db, _, account, user = isolated
     older_at = datetime(2026, 9, 1, 10, tzinfo=UTC)
     newer_at = datetime(2026, 9, 2, 10, tzinfo=UTC)
-    older = seed_offer(db, account, offer_id='100', status='Active', createdTime=newer_at.isoformat())
-    newer = seed_offer(db, account, offer_id='101', status='Declined', createdTime=older_at.isoformat())
+    older = seed_offer(db, account, offer_id='100', status='Active', buyerUsername='older-buyer', createdTime=newer_at.isoformat())
+    newer = seed_offer(db, account, offer_id='101', status='Declined', buyerUsername='newer-buyer', createdTime=older_at.isoformat())
     older.last_synced_at = older_at
     newer.last_synced_at = newer_at
     db.commit()
@@ -149,6 +149,41 @@ def test_all_offers_last_checked_filter_and_mark_done(isolated):
     saved = service.list(view='done')['items']
     assert [item['id'] for item in saved] == [newer.id]
     assert saved[0]['display_status'] == 'Declined' and saved[0]['done_at']
+
+
+def test_negotiation_card_shows_latest_price_per_side_and_full_closed_history(isolated):
+    from app.modules.integrations.ebay.routes.ebay_best_offer_routes import mark_done
+
+    db, _, account, user = isolated
+    start = datetime(2026, 9, 1, 10, tzinfo=UTC)
+    first = seed_offer(db, account, offer_id='500', amount='500', status='Countered',
+        offerType='BuyerBestOffer', createdTime=start.isoformat())
+    seller = seed_offer(db, account, offer_id='600', amount='600', status='Countered',
+        offerType='SellerCounterOffer', createdTime=(start + timedelta(hours=1)).isoformat())
+    buyer = seed_offer(db, account, offer_id='550', amount='550', status='Active',
+        offerType='BuyerCounterOffer', createdTime=(start + timedelta(hours=2)).isoformat())
+    service = EbayBestOfferQueryService(db)
+    result = service.list(view='all')
+    assert result['total'] == 1
+    card = result['items'][0]
+    assert card['id'] == buyer.id and card['latest_side'] == 'buyer'
+    assert [(step['side'], str(step['amount'])) for step in card['negotiation']] == [
+        ('buyer', '500'), ('seller', '600'), ('buyer', '550')]
+    assert [step['at'] for step in card['negotiation']] == [
+        start, start + timedelta(hours=1), start + timedelta(hours=2)]
+
+    buyer.provider_status = 'Declined'
+    db.commit()
+    closed = service.list(view='all')['items'][0]
+    assert closed['status_group'] == 'CLOSED'
+    assert len(closed['negotiation']) == 3
+    mark_done(buyer.id, db=db, user=user)
+    assert service.list(view='all')['total'] == 0
+    saved = service.list(view='done')['items']
+    assert len(saved) == 1 and saved[0]['id'] == buyer.id
+    db.refresh(first)
+    db.refresh(seller)
+    assert first.done_at and seller.done_at
 
 
 def test_declined_offer_cannot_reopen_from_delayed_provider_response(isolated, monkeypatch):

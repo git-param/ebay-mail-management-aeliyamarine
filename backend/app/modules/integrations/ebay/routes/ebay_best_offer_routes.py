@@ -2,7 +2,7 @@ from uuid import UUID
 from datetime import UTC, datetime
 from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from sqlalchemy import select
+from sqlalchemy import select, func
 from app.constants.api import EbayBestOfferRoutes
 from app.api.dependencies import get_current_user, require_operations_manager_or_admin, normalized_role_name
 from app.db.session import get_db
@@ -10,7 +10,7 @@ from app.models.conversation import SyncLog
 from app.models.offer import Offer
 from app.repositories.permission_repository import PermissionRepository
 from app.modules.integrations.ebay.schemas.best_offer_schemas import BestOfferConfigUpdate, BestOfferSyncRequest, BestOfferActionRequest
-from app.modules.integrations.ebay.services.ebay_best_offer_query_service import EbayBestOfferQueryService
+from app.modules.integrations.ebay.services.ebay_best_offer_query_service import EbayBestOfferQueryService, negotiation_identity
 from app.modules.integrations.ebay.services.ebay_best_offer_action_service import EbayBestOfferActionService
 from app.services.ebay_best_offer_job_service import EbayBestOfferJobService, ACCOUNT, BATCH, job_response
 from app.services.ebay_best_offer_worker import dispatch
@@ -44,8 +44,18 @@ def mark_done(offer_id: UUID, db=Depends(get_db), user=Depends(require_offer_vie
     offer = db.get(Offer, offer_id)
     if not offer or offer.provider != 'EBAY':
         raise HTTPException(404, 'Offer not found')
-    if offer.done_at is None:
-        offer.done_at = datetime.now(UTC)
+    key = negotiation_identity(offer)
+    if len(key) == 1:
+        group = [offer]
+    else:
+        group = db.scalars(select(Offer).where(Offer.provider == 'EBAY',
+            Offer.account_id == key[0], Offer.listing_id == key[1],
+            func.lower(func.trim(Offer.buyer_username)) == key[2],
+            Offer.record_source != 'DERIVED')).all()
+    if any(row.done_at is None for row in group):
+        done_at = datetime.now(UTC)
+        for row in group:
+            row.done_at = done_at
         from app.services.audit_service import AuditService
         AuditService(db).log(action='EBAY_BEST_OFFER_MARKED_DONE', user_id=user.id,
             entity_type='OFFER', entity_id=offer.id, category='OFFER_MANAGEMENT')
