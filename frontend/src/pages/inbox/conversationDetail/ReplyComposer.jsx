@@ -144,9 +144,6 @@ export default function ReplyComposer({ conversationId, buyerName, currentUser, 
         (field.toLowerCase() === 'employee name' ? employeeName : normalizedBuyerName) || placeholder,
       )
 
-      setBody(personalizedBody)
-    }
-  }
 
   async function submitReply(event) {
     event.preventDefault()
