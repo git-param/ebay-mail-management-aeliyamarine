@@ -5,7 +5,7 @@ from datetime import UTC, date, datetime
 from uuid import UUID
 
 from fastapi import HTTPException, status
-from sqlalchemy import func, select
+from sqlalchemy import Integer, func, select
 from sqlalchemy.orm import Session, joinedload, selectinload
 
 from app.api.dependencies import can_manage_operations, is_admin, is_support_agent
@@ -242,6 +242,8 @@ class PmsService:
                 if metric.metric_key != 'target_achievement':
                     continue
 
+                if (metric.calc_meta or {}).get('automatic_placeholder'):
+                    continue
                 meta_percent = (metric.calc_meta or {}).get('target_percent')
                 try:
                     if meta_percent is not None:
@@ -259,7 +261,7 @@ class PmsService:
     # ------------------------------------------------------------------
     # PMS Configuration
     # ------------------------------------------------------------------
-    def _ensure_default_config(self) -> None:
+    def _ensure_default_config(self, *, commit: bool = True) -> None:
         has_any = self.db.scalar(
             select(func.count()).select_from(PmsMetricConfig)
         )
@@ -280,7 +282,10 @@ class PmsService:
                 )
             )
 
-        self.db.commit()
+        if commit:
+            self.db.commit()
+        else:
+            self.db.flush()
 
     def list_config(
         self,
@@ -1328,27 +1333,19 @@ class PmsService:
                 'User not found',
             )
 
-        record = self._get_record(
-            user_id,
-            year,
-            month,
-        )
+        record = self.sync_daily_entry_month(user_id, year, month)
+        if record:
+            self._recalculate_employee_of_month(year, month)
+            self.db.commit()
 
-        configs, _ = self.list_config(
-            include_inactive=False
-        )
+        if record and record.metrics:
+            return self._serialize_record(record, user)
 
-        active_keys = {config.key for config in configs}
+        configs, _ = self.list_config(include_inactive=False)
         existing_by_key = {
             metric.metric_key: metric
             for metric in (record.metrics if record else [])
         }
-
-        if record and active_keys and active_keys.issubset(existing_by_key.keys()):
-            return self._serialize_record(
-                record,
-                user,
-            )
 
         # Nothing saved yet, or a stale/empty monthly record exists without
         # metric rows. Always build the editor from active PMS config factors so
@@ -1441,6 +1438,12 @@ class PmsService:
                         calc_meta=None,
                     )
                 )
+
+        if not record:
+            for metric in metrics:
+                metric.final_value = 0
+                if metric.auto_value is not None:
+                    metric.auto_value = 0
 
         return PmsMonthlyRecordResponse(
             id=record.id if record else None,
@@ -1829,6 +1832,87 @@ class PmsService:
             user,
         )
 
+    def sync_daily_entry_month(
+        self,
+        user_id: UUID,
+        year: int,
+        month: int,
+        actor_id: UUID | None = None,
+    ) -> PmsMonthlyRecord | None:
+        """Persist automatic scores in the caller's transaction, preserving manual edits."""
+        start = date(year, month, 1)
+        end = date(year, month, calendar.monthrange(year, month)[1])
+        has_entries = self.db.scalar(
+            select(DailyTaskEntry.id).where(
+                DailyTaskEntry.user_id == user_id,
+                DailyTaskEntry.entry_date >= start,
+                DailyTaskEntry.entry_date <= end,
+            ).limit(1)
+        ) is not None
+        record = self._get_record(user_id, year, month)
+        if not record and not has_entries:
+            return None
+
+        if not record:
+            record = PmsMonthlyRecord(
+                user_id=user_id, year=year, month=month,
+                status=PmsMonthlyStatus.DRAFT,
+                created_by_user_id=actor_id,
+            )
+            self.db.add(record)
+
+        # Existing snapshots retain the weights and manual values of their month.
+        # Empty record shells and new months start with the active configuration.
+        if not record.metrics:
+            self._ensure_default_config(commit=False)
+            configs, _ = self.list_config(include_inactive=False)
+            for config in configs:
+                record.metrics.append(PmsMonthlyMetric(
+                    metric_key=config.key,
+                    metric_name_snapshot=config.name,
+                    weight_snapshot=float(config.weight),
+                    source_snapshot=config.source.value,
+                    is_auto_calculated_snapshot=config.is_auto_calculated,
+                    final_value=0,
+                    was_overridden=False,
+                    calc_meta={'automatic_placeholder': True} if config.key == 'target_achievement' else None,
+                ))
+
+        aggregates = self._compute_auto_aggregates(user_id, year, month)
+        for metric in record.metrics:
+            weight = float(metric.weight_snapshot)
+            source = getattr(metric.source_snapshot, 'value', metric.source_snapshot)
+            if metric.metric_key in {'attendance', 'punctuality'}:
+                if has_entries:
+                    value, meta = self._leave_metric_value(
+                        metric.metric_key, user_id, year, month, weight,
+                    )
+                else:
+                    value, meta = 0.0, {'entry_days': 0}
+                metric.source_snapshot = PmsMetricSource.CUSTOM.value
+            elif source in {
+                PmsMetricSource.PRODUCTIVITY_AUTO.value,
+                PmsMetricSource.QUALITY_AUTO.value,
+            }:
+                kind = 'productivity' if source == PmsMetricSource.PRODUCTIVITY_AUTO.value else 'quality'
+                value = round(min(max(aggregates[kind]['pct'] / 100 * weight, 0.0), weight), 2)
+                meta = aggregates[kind]['meta']
+            else:
+                continue
+
+            metric.is_auto_calculated_snapshot = True
+            metric.auto_value = value
+            metric.calc_meta = meta
+            if not metric.was_overridden:
+                metric.final_value = value
+
+        record.final_score = round(sum(float(m.final_value) for m in record.metrics), 2)
+        record.maximum_score = round(sum(float(m.weight_snapshot) for m in record.metrics), 2)
+        if actor_id is not None:
+            record.updated_by_user_id = actor_id
+        self.db.flush()
+        return record
+
     def _serialize_record(
         self,
         record: PmsMonthlyRecord,
@@ -1951,6 +2035,13 @@ class PmsService:
                 record.user_id: record
                 for record in found
             }
+
+        for user in users:
+            record = self.sync_daily_entry_month(user.id, year, month)
+            if record:
+                records_by_user[user.id] = record
+        self._recalculate_employee_of_month(year, month)
+        self.db.commit()
 
         items: list[PmsMonthlyTableRow] = []
         completed_scores: list[
@@ -2112,24 +2203,19 @@ class PmsService:
         if not users:
             return []
 
-        rows = list(
-            self.db.execute(
-                select(
-                    PmsMonthlyRecord.year,
-                    PmsMonthlyRecord.month,
-                )
-                .where(
-                    PmsMonthlyRecord.user_id.in_(
-                        [user.id for user in users]
-                    )
-                )
-                .distinct()
-                .order_by(
-                    PmsMonthlyRecord.year.desc(),
-                    PmsMonthlyRecord.month.desc(),
-                )
-            )
-        )
+        user_ids = [user.id for user in users]
+        periods = select(PmsMonthlyRecord.year, PmsMonthlyRecord.month).where(
+            PmsMonthlyRecord.user_id.in_(user_ids)
+        ).union(
+            select(
+                func.extract('year', DailyTaskEntry.entry_date).cast(Integer).label('year'),
+                func.extract('month', DailyTaskEntry.entry_date).cast(Integer).label('month'),
+            ).where(DailyTaskEntry.user_id.in_(user_ids))
+        ).subquery()
+        rows = list(self.db.execute(
+            select(periods.c.year, periods.c.month)
+            .order_by(periods.c.year.desc(), periods.c.month.desc())
+        ))
 
         return [
             {

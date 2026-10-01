@@ -168,12 +168,26 @@ class DailyEntryService:
         if user_ids is not None:
             entry_statement = entry_statement.where(DailyTaskEntry.user_id.in_(user_ids))
 
+        affected = list(self.db.execute(
+            select(DailyTaskEntry.user_id, DailyTaskEntry.entry_date).where(
+                DailyTaskEntry.id.in_(entry_statement)
+            )
+        ))
         entry_ids = list(self.db.scalars(entry_statement).all())
         if not entry_ids:
             return 0
 
         self.db.execute(delete(DailyTaskEntryHistory).where(DailyTaskEntryHistory.entry_id.in_(entry_ids)))
         result = self.db.execute(delete(DailyTaskEntry).where(DailyTaskEntry.id.in_(entry_ids)))
+        self.db.flush()
+        from app.modules.pms.service import PmsService
+
+        pms = PmsService(self.db)
+        periods = {(uid, day.year, day.month) for uid, day in affected}
+        for uid, year, month in periods:
+            pms.sync_daily_entry_month(uid, year, month, current_user.id)
+        for year, month in {(year, month) for _, year, month in periods}:
+            pms._recalculate_employee_of_month(year, month)
         self.db.commit()
         return int(result.rowcount or 0)
 
@@ -234,6 +248,12 @@ class DailyEntryService:
             self.db.add(entry)
             self.db.flush()
         self.db.add(DailyTaskEntryHistory(entry_id=entry.id, changed_by_user_id=current_user.id, action=action, snapshot=self._snapshot(entry)))
+        self.db.flush()
+
+        from app.modules.pms.service import PmsService
+        pms = PmsService(self.db)
+        pms.sync_daily_entry_month(target_user_id, payload.entry_date.year, payload.entry_date.month, current_user.id)
+        pms._recalculate_employee_of_month(payload.entry_date.year, payload.entry_date.month)
         return entry, action
 
     def list_entries(self, current_user, *, date_from: date | None = None, date_to: date | None = None, user_id: UUID | None = None):
