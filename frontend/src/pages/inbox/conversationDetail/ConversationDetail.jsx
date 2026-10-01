@@ -199,6 +199,7 @@ function ConversationDetail({
           ) : (
             <ReplyComposer
               conversationId={detail.id}
+              currentUser={currentUser}
               buyerName={
                 detail.buyer_identifier
               }

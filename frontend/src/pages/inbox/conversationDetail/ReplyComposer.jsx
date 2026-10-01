@@ -24,7 +24,7 @@ function isImageFile(file) {
   )
 }
 
-export default function ReplyComposer({ conversationId, buyerName, suggestedMessageTypeId, isSubmitting, onSendReply, templates = [], messageTypes = [] }) {
+export default function ReplyComposer({ conversationId, buyerName, currentUser, suggestedMessageTypeId, isSubmitting, onSendReply, templates = [], messageTypes = [] }) {
   const [body, setBody] = useState('')
   const [files, setFiles] = useState([])
   const [fileInputKey, setFileInputKey] = useState(0)
@@ -139,13 +139,10 @@ export default function ReplyComposer({ conversationId, buyerName, suggestedMess
     if (template) {
       const templateBody = String(template.body || '')
       const normalizedBuyerName = String(buyerName || '').trim()
-      const personalizedBody = normalizedBuyerName
-        ? templateBody
-            .replace(/\[name\]/gi, () => normalizedBuyerName)
-            .replace(/^[^\r\n]*/, (firstLine) =>
-              firstLine.replace(/\[buyer\]/gi, () => normalizedBuyerName),
-            )
-        : templateBody
+      const employeeName = String(currentUser?.full_name || currentUser?.fullName || currentUser?.name || '').trim()
+      const personalizedBody = templateBody.replace(/\[(name|buyer|employee name)\]/gi, (placeholder, field) =>
+        (field.toLowerCase() === 'employee name' ? employeeName : normalizedBuyerName) || placeholder,
+      )
 
       setBody(personalizedBody)
     }
