@@ -140,7 +140,11 @@ export default function ReplyComposer({ conversationId, buyerName, suggestedMess
       const templateBody = String(template.body || '')
       const normalizedBuyerName = String(buyerName || '').trim()
       const personalizedBody = normalizedBuyerName
-        ? templateBody.replace(/\[name\]/gi, normalizedBuyerName)
+        ? templateBody
+            .replace(/\[name\]/gi, () => normalizedBuyerName)
+            .replace(/^[^\r\n]*/, (firstLine) =>
+              firstLine.replace(/\[buyer\]/gi, () => normalizedBuyerName),
+            )
         : templateBody
 
       setBody(personalizedBody)
