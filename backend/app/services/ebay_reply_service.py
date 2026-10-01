@@ -28,6 +28,7 @@ from app.models.ebay_account import EbayAccount
 from app.modules.integrations.ebay.oauth.token_service import EbayTokenService
 from app.modules.integrations.ebay.providers import EBAY_PROVIDER_NAME
 from app.services.audit_service import AuditService
+from app.services.assignment_service import AssignmentService
 from app.models.message_type import MessageType
 from app.repositories.message_type_repository import MessageClassificationRepository
 from app.services.conversation_service import ConversationService
@@ -326,6 +327,15 @@ class EbayReplyService:
             }
 
         conversation.last_message_at = message.sent_at
+        assignment_service = AssignmentService(self.db)
+        current_assignment = assignment_service.repository.get_current_assignment(conversation.id)
+        if current_assignment and current_assignment.assigned_to != actor_id:
+            assignment_service.assign_conversation(
+                conversation_id=conversation.id,
+                assigned_to=actor_id,
+                assigned_by=actor_id,
+                commit=False,
+            )
         SLAService(self.db).complete_after_reply(conversation, actor_id, message.sent_at)
 
         MessageClassificationRepository(self.db).create(

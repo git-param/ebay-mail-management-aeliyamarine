@@ -22,6 +22,7 @@ class AssignmentService:
         conversation_id: UUID,
         assigned_to: UUID,
         assigned_by: UUID,
+        commit: bool = True,
     ) -> ConversationAssignment:
         ConversationService(self.db).get_conversation(conversation_id)
         assignee = self.db.get(User, assigned_to)
@@ -40,8 +41,11 @@ class AssignmentService:
         AuditService(self.db).log(action='CONVERSATION_ASSIGNED', user_id=assigned_by,
             entity_type='CONVERSATION', entity_id=conversation_id, category='ASSIGNMENT',
             metadata={'assigned_to': str(assigned_to), 'previous_assignee': str(previous_assignee) if previous_assignee else None})
-        self.db.commit()
-        self.db.refresh(assignment)
+        if commit:
+            self.db.commit()
+            self.db.refresh(assignment)
+        else:
+            self.db.flush()
         return assignment
 
     def unassign_conversation(

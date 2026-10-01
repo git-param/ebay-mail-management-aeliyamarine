@@ -12,7 +12,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.constants.api import ConversationsRoutes, ExternalApi
-from app.api.dependencies import can_manage_operations, get_current_user, is_admin, is_operations_manager, is_support_agent
+from app.api.dependencies import can_manage_operations, get_current_user, is_admin, is_operations_manager
 from app.db.session import get_db
 from app.models.category import Category
 from app.models.conversation import Conversation, ConversationAssignment, ConversationNote, ConversationStatus, Message, MessageAttachment
@@ -122,44 +122,6 @@ def is_ebay_system_conversation(conversation: Conversation) -> bool:
 
 def require_conversation_access(current_user=Depends(get_current_user)):
     return current_user
-
-
-def ensure_reply_assignment(db: Session, conversation_id: UUID, current_user) -> None:
-    """
-    Prevent a user from replying to a conversation owned by someone else.
-
-    Args:
-        db: Request-scoped database session.
-        conversation_id: Conversation being replied to.
-        current_user: Authenticated user attempting the reply.
-
-    Returns:
-        None when unassigned or assigned to the caller.
-
-    Side Effects:
-        None.
-
-    Business Rules:
-        Assignment ownership applies to agents, administrators, and operations
-        managers alike so privileged roles cannot reply from another queue.
-    """
-    assignment = AssignmentService(db).repository.get_current_assignment(conversation_id)
-    if assignment and assignment.assigned_to != current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail='This conversation is assigned to another user and cannot be replied to',
-        )
-
-
-def can_assign_conversations(current_user) -> bool:
-    return is_admin(current_user) or is_operations_manager(current_user) or is_support_agent(current_user)
-
-
-def ensure_can_assign_conversation(current_user) -> None:
-    if not can_assign_conversations(current_user):
-        from fastapi import HTTPException, status
-
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='Only support users can assign conversations')
 
 
 def create_assignment_notification(db: Session, *, conversation: Conversation, assignment, assigned_to: UUID, assigned_by_user) -> None:
@@ -1279,13 +1241,12 @@ def validate_reply(
     db: Session = Depends(get_db),
     current_user=Depends(require_conversation_access),
 ) -> ReplyValidationResponse:
-    """Validate reply content only after confirming the caller owns the queue item."""
+    """Validate reply content regardless of the current assignee."""
     conversation = ConversationService(db).get_conversation(
         conversation_id,
     )
     if is_ebay_system_conversation(conversation):
         return ReplyValidationResponse(valid=False, violations=['eBay system conversations cannot be replied to.'])
-    ensure_reply_assignment(db, conversation_id, current_user)
     violations = EbayReplyService(db).validate_reply(payload.body)
     return ReplyValidationResponse(valid=not violations, violations=violations)
 
@@ -1301,13 +1262,7 @@ async def reply_to_conversation(
     db: Session = Depends(get_db),
     current_user=Depends(require_conversation_access),
 ) -> MessageResponse:
-    """
-    Deliver a reply after enforcing visibility and active-assignment ownership.
-
-    The assignment check occurs before contacting eBay. Unassigned threads can
-    be handled by eligible category agents, while assigned threads can only be
-    answered by their current owner regardless of the caller's role.
-    """
+    """Deliver a reply and transfer assignment to the sender on success."""
     reply_body = body
     if not reply_body and request.headers.get('content-type', '').startswith('application/json'):
         payload = await request.json()
@@ -1346,11 +1301,9 @@ def assign_conversation(
     db: Session = Depends(get_db),
     current_user=Depends(require_conversation_access),
 ) -> ConversationAssignmentResponse:
-    ensure_can_assign_conversation(current_user)
     conversation = ConversationService(db).get_conversation(
         conversation_id,
     )
-    ensure_reply_assignment(db, conversation_id, current_user)
     if conversation.status == ConversationStatus.CLOSED:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail='Closed conversations cannot be reassigned')
     assignment = AssignmentService(db).assign_conversation(
@@ -1533,8 +1486,6 @@ def bulk_update_conversations(
 ) -> BulkConversationUpdateResponse:
     if payload.category_id is not None or payload.status is not None or payload.assign_to_category_owners:
         ensure_can_manage_conversation(current_user)
-    if payload.assigned_to:
-        ensure_can_assign_conversation(current_user)
     service = ConversationService(db)
     assignment_service = AssignmentService(db)
     updated_count = 0

@@ -26,7 +26,6 @@ import { fetchEbayAccounts } from '../../services/ebayAccountApi'
 import { fetchMessageTypeTree } from '../../services/messageTypeApi'
 import { fetchTemplates } from '../../services/templateApi'
 import { fetchUsers } from '../../services/userApi'
-import { normalizeRole } from '../../utils/roles'
 
 import ConversationList from './conversationList/ConversationList'
 import InboxFiltersDrawer from './conversationList/InboxFiltersDrawer'
@@ -79,13 +78,7 @@ function Dashboard({
   currentUser,
   onLogout,
 }) {
-  const canManageAssignments = [
-    'ADMIN',
-    'OPS_MANAGER',
-    'AGENT',
-  ].includes(
-    normalizeRole(currentUser?.role),
-  )
+  const canManageAssignments = Boolean(currentUser)
 
   const [filters, setFilters] =
     useState(EMPTY_FILTERS)
