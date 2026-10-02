@@ -521,7 +521,6 @@ export default function SoldPosting({ currentUser, onLogout }) {
   const [pendingCopyRow, setPendingCopyRow] = useState(null);
   const [savingCopy, setSavingCopy] = useState(false);
   const [conditionDrafts, setConditionDrafts] = useState({});
-  const [pendingConditionRow, setPendingConditionRow] = useState(null);
   const [savingConditionId, setSavingConditionId] = useState(null);
   const [noteTarget, setNoteTarget] = useState(null);
   const [noteDraft, setNoteDraft] = useState("");
@@ -736,13 +735,8 @@ export default function SoldPosting({ currentUser, onLogout }) {
       return next;
     });
   }
-  function requestConditionSave(row, event) {
+  async function saveCondition(row, event) {
     event.stopPropagation();
-    setPendingConditionRow(row);
-  }
-  async function confirmConditionSave() {
-    const row = pendingConditionRow;
-    if (!row) return;
     const nextCondition = conditionDrafts[row.id] ?? "";
     setSavingConditionId(row.id);
     setError("");
@@ -761,7 +755,6 @@ export default function SoldPosting({ currentUser, onLogout }) {
         delete next[row.id];
         return next;
       });
-      setPendingConditionRow(null);
     } catch (err) {
       setError(err.message || "Could not update sold condition");
     } finally {
@@ -1175,7 +1168,7 @@ export default function SoldPosting({ currentUser, onLogout }) {
                                 title="Save condition"
                                 aria-label="Save condition"
                                 disabled={savingConditionId === row.id}
-                                onClick={(event) => requestConditionSave(row, event)}
+                                onClick={(event) => saveCondition(row, event)}
                               >
                                 <Icon name="activate" />
                               </button>
@@ -1367,17 +1360,6 @@ export default function SoldPosting({ currentUser, onLogout }) {
             if (!savingCopy) setPendingCopyRow(null);
           }}
           onConfirm={confirmCopySoldReference}
-        />
-      ) : null}
-      {pendingConditionRow ? (
-        <SoldConfirmModal
-          title="Update Condition"
-          message="Do you want to update this sold posting condition?"
-          detail={`${pendingConditionRow.sku || pendingConditionRow.item_id || pendingConditionRow.order_id}: ${pendingConditionRow.condition || "-"} -> ${conditionDrafts[pendingConditionRow.id] || "-"}`}
-          confirmLabel="Update"
-          saving={Boolean(savingConditionId)}
-          onCancel={() => setPendingConditionRow(null)}
-          onConfirm={confirmConditionSave}
         />
       ) : null}
     </AppLayout>
