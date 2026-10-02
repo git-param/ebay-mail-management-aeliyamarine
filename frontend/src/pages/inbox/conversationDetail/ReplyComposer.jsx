@@ -143,7 +143,10 @@ export default function ReplyComposer({ conversationId, buyerName, currentUser, 
       const personalizedBody = templateBody.replace(/\[(name|buyer|employee name)\]/gi, (placeholder, field) =>
         (field.toLowerCase() === 'employee name' ? employeeName : normalizedBuyerName) || placeholder,
       )
-
+      setBody(personalizedBody)
+      setDraftMessage('')
+    }
+  }
 
   async function submitReply(event) {
     event.preventDefault()

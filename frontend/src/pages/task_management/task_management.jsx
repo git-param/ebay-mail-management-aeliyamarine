@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 
 import AppLayout, { Icon } from '../../layouts/app_layout'
 import { deleteSubSubtask, deleteSubtask, deleteTaskCategory, fetchTaskCategories, fetchUserTaskAssignments, saveSubSubtask, saveSubtask, saveTaskAssignment, saveTaskCategory } from '../../services/taskManagementApi'
@@ -141,13 +141,31 @@ export default function TaskManagement({ currentUser, onLogout }) {
   const [assigningTaskId, setAssigningTaskId] = useState('')
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
+  const [pageView, setPageView] = useState('tasks')
+  const [workspaceTab, setWorkspaceTab] = useState('subtasks')
+  const [subtaskEditor, setSubtaskEditor] = useState('')
+  const [search, setSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState('ALL')
+  const [loading, setLoading] = useState(true)
+  const editorNameRef = useRef(null)
+
+  useEffect(() => {
+    if (pageView === 'workspace' && (workspaceTab === 'details' || subtaskEditor)) {
+      editorNameRef.current?.focus()
+    }
+  }, [pageView, workspaceTab, subtaskEditor, editingSubtaskId, editingSubSubtaskId])
+
+  const visibleCategories = categories.filter((category) =>
+    (statusFilter === 'ALL' || category.status === statusFilter)
+    && `${category.name} ${category.description || ''}`.toLowerCase().includes(search.toLowerCase()),
+  )
 
   const selectedCategory = useMemo(() => categories.find((item) => item.id === selectedCategoryId) || null, [categories, selectedCategoryId])
   const activeMessageTypes = useMemo(() => flattenMessageTypes(messageTypes).filter((item) => item.is_active && !item.is_deleted), [messageTypes])
   const agentUsers = users.filter((user) => normalizeRole(user.role) === 'AGENT' && user.is_active !== false)
   const displayWeight = (value) => Number(value || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })
 
-  const currentAssignments = assignmentData.assignments || []
+  const currentAssignments = useMemo(() => assignmentData.assignments || [], [assignmentData.assignments])
   const assignmentGroupsByCategory = useMemo(() => {
     const groups = new Map()
     for (const assignment of currentAssignments) {
@@ -172,6 +190,8 @@ export default function TaskManagement({ currentUser, onLogout }) {
       setError('')
     } catch (caught) {
       setError(caught.message)
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -185,9 +205,25 @@ export default function TaskManagement({ currentUser, onLogout }) {
     }
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => {
+    let cancelled = false
+    Promise.all([fetchTaskCategories(), fetchUsers(), fetchMessageTypes(false)])
+      .then(([categoryData, userData, messageTypeData]) => {
+        if (cancelled) return
+        setCategories(categoryData || [])
+        setUsers(userData.items || userData || [])
+        setMessageTypes(messageTypeData || [])
+        setError('')
+      })
+      .catch((caught) => { if (!cancelled) setError(caught.message) })
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  }, [])
 
   function createNewTask() {
+    setPageView('workspace')
+    setWorkspaceTab('details')
+    setSubtaskEditor('')
     setSelectedCategoryId('')
     setEditingCategoryId('')
     setCategoryForm(emptyCategory())
@@ -202,6 +238,9 @@ export default function TaskManagement({ currentUser, onLogout }) {
       createNewTask()
       return
     }
+    setPageView('workspace')
+    setWorkspaceTab('subtasks')
+    setSubtaskEditor('')
     setSelectedCategoryId(category.id)
     setEditingCategoryId(category.id)
     setCategoryForm(taskSummaryForm(category))
@@ -226,6 +265,7 @@ export default function TaskManagement({ currentUser, onLogout }) {
       setEditingCategoryId(saved.id)
       setCategoryForm(taskSummaryForm(saved))
       setSubtaskForm(emptySubtask(saved.id))
+      setWorkspaceTab('subtasks')
       setMessage(editingCategoryId ? 'Task updated.' : 'Task created with a default Other subtask.')
     } catch (caught) {
       setError(caught.message)
@@ -241,6 +281,7 @@ export default function TaskManagement({ currentUser, onLogout }) {
       await deleteTaskCategory(category.id)
       if (selectedCategoryId === category.id) {
         createNewTask()
+        setPageView('tasks')
       }
       await load()
       setMessage('Task deleted.')
@@ -276,6 +317,7 @@ export default function TaskManagement({ currentUser, onLogout }) {
       setSubtaskForm(emptySubtask(categoryId))
       setEditingSubSubtaskId('')
       setSubSubtaskForm(emptySubSubtask(''))
+      setSubtaskEditor('')
       setMessage('Subtask saved.')
     } catch (caught) {
       setError(caught.message)
@@ -305,6 +347,7 @@ export default function TaskManagement({ currentUser, onLogout }) {
   }
 
   function editSubtask(subtask) {
+    setSubtaskEditor('subtask')
     setSelectedCategoryId(subtask.task_category_id)
     setEditingSubtaskId(subtask.id)
     setSubtaskForm(subtaskSummaryForm(subtask))
@@ -332,6 +375,7 @@ export default function TaskManagement({ currentUser, onLogout }) {
       await load()
       setEditingSubSubtaskId('')
       setSubSubtaskForm(emptySubSubtask(subSubtaskForm.subtask_id))
+      setSubtaskEditor('')
       setMessage('Sub-subtask saved.')
     } catch (caught) {
       setError(caught.message)
@@ -357,6 +401,7 @@ export default function TaskManagement({ currentUser, onLogout }) {
   }
 
   function editSubSubtask(child) {
+    setSubtaskEditor('child')
     const parent = (selectedCategory?.subtasks || []).find((subtask) => subtask.id === child.subtask_id)
     if (parent) {
       setSelectedCategoryId(parent.task_category_id)
@@ -433,58 +478,86 @@ export default function TaskManagement({ currentUser, onLogout }) {
     }
   }
 
-  function handleTaskSelection(event) {
-    const categoryId = event.target.value
-    if (!categoryId) {
-      createNewTask()
-      return
-    }
-    openTask(categories.find((item) => item.id === categoryId) || null)
-  }
-
   return (
     <AppLayout activePage="Task Management" currentUser={currentUser} onLogout={onLogout}>
       <main className="management-page task-management-page">
         <div className="page-header">
           <div>
             <h1>Task Management</h1>
-            <p>Configure tasks, subtasks, and agent maximum scores.</p>
+            <p>Organize your team's work and manage agent scores.</p>
           </div>
-          <button className="secondary-button compact-action" type="button" onClick={load}>Refresh</button>
+          <div className="task-header-actions">
+            <button className="secondary-button compact-action" type="button" onClick={() => { setLoading(true); load() }} disabled={loading}>{loading ? 'Refreshing…' : 'Refresh'}</button>
+            <button className="primary-button compact-action" type="button" onClick={createNewTask}>+ New Task</button>
+          </div>
         </div>
 
-        {error ? <p className="form-message error">{error}</p> : null}
-        {message ? <p className="form-message success">{message}</p> : null}
+        <nav className="task-page-navigation" aria-label="Task management sections">
+          <button type="button" className={pageView !== 'assignments' ? 'is-active' : ''} aria-current={pageView !== 'assignments' ? 'page' : undefined} onClick={() => setPageView('tasks')}>Tasks <span>{categories.length}</span></button>
+          <button type="button" className={pageView === 'assignments' ? 'is-active' : ''} aria-current={pageView === 'assignments' ? 'page' : undefined} onClick={() => setPageView('assignments')}>Agent Assignments</button>
+        </nav>
+
+        {error ? <p className="form-message error" role="alert">{error}</p> : null}
+        {message ? <p className="form-message success" role="status">{message}</p> : null}
+
+        {pageView === 'tasks' ? (
+          <section className="task-overview" aria-label="Tasks">
+            <div className="task-overview-toolbar">
+              <div><h2>Your tasks</h2><p className="task-section-note">Open a card to manage its details and subtasks.</p></div>
+              <div className="task-overview-filters">
+                <label className="field"><span className="task-visually-hidden">Search tasks</span><input type="search" placeholder="Search tasks…" value={search} onChange={(event) => setSearch(event.target.value)} /></label>
+                <label className="field"><span className="task-visually-hidden">Filter by status</span><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}><option value="ALL">All statuses</option>{STATUSES.map((status) => <option key={status} value={status}>{labelize(status)}</option>)}</select></label>
+              </div>
+            </div>
+            {loading && !categories.length ? <div className="task-overview-empty" role="status">Loading tasks…</div> : (
+              <div className="task-card-grid">
+                {visibleCategories.map((category) => {
+                  const subtasks = category.subtasks || []
+                  const childCount = subtasks.reduce((total, subtask) => total + (subtask.child_tasks || []).length, 0)
+                  return (
+                    <button className="task-overview-card" type="button" key={category.id} onClick={() => openTask(category)}>
+                      <div className="task-card-top"><span className="task-card-icon"><Icon name="audit" /></span><span className={`task-status task-status-${category.status.toLowerCase()}`}>{labelize(category.status)}</span></div>
+                      <h3>{category.name}</h3>
+                      <p>{category.description || 'Manage the work, subtasks, and sources for this task.'}</p>
+                      <div className="task-card-metrics"><span><strong>{subtasks.length}</strong> subtasks</span><span><strong>{childCount}</strong> sub-subtasks</span></div>
+                      <div className="task-card-footer"><span>Manage task</span><Icon name="chevron" /></div>
+                    </button>
+                  )
+                })}
+                <button className="task-overview-card task-create-card" type="button" onClick={createNewTask}><span className="task-create-symbol" aria-hidden="true">+</span><h3>Create a task</h3><p>Add a new area of work for your team.</p></button>
+              </div>
+            )}
+            {!loading && !visibleCategories.length ? <p className="task-overview-empty">{categories.length ? 'No tasks match your search or status filter.' : 'Create your first task to get started.'}</p> : null}
+          </section>
+        ) : null}
+
+        {pageView === 'workspace' ? (
+          <div className="task-workspace-header">
+            <button className="secondary-button compact-action" type="button" onClick={() => setPageView('tasks')}>← All Tasks</button>
+            <div><h2>{selectedCategory?.name || 'Create a task'}</h2><p className="task-section-note">{selectedCategory ? 'Manage this task and the work within it.' : 'Give your task a name and description to get started.'}</p></div>
+            {selectedCategory ? <nav className="task-workspace-tabs" aria-label="Task views"><button type="button" className={workspaceTab === 'subtasks' ? 'is-active' : ''} aria-current={workspaceTab === 'subtasks' ? 'page' : undefined} onClick={() => setWorkspaceTab('subtasks')}>Subtasks <span>{selectedCategory.subtasks?.length || 0}</span></button><button type="button" className={workspaceTab === 'details' ? 'is-active' : ''} aria-current={workspaceTab === 'details' ? 'page' : undefined} onClick={() => setWorkspaceTab('details')}>Task Details</button></nav> : null}
+          </div>
+        ) : null}
 
         <section className="task-management-grid">
-          <section className="table-card task-editor-panel">
+          {pageView === 'workspace' && workspaceTab === 'details' ? <section className="table-card task-editor-panel">
             <div className="pms-card-header">
               <div>
-                <h2>Tasks</h2>
-                <p className="task-section-note">Select a task to edit it, or create a new one and the backend will add a default Other subtask.</p>
+                <h2>{selectedCategory ? 'Task Details' : 'New Task'}</h2>
+                <p className="task-section-note">{selectedCategory ? 'Update the name, description, and availability of this task.' : 'A default Other subtask is included with every new task.'}</p>
               </div>
               <div className="task-toolbar-actions">
-                <button className="danger-button compact-action" type="button" onClick={() => deleteCategory(selectedCategory)} disabled={!selectedCategory}>
+                <button className="danger-button compact-action" type="button" onClick={() => deleteCategory(selectedCategory)} disabled={!selectedCategory} aria-label="Delete task" title="Delete task">
                   <Icon name="trash" />
                 </button>
               </div>
             </div>
 
-            <label className="field task-selector-field">
-              <span>Task</span>
-              <select value={selectedCategoryId} onChange={handleTaskSelection}>
-                <option value="">Create New Task</option>
-                {categories.map((category) => (
-                  <option key={category.id} value={category.id}>{category.name}</option>
-                ))}
-              </select>
-            </label>
-
             <form className="management-form task-management-form" onSubmit={submitCategory}>
               <h3>{editingCategoryId ? 'Edit Task' : 'Create Task'}</h3>
               <label className="field">
                 <span>Name</span>
-                <input value={categoryForm.name} onChange={(event) => setCategoryForm((current) => ({ ...current, name: event.target.value }))} required />
+                <input ref={editorNameRef} value={categoryForm.name} onChange={(event) => setCategoryForm((current) => ({ ...current, name: event.target.value }))} required />
               </label>
               <label className="field">
                 <span>Description</span>
@@ -498,42 +571,46 @@ export default function TaskManagement({ currentUser, onLogout }) {
               </label>
               <button className="primary-button compact-action" type="submit">{editingCategoryId ? 'Save Task' : 'Create Task'}</button>
             </form>
-          </section>
+          </section> : null}
 
-          <section className="table-card task-subtask-panel">
+          {pageView === 'workspace' && workspaceTab === 'subtasks' && selectedCategory ? <section className="table-card task-subtask-panel">
             <div className="pms-card-header">
               <div>
-                <h2>{selectedCategory ? `${selectedCategory.name} Subtasks` : 'Subtasks'}</h2>
-                <p className="task-section-note">Admins can edit, activate, deactivate, or delete subtasks here.</p>
+                <h2>Subtasks</h2>
+                <p className="task-section-note">Break this task into smaller pieces of work.</p>
+              </div>
+              <div className="task-header-actions">
+                <button className="secondary-button compact-action" type="button" disabled={!selectedCategory.subtasks?.length} onClick={() => { setEditingSubSubtaskId(''); setSubSubtaskForm(emptySubSubtask(selectedCategory.subtasks?.[0]?.id || '')); setSubtaskEditor('child') }}>+ Sub-Subtask</button>
+                <button className="primary-button compact-action" type="button" onClick={() => { setEditingSubtaskId(''); setSubtaskForm(emptySubtask(selectedCategoryId)); setSubtaskEditor('subtask') }}>+ Add Subtask</button>
               </div>
             </div>
 
             <div className="task-table-scroll" role="region" aria-label="Subtasks table" tabIndex="0">
-              <table className="users-table task-subtask-table">
+              <table className="task-subtask-table">
                 <thead>
                   <tr>
-                    <th>Name</th>
-                    <th>Source</th>
-                    <th>Status</th>
-                    <th>Assignments</th>
-                    <th>Actions</th>
+                    <th scope="col">Name</th>
+                    <th scope="col">Source</th>
+                    <th scope="col">Status</th>
+                    <th scope="col">Assignments</th>
+                    <th scope="col">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {(selectedCategory?.subtasks || []).map((subtask) => (
                     <Fragment key={subtask.id}>
                       <tr>
-                      <td>
+                      <td data-label="Name">
                         <strong>{subtask.name}</strong>
                         {subtask.name.toLowerCase() === 'other' ? <div className="row-meta">Default catch-all subtask</div> : null}
                       </td>
-                      <td>
+                      <td data-label="Source">
                         {sourceLabel(subtask.source_type)}
                         {subtask.source_type === 'MESSAGE_TYPE' ? ` · ${activeMessageTypes.find((item) => item.id === subtask.source_reference_id)?.name || 'Unknown'}` : ''}
                       </td>
-                      <td>{labelize(subtask.status)}</td>
-                      <td>{subtask.assignment_count}</td>
-                      <td>
+                      <td data-label="Status"><span className={`task-status task-status-${subtask.status.toLowerCase()}`}>{labelize(subtask.status)}</span></td>
+                      <td data-label="Assignments">{subtask.assignment_count}</td>
+                      <td data-label="Actions">
                         <div className="row-actions">
                           <button className="icon-button" type="button" onClick={() => editSubtask(subtask)} title="Edit subtask"><Icon name="edit" /></button>
                           <button className="icon-button danger-icon" type="button" onClick={() => deleteSubtaskItem(subtask)} title="Delete subtask"><Icon name="trash" /></button>
@@ -542,17 +619,17 @@ export default function TaskManagement({ currentUser, onLogout }) {
                       </tr>
                       {(subtask.child_tasks || []).map((child) => (
                         <tr className="sub-subtask-row" key={child.id}>
-                          <td>
+                          <td data-label="Name">
                             <strong>{child.name}</strong>
                             <div className="row-meta">Under {subtask.name}</div>
                           </td>
-                          <td>
+                          <td data-label="Source">
                             {sourceLabel(child.source_type)}
                             {child.source_type === 'MESSAGE_TYPE' ? ` - ${activeMessageTypes.find((item) => item.id === child.source_reference_id)?.name || 'Unknown'}` : ''}
                           </td>
-                          <td>{labelize(child.status)}</td>
-                          <td>{child.assignment_count}</td>
-                          <td>
+                          <td data-label="Status"><span className={`task-status task-status-${child.status.toLowerCase()}`}>{labelize(child.status)}</span></td>
+                          <td data-label="Assignments">{child.assignment_count}</td>
+                          <td data-label="Actions">
                             <div className="row-actions">
                               <button className="icon-button" type="button" onClick={() => editSubSubtask(child)} title="Edit sub-subtask"><Icon name="edit" /></button>
                               <button className="icon-button danger-icon" type="button" onClick={() => deleteSubSubtaskItem(child)} title="Delete sub-subtask"><Icon name="trash" /></button>
@@ -562,22 +639,18 @@ export default function TaskManagement({ currentUser, onLogout }) {
                       ))}
                     </Fragment>
                   ))}
+                  {!selectedCategory?.subtasks?.length ? (
+                    <tr><td className="task-subtask-empty" colSpan={5}>{selectedCategory ? 'No subtasks yet. Add a subtask below to get started.' : 'Select a task to view its subtasks.'}</td></tr>
+                  ) : null}
                 </tbody>
               </table>
             </div>
 
-            <form className="management-form task-subtask-form" onSubmit={submitSubtask}>
+            {subtaskEditor === 'subtask' ? <form className="management-form task-subtask-form" onSubmit={submitSubtask}>
               <h3>{editingSubtaskId ? 'Edit Subtask' : 'Add Subtask'}</h3>
               <label className="field">
-                <span>Category</span>
-                <select value={subtaskForm.task_category_id || selectedCategoryId} onChange={(event) => setSubtaskForm((current) => ({ ...current, task_category_id: event.target.value }))} required>
-                  <option value="">Select category</option>
-                  {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
-                </select>
-              </label>
-              <label className="field">
                 <span>Name</span>
-                <input value={subtaskForm.name} onChange={(event) => setSubtaskForm((current) => ({ ...current, name: event.target.value }))} required />
+                <input ref={editorNameRef} value={subtaskForm.name} onChange={(event) => setSubtaskForm((current) => ({ ...current, name: event.target.value }))} required />
               </label>
               <div className="pms-form-row">
                 <label className="field">
@@ -608,9 +681,10 @@ export default function TaskManagement({ currentUser, onLogout }) {
                 <textarea value={subtaskForm.description || ''} onChange={(event) => setSubtaskForm((current) => ({ ...current, description: event.target.value }))} />
               </label>
               <button className="primary-button compact-action" type="submit">{editingSubtaskId ? 'Save Subtask' : 'Add Subtask'}</button>
-            </form>
+              <button className="secondary-button compact-action" type="button" onClick={() => setSubtaskEditor('')}>Cancel</button>
+            </form> : null}
 
-            <form className="management-form task-subtask-form task-child-form" onSubmit={submitSubSubtask}>
+            {subtaskEditor === 'child' ? <form className="management-form task-subtask-form task-child-form" onSubmit={submitSubSubtask}>
               <h3>{editingSubSubtaskId ? 'Edit Sub-Subtask' : 'Add Sub-Subtask'}</h3>
               <label className="field">
                 <span>Parent Subtask</span>
@@ -621,7 +695,7 @@ export default function TaskManagement({ currentUser, onLogout }) {
               </label>
               <label className="field">
                 <span>Name</span>
-                <input value={subSubtaskForm.name} onChange={(event) => setSubSubtaskForm((current) => ({ ...current, name: event.target.value }))} required />
+                <input ref={editorNameRef} value={subSubtaskForm.name} onChange={(event) => setSubSubtaskForm((current) => ({ ...current, name: event.target.value }))} required />
               </label>
               <div className="pms-form-row">
                 <label className="field">
@@ -653,12 +727,12 @@ export default function TaskManagement({ currentUser, onLogout }) {
               </label>
               <div className="pms-form-row">
                 <button className="primary-button compact-action" type="submit">{editingSubSubtaskId ? 'Save Sub-Subtask' : 'Add Sub-Subtask'}</button>
-                {editingSubSubtaskId ? <button className="secondary-button compact-action" type="button" onClick={() => { setEditingSubSubtaskId(''); setSubSubtaskForm(emptySubSubtask(subSubtaskForm.subtask_id)) }}>Cancel</button> : null}
+                <button className="secondary-button compact-action" type="button" onClick={() => setSubtaskEditor('')}>Cancel</button>
               </div>
-            </form>
-          </section>
+            </form> : null}
+          </section> : null}
 
-          <section className="table-card task-assignment-panel">
+          {pageView === 'assignments' ? <section className="table-card task-assignment-panel">
             <div className="pms-card-header">
               <div>
                 <h2>Agent Task Assignments</h2>
@@ -790,7 +864,7 @@ export default function TaskManagement({ currentUser, onLogout }) {
                 )}
               </>
             ) : <p className="field-help">Select an agent to view or assign their current task.</p>}
-          </section>
+          </section> : null}
         </section>
       </main>
     </AppLayout>
