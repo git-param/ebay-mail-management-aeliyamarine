@@ -211,6 +211,7 @@ function InboxFiltersDrawer({
             )}
           </FilterSelect>
 
+          <p className="field-help">Filter by Last Update in your local time. The To date includes the entire day.</p>
           {customPeriod ? (
             <>
               <label className="field">
@@ -218,6 +219,7 @@ function InboxFiltersDrawer({
 
                 <input
                   type="date"
+                  max={filters.date_to || undefined}
                   value={
                     filters.date_from || ''
                   }
@@ -235,6 +237,7 @@ function InboxFiltersDrawer({
 
                 <input
                   type="date"
+                  min={filters.date_from || undefined}
                   value={
                     filters.date_to || ''
                   }

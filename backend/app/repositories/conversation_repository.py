@@ -690,67 +690,12 @@ class ConversationRepository:
             )
 
         if date_from or date_to:
-            # Date filtering must use actual message activity. Filtering only
-            # conversation.created_at would incorrectly exclude old threads
-            # that received a new buyer message during the requested period.
-            message_in_period = select(
-                Message.id
-            ).where(
-                Message.conversation_id
-                == Conversation.id
-            )
-
+            # Match the timestamp shown in the inbox's Last Update column.
+            # An older message in the thread must not match a newer row.
+            activity_at = func.coalesce(Conversation.last_message_at, Conversation.updated_at)
             if date_from:
-                message_in_period = (
-                    message_in_period.where(
-                        Message.sent_at >= date_from
-                    )
-                )
-
+                statement = statement.where(activity_at >= date_from)
             if date_to:
-                message_in_period = (
-                    message_in_period.where(
-                        Message.sent_at < date_to
-                    )
-                )
-
-            has_any_message = exists(
-                select(Message.id).where(
-                    Message.conversation_id
-                    == Conversation.id
-                )
-            )
-
-            # Newly imported conversations can temporarily exist before their
-            # message rows are inserted. Only those message-less conversations
-            # fall back to a conversation-level activity timestamp.
-            conversation_activity_at = func.coalesce(
-                Conversation.last_message_at,
-                Conversation.external_created_at,
-                Conversation.created_at,
-            )
-
-            conversation_in_period = ~has_any_message
-
-            if date_from:
-                conversation_in_period = and_(
-                    conversation_in_period,
-                    conversation_activity_at
-                    >= date_from,
-                )
-
-            if date_to:
-                conversation_in_period = and_(
-                    conversation_in_period,
-                    conversation_activity_at
-                    < date_to,
-                )
-
-            statement = statement.where(
-                or_(
-                    exists(message_in_period),
-                    conversation_in_period,
-                )
-            )
+                statement = statement.where(activity_at < date_to)
 
         return statement

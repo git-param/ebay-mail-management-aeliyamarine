@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 from app.constants.api import ConversationsRoutes, ExternalApi
 from app.api.dependencies import can_manage_operations, get_current_user, is_admin, is_operations_manager
 from app.db.session import get_db
+from app.utils.inbox_dates import InboxDate, inbox_date_bounds
 from app.models.category import Category
 from app.models.conversation import Conversation, ConversationAssignment, ConversationNote, ConversationStatus, Message, MessageAttachment
 from app.models.ebay_account import EbayAccount
@@ -1062,8 +1063,8 @@ def list_conversations(
     ebay_account_id: UUID | None = Query(default=None),
     assigned_user_id: UUID | None = Query(default=None),
     category_id: UUID | None = Query(default=None),
-    date_from: date | None = Query(default=None),
-    date_to: date | None = Query(default=None),
+    date_from: InboxDate | None = Query(default=None),
+    date_to: InboxDate | None = Query(default=None),
     sla_due_within_hours: int | None = Query(
         default=None,
         ge=1,
@@ -1076,8 +1077,7 @@ def list_conversations(
 ) -> ConversationPageResponse:
     """Return the conversation inbox with optional operational filters."""
     service = ConversationService(db)
-    start_at = datetime.combine(date_from, time.min, tzinfo=UTC) if date_from else None
-    end_at = datetime.combine(date_to + timedelta(days=1), time.min, tzinfo=UTC) if date_to else None
+    start_at, end_at = inbox_date_bounds(date_from, date_to)
     conversations = service.list_conversations(
         limit=limit,
         offset=offset,

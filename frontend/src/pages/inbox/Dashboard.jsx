@@ -2,6 +2,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react'
 
@@ -37,7 +38,7 @@ import {
   DETAILS_WIDTH_KEY,
   INBOX_LAST_LOCATION_KEY,
   LIST_WIDTH_KEY,
-  addOneDayToIsoDate,
+  inboxRequestFilters,
   clamp,
   getConversationIdFromUrl,
   getList,
@@ -82,6 +83,7 @@ function Dashboard({
 
   const [filters, setFilters] =
     useState(EMPTY_FILTERS)
+  const listRequestId = useRef(0)
 
   const [page, setPage] =
     useState(0)
@@ -323,24 +325,12 @@ function Dashboard({
 
   const loadConversations =
     useCallback(async () => {
+      const requestId = ++listRequestId.current
       setIsListLoading(true)
       setListError('')
 
       try {
-        const {
-          period,
-          ...requestFilters
-        } = filters
-
-        if (
-          period === 'custom' &&
-          requestFilters.date_to
-        ) {
-          requestFilters.date_to =
-            addOneDayToIsoDate(
-              requestFilters.date_to,
-            )
-        }
+        const requestFilters = inboxRequestFilters(filters)
 
         const response =
           await fetchConversations({
@@ -349,12 +339,14 @@ function Dashboard({
             ...requestFilters,
           })
 
+        if (requestId !== listRequestId.current) return
         setConversations(
           response.items || [],
         )
 
         setTotal(response.total || 0)
       } catch (caughtError) {
+        if (requestId !== listRequestId.current) return
         setListError(
           caughtError.message ||
             'Unable to load conversations.',
@@ -363,7 +355,7 @@ function Dashboard({
         setConversations([])
         setTotal(0)
       } finally {
-        setIsListLoading(false)
+        if (requestId === listRequestId.current) setIsListLoading(false)
       }
     }, [
       filters,
@@ -784,6 +776,8 @@ function Dashboard({
   }
 
   function changeFilter(key, value) {
+    // Invalidate in-flight results before the next render starts its request.
+    listRequestId.current += 1
     setFilters((current) =>
       typeof key === 'object'
         ? {
@@ -801,6 +795,7 @@ function Dashboard({
   }
 
   function resetFilters() {
+    listRequestId.current += 1
     setFilters({
       ...EMPTY_FILTERS,
     })
