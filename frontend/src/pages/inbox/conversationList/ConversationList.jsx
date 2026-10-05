@@ -135,11 +135,11 @@ function ConversationList({
   function submitSearch(event) {
     event.preventDefault()
 
-    if (!searchBy || !searchInput.trim()) {
+    if (!searchInput.trim()) {
       return
     }
 
-    onSearch(searchInput, searchBy)
+    onSearch(searchInput, searchBy || 'everything')
   }
 
   function clearSearch() {
@@ -321,10 +321,7 @@ function ConversationList({
         <button
           className="primary-button compact"
           type="submit"
-          disabled={
-            !searchBy ||
-            !searchInput.trim()
-          }
+          disabled={!searchInput.trim()}
         >
           Search
         </button>

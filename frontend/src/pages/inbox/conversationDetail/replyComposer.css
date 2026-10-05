@@ -663,6 +663,17 @@ html[data-theme='dark'] .reply-composer {
   box-shadow: 0 16px 36px rgba(0, 0, 0, 0.32);
 }
 
+html[data-theme='dark'] .reply-composer .primary-button:not(:disabled):not([aria-disabled='true']) {
+  border-color: #8677f5;
+  background: linear-gradient(135deg, #675ee8 0%, #8677f5 100%);
+  box-shadow: 0 0 16px rgba(134, 119, 245, 0.4), 0 10px 22px rgba(103, 94, 232, 0.24);
+}
+
+html[data-theme='dark'] .reply-composer .primary-button:hover:not(:disabled):not([aria-disabled='true']) {
+  background: linear-gradient(135deg, #5c52df 0%, #7868ee 100%);
+  box-shadow: 0 0 20px rgba(134, 119, 245, 0.5), 0 12px 24px rgba(103, 94, 232, 0.3);
+}
+
 html[data-theme='dark'] .reply-composer .composer-select-control > span,
 html[data-theme='dark'] .reply-composer .composer-editor > span,
 html[data-theme='dark'] .reply-composer .email-copy-checkbox,

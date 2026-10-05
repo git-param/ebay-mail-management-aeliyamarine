@@ -53,7 +53,7 @@ import './dashboard.css'
 
 const EMPTY_FILTERS = {
   search: '',
-  search_by: '',
+  search_by: 'everything',
   status: '',
   period: 'all',
   ...periodRange('all'),
