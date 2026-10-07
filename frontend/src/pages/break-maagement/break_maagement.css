@@ -158,7 +158,7 @@
 
 .breakModule-summary-band {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 1px;
   margin-bottom: 18px;
   overflow: hidden;
@@ -251,6 +251,25 @@
 .breakModule-user-card span:not(.breakModule-card-state) {
   color: #344054;
   font-size: 13px;
+}
+
+.breakModule-user-card .breakModule-break-left {
+  font-weight: 800;
+}
+
+.breakModule-user-card .breakModule-break-left.available,
+.breakModule-summary-band .breakModule-break-left.available {
+  color: #166534;
+}
+
+.breakModule-user-card .breakModule-break-left.low,
+.breakModule-summary-band .breakModule-break-left.low {
+  color: #c2410c;
+}
+
+.breakModule-user-card .breakModule-break-left.exceeded,
+.breakModule-summary-band .breakModule-break-left.exceeded {
+  color: #b91c1c;
 }
 
 .breakModule-table-wrap {

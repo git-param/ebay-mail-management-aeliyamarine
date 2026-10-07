@@ -7,6 +7,8 @@ import BreakActionButton from './BreakActionButton'
 
 import './break_maagement.css'
 
+const DAILY_BREAK_ALLOWANCE_MINUTES = 60
+
 const QUICK_RANGES = {
   today: 'Today',
   yesterday: 'Yesterday',
@@ -110,11 +112,17 @@ function DateRangeControls({ filters, onChange }) {
 }
 
 function UserBreakCard({ user, onOpen }) {
+  const breakLeft = DAILY_BREAK_ALLOWANCE_MINUTES - Number(user.total_break_minutes_today || 0)
+  const breakLeftStatus = breakLeft > 30 ? 'available' : breakLeft >= 0 ? 'low' : 'exceeded'
+
   return (
     <button className={`breakModule-user-card ${user.is_on_break ? 'on-break' : 'active'}`} type="button" onClick={() => onOpen(user)}>
       <span className="breakModule-card-state">{user.is_on_break ? 'On Break' : 'Active'}</span>
       <strong>{user.user_name}</strong>
       <span>Total Break Time: {minutesLabel(user.total_break_minutes_today)}</span>
+      <span className={`breakModule-break-left ${breakLeftStatus}`}>
+        Break left: {minutesLabel(breakLeft)}
+      </span>
       {user.is_on_break ? <small>Status: {user.active_reason || 'Break'}</small> : null}
     </button>
   )
@@ -172,6 +180,7 @@ function UserHistoryModal({ user, onClose }) {
 function AgentBreakView() {
   const [filters, setFilters] = useState(defaultFilters)
   const [items, setItems] = useState([])
+  const [todayMinutes, setTodayMinutes] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -179,9 +188,19 @@ function AgentBreakView() {
     let active = true
     setLoading(true)
     setError('')
-    fetchBreakHistory({ date_from: filters.date_from, date_to: filters.date_to })
-      .then((response) => {
-        if (active) setItems(response.items || [])
+    setTodayMinutes(null)
+    const today = isoDate(new Date())
+    const historyRequest = fetchBreakHistory({ date_from: filters.date_from, date_to: filters.date_to })
+    const todayRequest = filters.date_from === today && filters.date_to === today
+      ? historyRequest
+      : fetchBreakHistory({ date_from: today, date_to: today })
+
+    Promise.all([historyRequest, todayRequest])
+      .then(([response, todayResponse]) => {
+        if (active) {
+          setItems(response.items || [])
+          setTodayMinutes((todayResponse.items || []).reduce((sum, item) => sum + Number(item.duration_minutes || 0), 0))
+        }
       })
       .catch((caughtError) => {
         if (active) setError(caughtError.message || 'Unable to load your break history.')
@@ -195,6 +214,8 @@ function AgentBreakView() {
   }, [filters.date_from, filters.date_to])
 
   const totalMinutes = useMemo(() => items.reduce((sum, item) => sum + Number(item.duration_minutes || 0), 0), [items])
+  const breakLeft = todayMinutes === null ? null : DAILY_BREAK_ALLOWANCE_MINUTES - todayMinutes
+  const breakLeftStatus = breakLeft === null ? '' : breakLeft > 30 ? 'available' : breakLeft >= 0 ? 'low' : 'exceeded'
 
   return (
     <>
@@ -206,6 +227,12 @@ function AgentBreakView() {
         <div>
           <span>Total duration</span>
           <strong>{minutesLabel(totalMinutes)}</strong>
+        </div>
+        <div>
+          <span>Break left today</span>
+          <strong className={`breakModule-break-left ${breakLeftStatus}`}>
+            {breakLeft === null ? '—' : minutesLabel(breakLeft)}
+          </strong>
         </div>
       </section>
       <section className="breakModule-panel">
