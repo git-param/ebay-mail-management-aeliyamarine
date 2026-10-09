@@ -244,6 +244,53 @@
   position: relative;
 }
 
+.sidebar-profile-menu {
+  flex: 0 0 auto;
+  margin-top: 12px;
+}
+
+.sidebar-profile-menu .sidebar-user {
+  width: 100%;
+  margin: 0;
+  text-align: left;
+  cursor: pointer;
+}
+
+.sidebar-profile-menu .sidebar-user:focus-visible {
+  outline: 2px solid #a5b4fc;
+  outline-offset: 2px;
+}
+
+.sidebar-profile-menu .profile-menu {
+  top: auto;
+  bottom: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  width: 100%;
+  z-index: 65;
+}
+
+.app-shell.top-bar-hidden .top-nav {
+  display: none;
+}
+
+.app-shell .conversation-navigation-toggle {
+  display: none;
+}
+
+@media (max-width: 760px) {
+  .app-shell.top-bar-hidden .conversation-navigation-toggle {
+    display: inline-grid;
+    position: fixed;
+    top: 50%;
+    left: 0;
+    z-index: 61;
+    width: 32px;
+    padding: 0;
+    border-radius: 0 8px 8px 0;
+  }
+}
+
 .notification-menu-wrap {
   position: relative;
 }

@@ -1199,6 +1199,7 @@ function Dashboard({
   return (
     <AppLayout
       activePage="Inbox"
+      hideTopBar={hasSelectedConversation}
       currentUser={currentUser}
       onLogout={onLogout}
     >

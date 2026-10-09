@@ -33,6 +33,40 @@
   gap: 8px;
 }
 
+.inbox-page .detail-header {
+  flex-wrap: wrap;
+}
+
+.inbox-page .detail-header-actions {
+  flex-wrap: wrap;
+}
+
+.conversation-workflow-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.conversation-workflow-controls label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.conversation-workflow-controls select {
+  width: 140px;
+  min-height: 32px;
+  padding: 0 8px;
+  border: 1px solid var(--inbox-border, #d8e2ef);
+  border-radius: 8px;
+  background: var(--inbox-surface, #fff);
+  color: var(--inbox-text, #172033);
+  font: inherit;
+}
+
 .inbox-page .list-pane-toggle {
   min-width: 82px;
 }

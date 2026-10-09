@@ -5,6 +5,7 @@ import { validateConversationReply } from '../../../services/conversationApi'
 import MessageTypeSelector from './MessageTypeSelector'
 
 import './replyComposer.css'
+import './replyComposerLayout.css'
 /**
  * Reply editor rendered below an open conversation thread.
  * Owns drafts, attachments, policy validation, and the editable Message Type
@@ -198,11 +199,13 @@ export default function ReplyComposer({
 
   return (
     <form className="reply-composer" onSubmit={submitReply}>
-      <div className="composer-toolbar composer-controls">
+      <div className="composer-toolbar-row">
+      <div className="composer-controls">
         {templates.length ? (
           <>
             <label className="composer-select-control">
               <span>Template Category</span>
+              <Icon name="grid" />
               <select
                 className="template-category-picker"
                 value={templateCategoryId}
@@ -212,7 +215,7 @@ export default function ReplyComposer({
                   setSelectedTemplateId('')
                 }}
               >
-                <option value="">Choose category</option>
+                <option value="">Template category</option>
                 {templateCategories.map((templateCategory) => (
                   <option value={templateCategory.id} key={templateCategory.id}>
                     {templateCategory.name}
@@ -222,6 +225,7 @@ export default function ReplyComposer({
             </label>
             <label className="composer-select-control">
               <span>Template</span>
+              <Icon name="audit" />
               <select
                 className="template-picker"
                 value={selectedTemplateId}
@@ -229,7 +233,7 @@ export default function ReplyComposer({
                 disabled={!templateCategoryId || !filteredTemplates.length}
                 onChange={(event) => insertTemplate(event.target.value)}
               >
-                <option value="">{templateCategoryId ? 'Choose template' : 'Choose category first'}</option>
+                <option value="">Template</option>
                 {filteredTemplates.map((template) => (
                   <option value={template.id} key={template.id}>
                     {template.title}
@@ -250,21 +254,72 @@ export default function ReplyComposer({
           onSubtypeChange={setSubtypeId}
         />
       </div>
+        <button
+          className="secondary-button compact composer-save-draft"
+          type="button"
+          onClick={saveDraft}
+          disabled={!body.trim() && !files.length}
+        >
+          <Icon name="save" />
+          Save Draft
+        </button>
+      </div>
 
-      <label className="field composer-editor">
-        <span>{composerLabel}</span>
-        <textarea
-          value={body}
-          onChange={(event) => {
-            setBody(event.target.value)
-            setDraftMessage('')
-          }}
-          onPaste={pasteClipboardImages}
-          rows="3"
-          maxLength={2000}
-          placeholder="Write a reply without email, phone, external links, or abusive language"
-        />
-      </label>
+      <div className="composer-editor-shell">
+        <label className="field composer-editor">
+          <span><Icon name="reply" />{composerLabel}</span>
+          <textarea
+            value={body}
+            onChange={(event) => {
+              setBody(event.target.value)
+              setDraftMessage('')
+            }}
+            onPaste={pasteClipboardImages}
+            rows="3"
+            maxLength={2000}
+            placeholder="Write a reply without email, phone, external links, or abusive language"
+          />
+        </label>
+        <div className="composer-editor-footer">
+          <div className="composer-attachment-action">
+            <input
+              id={`reply-attachments-${conversationId}`}
+              key={fileInputKey}
+              type="file"
+              multiple
+              onChange={updateFiles}
+              accept=".pdf,.txt,.jpg,.jpeg,.png,application/pdf,text/plain,image/jpeg,image/png"
+            />
+            <label htmlFor={`reply-attachments-${conversationId}`}>
+              <Icon name="paperclip" />
+              {files.length ? `Attach (${files.length})` : 'Attach'}
+            </label>
+          </div>
+          <label className="email-copy-checkbox" htmlFor={`reply-email-copy-${conversationId}`}>
+            <input
+              id={`reply-email-copy-${conversationId}`}
+              type="checkbox"
+              checked={sendCopyToEmail}
+              disabled={isSubmitting || isValidating}
+              onChange={(event) => setSendCopyToEmail(event.target.checked)}
+            />
+            <Icon name="mail" /><span>Send a copy to my email</span>
+          </label>
+          <div className="composer-send-actions">
+            <small className="composer-character-count">{body.length} / 2000</small>
+            <button
+              className="primary-button composer-send-button"
+              type="submit"
+              aria-label={isValidating ? 'Checking message' : isSubmitting ? 'Sending message' : 'Send Reply'}
+              title={isValidating ? 'Checking...' : isSubmitting ? 'Sending...' : 'Send Reply'}
+              aria-disabled={!body.trim() || !selectedTypeId || isSubmitting || isValidating}
+              disabled={isSubmitting || isValidating}
+            >
+              <Icon name="send" />
+            </button>
+          </div>
+        </div>
+      </div>
       {files.length ? (
         <div className="reply-attachment-list" aria-label="Selected attachments">
           {attachmentPreviews.map(({ file, previewUrl }, index) => (
@@ -303,28 +358,6 @@ export default function ReplyComposer({
           <p>{draftMessage}</p>
         </div>
       ) : null}
-      <div className="reply-composer-actions">
-        <div className="composer-attachment-action">
-          <input id={`reply-attachments-${conversationId}`} key={fileInputKey} type="file" multiple onChange={updateFiles} accept=".pdf,.txt,.jpg,.jpeg,.png,application/pdf,text/plain,image/jpeg,image/png" />
-          <label htmlFor={`reply-attachments-${conversationId}`} title="Attach files" aria-label="Attach files"><Icon name="paperclip" /></label>
-          <small>{files.length ? `${files.length} attached` : 'Attach'} · {body.length}/2000</small>
-        </div>
-        <label className="email-copy-checkbox" htmlFor={`reply-email-copy-${conversationId}`}>
-          <input id={`reply-email-copy-${conversationId}`} type="checkbox" checked={sendCopyToEmail} disabled={isSubmitting || isValidating} onChange={(event) => setSendCopyToEmail(event.target.checked)} />
-          <span>Send a copy to my email</span>
-        </label>
-        <button className="secondary-button compact" type="button" onClick={saveDraft} disabled={!body.trim() && !files.length}>
-          Save Draft
-        </button>
-        <button
-          className="primary-button compact"
-          type="submit"
-          aria-disabled={!body.trim() || !selectedTypeId || isSubmitting || isValidating}
-          disabled={isSubmitting || isValidating}
-        >
-          {isValidating ? 'Checking...' : isSubmitting ? 'Sending...' : 'Send Reply'}
-        </button>
-      </div>
     </form>
   )
 }

@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { Icon } from '../../../layouts/app_layout'
 
 /**
  * Message Type controls used by the reply composer.
@@ -46,6 +47,7 @@ export default function MessageTypeSelector({
     <>
       <label className={`composer-select-control${categoryIsMissing ? ' has-error' : ''}`}>
         <span>Message Type *</span>
+        <Icon name="tag" />
         <select
           value={categoryId}
           aria-invalid={categoryIsMissing}
@@ -54,19 +56,20 @@ export default function MessageTypeSelector({
             onSubtypeChange('')
           }}
         >
-          <option value="">Select type</option>
+          <option value="">Message type *</option>
           {messageTypes.map((item) => <option value={item.id} key={item.id}>{item.name}</option>)}
         </select>
       </label>
       {category?.children?.length ? (
         <label className={`composer-select-control${subtypeIsMissing ? ' has-error' : ''}`}>
           <span>Sub Type *</span>
+          <Icon name="tag" />
           <select
             value={subtypeId}
             aria-invalid={subtypeIsMissing}
             onChange={(event) => onSubtypeChange(event.target.value)}
           >
-            <option value="">Select subtype</option>
+            <option value="">Message subtype *</option>
             {category.children.map((item) => <option value={item.id} key={item.id}>{item.name}</option>)}
           </select>
         </label>

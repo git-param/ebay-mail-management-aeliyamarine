@@ -1,4 +1,5 @@
 import ReplyComposer from './ReplyComposer'
+import ConversationWorkflowControls from './ConversationWorkflowControls'
 
 import { ConversationBadge } from '../conversationList/ConversationRow'
 import { EmptyPanel } from '../conversationList/ConversationList'
@@ -125,6 +126,13 @@ function ConversationDetail({
         </div>
 
         <div className="detail-header-actions">
+          <ConversationWorkflowControls
+            detail={detail}
+            categories={categories}
+            isSubmitting={isSubmitting}
+            onStatusChange={onStatusChange}
+            onCategoryChange={onCategoryChange}
+          />
           <button
             className="secondary-button compact-action list-pane-toggle"
             type="button"

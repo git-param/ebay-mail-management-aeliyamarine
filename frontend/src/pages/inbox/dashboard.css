@@ -55,6 +55,10 @@
   overflow-y: auto;
 }
 
+.top-bar-hidden .inbox-page.conversation-open {
+  height: 100svh;
+}
+
 .inbox-page.conversation-open {
   grid-template-columns:
     minmax(300px, var(--inbox-list-width, 420px))

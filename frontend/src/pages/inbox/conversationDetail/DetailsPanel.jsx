@@ -1,5 +1,4 @@
 import AssignmentPanel from './AssignmentPanel'
-import CategoryPanel from './CategoryPanel'
 import MetadataPanel from './MetadataPanel'
 import NotesPanel from './NotesPanel'
 
@@ -9,7 +8,6 @@ function DetailsPanel({
   notes,
   users,
   usersError,
-  categories,
   accounts,
   notesLoading,
   isSubmitting,
@@ -18,8 +16,6 @@ function DetailsPanel({
   onAddNote,
   onUpdateNote,
   onDeleteNote,
-  onCategoryChange,
-  onStatusChange,
 }) {
   return (
     <aside
@@ -34,14 +30,6 @@ function DetailsPanel({
         isSubmitting={isSubmitting}
         onAssign={onAssign}
         onUnassign={onUnassign}
-      />
-
-      <CategoryPanel
-        detail={detail}
-        categories={categories}
-        isSubmitting={isSubmitting}
-        onCategoryChange={onCategoryChange}
-        onStatusChange={onStatusChange}
       />
 
       <MetadataPanel

@@ -177,9 +177,10 @@ function ConversationList({
             onClick={onToggleUnread}
             disabled={isLoading}
             aria-pressed={unreadActive}
+            title="Show unread conversations"
           >
             <Icon name="message" />
-            <span>Unread Conversations</span>
+            <span>Unread</span>
           </button>
           <button
             className={`secondary-button compact-action near-due-button${nearDueActive ? ' active' : ''}`}

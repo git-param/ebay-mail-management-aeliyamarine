@@ -188,6 +188,10 @@ export function Icon({ name }) {
     message: <path d="M4 5h12v8H7l-3 3V5Zm3 3h6M7 10h4" />,
     paperclip: <path d="M7.5 10.5 12 6a2.1 2.1 0 0 1 3 3l-6.2 6.2a3.4 3.4 0 0 1-4.8-4.8l6.1-6.1M6.5 12.5l6.1-6.1" />,
     reply: <path d="M8 6 4 10l4 4v-3h3.5A4.5 4.5 0 0 1 16 15.5V15a7 7 0 0 0-7-7H8V6Z" />,
+    grid: <path d="M3 3h5v5H3V3Zm9 0h5v5h-5V3ZM3 12h5v5H3v-5Zm9 0h5v5h-5v-5Z" />,
+    mail: <path d="M3 5h14v10H3V5Zm0 0 7 6 7-6" />,
+    save: <path d="M4 3h10l3 3v11H3V3h1Zm2 0v5h7V3M6 17v-6h8v6" />,
+    send: <path d="m3 9 14-6-6 14-2-6-6-2Zm6 2 8-8" />,
     moon: <path d="M14.5 13.5A6 6 0 0 1 7 6a6 6 0 1 0 7.5 7.5Z" />,
     chart: <path d="M4 16V5m0 11h12M7 13V9m4 4V6m4 7v-3" />,
     audit: <path d="M5 4h8l2 2v10H5V4Zm7 0v3h3M7 9h6M7 12h6" />,
@@ -212,7 +216,7 @@ export function Icon({ name }) {
   )
 }
 
-function AppLayout({ activePage, children, currentUser, onLogout }) {
+function AppLayout({ activePage, children, currentUser, onLogout, hideTopBar = false }) {
   const [isProfileOpen, setIsProfileOpen] = useState(false)
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false)
   const [notifications, setNotifications] = useState([])
@@ -323,7 +327,7 @@ function AppLayout({ activePage, children, currentUser, onLogout }) {
   }
 
   return (
-    <div className={`app-shell ${isSidebarOpen ? 'sidebar-is-open' : ''} ${isSidebarCollapsed ? 'sidebar-is-collapsed' : ''}`}>
+    <div className={`app-shell ${hideTopBar ? 'top-bar-hidden' : ''} ${isSidebarOpen ? 'sidebar-is-open' : ''} ${isSidebarCollapsed ? 'sidebar-is-collapsed' : ''}`}>
       <button
         className="sidebar-backdrop"
         type="button"
@@ -339,6 +343,17 @@ function AppLayout({ activePage, children, currentUser, onLogout }) {
       >
         {isSidebarCollapsed ? '>>' : '<<'}
       </button>
+      {hideTopBar ? (
+        <button
+          className="icon-button conversation-navigation-toggle"
+          type="button"
+          aria-label={isSidebarOpen ? 'Close navigation' : 'Open navigation'}
+          aria-expanded={isSidebarOpen}
+          onClick={() => setIsSidebarOpen((current) => !current)}
+        >
+          <Icon name={isSidebarOpen ? 'close' : 'menu'} />
+        </button>
+      ) : null}
       <aside className="sidebar" aria-label="Application navigation">
         <div className="sidebar-brand">
           <span>AM</span>
@@ -359,17 +374,35 @@ function AppLayout({ activePage, children, currentUser, onLogout }) {
           ))}
         </nav>
 
-        <div className="sidebar-user">
-          <span>{getInitials(displayName)}</span>
-          <div>
-            <strong>{displayName}</strong>
-            <p>{roleLabel}</p>
-          </div>
+        <div className="profile-menu-wrap sidebar-profile-menu" ref={profileMenuRef}>
+          <button
+            className="sidebar-user"
+            type="button"
+            aria-label={`Account menu for ${displayName}`}
+            aria-expanded={isProfileOpen}
+            aria-controls="sidebar-account-menu"
+            onClick={() => {
+              setIsProfileOpen((current) => !current)
+              setIsNotificationsOpen(false)
+            }}
+          >
+            <span>{getInitials(displayName)}</span>
+            <div>
+              <strong>{displayName}</strong>
+              <p>{roleLabel}</p>
+            </div>
+          </button>
+          {isProfileOpen ? (
+            <div className="profile-menu" id="sidebar-account-menu">
+              <p>{roleLabel}</p>
+              <button type="button" onClick={onLogout}>Logout</button>
+            </div>
+          ) : null}
         </div>
       </aside>
 
       <div className="workspace">
-        <header className="top-nav">
+        <header className="top-nav" hidden={hideTopBar}>
           <button
             className="icon-button mobile-menu-button"
             type="button"
@@ -439,28 +472,6 @@ function AppLayout({ activePage, children, currentUser, onLogout }) {
             >
               <Icon name="moon" />
             </button>
-            <div className="profile-menu-wrap" ref={profileMenuRef}>
-              <button
-                className="profile-button"
-                type="button"
-                onClick={() => {
-                  setIsProfileOpen((current) => !current)
-                  setIsNotificationsOpen(false)
-                }}
-                aria-expanded={isProfileOpen}
-              >
-                <span>{getInitials(displayName)}</span>
-                {displayName}
-              </button>
-              {isProfileOpen ? (
-                <div className="profile-menu">
-                  <p>{roleLabel}</p>
-                  <button type="button" onClick={onLogout}>
-                    Logout
-                  </button>
-                </div>
-              ) : null}
-            </div>
           </div>
         </header>
 

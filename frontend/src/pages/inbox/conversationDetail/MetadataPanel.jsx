@@ -1,5 +1,4 @@
 import { ConversationBadge } from '../conversationList/ConversationRow'
-import { formatDate } from '../inboxUtils'
 
 function MetadataValue({
   children,
@@ -57,16 +56,6 @@ function MetadataPanel({
             <MetadataValue>
               {account?.label ||
                 detail.provider_account_id}
-            </MetadataValue>
-          </dd>
-        </div>
-
-        <div>
-          <dt>Conversation ID</dt>
-
-          <dd>
-            <MetadataValue>
-              {detail.provider_conversation_id}
             </MetadataValue>
           </dd>
         </div>

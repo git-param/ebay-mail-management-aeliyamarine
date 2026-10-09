@@ -1,0 +1,206 @@
+/* Compact reply card with all delivery controls inside the editor footer. */
+.reply-composer {
+  padding: 16px;
+  border-radius: 18px;
+}
+
+.reply-composer .composer-toolbar-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 9px;
+}
+
+.reply-composer .composer-controls {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  min-width: 0;
+  gap: 10px;
+  margin-bottom: 0;
+}
+
+.reply-composer .composer-select-control {
+  position: relative;
+  flex: 0 1 220px;
+  width: 220px;
+  max-width: 100%;
+}
+
+.reply-composer .composer-select-control > span {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.reply-composer .composer-select-control > .ui-icon {
+  position: absolute;
+  top: 10px;
+  left: 12px;
+  width: 16px;
+  height: 16px;
+  color: #7962e8;
+  pointer-events: none;
+}
+
+.reply-composer .composer-select-control select {
+  height: 36px;
+  padding-left: 40px;
+  font-size: 13px;
+}
+
+.reply-composer .composer-select-control select:disabled {
+  background: #f7f5fc;
+  color: #a5a0b5;
+}
+
+.reply-composer .composer-editor-shell {
+  border: 1px solid #d7d4e3;
+  border-radius: 13px;
+  overflow: hidden;
+}
+
+.reply-composer .composer-editor-shell:focus-within {
+  border-color: #8b78e6;
+  box-shadow: 0 0 0 3px rgba(124, 92, 229, 0.1);
+}
+
+.reply-composer .composer-editor-shell .composer-editor {
+  gap: 0;
+}
+
+.reply-composer .composer-editor > span {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px 0;
+  color: #26223c;
+}
+
+.reply-composer .composer-editor > span .ui-icon {
+  width: 16px;
+  height: 16px;
+  color: #7962e8;
+}
+
+.reply-composer .composer-editor-shell .composer-editor textarea {
+  min-height: 58px;
+  padding: 8px 14px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  font-size: 13px;
+}
+
+.reply-composer .composer-editor-footer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 54px;
+  padding: 6px 10px 6px 14px;
+  border-top: 1px solid #e6e3ee;
+}
+
+.reply-composer .composer-editor-footer .composer-attachment-action {
+  flex: 0 1 auto;
+}
+
+.reply-composer .composer-editor-footer .composer-attachment-action > label {
+  width: auto;
+  gap: 7px;
+  padding: 0 10px;
+  border: 1px solid var(--inbox-border, #d7d4e3);
+  background: transparent;
+  color: #746f89;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.reply-composer .composer-character-count {
+  flex-shrink: 0;
+  color: #9993aa;
+  font-size: 12px;
+}
+
+.reply-composer .email-copy-checkbox {
+  margin: 0;
+  gap: 8px;
+}
+
+.reply-composer .email-copy-checkbox .ui-icon,
+.reply-composer .composer-save-draft .ui-icon {
+  width: 17px;
+  height: 17px;
+}
+
+.reply-composer .composer-save-draft {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex: 0 0 auto;
+  min-height: 36px;
+  padding: 0 12px;
+}
+
+.reply-composer .composer-send-actions {
+  display: flex;
+  align-items: center;
+  justify-self: end;
+  gap: 14px;
+}
+
+.reply-composer .composer-send-button {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 40px;
+  width: 40px;
+  min-width: 40px;
+  height: 40px;
+  min-height: 40px;
+  padding: 0;
+  border-radius: 50%;
+}
+
+.reply-composer .composer-send-button .ui-icon {
+  width: 20px;
+  height: 20px;
+}
+
+html[data-theme='dark'] .reply-composer .composer-editor-shell,
+html[data-theme='dark'] .reply-composer .composer-editor-footer {
+  border-color: var(--inbox-border, #344155);
+}
+
+html[data-theme='dark'] .reply-composer .composer-select-control select:disabled {
+  background: #1d232d;
+  color: #8e98a8;
+}
+
+@media (max-width: 760px) {
+  .reply-composer .composer-controls {
+    gap: 6px;
+  }
+
+  .reply-composer .composer-select-control {
+    flex: 1 1 160px;
+  }
+
+  .reply-composer .composer-editor-footer {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+  }
+
+  .reply-composer .composer-editor-footer .email-copy-checkbox {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    justify-self: center;
+  }
+}
