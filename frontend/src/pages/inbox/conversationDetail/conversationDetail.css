@@ -11,14 +11,16 @@
 }
 
 .inbox-page .detail-header {
-  min-height: 62px;
+  min-height: 44px;
   display: flex;
   flex: 0 0 auto;
   align-items: center;
   justify-content: space-between;
-  gap: 14px;
-  padding: 12px 18px;
-  border-bottom: 1px solid #dfe8f3;
+  gap: 10px;
+  margin: 8px;
+  padding: 6px 8px;
+  border: 1px solid #dfe8f3;
+  border-radius: 12px;
   background: #ffffff;
 }
 
@@ -54,21 +56,84 @@
   gap: 6px;
   font-size: 11px;
   font-weight: 600;
-}
-
-.conversation-workflow-controls select {
-  width: 140px;
   min-height: 32px;
   padding: 0 8px;
   border: 1px solid var(--inbox-border, #d8e2ef);
   border-radius: 8px;
   background: var(--inbox-surface, #fff);
-  color: var(--inbox-text, #172033);
-  font: inherit;
+  color: var(--inbox-muted, #8d859f);
 }
 
-.inbox-page .list-pane-toggle {
-  min-width: 82px;
+.conversation-workflow-controls select {
+  width: auto;
+  min-width: 90px;
+  max-width: 130px;
+  min-height: 28px;
+  padding: 0 4px;
+  border: 0;
+  background: transparent;
+  color: var(--inbox-text, #172033);
+  font: inherit;
+  font-weight: 700;
+}
+
+.inbox-page .detail-header-navigation {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.inbox-page .conversation-panel-toggle {
+  display: inline-grid;
+  flex: 0 0 32px;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid var(--inbox-border, #d8e2ef);
+  border-radius: 8px;
+  background: var(--inbox-surface, #fff);
+  color: var(--inbox-muted, #64748b);
+  cursor: pointer;
+}
+
+.inbox-page .conversation-panel-toggle:hover {
+  color: var(--inbox-primary, #675ee8);
+  border-color: var(--inbox-primary, #675ee8);
+}
+
+.inbox-page .conversation-panel-toggle:focus-visible {
+  outline: 2px solid var(--inbox-primary, #675ee8);
+  outline-offset: 3px;
+}
+
+.inbox-page .detail-header-navigation .thread-back-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 24px;
+  padding: 0 4px 0 10px;
+  border-left: 1px solid var(--inbox-border, #d8e2ef);
+  border-radius: 0;
+  font-size: 12px;
+}
+
+.inbox-page .conversation-panel-toggle .ui-icon,
+.inbox-page .thread-back-button .ui-icon,
+.conversation-workflow-controls .ui-icon {
+  width: 16px;
+  height: 16px;
+}
+
+.conversation-workflow-controls .ui-icon {
+  color: #7962e8;
+}
+
+.conversation-workflow-controls .workflow-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #188565;
 }
 
 .inbox-page .thread-panel {

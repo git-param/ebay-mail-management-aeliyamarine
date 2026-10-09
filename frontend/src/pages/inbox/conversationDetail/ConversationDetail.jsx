@@ -1,4 +1,5 @@
 import ReplyComposer from './ReplyComposer'
+import { Icon } from '../../../layouts/app_layout'
 import ConversationWorkflowControls from './ConversationWorkflowControls'
 
 import { ConversationBadge } from '../conversationList/ConversationRow'
@@ -84,10 +85,10 @@ function ConversationDetail({
 
   const detailsButtonLabel =
     isDetailsView
-      ? 'Thread'
+      ? 'Show messages'
       : isDetailsOpen
-        ? 'Hide Details'
-        : 'Details'
+        ? 'Hide details'
+        : 'Show details'
 
   const detailsButtonAction =
     isDetailsView
@@ -115,13 +116,23 @@ function ConversationDetail({
       aria-label="Conversation detail"
     >
       <div className="detail-header">
-        <div>
+        <div className="detail-header-navigation">
+          <button
+            className="conversation-panel-toggle"
+            type="button"
+            onClick={onToggleListPane}
+            aria-label={isListPaneOpen ? 'Hide conversation list' : 'Show conversation list'}
+            title={isListPaneOpen ? 'Hide conversation list' : 'Show conversation list'}
+            aria-expanded={isListPaneOpen}
+          >
+            <Icon name="panelLeft" />
+          </button>
           <button
             className="thread-back-button"
             type="button"
             onClick={onBack}
           >
-            ← Back to inbox
+            <Icon name="chevronLeft" /> Back to inbox
           </button>
         </div>
 
@@ -133,28 +144,26 @@ function ConversationDetail({
             onStatusChange={onStatusChange}
             onCategoryChange={onCategoryChange}
           />
-          <button
-            className="secondary-button compact-action list-pane-toggle"
-            type="button"
-            onClick={onToggleListPane}
-          >
-            {isListPaneOpen
-              ? 'Hide List'
-              : 'Show List'}
-          </button>
-
           <ConversationBadge
             tone={providerStatusTone}
           >
             {providerStatus}
           </ConversationBadge>
-
           <button
-            className="secondary-button compact-action"
+            className="conversation-panel-toggle"
             type="button"
-            onClick={detailsButtonAction}
+            aria-label={detailsButtonLabel}
+            title={detailsButtonLabel}
+            aria-expanded={isDetailsOpen || isDetailsView}
+            onClick={() => {
+              if (!isDetailsView && window.innerWidth <= 820) {
+                onOpenDetails()
+              } else {
+                detailsButtonAction()
+              }
+            }}
           >
-            {detailsButtonLabel}
+            <Icon name="panelRight" />
           </button>
         </div>
       </div>
@@ -167,6 +176,8 @@ function ConversationDetail({
           {actionError}
         </p>
       ) : null}
+
+      {!isDetailsView && <ConversationContextBanner detail={detail} />}
 
       {isDetailsView ? (
         <DetailsPanel
@@ -189,10 +200,6 @@ function ConversationDetail({
         />
       ) : (
         <div className="thread-panel">
-          <ConversationContextBanner
-            detail={detail}
-          />
-
           <MessageThread
             messages={detail.messages || []}
             offers={detail.offers || []}

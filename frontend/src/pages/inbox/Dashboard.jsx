@@ -1384,12 +1384,14 @@ function Dashboard({
                   isListPaneOpen={
                     isListPaneOpen
                   }
-                  onToggleListPane={() =>
-                    setIsListPaneOpen(
-                      (current) =>
-                        !current,
-                    )
-                  }
+                  onToggleListPane={() => {
+                    if (window.innerWidth <= 820) {
+                      setIsListPaneOpen(true)
+                      setMobilePane('list')
+                    } else {
+                      setIsListPaneOpen((current) => !current)
+                    }
+                  }}
                   onOpenDetails={
                     openDetails
                   }
