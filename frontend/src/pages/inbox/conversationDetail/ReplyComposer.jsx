@@ -24,7 +24,18 @@ function isImageFile(file) {
   )
 }
 
-export default function ReplyComposer({ conversationId, buyerName, currentUser, suggestedMessageTypeId, isSubmitting, onSendReply, templates = [], messageTypes = [] }) {
+export default function ReplyComposer({
+  conversationId,
+  buyerName,
+  currentUser,
+  suggestedMessageTypeId,
+  isSubmitting,
+  onSendReply,
+  templates = [],
+  messageTypes = [],
+  validateMessage = validateConversationReply,
+  composerLabel = 'Reply to buyer',
+}) {
   const [body, setBody] = useState('')
   const [files, setFiles] = useState([])
   const [fileInputKey, setFileInputKey] = useState(0)
@@ -164,7 +175,7 @@ export default function ReplyComposer({ conversationId, buyerName, currentUser, 
     setViolations([])
     setDraftMessage('')
     try {
-      const validation = await validateConversationReply(conversationId, trimmedBody)
+      const validation = await validateMessage(conversationId, trimmedBody)
       if (!validation.valid) {
         setViolations(validation.violations || ['Reply violates eBay messaging policy.'])
         return
@@ -241,7 +252,7 @@ export default function ReplyComposer({ conversationId, buyerName, currentUser, 
       </div>
 
       <label className="field composer-editor">
-        <span>Reply to buyer</span>
+        <span>{composerLabel}</span>
         <textarea
           value={body}
           onChange={(event) => {

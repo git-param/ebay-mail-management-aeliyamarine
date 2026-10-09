@@ -67,6 +67,7 @@ function ConversationList({
   onToggleNearDue,
   onToggleUnread,
   onRefresh,
+  onNewBuyer,
   onOpenFilters,
   onSelectConversation,
   onToggleBulk,
@@ -167,6 +168,9 @@ function ConversationList({
         </div>
 
         <div className="inbox-header-actions">
+          <button className="primary-button compact-action" type="button" onClick={onNewBuyer}>
+            New buyer
+          </button>
           <button
             className={`secondary-button compact-action near-due-button${unreadActive ? ' active' : ''}`}
             type="button"

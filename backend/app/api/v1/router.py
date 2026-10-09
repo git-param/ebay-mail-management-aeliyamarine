@@ -5,6 +5,7 @@ from fastapi import APIRouter
 from app.constants.api import ApiPrefixes
 from app.api.v1.routes import analytics, audit_logs, auth, categories, conversations, ebay_accounts, message_types, notifications, offers, templates, users
 from app.modules.integrations.ebay.routes import ebay_oauth_routes
+from app.api.v1.routes import new_buyer_conversations
 from app.modules.config_management.router import router as config_router
 from app.modules.offer_management.router import router as offer_management_router
 from app.modules.daily_task_entry.router import router as daily_entry_router
@@ -22,6 +23,7 @@ api_router.include_router(auth.router, prefix=ApiPrefixes.AUTH, tags=['auth'])
 api_router.include_router(users.router, prefix=ApiPrefixes.USERS, tags=['users'])
 api_router.include_router(ebay_accounts.router, prefix=ApiPrefixes.EBAY_ACCOUNTS, tags=['ebay-accounts'])
 api_router.include_router(categories.router, prefix=ApiPrefixes.CATEGORIES, tags=['categories'])
+api_router.include_router(new_buyer_conversations.router, prefix=ApiPrefixes.CONVERSATIONS, tags=['conversations'])
 api_router.include_router(conversations.router, prefix=ApiPrefixes.CONVERSATIONS, tags=['conversations'])
 api_router.include_router(offers.router, prefix=ApiPrefixes.OFFERS, tags=['offers'])
 api_router.include_router(notifications.router, prefix=ApiPrefixes.NOTIFICATIONS, tags=['notifications'])

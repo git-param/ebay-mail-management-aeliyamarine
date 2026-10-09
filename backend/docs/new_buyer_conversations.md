@@ -1,0 +1,33 @@
+# New buyer conversations
+
+In the Inbox, select **New buyer**, choose an active connected eBay account,
+and enter the buyer's exact eBay username. Select **Open conversation** to
+compose the first message using the existing templates, message types, and
+attachment controls. The buyer does not need an ACES order or conversation.
+
+The recipient is checked by eBay when the message is sent. Opening the composer
+does not verify that the username exists or create a database conversation.
+Provider rejection messages are shown in the composer, preserving the draft.
+
+## API and implementation
+
+- `POST /api/v1/conversations/start/validate` validates message policy without a thread ID.
+- `POST /api/v1/conversations/start` accepts multipart form fields `account_id`,
+  `buyer_username`, `body`, `message_type_id`, `send_copy_to_email`, and optional
+  `attachments`. Both endpoints require authentication.
+- `NewBuyerConversationService` validates the selected sending account and
+  recipient. If an open member conversation already exists for that account and
+  buyer, it sends through that conversation. Otherwise it creates a transient
+  thread and delegates delivery to `EbayReplyService`.
+- The first eBay message uses `otherPartyUsername` rather than `conversationId`.
+  The selected account's token supplies the sender identity. The existing reply
+  flow handles attachments, classification, audit logging, and persistence.
+- Failed delivery rolls back the transient conversation and pending message.
+- A returned eBay `conversationId` replaces the temporary identity immediately.
+  If eBay omits it, the accepted message is saved locally and subsequent sends
+  wait for the normal message sync. Sync attaches the provider identity only
+  when the outbound message matches by ID or by body, sender, recipient, and
+  timestamp. This avoids starting another conversation accidentally.
+
+No database migration is required. Live delivery still depends on the connected
+account's eBay Message API access and eBay's recipient restrictions.

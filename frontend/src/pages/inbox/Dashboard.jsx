@@ -32,6 +32,7 @@ import ConversationList from './conversationList/ConversationList'
 import InboxFiltersDrawer from './conversationList/InboxFiltersDrawer'
 import { EmptyPanel } from './conversationList/ConversationList'
 import ConversationDetail from './conversationDetail/ConversationDetail'
+import NewBuyerConversation from './conversationDetail/NewBuyerConversation'
 import DetailsPanel from './conversationDetail/DetailsPanel'
 import {
   DEFAULT_PAGE_SIZE,
@@ -80,6 +81,7 @@ function Dashboard({
   onLogout,
 }) {
   const canManageAssignments = Boolean(currentUser)
+  const [isNewBuyerOpen, setIsNewBuyerOpen] = useState(false)
 
   const [filters, setFilters] =
     useState(EMPTY_FILTERS)
@@ -257,7 +259,7 @@ function Dashboard({
     )
 
   const hasSelectedConversation =
-    Boolean(selectedConversationId)
+    Boolean(selectedConversationId) || isNewBuyerOpen
 
   const selectedConversation =
     useMemo(
@@ -274,7 +276,7 @@ function Dashboard({
     )
 
   const visibleConversation =
-    detail || selectedConversation
+    isNewBuyerOpen ? null : detail || selectedConversation
 
   const activeFilterCount =
     useMemo(() => {
@@ -693,6 +695,7 @@ function Dashboard({
   function selectConversation(
     conversationId,
   ) {
+    setIsNewBuyerOpen(false)
     setSelectedConversationId(
       conversationId,
     )
@@ -719,6 +722,7 @@ function Dashboard({
   }
 
   function returnToList() {
+    setIsNewBuyerOpen(false)
     setSelectedConversationId('')
     setDetail(null)
     setNotes([])
@@ -1200,6 +1204,11 @@ function Dashboard({
         {isListPaneOpen ||
         !hasSelectedConversation ? (
           <ConversationList
+            onNewBuyer={() => {
+              returnToList()
+              setIsNewBuyerOpen(true)
+              setMobilePane('thread')
+            }}
             conversations={conversationsWithCategoryColors}
             total={total}
             page={page}
@@ -1311,7 +1320,19 @@ function Dashboard({
             ) : null}
 
             <section className="inbox-detail-panel">
-              {detailError ? (
+              {isNewBuyerOpen ? (
+                <NewBuyerConversation
+                  accounts={accounts}
+                  currentUser={currentUser}
+                  templates={templates}
+                  messageTypes={messageTypes}
+                  onCancel={returnToList}
+                  onSent={(conversationId) => {
+                    selectConversation(conversationId)
+                    loadConversations()
+                  }}
+                />
+              ) : detailError ? (
                 <EmptyPanel
                   title="Could not load conversation"
                   message={detailError}

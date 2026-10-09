@@ -349,6 +349,8 @@ export function normalizeCategory(category) {
 export function normalizeAccount(account) {
   return {
     id: account.id,
+    ebayUsername: account.ebay_username || '',
+    canSendMessages: account.is_active && account.connection_status === 'CONNECTED',
     label:
       account.ebay_username ||
       account.account_name ||

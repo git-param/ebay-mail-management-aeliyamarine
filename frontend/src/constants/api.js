@@ -22,12 +22,14 @@ export const API = Object.freeze({
     DASHBOARD: "/analytics/dashboard",
     DASHBOARD_EXPORT: "/analytics/dashboard/export",
   }),
+
   AUDIT_LOGS: Object.freeze({
     DELETION_PREVIEW: "/audit-logs/deletion-preview",
     ROOT: "/audit-logs",
     FILTERS: "/audit-logs/filters",
     EXPORT: "/audit-logs/export",
   }),
+
   AUTH: Object.freeze({
     LOGIN: "/auth/login",
     FORGOT_PASSWORD: "/auth/forgot-password",
@@ -45,6 +47,7 @@ export const API = Object.freeze({
     EMPLOYEES: "/break-management/employees",
     EXPORT: "/break-management/export",
   }),
+
   CATEGORIES: Object.freeze({
     ROOT: "/categories",
     BY_CATEGORY_ID: "/categories/{categoryId}",
@@ -54,12 +57,16 @@ export const API = Object.freeze({
     BY_CATEGORY_ID_KEYWORDS_BY_KEYWORD_ID: "/categories/{categoryId}/keywords/{keywordId}",
     USERS_BY_USER_ID_ASSIGNMENTS: "/categories/users/{userId}/assignments",
   }),
+
   CONFIG: Object.freeze({
     ROOT: "/config",
     ACCOUNT_SYNC: "/config/account-sync",
     CONVERSATION_DATA: "/config/conversation-data",
   }),
+
   CONVERSATIONS: Object.freeze({
+    START: "/conversations/start",
+    START_VALIDATE: "/conversations/start/validate",
     ROOT: "/conversations",
     BY_CONVERSATION_ID: "/conversations/{conversationId}",
     BY_CONVERSATION_ID_CONTEXT: "/conversations/{conversationId}/context",
@@ -74,6 +81,7 @@ export const API = Object.freeze({
     BY_CONVERSATION_ID_REPLY_VALIDATE: "/conversations/{conversationId}/reply/validate",
     BY_CONVERSATION_ID_REPLY: "/conversations/{conversationId}/reply",
   }),
+
   DAILY_ENTRY: Object.freeze({
     DRAFT: "/dailyEntry/draft",
     ENTRIES: "/dailyEntry/entries",
@@ -82,12 +90,14 @@ export const API = Object.freeze({
     DAILY_ENTRIES_DELETE: "/dailyEntry/daily-entries/delete",
     SLA_REVIEW: "/dailyEntry/sla-review",
   }),
+
   EBAY_ACCOUNTS: Object.freeze({
     ROOT: "/ebay-accounts",
     BY_ACCOUNT_ID: "/ebay-accounts/{accountId}",
     BY_ACCOUNT_ID_ACTIVATE: "/ebay-accounts/{accountId}/activate",
     BY_ACCOUNT_ID_DEACTIVATE: "/ebay-accounts/{accountId}/deactivate",
   }),
+
   EBAY_INTEGRATION: Object.freeze({
     SYNC_STATUS_BY_SYNC_LOG_ID: "/integrations/ebay/sync-status/{syncLogId}",
     CONNECT: "/integrations/ebay/connect",
@@ -97,6 +107,7 @@ export const API = Object.freeze({
     SYNC_BY_ACCOUNT_ID: "/integrations/ebay/sync/{accountId}",
     SYNC_ALL: "/integrations/ebay/sync-all",
   }),
+
   EBAY_BEST_OFFERS: Object.freeze({
     CURRENT: "/integrations/ebay/best-offers/current",
     ACCOUNTS: "/integrations/ebay/best-offers/accounts",
@@ -151,7 +162,7 @@ export const API = Object.freeze({
     BY_ID_HISTORY: "/offer-management/{id}/history",
     EXPORT: "/offer-management/export",
   }),
-  
+
   PMS: Object.freeze({
     CONFIG: "/pms/config",
     CONFIG_BY_CONFIG_ID: "/pms/config/{configId}",
@@ -179,7 +190,7 @@ export const API = Object.freeze({
     LINE_ITEMS_BY_LINE_ITEM_RECORD_ID: "/sold-posting/line-items/{lineItemRecordId}",
     LINE_ITEMS_BY_LINE_ITEM_RECORD_ID_COPIED: "/sold-posting/line-items/{lineItemRecordId}/copied",
   }),
-  
+
   TASK_MANAGEMENT: Object.freeze({
     CATEGORIES: "/task-management/categories",
     CATEGORIES_BY_ID: "/task-management/categories/{id}",
@@ -191,7 +202,7 @@ export const API = Object.freeze({
     ASSIGNMENTS_BY_ID: "/task-management/assignments/{id}",
     TASK_ASSIGNMENTS: "/task-management/task-assignments",
   }),
-  
+
   TEMPLATES: Object.freeze({
     ROOT: "/templates",
     BY_TEMPLATE_ID: "/templates/{templateId}",

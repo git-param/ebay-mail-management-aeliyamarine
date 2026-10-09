@@ -1,6 +1,7 @@
 import re
 from datetime import UTC, datetime, timedelta
 
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.constants.api import ExternalApi
@@ -124,6 +125,8 @@ class EbayMessageService:
             },
         }
 
+        self._reconcile_new_buyer_conversation(account, conversation_id, values, messages)
+
         conversation, created = (
             self.conversation_repository.upsert_by_provider_id(
                 self.provider,
@@ -161,6 +164,46 @@ class EbayMessageService:
             conversation.category_id = category_id
 
         return conversation, created
+
+    def _reconcile_new_buyer_conversation(
+        self, account: EbayAccount, conversation_id: str, values: dict, messages: list[dict]
+    ) -> None:
+        """Attach the provider identity to a sent thread when sendMessage omitted its ID."""
+        buyer = values.get('buyer_identifier')
+        if not buyer or values.get('provider_conversation_type') != 'FROM_MEMBERS':
+            return
+        if self.conversation_repository.get_by_provider_id(self.provider, conversation_id):
+            return
+        candidates = self.db.scalars(
+            select(Conversation).where(
+                Conversation.provider == self.provider,
+                Conversation.provider_account_id == account.id,
+                func.lower(Conversation.buyer_identifier) == buyer.lower(),
+                Conversation.provider_conversation_id.startswith('new-buyer-'),
+            )
+        )
+        for conversation in candidates:
+            if not (conversation.raw_payload or {}).get('first_message_sent'):
+                continue
+            for payload in messages:
+                provider_message_id = self._string_or_none(payload.get('messageId'))
+                known_message = next(
+                    (message for message in conversation.messages
+                     if provider_message_id and message.provider_message_id == provider_message_id),
+                    None,
+                )
+                sent_at = self._parse_ebay_datetime(payload.get('createdDate'))
+                local_message = self._local_reply_match(
+                    conversation=conversation,
+                    body=payload.get('messageBody') or '',
+                    sent_at=sent_at,
+                    sender_username=payload.get('senderUsername'),
+                    recipient_username=payload.get('recipientUsername'),
+                ) if sent_at else None
+                if known_message or local_message:
+                    conversation.provider_conversation_id = conversation_id
+                    self.db.flush()
+                    return
 
     def upsert_messages(
         self,

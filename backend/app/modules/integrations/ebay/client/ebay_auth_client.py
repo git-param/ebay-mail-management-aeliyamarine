@@ -585,6 +585,30 @@ class EbayAuthClient:
             payload=payload,
         )
 
+    def start_conversation_message(
+        self,
+        access_token: str,
+        *,
+        buyer_username: str,
+        message_body: str,
+        message_media: list[dict] | None = None,
+        email_copy_to_sender: bool = True,
+    ) -> EbayRawApiResponse:
+        """Start a member conversation without an existing eBay thread ID."""
+        request_url = self.conversations_url.replace(
+            ExternalApi.EBAY_CONVERSATION_PATH, ExternalApi.EBAY_SEND_MESSAGE_PATH
+        )
+        payload = {
+            'otherPartyUsername': buyer_username,
+            'messageText': self._message_body_for_send(message_body, has_media=bool(message_media)),
+            'emailCopyToSender': bool(email_copy_to_sender),
+        }
+        if message_media:
+            payload['messageMedia'] = message_media
+        return self._request_message_api_raw(
+            access_token, request_url=request_url, method='POST', payload=payload
+        )
+
     def send_trading_member_message(
         self,
         access_token: str,

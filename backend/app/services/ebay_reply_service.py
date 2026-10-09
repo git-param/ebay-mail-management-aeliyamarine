@@ -23,7 +23,7 @@ from fastapi import HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
 
 from app.constants.api import EbayTradingCalls
-from app.models.conversation import Message, MessageSenderType
+from app.models.conversation import Conversation, Message, MessageSenderType
 from app.models.ebay_account import EbayAccount
 from app.modules.integrations.ebay.oauth.token_service import EbayTokenService
 from app.modules.integrations.ebay.providers import EBAY_PROVIDER_NAME
@@ -77,6 +77,14 @@ class EbayReplyService:
             A list of human-readable violation strings.
         """
         return self.reply_policy.validate(body)
+
+    def prepare_sending_account(self, account_id: UUID) -> EbayAccount:
+        """Load the selected seller account and refresh its access token if needed."""
+        account = self._get_account(account_id)
+        environment = getattr(account, 'environment', None)
+        if environment:
+            self.token_service.client.environment = getattr(environment, 'value', environment).upper()
+        return self._ensure_access_token(account)
 
     async def send_reply(
         self,
@@ -157,8 +165,7 @@ class EbayReplyService:
             )
 
         # --- 4. Ensure the eBay account has a valid access token ---
-        account = self._get_account(conversation.provider_account_id)
-        account = self._ensure_access_token(account)
+        account = self.prepare_sending_account(conversation.provider_account_id)
 
         # --- 5. Create a pending Message row ---
         message = Message(
@@ -229,7 +236,15 @@ class EbayReplyService:
         )
 
         send_context = self._send_context(conversation)
-        if send_context['transport'] == 'trading':
+        if send_context['transport'] == 'new_conversation':
+            response = self.token_service.client.start_conversation_message(
+                account.access_token,
+                buyer_username=send_context['recipient_id'],
+                message_body=body,
+                message_media=message_media or None,
+                email_copy_to_sender=send_copy_to_email,
+            )
+        elif send_context['transport'] == 'trading':
             response = self.token_service.client.send_trading_member_message(
                 account.access_token,
                 call_name=send_context['call_name'],
@@ -268,6 +283,28 @@ class EbayReplyService:
                 status_code=status.HTTP_502_BAD_GATEWAY,
                 detail=self._reply_error_detail(response.payload),
             )
+
+        if send_context['transport'] == 'new_conversation':
+            payload = response.payload if isinstance(response.payload, dict) else {}
+            provider_conversation_id = str(payload.get('conversationId') or '').strip()
+            if provider_conversation_id:
+                existing_conversation = self.db.query(Conversation).filter(
+                    Conversation.provider == EBAY_PROVIDER_NAME,
+                    Conversation.provider_conversation_id == provider_conversation_id,
+                ).first()
+                if existing_conversation and existing_conversation.id != conversation.id:
+                    if existing_conversation.provider_account_id != account.id:
+                        self.db.rollback()
+                        raise HTTPException(status_code=502, detail='eBay returned a conversation for a different seller account.')
+                    pending_conversation = conversation
+                    message.conversation = existing_conversation
+                    self.db.flush()
+                    self.db.delete(pending_conversation)
+                    conversation = existing_conversation
+                else:
+                    conversation.provider_conversation_id = provider_conversation_id
+            conversation.raw_payload = {'locally_initiated': True, 'first_message_sent': True}
+            conversation.provider_conversation_status = 'ACTIVE'
 
         # --- 8. Record final delivery outcome on attachment rows ---
         if saved_attachments:
@@ -445,6 +482,17 @@ class EbayReplyService:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Cannot send reply because the buyer username is unavailable.')
 
         provider_conversation_id = (conversation.provider_conversation_id or '').strip()
+        if provider_conversation_id.startswith('new-buyer-'):
+            if (conversation.raw_payload or {}).get('first_message_sent'):
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail='Your first message was sent. Wait for eBay message sync before sending another message.',
+                )
+            return {
+                'transport': 'new_conversation',
+                'call_name': 'start_conversation_message',
+                'recipient_id': recipient_id,
+            }
         if provider_conversation_id:
             return {
                 'transport': 'conversation',

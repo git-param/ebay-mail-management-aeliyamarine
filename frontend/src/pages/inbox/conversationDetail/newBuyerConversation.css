@@ -1,0 +1,51 @@
+.inbox-page .new-buyer-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: min(100%, 520px);
+  padding: 24px;
+  margin: 0 auto;
+  box-sizing: border-box;
+  overflow-y: auto;
+}
+
+.inbox-page .new-buyer-form label {
+  font-weight: 600;
+}
+
+.inbox-page .new-buyer-conversation .thread-panel {
+  overflow-y: auto;
+}
+
+.inbox-page .new-buyer-conversation .inbox-empty {
+  min-height: 120px;
+}
+
+.inbox-page .new-buyer-form input,
+.inbox-page .new-buyer-form select {
+  padding: 12px;
+  border: 1px solid var(--border-color, #d5dce5);
+  border-radius: 8px;
+  background: var(--surface-color, #fff);
+  color: inherit;
+  font: inherit;
+}
+
+.inbox-page .new-buyer-recipient {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 16px 24px;
+}
+
+.inbox-page .new-buyer-recipient p {
+  margin: 6px 0 0;
+}
+
+html[data-theme='dark'] .inbox-page .new-buyer-form input,
+html[data-theme='dark'] .inbox-page .new-buyer-form select {
+  background: #172334;
+  border-color: #34445b;
+}

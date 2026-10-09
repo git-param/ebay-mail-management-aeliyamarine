@@ -63,6 +63,8 @@ class CategoriesRoutes:
 
 
 class ConversationsRoutes:
+    START = '/start'
+    START_VALIDATE = '/start/validate'
     TRANSLATE = '/translate'
     ROOT = ''
     ATTACHMENTS_BY_STORED_NAME = '/attachments/{stored_name}'
