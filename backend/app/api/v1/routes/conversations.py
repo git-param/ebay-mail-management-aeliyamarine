@@ -58,10 +58,19 @@ from app.services.ebay_reply_service import EbayReplyService
 from app.services.notification_service import NotificationService
 from app.services.offer_consistency_service import OfferConsistencyService
 from app.services.order_context_service import OrderContextService
+from app.services.conversation_additional_details_service import ConversationAdditionalDetailsService
+from app.schemas.conversation_additional_details import ConversationAdditionalDetailsResponse
 from app.services.reply_attachment_service import ReplyAttachmentService
 from app.services.sla_service import SLAService
 from app.services.translation_service import TranslationService
 from app import db
+from app.schemas.conversation import (
+    BulkConversationReadStateRequest,
+    ConversationReadStateRequest,
+    ConversationReadStateResponse,
+)
+from app.services.conversation_read_state_service import ConversationReadStateService
+from app.utils.conversation_read_state import latest_conversation_message, read_state_override
 
 
 router = APIRouter()
@@ -954,9 +963,7 @@ def latest_message_for(conversation: Conversation) -> Message | None:
     Business Logic:
     Message sent_at is authoritative for provider conversation chronology.
     """
-    if not conversation.messages:
-        return None
-    return max(conversation.messages, key=lambda message: message.sent_at)
+    return latest_conversation_message(conversation)
 
 
 def last_message_direction(conversation: Conversation) -> str | None:
@@ -1018,12 +1025,15 @@ def is_not_read_conversation(conversation: Conversation) -> bool:
     conversation: Conversation with latest message data loaded.
 
     Returns:
-    True when the latest message is inbound and unread.
+    True when manually marked unread, or the latest message is inbound and unread.
 
     Business Logic:
-    Conversation unread_count and latest message read_status are both honored
-    because provider syncs may populate either field.
+    A current ACES override takes precedence over provider read indicators.
+    Otherwise unread_count and latest message read_status are both honored.
     """
+    override = read_state_override(conversation)
+    if override is not None:
+        return not override
     message = latest_message_for(conversation)
     return bool(message and message.is_inbound and (message.read_status is False or conversation.unread_count > 0))
 
@@ -1153,6 +1163,18 @@ def download_public_reply_attachment(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Attachment not found')
     path = ReplyAttachmentService().resolve_storage_path(attachment.storage_path)
     return FileResponse(path, media_type=attachment.mime_type, filename=attachment.file_name)
+
+
+@router.get(ConversationsRoutes.ADDITIONAL_DETAILS, response_model=ConversationAdditionalDetailsResponse)
+def get_conversation_additional_details(
+    conversation_id: UUID,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_conversation_access),
+) -> ConversationAdditionalDetailsResponse:
+    conversation = ConversationService(db).get_conversation(conversation_id)
+    return ConversationAdditionalDetailsResponse(
+        **ConversationAdditionalDetailsService(db).get_details(conversation),
+    )
 
 
 @router.get(ConversationsRoutes.BY_CONVERSATION_ID, response_model=ConversationDetailResponse)
@@ -1476,6 +1498,31 @@ def update_conversation_category(
     offers = stored_conversation_offers(db, conversation)
     db.commit()
     return serialize_conversation(conversation, service.get_current_assignee_id(conversation.id), seller_account, product_context, offers=offers)
+
+
+@router.patch(ConversationsRoutes.READ_STATE, response_model=ConversationReadStateResponse)
+def update_conversation_read_state(
+    conversation_id: UUID,
+    payload: ConversationReadStateRequest,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_conversation_access),
+) -> ConversationReadStateResponse:
+    count = ConversationReadStateService(db).update(
+        [conversation_id], is_read=payload.is_read, actor_id=current_user.id,
+    )
+    return ConversationReadStateResponse(updated_count=count)
+
+
+@router.post(ConversationsRoutes.BULK_READ_STATE, response_model=ConversationReadStateResponse)
+def update_bulk_conversation_read_state(
+    payload: BulkConversationReadStateRequest,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_conversation_access),
+) -> ConversationReadStateResponse:
+    count = ConversationReadStateService(db).update(
+        payload.conversation_ids, is_read=payload.is_read, actor_id=current_user.id,
+    )
+    return ConversationReadStateResponse(updated_count=count)
 
 
 @router.post(ConversationsRoutes.BULK_UPDATE, response_model=BulkConversationUpdateResponse)

@@ -193,6 +193,8 @@ export function Icon({ name }) {
     panelRight: <><rect x="3" y="4" width="14" height="12" rx="2" /><path d="M12 4v12" /></>,
     chevronLeft: <path d="m12 5-5 5 5 5" />,
     mail: <path d="M3 5h14v10H3V5Zm0 0 7 6 7-6" />,
+    mailUnread: <><path d="M17 10v5H3V5h8M3 5l7 6 3-2" /><circle cx="16" cy="5" r="2" /></>,
+    mailRead: <><path d="M17 11v4H3V5h10M3 5l7 6 3-2" /><path d="m13 5 2 2 3-4" /></>,
     save: <path d="M4 3h10l3 3v11H3V3h1Zm2 0v5h7V3M6 17v-6h8v6" />,
     send: <path d="m3 9 14-6-6 14-2-6-6-2Zm6 2 8-8" />,
     moon: <path d="M14.5 13.5A6 6 0 0 1 7 6a6 6 0 1 0 7.5 7.5Z" />,

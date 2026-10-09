@@ -13,6 +13,7 @@ from app.repositories.conversation_repository import ConversationRepository
 from app.repositories.conversation_status_history_repository import ConversationStatusHistoryRepository
 from app.services.sla_service import SLAService
 from app.services.audit_service import AuditService
+from app.utils.conversation_read_state import apply_read_state
 
 logger = logging.getLogger(__name__)
 
@@ -288,10 +289,7 @@ class ConversationService:
 
     def mark_read(self, conversation: Conversation) -> Conversation:
         """Clear local unread indicators after an agent opens a conversation."""
-        conversation.unread_count = 0
-        for message in conversation.messages:
-            if message.is_inbound and message.read_status is not True:
-                message.read_status = True
+        apply_read_state(conversation, True)
         self.db.commit()
         self.db.refresh(conversation)
         return self.get_conversation(conversation.id)

@@ -63,6 +63,9 @@ class CategoriesRoutes:
 
 
 class ConversationsRoutes:
+    ADDITIONAL_DETAILS = '/{conversation_id}/additional-details'
+    READ_STATE = '/{conversation_id}/read-state'
+    BULK_READ_STATE = '/bulk-read-state'
     START = '/start'
     START_VALIDATE = '/start/validate'
     TRANSLATE = '/translate'

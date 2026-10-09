@@ -1,6 +1,7 @@
 import AssignmentPanel from './AssignmentPanel'
 import MetadataPanel from './MetadataPanel'
 import NotesPanel from './NotesPanel'
+import AdditionalDetailsPanel from './AdditionalDetailsPanel'
 
 function DetailsPanel({
   currentUser,
@@ -36,6 +37,8 @@ function DetailsPanel({
         detail={detail}
         accounts={accounts}
       />
+
+      <AdditionalDetailsPanel key={detail.id} conversationId={detail.id} />
 
       <NotesPanel
         notes={notes}

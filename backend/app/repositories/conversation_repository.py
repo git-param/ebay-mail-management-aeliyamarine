@@ -3,7 +3,8 @@ from __future__ import annotations
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import and_, exists, false, func, or_, select
+from sqlalchemy import String, and_, case, cast, exists, false, func, or_, select
+from app.utils.conversation_read_state import READ_STATE_KEY
 from sqlalchemy.orm import (
     Session,
     joinedload,
@@ -305,6 +306,10 @@ class ConversationRepository:
             for key, value in values.items():
                 # Provider identity is immutable for an existing conversation.
                 if key != 'provider':
+                    if key == 'raw_payload' and isinstance(value, dict):
+                        existing_payload = conversation.raw_payload or {}
+                        if READ_STATE_KEY in existing_payload:
+                            value = {**value, READ_STATE_KEY: existing_payload[READ_STATE_KEY]}
                     setattr(
                         conversation,
                         key,
@@ -341,12 +346,21 @@ class ConversationRepository:
                 .correlate(Conversation)
                 .scalar_subquery()
             )
-            statement = statement.where(
-                exists(select(Message.id).where(
+            provider_unread = exists(
+                select(Message.id).where(
                     Message.id == latest_message_id,
                     Message.is_inbound.is_(True),
                     or_(Message.read_status.is_(False), Conversation.unread_count > 0),
-                ))
+                )
+            )
+            local_state = Conversation.raw_payload[READ_STATE_KEY]
+            local_is_read = local_state['is_read'].as_boolean()
+            override_is_current = and_(
+                local_state['message_id'].as_string() == func.coalesce(cast(latest_message_id, String), ''),
+                local_is_read.is_not(None),
+            )
+            statement = statement.where(
+                case((override_is_current, local_is_read.is_(False)), else_=provider_unread)
             )
 
         if conversation_ids is not None:

@@ -1,5 +1,38 @@
 /* Inbox conversation-detail styles only */
 
+.inbox-page .additional-details-toggle {
+  width: 100%;
+}
+
+.inbox-page .additional-order-details {
+  margin-top: 16px;
+}
+
+.inbox-page .additional-order-details h3,
+.inbox-page .additional-details-group h4 {
+  color: var(--inbox-text);
+  font-size: 12.5px;
+  margin: 0 0 8px;
+}
+
+.inbox-page .additional-details-group {
+  margin-top: 16px;
+}
+
+.inbox-page .additional-details-group .metadata-list > div {
+  align-items: flex-start;
+}
+
+.inbox-page .additional-details-group .metadata-list dt {
+  max-width: 42%;
+  flex-shrink: 1;
+}
+
+.inbox-page .additional-details-group .metadata-list dd {
+  display: block;
+  white-space: pre-line;
+}
+
 .inbox-page .conversation-detail {
   min-width: 0;
   min-height: 0;
@@ -150,90 +183,6 @@
       transparent 30%
     ),
     #f5f8fc;
-}
-
-.inbox-page .product-context-banner {
-  min-width: 0;
-  display: flex;
-  flex: 0 0 auto;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 14px 18px;
-  border-bottom: 1px solid #dfe8f3;
-  background: #ffffff;
-}
-
-.inbox-page .product-context-main {
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: 13px;
-}
-
-.inbox-page .product-context-thumb {
-  width: 58px;
-  height: 58px;
-  display: grid;
-  flex: 0 0 58px;
-  place-items: center;
-  overflow: hidden;
-  border: 1px solid #dce5f0;
-  border-radius: 10px;
-  background: #f8fafc;
-  color: #64748b;
-}
-
-.inbox-page .product-context-thumb img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-}
-
-.inbox-page .product-context-thumb .ui-icon {
-  width: 26px;
-  height: 26px;
-}
-
-.inbox-page .product-context-body {
-  min-width: 0;
-  display: grid;
-  gap: 5px;
-}
-
-.inbox-page .product-context-body > strong,
-.inbox-page .product-context-body > a {
-  min-width: 0;
-  overflow: hidden;
-  color: #0f172a;
-  font-size: 14px;
-  font-weight: 900;
-  text-decoration: none;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.inbox-page .product-context-price {
-  color: #047857;
-  font-size: 14px;
-  font-weight: 900;
-}
-
-.inbox-page .product-context-identifiers {
-  min-width: 0;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 5px 12px;
-  color: #64748b;
-  font-size: 11px;
-  font-weight: 750;
-}
-
-.inbox-page .product-context-actions {
-  display: flex;
-  flex: 0 0 auto;
-  align-items: center;
-  gap: 8px;
 }
 
 .inbox-page .message-thread {
@@ -761,15 +710,17 @@
 
 .inbox-page .metadata-list {
   display: grid;
-  gap: 0.5rem;
+  gap: 0;
   margin: 0;
 }
 
 .inbox-page .metadata-list > div {
   min-width: 0;
   display: flex;
+  align-items: center;
   justify-content: space-between;
-  padding: 9px;
+  gap: 10px;
+  padding: 10px 0;
   border-bottom: 1px solid #edf2f7;
 }
 
@@ -782,6 +733,7 @@
   font-size: 10px;
   font-weight: 850;
   text-transform: uppercase;
+  flex-shrink: 0;
 }
 
 .inbox-page .metadata-list dd {
@@ -789,8 +741,100 @@
   margin: 0;
   overflow-wrap: anywhere;
   color: #0f172a;
-  font-size: 11px;
-  font-weight: 750;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  text-align: right;
+  font-variant-numeric: normal;
+}
+
+.inbox-page .metadata-product-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 14px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--inbox-border);
+}
+
+.inbox-page .metadata-product-thumbnail {
+  display: grid;
+  place-items: center;
+  flex: 0 0 44px;
+  width: 44px;
+  height: 44px;
+  overflow: hidden;
+  border: 1px solid var(--inbox-border);
+  border-radius: 12px;
+  background: var(--inbox-surface);
+  color: var(--inbox-primary, #675ee8);
+}
+
+.inbox-page .metadata-product-thumbnail img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.inbox-page .metadata-product-thumbnail .ui-icon {
+  width: 24px;
+  height: 24px;
+}
+
+.inbox-page .metadata-product-body {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.inbox-page .metadata-product-title {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  color: var(--inbox-text);
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.inbox-page .metadata-product-price {
+  color: #047857;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+html[data-theme='dark'] .inbox-page .metadata-product-price {
+  color: #6ee7b7;
+}
+
+.inbox-page .metadata-external-link {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 22px;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: rgba(103, 94, 232, 0.1);
+  color: var(--inbox-primary, #675ee8);
+}
+
+.inbox-page .metadata-external-link .ui-icon {
+  width: 15px;
+  height: 15px;
+}
+
+.inbox-page .metadata-external-link:hover {
+  background: rgba(103, 94, 232, 0.2);
+}
+
+.inbox-page .metadata-external-link:focus-visible {
+  outline: 2px solid var(--inbox-primary, #675ee8);
+  outline-offset: 2px;
 }
 
 .inbox-page .detail-muted {
@@ -808,7 +852,6 @@ html[data-theme='dark'] .inbox-page .thread-panel {
 }
 
 html[data-theme='dark'] .inbox-page .detail-header,
-html[data-theme='dark'] .inbox-page .product-context-banner,
 html[data-theme='dark'] .inbox-page .side-detail-panel,
 html[data-theme='dark'] .inbox-page .detail-section {
   border-color: #243247;
@@ -839,8 +882,6 @@ html[data-theme='dark'] .inbox-page .section-heading h3,
 html[data-theme='dark'] .inbox-page .metadata-list dd,
 html[data-theme='dark'] .inbox-page .history-item strong,
 html[data-theme='dark'] .inbox-page .note-item p,
-html[data-theme='dark'] .inbox-page .product-context-body > strong,
-html[data-theme='dark'] .inbox-page .product-context-body > a,
 html[data-theme='dark'] .inbox-page .offer-chat-amount {
   color: #f8fafc;
 }
@@ -860,15 +901,6 @@ html[data-theme='dark'] .inbox-page .note-edit-form textarea {
     position: sticky;
     top: 0;
     z-index: 8;
-  }
-
-  .inbox-page .product-context-banner {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .inbox-page .product-context-actions {
-    justify-content: flex-end;
   }
 
   .inbox-page .message-thread {
@@ -900,7 +932,6 @@ html[data-theme='dark'] .inbox-page .note-edit-form textarea {
 }
 
 .inbox-page .detail-header,
-.inbox-page .product-context-banner,
 .inbox-page .side-detail-panel,
 .inbox-page .detail-section {
   border-color: var(--inbox-border);
@@ -913,15 +944,6 @@ html[data-theme='dark'] .inbox-page .note-edit-form textarea {
     linear-gradient(180deg, #f7f8fa 0%, #eef1f5 100%);
 }
 
-.inbox-page .product-context-thumb {
-  border-color: var(--inbox-border);
-  border-radius: 12px;
-  background: #f5f6f8;
-  color: #64748b;
-}
-
-.inbox-page .product-context-body > strong,
-.inbox-page .product-context-body > a,
 .inbox-page .section-heading h3,
 .inbox-page .metadata-list dd,
 .inbox-page .history-item strong,
@@ -930,7 +952,6 @@ html[data-theme='dark'] .inbox-page .note-edit-form textarea {
   color: var(--inbox-text);
 }
 
-.inbox-page .product-context-identifiers,
 .inbox-page .metadata-list dt,
 .inbox-page .detail-muted,
 .inbox-page .history-item span,
@@ -1016,7 +1037,6 @@ html[data-theme='dark'] .inbox-page .thread-panel {
 }
 
 html[data-theme='dark'] .inbox-page .detail-header,
-html[data-theme='dark'] .inbox-page .product-context-banner,
 html[data-theme='dark'] .inbox-page .side-detail-panel,
 html[data-theme='dark'] .inbox-page .detail-section {
   border-color: var(--inbox-border);
@@ -1043,7 +1063,6 @@ html[data-theme='dark'] .inbox-page .offer-seller-message-bubble {
   color: #f5f7fb;
 }
 
-html[data-theme='dark'] .inbox-page .product-context-thumb,
 html[data-theme='dark'] .inbox-page .attachment-preview {
   border-color: var(--inbox-border);
   background: #111821;
@@ -1060,7 +1079,6 @@ html[data-theme='dark'] .inbox-page .compact-field select {
 
 html[data-theme='dark'] .inbox-page .message-meta,
 html[data-theme='dark'] .inbox-page .message-status,
-html[data-theme='dark'] .inbox-page .product-context-identifiers,
 html[data-theme='dark'] .inbox-page .metadata-list dt,
 html[data-theme='dark'] .inbox-page .detail-muted {
   color: #aab4c3;

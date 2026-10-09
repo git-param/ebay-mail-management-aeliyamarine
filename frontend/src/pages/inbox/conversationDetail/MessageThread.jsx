@@ -905,17 +905,6 @@ function MessageThread({
                   attachments
                 }
               />
-
-              {message.read_status !==
-                undefined &&
-              message.read_status !==
-                null ? (
-                <span className="message-status">
-                  {message.read_status
-                    ? '✓ Read'
-                    : '● Unread'}
-                </span>
-              ) : null}
             </article>
           )
         },

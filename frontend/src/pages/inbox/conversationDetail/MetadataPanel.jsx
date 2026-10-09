@@ -1,88 +1,50 @@
+import { Icon } from '../../../layouts/app_layout'
 import { ConversationBadge } from '../conversationList/ConversationRow'
+import ConversationProductCard from './ConversationProductCard'
+import { conversationProductContext, metadataText } from './conversationProductContext'
 
-function MetadataValue({
-  children,
-  fallback = 'Not available',
-}) {
-  const hasValue =
-    children !== null &&
-    children !== undefined &&
-    children !== ''
-
-  return hasValue
-    ? children
-    : fallback
+function MetadataRow({ label, value, url, linkLabel }) {
+  const text = metadataText(value)
+  if (!text) return null
+  return (
+    <div>
+      <dt>{label}</dt>
+      <dd>
+        <span>{text}</span>
+        {url ? (
+          <a className="metadata-external-link" href={url} target="_blank"
+            rel="noopener noreferrer" title={linkLabel} aria-label={linkLabel}>
+            <Icon name="external" />
+          </a>
+        ) : null}
+      </dd>
+    </div>
+  )
 }
 
-function MetadataPanel({
-  detail,
-  accounts = [],
-}) {
-  const account = accounts.find(
-    (item) =>
-      item.id ===
-      detail.provider_account_id,
-  )
-
-  const provider =
-    detail.provider ||
-    'EBAY'
+export default function MetadataPanel({ detail, accounts = [] }) {
+  const account = accounts.find((item) => item.id === detail.provider_account_id)
+  const context = conversationProductContext(detail)
 
   return (
     <section className="detail-section">
       <div className="section-heading">
         <h3>Metadata</h3>
-
-        <ConversationBadge>
-          {provider}
-        </ConversationBadge>
+        <ConversationBadge>{detail.provider || 'EBAY'}</ConversationBadge>
       </div>
-
+      <ConversationProductCard context={context} />
       <dl className="metadata-list">
-        <div>
-          <dt>Buyer</dt>
-
-          <dd>
-            <MetadataValue>
-              {detail.buyer_identifier}
-            </MetadataValue>
-          </dd>
-        </div>
-
-        <div>
-          <dt>eBay Account</dt>
-
-          <dd>
-            <MetadataValue>
-              {account?.label ||
-                detail.provider_account_id}
-            </MetadataValue>
-          </dd>
-        </div>
-
-        <div>
-          <dt>Reference</dt>
-
-          <dd>
-            <MetadataValue>
-              {detail.reference_id}
-            </MetadataValue>
-          </dd>
-        </div>
-
-        <div>
-          <dt>Reference Type</dt>
-
-          <dd>
-            <MetadataValue>
-              {detail.reference_type}
-            </MetadataValue>
-          </dd>
-        </div>
+        <MetadataRow label="Buyer" value={detail.buyer_identifier} />
+        <MetadataRow label="eBay Account"
+          value={metadataText(account?.label) || detail.provider_account_id} />
+        <MetadataRow label="Item Number" value={context.itemNumber}
+          url={context.itemUrl} linkLabel="Open item" />
+        <MetadataRow label="Reference" value={context.reference} />
+        {context.reference ? <MetadataRow label="Reference Type" value={context.referenceType} /> : null}
+        <MetadataRow label="Order Number" value={context.orderNumber}
+          url={context.orderUrl} linkLabel="Open order" />
+        <MetadataRow label="SKU" value={context.sku} />
       </dl>
     </section>
   )
 }
-
-export { MetadataValue }
-export default MetadataPanel

@@ -13,6 +13,8 @@ import {
   assignConversation,
   unassignConversation,
   bulkUpdateConversations,
+  updateConversationReadState,
+  updateBulkConversationReadState,
   createConversationNote,
   deleteConversationNote,
   fetchConversation,
@@ -936,6 +938,42 @@ function Dashboard({
     }
   }
 
+  async function handleMarkUnread() {
+    if (!selectedConversationId || isSubmitting) return
+    const conversationId = selectedConversationId
+    setIsSubmitting(true)
+    setActionError('')
+    try {
+      await updateConversationReadState(conversationId, false)
+      // Update locally because fetching the detail again would mark it read.
+      setDetail((current) =>
+        current?.id === conversationId
+          ? { ...current, is_not_read: true, calculated_status: 'Not Read' }
+          : current,
+      )
+      await loadConversations()
+    } catch (caughtError) {
+      setActionError(caughtError.message || 'Unable to mark conversation as unread.')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  async function handleBulkMarkRead() {
+    if (!bulkSelectedIds.size || isSubmitting) return
+    setIsSubmitting(true)
+    setActionError('')
+    try {
+      await updateBulkConversationReadState(Array.from(bulkSelectedIds), true)
+      clearBulkSelection()
+      await loadConversations()
+    } catch (caughtError) {
+      setActionError(caughtError.message || 'Unable to mark selected conversations as read.')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
   async function handleAddNote(body) {
     if (!selectedConversationId) {
       return
@@ -1211,6 +1249,7 @@ function Dashboard({
         {isListPaneOpen ||
         !hasSelectedConversation ? (
           <ConversationList
+            onBulkMarkRead={handleBulkMarkRead}
             onNewBuyer={() => {
               returnToList()
               setIsNewBuyerOpen(true)
@@ -1347,6 +1386,7 @@ function Dashboard({
                 />
               ) : (
                 <ConversationDetail
+                  onMarkUnread={handleMarkUnread}
                   currentUser={currentUser}
                   detail={
                     visibleConversation

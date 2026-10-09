@@ -73,6 +73,7 @@ function ConversationList({
   onToggleBulk,
   onBulkUserChange,
   onBulkAssign,
+  onBulkMarkRead,
   onClearBulkSelection,
   onPageChange,
   onPageSizeChange,
@@ -341,6 +342,7 @@ function ConversationList({
         isSubmitting={isBulkAssigning}
         onUserChange={onBulkUserChange}
         onAssign={onBulkAssign}
+        onMarkRead={onBulkMarkRead}
         onClear={onClearBulkSelection}
       />
 

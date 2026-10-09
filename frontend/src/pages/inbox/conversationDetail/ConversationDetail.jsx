@@ -5,7 +5,6 @@ import ConversationWorkflowControls from './ConversationWorkflowControls'
 import { ConversationBadge } from '../conversationList/ConversationRow'
 import { EmptyPanel } from '../conversationList/ConversationList'
 import { isEbaySystemConversation } from '../inboxUtils'
-import ConversationContextBanner from './ConversationContextBanner'
 import DetailsPanel from './DetailsPanel'
 import MessageThread from './MessageThread'
 
@@ -49,6 +48,7 @@ function ConversationDetail({
   isListPaneOpen,
   mobilePane,
   onBack,
+  onMarkUnread,
   onToggleListPane,
   onOpenDetails,
   onHideDetails,
@@ -134,6 +134,16 @@ function ConversationDetail({
           >
             <Icon name="chevronLeft" /> Back to inbox
           </button>
+          <button
+            className="conversation-panel-toggle"
+            type="button"
+            title="Mark as unread"
+            aria-label="Mark conversation as unread"
+            disabled={isSubmitting}
+            onClick={onMarkUnread}
+          >
+            <Icon name="mailUnread" />
+          </button>
         </div>
 
         <div className="detail-header-actions">
@@ -176,8 +186,6 @@ function ConversationDetail({
           {actionError}
         </p>
       ) : null}
-
-      {!isDetailsView && <ConversationContextBanner detail={detail} />}
 
       {isDetailsView ? (
         <DetailsPanel

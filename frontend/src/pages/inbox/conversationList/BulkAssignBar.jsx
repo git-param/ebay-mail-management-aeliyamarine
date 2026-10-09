@@ -1,3 +1,5 @@
+import { Icon } from '../../../layouts/app_layout'
+
 function BulkAssignBar({
   selectedCount,
   selectedUser,
@@ -8,6 +10,7 @@ function BulkAssignBar({
   onUserChange,
   onAssign,
   onClear,
+  onMarkRead,
 }) {
   if (!selectedCount) {
     return (
@@ -26,6 +29,16 @@ function BulkAssignBar({
       <strong>
         {selectedCount} selected
       </strong>
+      <button
+        className="icon-button bulk-mark-read"
+        type="button"
+        title="Mark selected conversations as read"
+        aria-label="Mark selected conversations as read"
+        onClick={onMarkRead}
+        disabled={isSubmitting}
+      >
+        <Icon name="mailRead" />
+      </button>
 
       <select
         value={selectedUser}

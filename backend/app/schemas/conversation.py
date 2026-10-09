@@ -245,6 +245,18 @@ class AssignConversationRequest(BaseModel):
     assigned_to: UUID
 
 
+class ConversationReadStateRequest(BaseModel):
+    is_read: bool
+
+
+class BulkConversationReadStateRequest(ConversationReadStateRequest):
+    conversation_ids: list[UUID] = Field(min_length=1, max_length=500)
+
+
+class ConversationReadStateResponse(BaseModel):
+    updated_count: int
+
+
 class BulkConversationUpdateRequest(BaseModel):
     conversation_ids: list[UUID] = Field(min_length=1, max_length=500)
     assigned_to: UUID | None = None

@@ -42,6 +42,10 @@ export function fetchConversation(conversationId) {
   return request(apiPath(API.CONVERSATIONS.BY_CONVERSATION_ID, { conversationId }))
 }
 
+export function fetchConversationAdditionalDetails(conversationId) {
+  return request(apiPath(API.CONVERSATIONS.ADDITIONAL_DETAILS, { conversationId }))
+}
+
 export function fetchConversationContext(conversationId) {
   return request(apiPath(API.CONVERSATIONS.BY_CONVERSATION_ID_CONTEXT, { conversationId }))
 }
@@ -64,6 +68,20 @@ export function bulkUpdateConversations(payload) {
   return request(API.CONVERSATIONS.BULK_UPDATE, {
     method: 'POST',
     body: JSON.stringify(payload),
+  })
+}
+
+export function updateConversationReadState(conversationId, isRead) {
+  return request(apiPath(API.CONVERSATIONS.READ_STATE, { conversationId }), {
+    method: 'PATCH',
+    body: JSON.stringify({ is_read: isRead }),
+  })
+}
+
+export function updateBulkConversationReadState(conversationIds, isRead) {
+  return request(API.CONVERSATIONS.BULK_READ_STATE, {
+    method: 'POST',
+    body: JSON.stringify({ conversation_ids: conversationIds, is_read: isRead }),
   })
 }
 
