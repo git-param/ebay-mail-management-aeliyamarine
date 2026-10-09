@@ -573,7 +573,7 @@ class EbayAuthClient:
         payload = {
             'conversationId': conversation_id,
             'conversationType': conversation_type,
-            'messageText': self._message_body_for_send(message_body, has_media=bool(message_media)),
+            'messageText': self._message_body_for_send(message_body),
             'emailCopyToSender': bool(email_copy_to_sender),
         }
         if message_media:
@@ -600,7 +600,7 @@ class EbayAuthClient:
         )
         payload = {
             'otherPartyUsername': buyer_username,
-            'messageText': self._message_body_for_send(message_body, has_media=bool(message_media)),
+            'messageText': self._message_body_for_send(message_body),
             'emailCopyToSender': bool(email_copy_to_sender),
         }
         if message_media:
@@ -780,17 +780,14 @@ class EbayAuthClient:
                 detail='Unable to reach eBay Message API',
             ) from exc
 
-    def _message_body_for_send(self, message_body: str, *, has_media: bool) -> str:
+    def _message_body_for_send(self, message_body: str) -> str:
         """
-        Preserve paragraph spacing when eBay renders messages with media.
+        Preserve paragraph spacing in both new messages and conversation replies.
 
-        eBay can collapse fully empty lines in attachment replies. A single
+        eBay can collapse fully empty lines in text-only messages too. A single
         space on otherwise blank lines keeps the intended paragraph breaks
         without changing visible text.
         """
-        if not has_media:
-            return message_body
-
         normalized = message_body.replace('\r\n', '\n').replace('\r', '\n')
         return '\n'.join(line if line else ' ' for line in normalized.split('\n'))
 
