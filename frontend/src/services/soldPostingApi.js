@@ -23,6 +23,13 @@ export function fetchSoldPostingDetail(orderId) {
   return apiRequest(apiPath(API.SOLD_POSTING.ORDERS_BY_ORDER_ID, { orderId: encodeURIComponent(orderId) }))
 }
 
+export function fetchOrderBuyerConversation(orderId, accountId) {
+  const path = apiPath(API.SOLD_POSTING.ORDER_CONVERSATION, {
+    orderId: encodeURIComponent(orderId),
+  })
+  return apiRequest(`${path}?${qs({ account_id: accountId })}`)
+}
+
 export function fetchSoldPostingOptions() {
   return apiRequest(API.SOLD_POSTING.FILTER_OPTIONS)
 }

@@ -7,6 +7,7 @@ import {
 } from 'react'
 
 import AppLayout from '../../layouts/app_layout'
+import { clearOrderRecipientParams, getOrderRecipientFromUrl } from '../../utils/orderConversationNavigation'
 import { fetchCategories } from '../../services/categoryApi'
 import {
   assignConversation,
@@ -81,7 +82,8 @@ function Dashboard({
   onLogout,
 }) {
   const canManageAssignments = Boolean(currentUser)
-  const [isNewBuyerOpen, setIsNewBuyerOpen] = useState(false)
+  const [orderRecipient, setOrderRecipient] = useState(getOrderRecipientFromUrl)
+  const [isNewBuyerOpen, setIsNewBuyerOpen] = useState(() => Boolean(orderRecipient))
 
   const [filters, setFilters] =
     useState(EMPTY_FILTERS)
@@ -172,7 +174,7 @@ function Dashboard({
   ] = useState(false)
 
   const [mobilePane, setMobilePane] =
-    useState('list')
+    useState(() => orderRecipient ? 'thread' : 'list')
 
   const [
     isListLoading,
@@ -696,6 +698,7 @@ function Dashboard({
     conversationId,
   ) {
     setIsNewBuyerOpen(false)
+    setOrderRecipient(null)
     setSelectedConversationId(
       conversationId,
     )
@@ -711,6 +714,7 @@ function Dashboard({
       'conversation_id',
       conversationId,
     )
+    clearOrderRecipientParams(url)
 
     window.history.replaceState(
       {},
@@ -723,6 +727,7 @@ function Dashboard({
 
   function returnToList() {
     setIsNewBuyerOpen(false)
+    setOrderRecipient(null)
     setSelectedConversationId('')
     setDetail(null)
     setNotes([])
@@ -737,6 +742,7 @@ function Dashboard({
     url.searchParams.delete(
       'conversation_id',
     )
+    clearOrderRecipientParams(url)
 
     window.history.replaceState(
       {},
@@ -1322,6 +1328,7 @@ function Dashboard({
             <section className="inbox-detail-panel">
               {isNewBuyerOpen ? (
                 <NewBuyerConversation
+                  initialRecipient={orderRecipient}
                   accounts={accounts}
                   currentUser={currentUser}
                   templates={templates}

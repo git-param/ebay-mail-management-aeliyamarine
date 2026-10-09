@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.models.conversation import Conversation, ConversationStatus, Message
 from app.models.ebay_account import EbayAccount, EbayConnectionStatus
 from app.services.ebay_reply_service import EbayReplyService
+from app.services.order_buyer_conversation_service import OrderBuyerConversationService
 
 
 class NewBuyerConversationService:
@@ -25,7 +26,12 @@ class NewBuyerConversationService:
         message_type_id: UUID,
         send_copy_to_email: bool = True,
         attachments: list[UploadFile] | None = None,
+        order_id: str | None = None,
     ) -> Message:
+        order = None
+        if order_id:
+            order = OrderBuyerConversationService(self.db).get_order(order_id, account_id)
+            buyer_username = order.buyer_username
         username = buyer_username.strip()
         body = body.strip()
         if not body or len(body) > 2000:
@@ -69,6 +75,14 @@ class NewBuyerConversationService:
                     raw_payload={'locally_initiated': True},
                 )
                 self.db.add(conversation)
+                if order:
+                    item_id = next(
+                        (item.legacy_item_id for item in order.line_items if item.legacy_item_id),
+                        None,
+                    )
+                    conversation.subject = f'Order {order.order_id}'
+                    conversation.reference_id = item_id
+                    conversation.reference_type = 'LISTING' if item_id else None
                 self.db.flush()
             return await reply_service.send_reply(
                 conversation_id=conversation.id,

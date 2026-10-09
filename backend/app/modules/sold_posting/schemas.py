@@ -5,6 +5,14 @@ from uuid import UUID
 from pydantic import BaseModel
 
 
+class OrderBuyerConversationResponse(BaseModel):
+    order_id: str
+    account_id: UUID
+    account_name: str
+    buyer_username: str
+    conversation_id: UUID | None = None
+
+
 class SoldPostingRow(BaseModel):
     id: UUID
     order_id: str

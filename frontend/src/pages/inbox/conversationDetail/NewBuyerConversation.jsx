@@ -14,10 +14,11 @@ export default function NewBuyerConversation({
   messageTypes,
   onCancel,
   onSent,
+  initialRecipient = null,
 }) {
   const [accountId, setAccountId] = useState('')
   const [buyerUsername, setBuyerUsername] = useState('')
-  const [recipient, setRecipient] = useState(null)
+  const [recipient, setRecipient] = useState(initialRecipient)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState('')
   const connectedAccounts = accounts.filter((account) => account.canSendMessages)
@@ -76,16 +77,19 @@ export default function NewBuyerConversation({
           <div className="new-buyer-recipient">
             <div>
               <strong>To: {recipient.buyerUsername}</strong>
-              <p>From: {sendingAccount?.label}</p>
+              <p>From: {sendingAccount?.label || recipient.accountName}</p>
+              {recipient.orderId && <p>Order: {recipient.orderId}</p>}
             </div>
-            <button
-              className="secondary-button compact-action"
-              type="button"
-              onClick={() => setRecipient(null)}
-              disabled={isSubmitting}
-            >
-              Change recipient or account
-            </button>
+            {!recipient.orderId && (
+              <button
+                className="secondary-button compact-action"
+                type="button"
+                onClick={() => setRecipient(null)}
+                disabled={isSubmitting}
+              >
+                Change recipient or account
+              </button>
+            )}
           </div>
           <div className="inbox-empty">
             <h2>Start a conversation</h2>

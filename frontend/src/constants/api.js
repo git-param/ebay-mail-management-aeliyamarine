@@ -183,6 +183,7 @@ export const API = Object.freeze({
   }),
 
   SOLD_POSTING: Object.freeze({
+    ORDER_CONVERSATION: "/sold-posting/orders/{orderId}/conversation",
     ORDERS: "/sold-posting/orders",
     ORDERS_BY_ORDER_ID: "/sold-posting/orders/{orderId}",
     FILTER_OPTIONS: "/sold-posting/filter-options",

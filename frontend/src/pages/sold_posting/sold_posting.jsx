@@ -2,6 +2,7 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import AppLayout, { Icon } from "../../layouts/app_layout";
 import {
 fetchSoldPostingDetail,
+fetchOrderBuyerConversation,
 fetchSoldPostingOptions,
 fetchSoldPostingOrders,
 markSoldPostingCopied,
@@ -9,6 +10,7 @@ syncSoldPosting,
 updateSoldPostingLineItem,
 } from "../../services/soldPostingApi";
 import { normalizeRole } from "../../utils/roles";
+import { orderConversationUrl } from "../../utils/orderConversationNavigation";
 
 import "./sold_posting.css";
 
@@ -487,6 +489,20 @@ function SoldNotePopover({ row, value, saving, error, onChange, onCancel, onSave
 }
 
 export default function SoldPosting({ currentUser, onLogout }) {
+  const [openingConversation, setOpeningConversation] = useState("");
+
+  async function openBuyerConversation(event, row) {
+    event.stopPropagation();
+    setOpeningConversation(`${row.ebay_account_id}:${row.order_id}`);
+    setError("");
+    try {
+      const result = await fetchOrderBuyerConversation(row.order_id, row.ebay_account_id);
+      window.location.assign(orderConversationUrl(result));
+    } catch (caughtError) {
+      setError(caughtError.message || "Unable to open the buyer conversation.");
+      setOpeningConversation("");
+    }
+  }
   const isAdmin = normalizeRole(currentUser?.role) === "ADMIN";
   const [period, setPeriod] = useState("90");
   const [customRange, setCustomRange] = useState({
@@ -1112,7 +1128,17 @@ export default function SoldPosting({ currentUser, onLogout }) {
                         <StatusBadge value={row.status} />
                       </td>
                       <td>
-                        <CopyValue value={row.order_id} />
+                        <button
+                          className="copy-chip"
+                          type="button"
+                          title={`Open buyer conversation for order ${row.order_id}`}
+                          disabled={Boolean(openingConversation)}
+                          onClick={(event) => openBuyerConversation(event, row)}
+                        >
+                          {openingConversation === `${row.ebay_account_id}:${row.order_id}`
+                            ? "Opening..."
+                            : row.order_id}
+                        </button>
                       </td>
                       <td>
                         <CopyValue value={row.sku} />

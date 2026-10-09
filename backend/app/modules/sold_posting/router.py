@@ -21,9 +21,21 @@ VISIBLE_STATUSES = [
 ]
 from app.modules.sold_posting.schemas import SoldPostingEditRequest, SoldPostingFilterOptions, SoldPostingListResponse, SoldPostingRow, SoldPostingOrderDetail, SoldPostingSyncResponse
 from app.modules.sold_posting.service import SoldPostingService
+from app.modules.sold_posting.schemas import OrderBuyerConversationResponse
+from app.services.order_buyer_conversation_service import OrderBuyerConversationService
 
 
 router = APIRouter()
+
+
+@router.get(SoldPostingRoutes.ORDER_CONVERSATION, response_model=OrderBuyerConversationResponse)
+def order_buyer_conversation(
+    order_id: str,
+    account_id: UUID,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    return OrderBuyerConversationService(db).resolve(order_id, account_id)
 
 
 def _csv(value: str | None) -> list[str]:

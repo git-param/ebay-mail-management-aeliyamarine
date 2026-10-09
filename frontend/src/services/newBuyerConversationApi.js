@@ -8,10 +8,11 @@ export function validateFirstBuyerMessage(_conversationId, body) {
   })
 }
 
-export function sendFirstBuyerMessage({ accountId, buyerUsername, body, files, messageTypeId, sendCopyToEmail }) {
+export function sendFirstBuyerMessage({ accountId, buyerUsername, body, files, messageTypeId, sendCopyToEmail, orderId }) {
   const formData = new FormData()
   formData.set('account_id', accountId)
   formData.set('buyer_username', buyerUsername)
+  if (orderId) formData.set('order_id', orderId)
   formData.set('body', body)
   formData.set('message_type_id', messageTypeId)
   formData.set('send_copy_to_email', String(sendCopyToEmail))

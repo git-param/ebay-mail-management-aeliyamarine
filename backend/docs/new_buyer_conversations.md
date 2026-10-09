@@ -31,3 +31,16 @@ Provider rejection messages are shown in the composer, preserving the draft.
 
 No database migration is required. Live delivery still depends on the connected
 account's eBay Message API access and eBay's recipient restrictions.
+
+## Starting from Sold Posting
+
+Click an order ID to open the latest open member conversation for that buyer
+and the order's owning account. If none exists, the Inbox opens the composer
+with the buyer, account, and order already selected. The recipient and sender
+cannot be changed in this order flow.
+
+`GET /api/v1/sold-posting/orders/{order_id}/conversation?account_id=...` resolves
+the order within its seller account. First-message requests include `order_id`;
+the backend reads the buyer from the stored order again and associates the new
+conversation with the order's listing when available. Missing buyer usernames
+produce a clear error instead of opening an empty recipient form.

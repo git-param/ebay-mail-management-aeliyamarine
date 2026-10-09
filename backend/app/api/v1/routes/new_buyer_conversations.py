@@ -33,6 +33,7 @@ async def start_buyer_conversation(
     buyer_username: str = Form(..., min_length=1, max_length=255),
     body: str = Form(..., min_length=1, max_length=2000),
     message_type_id: UUID = Form(...),
+    order_id: str | None = Form(default=None),
     send_copy_to_email: bool = Form(default=True),
     attachments: list[UploadFile] | None = File(default=None),
     db: Session = Depends(get_db),
@@ -46,5 +47,6 @@ async def start_buyer_conversation(
         message_type_id=message_type_id,
         send_copy_to_email=send_copy_to_email,
         attachments=attachments,
+        order_id=order_id,
     )
     return serialize_message(message)

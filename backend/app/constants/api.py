@@ -234,6 +234,7 @@ class SearchSkuRoutes:
 
 
 class SoldPostingRoutes:
+    ORDER_CONVERSATION = '/orders/{order_id}/conversation'
     ORDERS = '/orders'
     ORDERS_BY_ORDER_ID = '/orders/{order_id}'
     LINE_ITEMS_BY_LINE_ITEM_RECORD_ID = '/line-items/{line_item_record_id}'
