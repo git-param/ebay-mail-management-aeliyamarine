@@ -236,6 +236,26 @@ class EbayReplyService:
         )
 
         send_context = self._send_context(conversation)
+        order_mapping = getattr(conversation, 'order_mapping', None)
+        listing_id = (
+            getattr(conversation, 'reference_id', None)
+            if (getattr(conversation, 'reference_type', None) or '').upper() == 'LISTING'
+            else None
+        )
+        if order_mapping and getattr(order_mapping, 'match_strategy', None) == 'SOLD_POSTING':
+            listing_id = order_mapping.ebay_item_id or order_mapping.listing_id or listing_id
+        if not listing_id:
+            if order_mapping:
+                listing_id = order_mapping.ebay_item_id or order_mapping.listing_id
+        if not listing_id:
+            linked_order = getattr(conversation, 'linked_order', None)
+            if linked_order:
+                listing_id = next(
+                    (item.item_id or item.listing_id for item in linked_order.line_items
+                     if item.item_id or item.listing_id),
+                    None,
+                )
+        reference_options = {'listing_id': listing_id} if listing_id else {}
         if send_context['transport'] == 'new_conversation':
             response = self.token_service.client.start_conversation_message(
                 account.access_token,
@@ -243,6 +263,7 @@ class EbayReplyService:
                 message_body=body,
                 message_media=message_media or None,
                 email_copy_to_sender=send_copy_to_email,
+                **reference_options,
             )
         elif send_context['transport'] == 'trading':
             response = self.token_service.client.send_trading_member_message(
@@ -265,6 +286,7 @@ class EbayReplyService:
                 message_body=body,
                 message_media=message_media or None,
                 email_copy_to_sender=send_copy_to_email,
+                **reference_options,
             )
 
         logger.warning(

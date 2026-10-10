@@ -39,8 +39,23 @@ and the order's owning account. If none exists, the Inbox opens the composer
 with the buyer, account, and order already selected. The recipient and sender
 cannot be changed in this order flow.
 
-`GET /api/v1/sold-posting/orders/{order_id}/conversation?account_id=...` resolves
+`POST /api/v1/sold-posting/orders/{order_id}/conversation?account_id=...` resolves
 the order within its seller account. First-message requests include `order_id`;
 the backend reads the buyer from the stored order again and associates the new
 conversation with the order's listing when available. Missing buyer usernames
 produce a clear error instead of opening an empty recipient form.
+
+New messages and subsequent replies include the Message API `reference` container
+when a listing ID is available from the conversation, order mapping, or linked
+order: `referenceType: LISTING` and `referenceId: <item ID>`. This supplies eBay
+with the listing context for its product card. Username-only messages omit the
+reference. Previously delivered messages are not modified; eBay controls how
+the context appears in its UI.
+
+Opening an existing thread from Sold Posting persists the exact selected order
+and its order context mapping before navigation. First sends attach the order
+for both new and reused conversations. Missing records in the conversation
+`orders` table are populated from the stored Sold Posting payload. Normal message
+sync preserves this explicit mapping. eBay's Message API supports only listing
+references; it has no order-ID request field, so an eBay order banner cannot be
+guaranteed through this API.

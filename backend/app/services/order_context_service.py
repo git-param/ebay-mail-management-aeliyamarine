@@ -66,9 +66,16 @@ class OrderContextService:
         fetched_order: EbayOrder | None = None,
         persist_unmatched: bool = True,
         allow_direct_order_id: bool = True,
+        preserve_sold_posting_context: bool = True,
     ) -> ConversationOrderContext | None:
         if conversation.id is None:
             self.db.flush()
+        existing_mapping = self.repository.get_mapping(conversation.id)
+        if (preserve_sold_posting_context and existing_mapping
+                and existing_mapping.match_strategy == 'SOLD_POSTING'
+                and existing_mapping.order_record_id):
+            # Sync must not replace an order explicitly selected from Sold Posting.
+            return existing_mapping
         identifiers = self.extract_order_identifiers(
             conversation=conversation,
             extra_payloads=[conversation_summary or {}, conversation_detail or {}],

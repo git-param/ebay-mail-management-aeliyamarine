@@ -567,6 +567,7 @@ class EbayAuthClient:
         conversation_type: str = 'FROM_MEMBERS',
         message_media: list[dict] | None = None,
         email_copy_to_sender: bool = True,
+        listing_id: str | None = None,
     ) -> EbayRawApiResponse:
         """Send a conversation reply through the eBay Message API."""
         request_url = self.conversations_url.replace(ExternalApi.EBAY_CONVERSATION_PATH, ExternalApi.EBAY_SEND_MESSAGE_PATH)
@@ -578,6 +579,8 @@ class EbayAuthClient:
         }
         if message_media:
             payload['messageMedia'] = message_media
+        if listing_id and listing_id.strip():
+            payload['reference'] = {'referenceId': listing_id.strip(), 'referenceType': 'LISTING'}
         return self._request_message_api_raw(
             access_token,
             request_url=request_url,
@@ -593,6 +596,7 @@ class EbayAuthClient:
         message_body: str,
         message_media: list[dict] | None = None,
         email_copy_to_sender: bool = True,
+        listing_id: str | None = None,
     ) -> EbayRawApiResponse:
         """Start a member conversation without an existing eBay thread ID."""
         request_url = self.conversations_url.replace(
@@ -605,6 +609,8 @@ class EbayAuthClient:
         }
         if message_media:
             payload['messageMedia'] = message_media
+        if listing_id and listing_id.strip():
+            payload['reference'] = {'referenceId': listing_id.strip(), 'referenceType': 'LISTING'}
         return self._request_message_api_raw(
             access_token, request_url=request_url, method='POST', payload=payload
         )

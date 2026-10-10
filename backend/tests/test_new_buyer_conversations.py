@@ -154,12 +154,14 @@ def test_rejects_unavailable_sending_account(monkeypatch, active, connection_sta
 
 
 @pytest.mark.parametrize('provider_id', ['ebay-thread-123', None])
-def test_successful_send_records_identity_and_prevents_restarting_sent_thread(monkeypatch, provider_id):
+@pytest.mark.parametrize('listing_id', ['236988914323', None])
+def test_successful_send_records_identity_and_prevents_restarting_sent_thread(monkeypatch, provider_id, listing_id):
     actor_id, account_id = uuid4(), uuid4()
     thread = SimpleNamespace(
         id=uuid4(), status=ConversationStatus.OPEN, provider='EBAY',
         provider_conversation_id='new-buyer-local-id', provider_conversation_type='FROM_MEMBERS',
         provider_account_id=account_id, buyer_identifier='buyer-outside-aces', raw_payload={},
+        reference_id=listing_id, reference_type='LISTING' if listing_id else None,
     )
     selected_type = SimpleNamespace(id=uuid4(), name='Message', is_deleted=False, is_active=True, children=[])
     service = replies.EbayReplyService.__new__(replies.EbayReplyService)
@@ -194,6 +196,7 @@ def test_successful_send_records_identity_and_prevents_restarting_sent_thread(mo
     service.token_service.client.start_conversation_message.assert_called_once_with(
         'chosen-token', buyer_username='buyer-outside-aces', message_body='Hello',
         message_media=None, email_copy_to_sender=False,
+        **({'listing_id': listing_id} if listing_id else {}),
     )
     service.token_service.client.send_conversation_message.assert_not_called()
     assert thread.raw_payload['first_message_sent']

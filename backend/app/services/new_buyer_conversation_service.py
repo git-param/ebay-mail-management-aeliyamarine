@@ -84,6 +84,8 @@ class NewBuyerConversationService:
                     conversation.reference_id = item_id
                     conversation.reference_type = 'LISTING' if item_id else None
                 self.db.flush()
+            if order:
+                OrderBuyerConversationService(self.db).attach_order(conversation, order)
             return await reply_service.send_reply(
                 conversation_id=conversation.id,
                 body=body,

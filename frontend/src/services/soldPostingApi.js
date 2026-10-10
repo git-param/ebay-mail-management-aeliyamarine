@@ -27,7 +27,7 @@ export function fetchOrderBuyerConversation(orderId, accountId) {
   const path = apiPath(API.SOLD_POSTING.ORDER_CONVERSATION, {
     orderId: encodeURIComponent(orderId),
   })
-  return apiRequest(`${path}?${qs({ account_id: accountId })}`)
+  return apiRequest(`${path}?${qs({ account_id: accountId })}`, { method: 'POST' })
 }
 
 export function fetchSoldPostingOptions() {
