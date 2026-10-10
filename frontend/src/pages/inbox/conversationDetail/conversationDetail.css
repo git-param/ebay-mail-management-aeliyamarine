@@ -1,38 +1,5 @@
 /* Inbox conversation-detail styles only */
 
-.inbox-page .additional-details-toggle {
-  width: 100%;
-}
-
-.inbox-page .additional-order-details {
-  margin-top: 16px;
-}
-
-.inbox-page .additional-order-details h3,
-.inbox-page .additional-details-group h4 {
-  color: var(--inbox-text);
-  font-size: 12.5px;
-  margin: 0 0 8px;
-}
-
-.inbox-page .additional-details-group {
-  margin-top: 16px;
-}
-
-.inbox-page .additional-details-group .metadata-list > div {
-  align-items: flex-start;
-}
-
-.inbox-page .additional-details-group .metadata-list dt {
-  max-width: 42%;
-  flex-shrink: 1;
-}
-
-.inbox-page .additional-details-group .metadata-list dd {
-  display: block;
-  white-space: pre-line;
-}
-
 .inbox-page .conversation-detail {
   min-width: 0;
   min-height: 0;
