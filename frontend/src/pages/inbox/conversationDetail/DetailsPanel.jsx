@@ -2,6 +2,7 @@ import AssignmentPanel from './AssignmentPanel'
 import MetadataPanel from './MetadataPanel'
 import NotesPanel from './NotesPanel'
 import AdditionalDetailsPanel from './AdditionalDetailsPanel'
+import LiveReturnDetailsPanel from './LiveReturnDetailsPanel'
 
 function DetailsPanel({
   currentUser,
@@ -39,6 +40,11 @@ function DetailsPanel({
       />
 
       <AdditionalDetailsPanel key={detail.id} conversationId={detail.id} />
+
+      <LiveReturnDetailsPanel
+        key={`${detail.id}:${detail.order_context?.selected_order?.id || ''}`}
+        detail={detail}
+      />
 
       <NotesPanel
         notes={notes}

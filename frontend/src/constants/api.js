@@ -65,6 +65,7 @@ export const API = Object.freeze({
   }),
 
   CONVERSATIONS: Object.freeze({
+    LIVE_RETURNS: "/conversations/{conversationId}/live-returns",
     ADDITIONAL_DETAILS: "/conversations/{conversationId}/additional-details",
     READ_STATE: "/conversations/{conversationId}/read-state",
     BULK_READ_STATE: "/conversations/bulk-read-state",

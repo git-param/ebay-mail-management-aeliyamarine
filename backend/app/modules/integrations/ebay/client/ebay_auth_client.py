@@ -456,6 +456,25 @@ class EbayAuthClient:
             raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail='eBay conversation detail request failed')
         return response.payload
 
+    def search_returns_raw(self, access_token: str, *, order_id: str, marketplace_id: str,
+                           limit: int = 10, offset: int = 0) -> EbayRawApiResponse:
+        request_url = f'{ExternalApi.EBAY_RETURN_SEARCH}?{urlencode({"order_id": order_id, "role": "SELLER", "limit": limit, "offset": offset})}'
+        return self._request_json_api_raw(
+            access_token, request_url=request_url, method='GET',
+            extra_headers={'Authorization': f'IAF {access_token}',
+                           'X-EBAY-C-MARKETPLACE-ID': marketplace_id, 'Content-Type': 'application/json'},
+        )
+
+    def get_return_raw(self, access_token: str, *, return_id: str,
+                       marketplace_id: str) -> EbayRawApiResponse:
+        from urllib.parse import quote
+        request_url = ExternalApi.EBAY_RETURN_DETAIL.format(return_id=quote(return_id, safe='')) + '?fieldgroups=FULL'
+        return self._request_json_api_raw(
+            access_token, request_url=request_url, method='GET',
+            extra_headers={'Authorization': f'IAF {access_token}',
+                           'X-EBAY-C-MARKETPLACE-ID': marketplace_id, 'Content-Type': 'application/json'},
+        )
+
     def get_order_raw(self, access_token: str, *, order_id: str) -> EbayRawApiResponse:
         request_url = ExternalApi.EBAY_ORDER_DETAIL.format(base_url=self.fulfillment_order_url, order_id=order_id)
         return self._request_json_api_raw(access_token, request_url=request_url, method='GET')

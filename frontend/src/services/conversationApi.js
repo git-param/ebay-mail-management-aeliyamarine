@@ -46,6 +46,10 @@ export function fetchConversationAdditionalDetails(conversationId) {
   return request(apiPath(API.CONVERSATIONS.ADDITIONAL_DETAILS, { conversationId }))
 }
 
+export function fetchConversationLiveReturns(conversationId, params = {}) {
+  return request(apiPath(API.CONVERSATIONS.LIVE_RETURNS, { conversationId }) + buildQuery(params))
+}
+
 export function fetchConversationContext(conversationId) {
   return request(apiPath(API.CONVERSATIONS.BY_CONVERSATION_ID_CONTEXT, { conversationId }))
 }

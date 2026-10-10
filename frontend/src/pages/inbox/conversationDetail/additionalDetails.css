@@ -246,3 +246,64 @@ html[data-theme='dark'] .inbox-page .additional-status-badge.danger {
   opacity: 0.5;
   cursor: wait;
 }
+
+.inbox-page .live-returns-source {
+  padding: 3px 7px;
+  border: 1px solid var(--inbox-border);
+  border-radius: 6px;
+  color: var(--inbox-muted);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.inbox-page .live-returns-fetched {
+  margin: 10px 0 0;
+  color: var(--inbox-muted);
+  font-size: 10px;
+}
+
+.inbox-page .live-return-result {
+  margin: 12px 0;
+  padding: 12px;
+  border: 1px solid var(--inbox-border);
+  border-radius: 12px;
+  background: rgba(103, 94, 232, 0.025);
+}
+
+.inbox-page .live-return-result > h4 {
+  margin: 0;
+  color: var(--inbox-text);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.inbox-page .live-returns-warning,
+.inbox-page .live-returns-error {
+  margin: 10px 0 0;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.inbox-page .live-returns-warning {
+  color: var(--inbox-muted);
+}
+
+.inbox-page .live-returns-order-select {
+  display: grid;
+  gap: 5px;
+  margin-bottom: 10px;
+  color: var(--inbox-muted);
+  font-size: 10px;
+}
+
+.inbox-page .live-returns-order-select select {
+  width: 100%;
+  min-height: 32px;
+  padding: 5px 8px;
+  border: 1px solid var(--inbox-border);
+  border-radius: 8px;
+  background: var(--inbox-surface);
+  color: var(--inbox-text);
+  font: inherit;
+  font-size: 12px;
+}

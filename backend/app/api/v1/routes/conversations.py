@@ -6,7 +6,7 @@ from typing import Literal
 from uuid import UUID
 
 import requests
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, Response, UploadFile, status
 from fastapi.responses import FileResponse
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -60,6 +60,8 @@ from app.services.offer_consistency_service import OfferConsistencyService
 from app.services.order_context_service import OrderContextService
 from app.services.conversation_additional_details_service import ConversationAdditionalDetailsService
 from app.schemas.conversation_additional_details import ConversationAdditionalDetailsResponse
+from app.schemas.conversation_live_returns import ConversationLiveReturnsResponse
+from app.services.conversation_live_returns_service import ConversationLiveReturnsService
 from app.services.reply_attachment_service import ReplyAttachmentService
 from app.services.sla_service import SLAService
 from app.services.translation_service import TranslationService
@@ -1175,6 +1177,22 @@ def get_conversation_additional_details(
     return ConversationAdditionalDetailsResponse(
         **ConversationAdditionalDetailsService(db).get_details(conversation),
     )
+
+
+@router.get(ConversationsRoutes.LIVE_RETURNS, response_model=ConversationLiveReturnsResponse)
+def fetch_conversation_live_returns(
+    conversation_id: UUID,
+    response: Response,
+    order_record_id: UUID | None = None,
+    offset: int = Query(default=0, ge=0),
+    db: Session = Depends(get_db),
+    current_user=Depends(require_conversation_access),
+) -> ConversationLiveReturnsResponse:
+    response.headers['Cache-Control'] = 'no-store'
+    conversation = ConversationService(db).get_conversation(conversation_id)
+    return ConversationLiveReturnsResponse(**ConversationLiveReturnsService(db).fetch(
+        conversation, order_record_id=order_record_id, offset=offset,
+    ))
 
 
 @router.get(ConversationsRoutes.BY_CONVERSATION_ID, response_model=ConversationDetailResponse)

@@ -63,6 +63,7 @@ class CategoriesRoutes:
 
 
 class ConversationsRoutes:
+    LIVE_RETURNS = '/{conversation_id}/live-returns'
     ADDITIONAL_DETAILS = '/{conversation_id}/additional-details'
     READ_STATE = '/{conversation_id}/read-state'
     BULK_READ_STATE = '/bulk-read-state'
@@ -268,6 +269,8 @@ class EbayTradingCalls:
 
 
 class ExternalApi:
+    EBAY_RETURN_SEARCH = 'https://api.ebay.com/post-order/v2/return/search'
+    EBAY_RETURN_DETAIL = 'https://api.ebay.com/post-order/v2/return/{return_id}'
     EBAY_ORDER_DETAIL = '{base_url}/{order_id}'
     EBAY_RETURN_PAGE = 'https://www.ebay.com/sh/ord/returns?returnId={return_id}'
     EBAY_CANCELLATION_PAGE = 'https://www.ebay.com/sh/ord/cancellations?cancelId={cancel_id}'

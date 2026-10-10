@@ -28,7 +28,7 @@ function sectionIcon(title) {
 }
 
 function statusTone(value) {
-  if (/^(PAID|SUCCEEDED|COMPLETED|FULFILLED|CLOSED|REFUNDED)$/.test(value)) return 'success'
+  if (/^(PAID|SUCCESS|SUCCEEDED|COMPLETED|FULFILLED|CLOSED|REFUNDED)$/.test(value)) return 'success'
   if (/FAILED|REJECTED|CANCELLED/.test(value)) return 'danger'
   return 'neutral'
 }
