@@ -13,8 +13,8 @@ export default function AdditionalDetailsPanel({ conversationId }) {
   const [isOpen, setIsOpen] = useState(false)
   const [error, setError] = useState('')
 
-  async function loadDetails() {
-    if (data) {
+  async function loadDetails(refresh = false) {
+    if (data && !refresh) {
       setIsOpen((open) => !open)
       return
     }
@@ -35,12 +35,18 @@ export default function AdditionalDetailsPanel({ conversationId }) {
   return (
     <section className="detail-section additional-details-panel">
       <button className="secondary-button additional-details-toggle" type="button"
-        onClick={loadDetails} disabled={isLoading} aria-expanded={isOpen}
+        onClick={() => loadDetails()} disabled={isLoading} aria-expanded={isOpen}
         aria-controls={`additional-details-${conversationId}`}>
         {isLoading ? 'Loading details…' : isOpen ? 'Hide additional details' : 'Load more details'}
       </button>
       {error ? <p className="form-message error" role="alert">{error}</p> : null}
       <div id={`additional-details-${conversationId}`} hidden={!isOpen} aria-busy={isLoading}>
+        {data ? (
+          <button className="secondary-button compact-action" type="button"
+            disabled={isLoading} onClick={() => loadDetails(true)}>
+            {isLoading ? 'Refreshing…' : 'Refresh details'}
+          </button>
+        ) : null}
         {data && !orders.length ? <p className="detail-muted">No additional buyer or order details found.</p> : null}
         {orders.map((order) => (
           <div className="additional-order-details" key={order.order_id}>

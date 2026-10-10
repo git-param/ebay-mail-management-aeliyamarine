@@ -78,10 +78,23 @@ def extract_order_details(order):
             ('Amount', money(payment.get('amount'))), ('Status', payment.get('paymentStatus')),
             ('Method', payment.get('paymentMethod')), ('Paid on', payment.get('paymentDate')),
         ])
-    for index, refund in enumerate(records(summary.get('refunds') or payload.get('refunds')), 1):
+    # Show provider status, not the legacy flag inferred from any refund record.
+    section('Refund status', [('Status', payload.get('refundStatus'))])
+    refunds = (records(summary.get('refunds')) or records(payload.get('refunds'))
+               or records(getattr(order, 'refunds', None)))
+    for index, refund in enumerate(refunds, 1):
         section(f'Refund {index}', [
+            ('Refund ID', refund.get('refundId')),
             ('Amount', money(refund.get('amount'))), ('Status', refund.get('refundStatus')),
             ('Date', refund.get('refundDate')), ('Reason', refund.get('refundReason')),
+        ])
+    for index, returned in enumerate(getattr(order, 'returns', None) or [], 1):
+        section(f'Return {index}', [
+            ('Return ID', returned.return_id),
+            ('Status', returned.return_status),
+            ('State', returned.return_state),
+            ('Reason', returned.return_reason),
+            ('Opened', returned.created_date.isoformat() if returned.created_date else None),
         ])
     for index, item in enumerate(records(payload.get('lineItems')), 1):
         delivery = obj(item.get('lineItemFulfillmentInstructions'))

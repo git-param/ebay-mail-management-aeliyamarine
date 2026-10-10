@@ -1,4 +1,5 @@
 from types import SimpleNamespace
+from datetime import UTC, datetime
 from unittest.mock import Mock
 from uuid import uuid4
 
@@ -91,3 +92,43 @@ def test_endpoint_does_not_mark_read_or_change_order_mapping(monkeypatch):
     conversation_service.get_conversation.assert_called_once_with(conversation_id)
     conversation_service.mark_read.assert_not_called()
     db.commit.assert_not_called()
+
+
+def test_return_status_and_stored_refund_are_shown_for_the_linked_order():
+    returned = SimpleNamespace(
+        return_id='return-123', return_status='RETURN_REQUESTED',
+        return_state='OPEN', return_reason='DEFECTIVE_ITEM',
+        created_date=datetime(2026, 10, 10, 10, 0, tzinfo=UTC),
+    )
+    result = extract_order_details(order(
+        {'refundStatus': 'PARTIALLY_REFUNDED'},
+        returns=[returned], refund_status='PARTIALLY_REFUNDED',
+        refunds=[{'refundId': 'refund-456', 'amount': {'value': '25.00', 'currency': 'USD'},
+                  'refundStatus': 'SUCCEEDED', 'refundDate': '2026-10-10T10:00:00Z'}],
+    ))
+    sections = {section['title']: {row['label']: row['value'] for row in section['rows']}
+                for section in result['sections']}
+    assert sections['Return 1'] == {
+        'Return ID': 'return-123', 'Status': 'RETURN_REQUESTED', 'State': 'OPEN',
+        'Reason': 'DEFECTIVE_ITEM', 'Opened': '2026-10-10T10:00:00+00:00',
+    }
+    assert sections['Refund status']['Status'] == 'PARTIALLY_REFUNDED'
+    assert sections['Refund 1']['Refund ID'] == 'refund-456'
+    assert sections['Refund 1']['Amount'] == '25.00 USD'
+    assert sections['Refund 1']['Status'] == 'SUCCEEDED'
+
+
+def test_return_without_refund_does_not_imply_a_refund():
+    returned = SimpleNamespace(return_id='return-123', return_status='OPEN',
+                               return_state=None, return_reason=None, created_date=None)
+    result = extract_order_details(order(returns=[returned], refunds=[], refund_status=None))
+    assert [section['title'] for section in result['sections']] == ['Return 1']
+    assert [row['label'] for row in result['sections'][0]['rows']] == ['Return ID', 'Status']
+
+
+def test_empty_provider_refunds_fall_back_to_stored_refunds():
+    result = extract_order_details(order(
+        {'paymentSummary': {'refunds': []}},
+        refunds=[{'amount': {'value': '0', 'currency': 'USD'}}],
+    ))
+    assert result['sections'] == [{'title': 'Refund 1', 'rows': [{'label': 'Amount', 'value': '0 USD'}]}]
