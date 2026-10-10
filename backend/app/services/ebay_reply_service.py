@@ -167,6 +167,14 @@ class EbayReplyService:
         # --- 4. Ensure the eBay account has a valid access token ---
         account = self.prepare_sending_account(conversation.provider_account_id)
 
+        if (conversation.provider_conversation_id or '').startswith('new-buyer-'):
+            from app.modules.integrations.ebay.services.ebay_message_service import EbayMessageService
+
+            EbayMessageService(self.db).reconcile_from_synced_threads(conversation)
+
+        # Resolve before creating a pending message or uploading attachments.
+        send_context = self._send_context(conversation)
+
         # --- 5. Create a pending Message row ---
         message = Message(
             conversation_id=conversation.id,
@@ -235,7 +243,6 @@ class EbayReplyService:
             send_copy_to_email,
         )
 
-        send_context = self._send_context(conversation)
         order_mapping = getattr(conversation, 'order_mapping', None)
         listing_id = (
             getattr(conversation, 'reference_id', None)
@@ -505,6 +512,14 @@ class EbayReplyService:
 
         provider_conversation_id = (conversation.provider_conversation_id or '').strip()
         if provider_conversation_id.startswith('new-buyer-'):
+            reconciled_id = (conversation.raw_payload or {}).get('reconciled_conversation_id')
+            if reconciled_id:
+                return {
+                    'transport': 'conversation',
+                    'call_name': 'send_conversation_message',
+                    'conversation_id': reconciled_id,
+                    'conversation_type': 'FROM_MEMBERS',
+                }
             if (conversation.raw_payload or {}).get('first_message_sent'):
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT,

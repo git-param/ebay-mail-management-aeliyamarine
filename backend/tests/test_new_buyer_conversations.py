@@ -257,6 +257,91 @@ def test_sync_does_not_attach_an_unrelated_thread_for_the_same_buyer():
     service.db.flush.assert_not_called()
 
 
+@pytest.mark.parametrize('same_account', [True, False])
+def test_sync_reconciles_even_when_provider_thread_was_already_imported(same_account):
+    service = EbayMessageService.__new__(EbayMessageService)
+    service.provider = 'EBAY'
+    service.db = Mock()
+    service.conversation_repository = Mock()
+    account = SimpleNamespace(id=uuid4())
+    service.conversation_repository.get_by_provider_id.return_value = SimpleNamespace(
+        provider_account_id=account.id if same_account else uuid4(), buyer_identifier='buyer',
+    )
+    thread = SimpleNamespace(
+        provider_conversation_id='new-buyer-local-id',
+        raw_payload={'first_message_sent': True},
+        messages=[SimpleNamespace(provider_message_id='sent-message-id')],
+    )
+    service.db.scalars.return_value = [thread]
+    service._reconcile_new_buyer_conversation(
+        account, 'already-imported-thread',
+        {'buyer_identifier': 'buyer', 'provider_conversation_type': 'FROM_MEMBERS'},
+        [{'messageId': 'sent-message-id'}],
+    )
+    assert thread.provider_conversation_id == 'new-buyer-local-id'
+    assert thread.raw_payload.get('reconciled_conversation_id') == (
+        'already-imported-thread' if same_account else None
+    )
+
+
+@pytest.mark.parametrize('thread_ids', [[], ['real-thread'], ['real-thread', 'ambiguous-thread']])
+def test_reply_recovery_requires_a_unique_matching_synced_thread(thread_ids):
+    service = EbayMessageService.__new__(EbayMessageService)
+    service.provider = 'EBAY'
+    service.db = Mock()
+    message = Message(
+        provider='EBAY', provider_message_id='known-sent-id',
+        sender_type=MessageSenderType.AGENT, is_inbound=False, body='Sent message',
+        sender_identifier='seller', recipient_identifier='buyer', sent_at=datetime.now(UTC),
+    )
+    thread = SimpleNamespace(
+        provider_conversation_id='new-buyer-local', provider_account_id=uuid4(),
+        buyer_identifier='buyer', raw_payload={'first_message_sent': True}, messages=[message],
+    )
+    service.db.scalars.return_value = [SimpleNamespace(
+        provider_conversation_id=provider_id, messages=[message],
+    ) for provider_id in thread_ids]
+    service.reconcile_from_synced_threads(thread)
+    assert thread.raw_payload.get('reconciled_conversation_id') == (
+        'real-thread' if len(thread_ids) == 1 else None
+    )
+    assert thread.provider_account_id in service.db.scalars.call_args.args[0].compile().params.values()
+
+
+def test_sync_keeps_using_original_local_thread_after_reconciliation(monkeypatch):
+    from app.modules.integrations.ebay.services import ebay_message_service as module
+
+    service = EbayMessageService.__new__(EbayMessageService)
+    service.provider = 'EBAY'
+    service.db = Mock()
+    service.conversation_repository = Mock()
+    account = SimpleNamespace(id=uuid4(), ebay_username='seller')
+    local = SimpleNamespace(
+        provider_conversation_id='new-buyer-local',
+        raw_payload={'first_message_sent': True, 'reconciled_conversation_id': 'real-thread'},
+        messages=[], category_manually_selected=True, linked_order_record_id='selected-order',
+    )
+    service.db.scalars.return_value = [local]
+    service.conversation_repository.get_by_provider_id.return_value = SimpleNamespace(
+        provider_account_id=account.id, buyer_identifier='buyer',
+    )
+    monkeypatch.setattr(module, 'CategorizationService', Mock(return_value=Mock(classify_text=Mock(return_value=None))))
+    thread, created = service.upsert_conversation(
+        account=account,
+        conversation_summary={
+            'conversationId': 'real-thread',
+            'latestMessage': {'senderUsername': 'buyer', 'recipientUsername': 'seller'},
+        },
+        conversation_detail={'conversationId': 'real-thread', 'messages': []},
+        conversation_type='FROM_MEMBERS',
+    )
+    assert thread is local
+    assert not created
+    assert thread.linked_order_record_id == 'selected-order'
+    assert thread.raw_payload['reconciled_conversation_id'] == 'real-thread'
+    service.conversation_repository.upsert_by_provider_id.assert_not_called()
+
+
 def test_sync_reconciles_when_ebay_omitted_both_ids_in_the_send_response():
     service = EbayMessageService.__new__(EbayMessageService)
     service.provider = 'EBAY'

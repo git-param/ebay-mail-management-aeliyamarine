@@ -32,6 +32,14 @@ Provider rejection messages are shown in the composer, preserving the draft.
 No database migration is required. Live delivery still depends on the connected
 account's eBay Message API access and eBay's recipient restrictions.
 
+If the provider thread was imported before the local first message could be
+reconciled, sync now records its verified provider ID on the original local
+conversation instead of skipping reconciliation. Replies also check already
+synced outbound messages for a unique match within the same seller account and
+buyer. The original conversation and order link remain available; subsequent
+syncs import messages into that original conversation. A matching username
+alone never authorizes sending, and an ambiguous match remains blocked.
+
 ## Starting from Sold Posting
 
 Click an order ID to open the latest open member conversation for that buyer

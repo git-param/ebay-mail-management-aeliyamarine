@@ -125,15 +125,25 @@ class EbayMessageService:
             },
         }
 
-        self._reconcile_new_buyer_conversation(account, conversation_id, values, messages)
+        reconciled = self._reconcile_new_buyer_conversation(account, conversation_id, values, messages)
 
-        conversation, created = (
-            self.conversation_repository.upsert_by_provider_id(
-                self.provider,
-                conversation_id,
-                values,
+        if reconciled is not None:
+            # Import subsequent messages into the original local conversation,
+            # so the currently open thread retains its history and order context.
+            local_payload = reconciled.raw_payload or {}
+            for key, value in values.items():
+                if key == 'raw_payload':
+                    value = {**local_payload, **value}
+                setattr(reconciled, key, value)
+            conversation, created = reconciled, False
+        else:
+            conversation, created = (
+                self.conversation_repository.upsert_by_provider_id(
+                    self.provider,
+                    conversation_id,
+                    values,
+                )
             )
-        )
 
         if created:
             conversation.status = ConversationStatus.OPEN
@@ -167,12 +177,16 @@ class EbayMessageService:
 
     def _reconcile_new_buyer_conversation(
         self, account: EbayAccount, conversation_id: str, values: dict, messages: list[dict]
-    ) -> None:
+    ) -> Conversation | None:
         """Attach the provider identity to a sent thread when sendMessage omitted its ID."""
         buyer = values.get('buyer_identifier')
         if not buyer or values.get('provider_conversation_type') != 'FROM_MEMBERS':
             return
-        if self.conversation_repository.get_by_provider_id(self.provider, conversation_id):
+        existing = self.conversation_repository.get_by_provider_id(self.provider, conversation_id)
+        if existing and (
+            existing.provider_account_id != account.id
+            or (existing.buyer_identifier or '').strip().lower() != buyer.strip().lower()
+        ):
             return
         candidates = self.db.scalars(
             select(Conversation).where(
@@ -185,6 +199,8 @@ class EbayMessageService:
         for conversation in candidates:
             if not (conversation.raw_payload or {}).get('first_message_sent'):
                 continue
+            if existing and (conversation.raw_payload or {}).get('reconciled_conversation_id') == conversation_id:
+                return conversation
             for payload in messages:
                 provider_message_id = self._string_or_none(payload.get('messageId'))
                 known_message = next(
@@ -201,9 +217,59 @@ class EbayMessageService:
                     recipient_username=payload.get('recipientUsername'),
                 ) if sent_at else None
                 if known_message or local_message:
-                    conversation.provider_conversation_id = conversation_id
+                    if existing:
+                        # Keep the local conversation and its order/notes intact. The
+                        # provider ID is unique, so an already-imported thread must
+                        # be referenced rather than assigned to a second row.
+                        conversation.raw_payload = {
+                            **(conversation.raw_payload or {}),
+                            'reconciled_conversation_id': conversation_id,
+                        }
+                    else:
+                        conversation.provider_conversation_id = conversation_id
                     self.db.flush()
-                    return
+                    return conversation if existing else None
+
+    def reconcile_from_synced_threads(self, conversation: Conversation) -> None:
+        """Repair a sent local thread using messages already imported by sync."""
+        if not conversation.provider_conversation_id.startswith('new-buyer-'):
+            return
+        if not (conversation.raw_payload or {}).get('first_message_sent'):
+            return
+        buyer = (conversation.buyer_identifier or '').strip()
+        if not buyer:
+            return
+        threads = self.db.scalars(select(Conversation).where(
+            Conversation.provider == self.provider,
+            Conversation.provider_account_id == conversation.provider_account_id,
+            func.lower(Conversation.buyer_identifier) == buyer.lower(),
+            Conversation.provider_conversation_type == 'FROM_MEMBERS',
+            ~Conversation.provider_conversation_id.startswith('new-buyer-'),
+        ))
+        matches = set()
+        for thread in threads:
+            for message in thread.messages:
+                if message.is_inbound:
+                    continue
+                known = any(
+                    local.provider_message_id == message.provider_message_id
+                    and not local.is_inbound
+                    for local in conversation.messages
+                )
+                local = self._local_reply_match(
+                    conversation=conversation, body=message.body,
+                    sent_at=message.sent_at,
+                    sender_username=message.sender_identifier,
+                    recipient_username=message.recipient_identifier,
+                )
+                if known or local:
+                    matches.add(thread.provider_conversation_id)
+        if len(matches) == 1:
+            conversation.raw_payload = {
+                **(conversation.raw_payload or {}),
+                'reconciled_conversation_id': matches.pop(),
+            }
+            self.db.flush()
 
     def upsert_messages(
         self,

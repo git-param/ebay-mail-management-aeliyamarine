@@ -40,6 +40,16 @@ def test_send_context_prefers_existing_conversation_id_over_trading_context():
     }
 
 
+def test_reconciled_local_thread_replies_to_verified_provider_thread():
+    service = EbayReplyService.__new__(EbayReplyService)
+    context = service._send_context(conversation(
+        provider_conversation_id='new-buyer-local',
+        raw_payload={'first_message_sent': True, 'reconciled_conversation_id': 'ebay-real-thread'},
+    ))
+    assert context['transport'] == 'conversation'
+    assert context['conversation_id'] == 'ebay-real-thread'
+
+
 def test_send_context_falls_back_to_trading_when_conversation_id_is_missing():
     service = EbayReplyService.__new__(EbayReplyService)
 
