@@ -2,6 +2,9 @@
 .reply-composer {
   padding: 16px;
   border-radius: 18px;
+  flex: 0 0 auto;
+  max-height: 100%;
+  overflow-y: auto;
 }
 
 .reply-composer .composer-toolbar-row {
@@ -73,6 +76,40 @@
   gap: 0;
 }
 
+.reply-composer .composer-editor-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px 14px 0;
+}
+
+.reply-composer .composer-editor-heading > label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: #26223c;
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.3;
+}
+
+.reply-composer .composer-editor-heading .ui-icon {
+  width: 16px;
+  height: 16px;
+  color: #7962e8;
+}
+
+.reply-composer .composer-editor-heading .composer-size-toggle {
+  flex: 0 0 auto;
+  width: auto;
+  min-height: 17px;
+  padding: 0 8px;
+  font-size: 11px;
+}
+
 .reply-composer .composer-editor > span {
   display: flex;
   align-items: center;
@@ -89,6 +126,7 @@
 
 .reply-composer .composer-editor-shell .composer-editor textarea {
   min-height: 58px;
+  max-height: none;
   padding: 8px 14px;
   border: 0;
   border-radius: 0;
@@ -177,6 +215,10 @@
 html[data-theme='dark'] .reply-composer .composer-editor-shell,
 html[data-theme='dark'] .reply-composer .composer-editor-footer {
   border-color: var(--inbox-border, #344155);
+}
+
+html[data-theme='dark'] .reply-composer .composer-editor-heading > label {
+  color: #aab4c3;
 }
 
 html[data-theme='dark'] .reply-composer .composer-select-control select:disabled {

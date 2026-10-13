@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
 
 import { Icon } from '../../../layouts/app_layout'
 import { validateConversationReply } from '../../../services/conversationApi'
@@ -38,6 +38,9 @@ export default function ReplyComposer({
   composerLabel = 'Reply to buyer',
 }) {
   const [body, setBody] = useState('')
+  const [isReplyMinimized, setIsReplyMinimized] = useState(false)
+  const editorRef = useRef(null)
+  const editorId = useId()
   const [files, setFiles] = useState([])
   const [fileInputKey, setFileInputKey] = useState(0)
   const [violations, setViolations] = useState([])
@@ -86,6 +89,34 @@ export default function ReplyComposer({
       })),
     [files],
   )
+
+  useLayoutEffect(() => {
+    const editor = editorRef.current
+    if (!editor) return
+
+    function resizeEditor() {
+      // With rows=3, auto restores the original compact height before measuring
+      // wrapped text. Measuring afresh also lets the editor shrink after deletion.
+      editor.style.height = 'auto'
+      const compactHeight = editor.getBoundingClientRect().height
+      const styles = window.getComputedStyle(editor)
+      const borderHeight = parseFloat(styles.borderTopWidth) + parseFloat(styles.borderBottomWidth)
+      editor.style.height = `${isReplyMinimized || !body ? compactHeight : Math.max(compactHeight, editor.scrollHeight + borderHeight)}px`
+    }
+
+    resizeEditor()
+    let previousWidth = editor.getBoundingClientRect().width
+    const observer = new ResizeObserver(() => {
+      const width = editor.getBoundingClientRect().width
+      // Ignore height changes, including the user's manual resize.
+      if (width !== previousWidth) {
+        previousWidth = width
+        resizeEditor()
+      }
+    })
+    observer.observe(editor)
+    return () => observer.disconnect()
+  }, [body, isReplyMinimized])
 
   useEffect(
     () => () => {
@@ -183,6 +214,7 @@ export default function ReplyComposer({
       }
       await onSendReply(trimmedBody, files, selectedTypeId, sendCopyToEmail)
       setBody('')
+      setIsReplyMinimized(false)
       setFiles([])
       setSendCopyToEmail(true)
       setDraftMessage('')
@@ -266,12 +298,27 @@ export default function ReplyComposer({
       </div>
 
       <div className="composer-editor-shell">
-        <label className="field composer-editor">
-          <span><Icon name="reply" />{composerLabel}</span>
+        <div className="composer-editor-heading">
+          <label htmlFor={editorId}><Icon name="reply" />{composerLabel}</label>
+          <button
+            className="secondary-button compact composer-size-toggle"
+            type="button"
+            aria-controls={editorId}
+            aria-expanded={!isReplyMinimized}
+            disabled={!body}
+            onClick={() => setIsReplyMinimized((current) => !current)}
+          >
+            {isReplyMinimized ? 'Expand reply' : 'Minimize reply'}
+          </button>
+        </div>
+        <div className="field composer-editor">
           <textarea
+            id={editorId}
+            ref={editorRef}
             value={body}
             onChange={(event) => {
               setBody(event.target.value)
+              if (!event.target.value) setIsReplyMinimized(false)
               setDraftMessage('')
             }}
             onPaste={pasteClipboardImages}
@@ -279,7 +326,7 @@ export default function ReplyComposer({
             maxLength={2000}
             placeholder="Write a reply without email, phone, external links, or abusive language"
           />
-        </label>
+        </div>
         <div className="composer-editor-footer">
           <div className="composer-attachment-action">
             <input
