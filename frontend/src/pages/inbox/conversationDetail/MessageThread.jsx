@@ -21,6 +21,47 @@ import {
 } from '../inboxUtils'
 import OfferEvent from './OfferEvent'
 
+function MessageText({ text }) {
+  const content = String(text || '')
+  const parts = []
+  let lastIndex = 0
+
+  for (const match of content.matchAll(/https?:\/\/[^\s<>"']+/gi)) {
+    let url = match[0].replace(/[.,!?;:]+$/, '')
+
+    // Leave sentence punctuation outside the link, preserving balanced URL brackets.
+    while (/[)\]}]$/.test(url)) {
+      const closing = url.at(-1)
+      const opening = { ')': '(', ']': '[', '}': '{' }[closing]
+      if (url.split(closing).length <= url.split(opening).length) break
+      url = url.slice(0, -1).replace(/[.,!?;:]+$/, '')
+    }
+
+    try {
+      new URL(url)
+    } catch {
+      continue
+    }
+
+    parts.push(content.slice(lastIndex, match.index))
+    parts.push(
+      <a
+        key={match.index}
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        style={{ color: 'inherit', textDecoration: 'underline', overflowWrap: 'anywhere' }}
+      >
+        {url}
+      </a>,
+    )
+    lastIndex = match.index + url.length
+  }
+
+  parts.push(content.slice(lastIndex))
+  return <>{parts}</>
+}
+
 function resizeEbayMessageFrame(event) {
   const frame = event.currentTarget
   const documentElement =
@@ -31,6 +72,13 @@ function resizeEbayMessageFrame(event) {
   if (!documentElement || !body) {
     return
   }
+
+  body.querySelectorAll('a[href]').forEach((link) => {
+    if (/^https?:\/\//i.test(link.href)) {
+      link.target = '_blank'
+      link.rel = 'noopener noreferrer'
+    }
+  })
 
   const frameHeight = Math.max(
     documentElement.scrollHeight,
@@ -876,7 +924,7 @@ function MessageThread({
                   }
                 />
               ) : (
-                <p>{displayMessageBody}</p>
+                <p><MessageText text={displayMessageBody} /></p>
               )}
 
               {direction ===

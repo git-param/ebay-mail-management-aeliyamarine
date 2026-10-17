@@ -48,10 +48,10 @@ function BreakStartModal({ isSubmitting, error, onSubmit, onClose }) {
         {error ? <p className="breakModule-form-error" role="alert">{error}</p> : null}
 
         <div className="breakModule-modal-actions">
-          <button type="button" className="breakModule-secondary" onClick={onClose} disabled={isSubmitting}>Cancel</button>
           <button type="submit" className="breakModule-primary" disabled={!selectedReason || isSubmitting}>
             {isSubmitting ? 'Starting...' : 'Submit'}
           </button>
+          <button type="button" className="breakModule-secondary" onClick={onClose} disabled={isSubmitting}>Cancel</button>
         </div>
       </form>
     </div>
