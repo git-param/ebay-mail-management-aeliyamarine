@@ -24,6 +24,8 @@ export default function MessageTypeSelector({
   const subtypeIsMissing = showRequiredError && Boolean(category?.children?.length) && !subtypeId
 
   useEffect(() => {
+    // Keep a message type restored with a saved reply draft.
+    if (categoryId) return
     onCategoryChange('')
     onSubtypeChange('')
     if (!suggestedMessageTypeId) return
@@ -41,7 +43,7 @@ export default function MessageTypeSelector({
       onCategoryChange(parent.id)
       onSubtypeChange(suggestedMessageTypeId)
     }
-  }, [conversationId, suggestedMessageTypeId, messageTypes, onCategoryChange, onSubtypeChange])
+  }, [categoryId, conversationId, suggestedMessageTypeId, messageTypes, onCategoryChange, onSubtypeChange])
 
   return (
     <>

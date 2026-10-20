@@ -6,6 +6,34 @@ import MessageTypeSelector from './MessageTypeSelector'
 
 import './replyComposer.css'
 import './replyComposerLayout.css'
+
+const REPLY_DRAFT_STORAGE_PREFIX = 'aces:conversation-reply-draft:v1'
+
+function replyDraftStorageKey(userId, conversationId) {
+  if (!userId || !conversationId) return ''
+  return `${REPLY_DRAFT_STORAGE_PREFIX}:${userId}:${conversationId}`
+}
+
+function readReplyDraft(storageKey) {
+  if (!storageKey) return null
+  try {
+    const draft = JSON.parse(localStorage.getItem(storageKey) || 'null')
+    return draft && typeof draft.body === 'string' ? draft : null
+  } catch {
+    localStorage.removeItem(storageKey)
+    return null
+  }
+}
+
+function removeReplyDraft(storageKey) {
+  if (!storageKey) return
+  try {
+    localStorage.removeItem(storageKey)
+  } catch {
+    // Sending must still succeed when browser storage is unavailable.
+  }
+}
+
 /**
  * Reply editor rendered below an open conversation thread.
  * Owns drafts, attachments, policy validation, and the editable Message Type
@@ -37,20 +65,24 @@ export default function ReplyComposer({
   validateMessage = validateConversationReply,
   composerLabel = 'Reply to buyer',
 }) {
-  const [body, setBody] = useState('')
+  const draftStorageKey = replyDraftStorageKey(currentUser?.id, conversationId)
+  const initialDraft = useMemo(() => readReplyDraft(draftStorageKey), [draftStorageKey])
+  const [body, setBody] = useState(() => initialDraft?.body || '')
   const [isReplyMinimized, setIsReplyMinimized] = useState(false)
   const editorRef = useRef(null)
   const editorId = useId()
   const [files, setFiles] = useState([])
   const [fileInputKey, setFileInputKey] = useState(0)
   const [violations, setViolations] = useState([])
-  const [draftMessage, setDraftMessage] = useState('')
+  const [draftMessage, setDraftMessage] = useState(() =>
+    initialDraft ? 'Saved draft restored for this conversation.' : '',
+  )
   const [isValidating, setIsValidating] = useState(false)
-  const [categoryId, setCategoryId] = useState('')
-  const [subtypeId, setSubtypeId] = useState('')
+  const [categoryId, setCategoryId] = useState(() => initialDraft?.categoryId || '')
+  const [subtypeId, setSubtypeId] = useState(() => initialDraft?.subtypeId || '')
   const [templateCategoryId, setTemplateCategoryId] = useState('')
   const [selectedTemplateId, setSelectedTemplateId] = useState('')
-  const [sendCopyToEmail, setSendCopyToEmail] = useState(true)
+  const [sendCopyToEmail, setSendCopyToEmail] = useState(() => initialDraft?.sendCopyToEmail ?? true)
   const [showMessageTypeError, setShowMessageTypeError] = useState(false)
   const category = messageTypes.find((item) => item.id === categoryId)
   const selectedTypeId = category?.children?.length ? subtypeId : categoryId
@@ -173,7 +205,32 @@ export default function ReplyComposer({
 
   function saveDraft() {
     setViolations([])
-    setDraftMessage('Draft saved locally for this conversation.')
+    if (!draftStorageKey || !body.trim()) {
+      setDraftMessage('')
+      setViolations(['Enter a reply before saving a draft. Attachments cannot be saved locally.'])
+      return
+    }
+
+    try {
+      localStorage.setItem(
+        draftStorageKey,
+        JSON.stringify({
+          body,
+          categoryId,
+          subtypeId,
+          sendCopyToEmail,
+          savedAt: new Date().toISOString(),
+        }),
+      )
+      setDraftMessage(
+        files.length
+          ? 'Draft saved. Attachments must be added again when you return.'
+          : 'Draft saved locally for this conversation.',
+      )
+    } catch {
+      setDraftMessage('')
+      setViolations(['Unable to save the draft in this browser. Check browser storage settings and try again.'])
+    }
   }
 
   function insertTemplate(templateId) {
@@ -213,6 +270,7 @@ export default function ReplyComposer({
         return
       }
       await onSendReply(trimmedBody, files, selectedTypeId, sendCopyToEmail)
+      removeReplyDraft(draftStorageKey)
       setBody('')
       setIsReplyMinimized(false)
       setFiles([])

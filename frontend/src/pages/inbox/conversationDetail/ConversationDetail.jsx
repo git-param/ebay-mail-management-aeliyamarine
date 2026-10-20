@@ -221,6 +221,7 @@ function ConversationDetail({
             <ReplyUnavailableNotice />
           ) : (
             <ReplyComposer
+              key={detail.id}
               conversationId={detail.id}
               currentUser={currentUser}
               buyerName={
