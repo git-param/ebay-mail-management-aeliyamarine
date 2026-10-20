@@ -434,7 +434,7 @@ html[data-theme="dark"] :is(
 
   display: inline-flex;
 
-  height: 40px;
+  height: 34px;
 
   justify-content: center;
 
@@ -444,7 +444,7 @@ html[data-theme="dark"] :is(
     transform 160ms ease,
     box-shadow 160ms ease;
 
-  width: 40px;
+  width: 34px;
 }
 
 a .sold-thumb:hover {
@@ -478,6 +478,8 @@ a .sold-thumb:hover {
   max-height: 36px;
 
   overflow: hidden;
+
+  white-space: normal;
 
   text-decoration: none;
 }
@@ -544,7 +546,7 @@ a .sold-thumb:hover {
 
 .sold-table {
   table-layout: fixed;
-  min-width: 1988px;
+  min-width: 2050px;
 }
 
 .sold-table thead th {
@@ -568,10 +570,6 @@ a .sold-thumb:hover {
 .sold-table tbody tr {
   background: #ffffff;
   cursor: pointer;
-}
-
-.sold-table tbody tr:nth-child(even) {
-  background: #fbfdff;
 }
 
 .sold-table tbody tr:hover {
@@ -605,11 +603,141 @@ a .sold-thumb:hover {
 
   font-size: 13px;
 
-  padding-block: 8px;
+  height: 56px;
+  padding: 7px 10px;
 
   text-overflow: ellipsis;
 
   white-space: nowrap;
+}
+
+/* Treat each order as a compact card while preserving the table alignment. */
+.sold-table .sold-order-group .sold-data-row td:first-child,
+.sold-table .sold-order-group .sold-note-row td:first-child {
+  border-left: 1px solid #ccd9e8;
+}
+
+.sold-table .sold-order-group .sold-data-row td:last-child,
+.sold-table .sold-order-group .sold-note-row td:last-child {
+  border-right: 1px solid #ccd9e8;
+}
+
+.sold-table .sold-order-group .sold-group-first td {
+  border-top: 1px solid #ccd9e8;
+}
+
+.sold-table .sold-order-group .sold-group-last td {
+  border-bottom: 1px solid #ccd9e8;
+}
+
+.sold-table .sold-order-group:nth-of-type(even) .sold-data-row,
+.sold-table .sold-order-group:nth-of-type(even) .sold-note-row {
+  background: #f9fbfe;
+}
+
+.sold-table .sold-order-group:hover .sold-data-row,
+.sold-table .sold-order-group:hover .sold-note-row {
+  background: #f2f7fd;
+}
+
+.sold-table .sold-order-group.sold-multi-order .sold-data-row td:first-child {
+  box-shadow: inset 3px 0 0 #6f7bf7;
+}
+
+.sold-table .sold-group-spacer,
+.sold-table .sold-group-spacer:hover {
+  display: none;
+}
+
+.sold-table .sold-group-spacer td {
+  height: 10px;
+  padding: 0;
+  border: 0;
+}
+
+.sold-table .sold-order-group .sold-group-first td:first-child {
+  border-top-left-radius: 8px;
+}
+
+.sold-table .sold-order-group .sold-group-first td:last-child {
+  border-top-right-radius: 8px;
+}
+
+.sold-table .sold-order-group .sold-group-last td:first-child {
+  border-bottom-left-radius: 8px;
+}
+
+.sold-table .sold-order-group .sold-group-last td:last-child {
+  border-bottom-right-radius: 8px;
+}
+
+.sold-order-cell {
+  overflow: visible !important;
+}
+
+.sold-order-summary {
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.sold-order-link {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sold-sku-count {
+  display: inline-flex;
+  align-items: center;
+  min-height: 20px;
+  padding: 2px 7px;
+  border: 1px solid #d8dcff;
+  border-radius: 999px;
+  background: #f1f2ff;
+  color: #4f46c7;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+}
+
+.sold-shared-order-cell {
+  color: #168a82 !important;
+  font-weight: 800;
+}
+
+.sold-account-badge {
+  display: inline-flex;
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: #eaf8f6;
+  color: #148078;
+  font-size: 11px;
+  font-weight: 850;
+}
+
+.sold-condition-cell {
+  align-items: center;
+  display: flex;
+  gap: 6px;
+  overflow: visible !important;
+}
+
+.sold-condition-cell .sold-condition-editor {
+  flex: 1 1 auto;
+}
+
+.sold-row-edit {
+  flex: 0 0 auto;
+  opacity: 0;
+  transition: opacity 150ms ease;
+}
+
+.sold-data-row:hover .sold-row-edit,
+.sold-row-edit:focus-visible {
+  opacity: 1;
 }
 
 /* ==========================================================================
@@ -1017,42 +1145,42 @@ a .sold-thumb:hover {
 .sold-table th:nth-child(1),
 .sold-table td:nth-child(1) {
   overflow: visible;
-  width: 92px;
+  width: 104px;
 }
 
 .sold-table th:nth-child(2),
 .sold-table td:nth-child(2) {
-  width: 64px;
+  width: 58px;
 }
 
 .sold-table th:nth-child(3),
 .sold-table td:nth-child(3) {
-  width: 96px;
+  width: 90px;
 }
 
 .sold-table th:nth-child(4),
 .sold-table td:nth-child(4) {
-  width: 128px;
+  width: 150px;
 }
 
 .sold-table th:nth-child(5),
 .sold-table td:nth-child(5) {
-  width: 132px;
+  width: 138px;
 }
 
 .sold-table th:nth-child(6),
 .sold-table td:nth-child(6) {
-  width: 112px;
+  width: 125px;
 }
 
 .sold-table th:nth-child(7),
 .sold-table td:nth-child(7) {
-  width: 140px;
+  width: 58px;
 }
 
 .sold-table th:nth-child(8),
 .sold-table td:nth-child(8) {
-  width: 420px;
+  width: 360px;
 }
 
 .sold-table td:nth-child(8) {
@@ -1061,7 +1189,7 @@ a .sold-thumb:hover {
 
 .sold-table th:nth-child(9),
 .sold-table td:nth-child(9) {
-  width: 220px;
+  width: 190px;
 }
 
 .sold-table th:nth-child(10),
@@ -1084,10 +1212,7 @@ a .sold-thumb:hover {
 }
 
 .sold-table th:nth-child(15),
-.sold-table td:nth-child(15) {
-  width: 156px;
-}
-
+.sold-table td:nth-child(15),
 .sold-table th:nth-child(16),
 .sold-table td:nth-child(16) {
   width: 156px;
@@ -1104,9 +1229,24 @@ a .sold-thumb:hover {
 }
 
 .sold-blogspot-link {
+  align-items: center;
+  display: inline-flex;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid #d3e0ec;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #078a89;
   font-weight: 800;
   text-decoration: none;
-  font-size: 17px;
+  font-size: 15px;
+  transition: background 150ms ease, border-color 150ms ease;
+}
+
+.sold-blogspot-link:hover {
+  border-color: #8ecbc8;
+  background: #edfbfa;
 }
 
 /* ==========================================================================
@@ -1353,13 +1493,25 @@ a .sold-thumb:hover {
    ========================================================================== */
 
 .sold-posting-page .status-badge {
-  border-radius: 6px;
+  gap: 6px;
+  border-radius: 999px;
 
-  font-size: 11px;
+  font-size: 10px;
 
-  min-height: 24px;
+  min-height: 22px;
 
-  padding: 0 9px;
+  padding: 0 10px;
+  background: #fff2cf;
+  color: #9a6811;
+  white-space: nowrap;
+}
+
+.sold-posting-page .status-badge::before {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  content: "";
 }
 
 /* ==========================================================================
@@ -1583,9 +1735,34 @@ html[data-theme="dark"] .sold-table tbody tr.sold-data-row.has-note + tr.sold-no
   background: #242932 !important;
 }
 
+html[data-theme="dark"] .sold-table .sold-order-group:hover :is(.sold-data-row, .sold-note-row) {
+  background: #202630 !important;
+}
+
+html[data-theme="dark"] .sold-table .sold-group-spacer,
+html[data-theme="dark"] .sold-table .sold-group-spacer:hover {
+  background: #0f1217 !important;
+}
+
 html[data-theme="dark"] .sold-table th,
 html[data-theme="dark"] .sold-table td {
   border-bottom-color: #343b46 !important;
+}
+
+html[data-theme="dark"] .sold-table .sold-order-group :is(.sold-group-first, .sold-group-last) td,
+html[data-theme="dark"] .sold-table .sold-order-group :is(.sold-data-row, .sold-note-row) td:first-child,
+html[data-theme="dark"] .sold-table .sold-order-group :is(.sold-data-row, .sold-note-row) td:last-child {
+  border-color: #536174 !important;
+}
+
+html[data-theme="dark"] .sold-sku-count {
+  border-color: #555cc1;
+  background: #292d65;
+  color: #dfe1ff;
+}
+
+html[data-theme="dark"] .sold-order-continuation {
+  color: #78869a;
 }
 
 html[data-theme="dark"] .sold-thumb,

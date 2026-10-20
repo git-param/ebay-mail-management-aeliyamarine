@@ -209,6 +209,7 @@ function App() {
   const currentPath = normalizePath(window.location.pathname)
   const isAuthenticated = Boolean(auth.currentUser)
   const currentRole = normalizeRole(auth.currentUser?.role)
+  const publicRoute = PUBLIC_ROUTES.find(({ path }) => path === currentPath)
 
   useEffect(() => {
     let active = true
@@ -239,15 +240,14 @@ function App() {
     window.location.assign('/login')
   }
 
-  if (checkingSession || sessionError) {
+  if (checkingSession || (sessionError && !publicRoute)) {
     return <main className="auth-page"><section className="auth-panel auth-panel-small"><div className="auth-form-wrap"><p className="auth-brand">ACES</p><h1>{checkingSession ? 'Restoring your session...' : 'Unable to restore your session'}</h1>{sessionError ? <><p className="auth-subtitle" role="alert">{sessionError}</p><button className="primary-button" onClick={() => { setCheckingSession(true); setSessionError(''); setSessionRevision(value => value + 1) }}>Retry</button></> : <p className="auth-subtitle" role="status">Checking your saved login.</p>}</div></section></main>
   }
 
-  if (isAuthenticated && ['/', '/home', '/login', '/forgot-password', '/reset-password', '/login-success'].includes(currentPath)) {
+  if (!sessionError && isAuthenticated && ['/', '/home', '/login', '/forgot-password', '/reset-password', '/login-success'].includes(currentPath)) {
     return <Redirect to="/inbox" />
   }
 
-  const publicRoute = PUBLIC_ROUTES.find(({ path }) => path === currentPath)
   if (publicRoute) {
     const Page = publicRoute.component
     return <Page />

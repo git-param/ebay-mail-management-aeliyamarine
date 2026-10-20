@@ -41,6 +41,18 @@ const searchOptions = [
 ];
 const conditionOptions = ["New", "Brand New", "Used", "Refurbished", "For parts"];
 
+function groupSoldItems(items) {
+  const groups = new Map();
+  items.forEach((row) => {
+    const key = row.order_id
+      ? `${row.ebay_account_id ?? row.ebay_account_name ?? ""}:${row.order_id}`
+      : `line:${row.id}`;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(row);
+  });
+  return [...groups.entries()].map(([key, rows]) => ({ key, rows }));
+}
+
 function money(value, currency) 
 {
   if (value === null || value === undefined || value === "") return "-";
@@ -56,13 +68,14 @@ function dt(value)
 
 function StatusBadge({ value }) 
 {
+  const label = String(value || "OTHER").replaceAll("_", " ").toLowerCase();
   return (
     <span
       className={`status-badge status-${String(value || "other")
         .toLowerCase()
         .replaceAll("_", "-")}`}
     >
-      {String(value || "OTHER").replaceAll("_", " ")}
+      {label.charAt(0).toUpperCase() + label.slice(1)}
     </span>
   );
 }
@@ -223,9 +236,26 @@ async function writeClipboard(text)
 }
 
 function DetailDrawer({ order, onClose }) {
+  useEffect(() => {
+    if (!order) return;
+
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") onClose();
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [order, onClose]);
+
   if (!order) return null;
   return (
-    <div className="drawer-backdrop" role="presentation">
+    <div
+      className="drawer-backdrop"
+      role="presentation"
+      onClick={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
       <aside className="user-drawer sold-detail-drawer">
         <div className="drawer-header">
           <h2>Order {order.order_id}</h2>
@@ -544,10 +574,10 @@ export default function SoldPosting({ currentUser, onLogout }) {
   const [savingNoteId, setSavingNoteId] = useState(null);
   const [editingNoteId, setEditingNoteId] = useState(null);
   const [inlineNoteDraft, setInlineNoteDraft] = useState("");
-  const activeFilters = useMemo(() => filters, [filters]);
+  const orderGroups = useMemo(() => groupSoldItems(data.items), [data.items]);
 
   const load = useCallback(
-    async (next = activeFilters) => {
+    async (next) => {
       setLoading(true);
       try {
         const response = await fetchSoldPostingOrders(next);
@@ -559,7 +589,7 @@ export default function SoldPosting({ currentUser, onLogout }) {
         setLoading(false);
       }
     },
-    [activeFilters],
+    [setData, setError, setLoading],
   );
 
   useEffect(() => {
@@ -1048,11 +1078,20 @@ export default function SoldPosting({ currentUser, onLogout }) {
                     ))}
                   </tr>
                 </thead>
-                <tbody>
-                  {data.items.map((row) => (
+                {orderGroups.map((group, groupIndex) => (
+                  <tbody
+                    className={`sold-order-group ${group.rows.length > 1 ? "sold-multi-order" : ""}`}
+                    key={group.key}
+                  >
+                  {groupIndex > 0 ? (
+                    <tr className="sold-group-spacer" aria-hidden="true">
+                      <td colSpan={18} />
+                    </tr>
+                  ) : null}
+                  {group.rows.map((row, index) => (
                     <Fragment key={row.id}>
                     <tr
-                      className={`sold-data-row ${row.note ? "has-note" : ""}`}
+                      className={`sold-data-row ${row.note ? "has-note" : ""} ${index === 0 ? "sold-group-first" : ""} ${index === group.rows.length - 1 && !row.note ? "sold-group-last" : ""}`}
                       onClick={() => openDetail(row.order_id)}
                     >
                       <td className="sold-copy-cell">
@@ -1123,22 +1162,35 @@ export default function SoldPosting({ currentUser, onLogout }) {
                           </span>
                         )}
                       </td>
-                      <td>{row.ebay_account_name}</td>
-                      <td>
-                        <StatusBadge value={row.status} />
+                      <td className="sold-shared-order-cell">
+                        {index === Math.floor(group.rows.length / 2) ? (
+                          <span className="sold-account-badge">{row.ebay_account_name}</span>
+                        ) : null}
                       </td>
                       <td>
-                        <button
-                          className="copy-chip"
-                          type="button"
-                          title={`Open buyer conversation for order ${row.order_id}`}
-                          disabled={Boolean(openingConversation)}
-                          onClick={(event) => openBuyerConversation(event, row)}
-                        >
-                          {openingConversation === `${row.ebay_account_id}:${row.order_id}`
-                            ? "Opening..."
-                            : row.order_id}
-                        </button>
+                        {index === Math.floor(group.rows.length / 2) ? (
+                          <StatusBadge value={row.status} />
+                        ) : null}
+                      </td>
+                      <td className="sold-order-cell">
+                        {index === Math.floor(group.rows.length / 2) ? (
+                          <div className="sold-order-summary">
+                            <button
+                              className="copy-chip sold-order-link"
+                              type="button"
+                              title={`Open buyer conversation for order ${row.order_id}`}
+                              disabled={Boolean(openingConversation)}
+                              onClick={(event) => openBuyerConversation(event, row)}
+                            >
+                              {openingConversation === `${row.ebay_account_id}:${row.order_id}`
+                                ? "Opening..."
+                                : row.order_id}
+                            </button>
+                            {group.rows.length > 1 ? (
+                              <span className="sold-sku-count">{group.rows.length} SKUs</span>
+                            ) : null}
+                          </div>
+                        ) : null}
                       </td>
                       <td>
                         <CopyValue value={row.sku} />
@@ -1235,7 +1287,7 @@ export default function SoldPosting({ currentUser, onLogout }) {
                       </td>
                     </tr>
                     {row.note ? (
-                      <tr className="sold-note-row" onClick={(event) => event.stopPropagation()}>
+                      <tr className={`sold-note-row ${index === group.rows.length - 1 ? "sold-group-last" : ""}`} onClick={(event) => event.stopPropagation()}>
                         <td colSpan={18}>
                           <div className="sold-note-line">
                             <span className="sold-note-label">Note</span>
@@ -1294,7 +1346,8 @@ export default function SoldPosting({ currentUser, onLogout }) {
                     ) : null}
                     </Fragment>
                   ))}
-                </tbody>
+                  </tbody>
+                ))}
               </table>
             </div>
           ) : (
