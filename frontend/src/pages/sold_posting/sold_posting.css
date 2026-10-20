@@ -573,7 +573,7 @@ a .sold-thumb:hover {
 }
 
 .sold-table tbody tr:hover {
-  background: #f0f7ff;
+  background: #ffffff;
 }
 
 .sold-table tbody tr.sold-note-row,
@@ -590,7 +590,7 @@ a .sold-thumb:hover {
 .sold-table tbody tr.sold-data-row.has-note:hover + tr.sold-note-row,
 .sold-table tbody tr.sold-data-row.has-note:has(+ tr.sold-note-row:hover),
 .sold-table tbody tr.sold-data-row.has-note + tr.sold-note-row:hover {
-  background: #f0f7ff;
+  background: #ffffff;
 }
 
 .sold-table th,
@@ -632,12 +632,12 @@ a .sold-thumb:hover {
 
 .sold-table .sold-order-group:nth-of-type(even) .sold-data-row,
 .sold-table .sold-order-group:nth-of-type(even) .sold-note-row {
-  background: #f9fbfe;
+  background: #ffffff;
 }
 
 .sold-table .sold-order-group:hover .sold-data-row,
 .sold-table .sold-order-group:hover .sold-note-row {
-  background: #f2f7fd;
+  background: #ffffff;
 }
 
 .sold-table .sold-order-group.sold-multi-order .sold-data-row td:first-child {
