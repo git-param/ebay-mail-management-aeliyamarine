@@ -94,6 +94,13 @@ export const API = Object.freeze({
     DAILY_ENTRIES_DELETE: "/dailyEntry/daily-entries/delete",
     SLA_REVIEW: "/dailyEntry/sla-review",
   }),
+  DAILY_REPORTS: Object.freeze({
+    ROOT: "/daily-reports",
+    USERS: "/daily-reports/users",
+    TODAY: "/daily-reports/today",
+    TASKS: "/daily-reports/today/tasks",
+    COPY: "/daily-reports/today/copy",
+  }),
 
   EBAY_ACCOUNTS: Object.freeze({
     ROOT: "/ebay-accounts",

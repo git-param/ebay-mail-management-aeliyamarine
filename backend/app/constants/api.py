@@ -25,6 +25,7 @@ class ApiPrefixes:
     LEAVE_MANAGEMENT = '/leave-management'
     BREAK_MANAGEMENT = '/break-management'
     DAILY_ENTRY = '/dailyEntry'
+    DAILY_REPORTS = '/daily-reports'
     CONFIG = '/config'
     INTEGRATIONS_EBAY = '/integrations/ebay'
     INTEGRATIONS_EBAY_BEST_OFFERS = '/integrations/ebay/best-offers'

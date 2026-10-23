@@ -51,6 +51,9 @@ const NAV_ITEMS = [
     label: 'Message Reports', path: '/message-reports', icon: 'chart', roles: ['ADMIN', 'OPS_MANAGER', 'AGENT'],
   },
   {
+    label: 'Daily Reports', path: '/daily-reports', icon: 'audit', roles: ['ADMIN', 'OPS_MANAGER', 'AGENT'],
+  },
+  {
     label: 'Offer Management',
     path: '/offer-management',
     icon: 'handshake',

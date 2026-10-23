@@ -9,6 +9,7 @@ from app.api.v1.routes import new_buyer_conversations
 from app.modules.config_management.router import router as config_router
 from app.modules.offer_management.router import router as offer_management_router
 from app.modules.daily_task_entry.router import router as daily_entry_router
+from app.modules.daily_reports.router import router as daily_reports_router
 from app.modules.search_sku.router import router as search_sku_router
 from app.modules.sold_posting.router import router as sold_posting_router
 from app.modules.task_management.router import router as task_management_router
@@ -40,6 +41,7 @@ api_router.include_router(task_management_router, prefix=ApiPrefixes.TASK_MANAGE
 api_router.include_router(leave_management_router, prefix=ApiPrefixes.LEAVE_MANAGEMENT, tags=['leave-management'])
 api_router.include_router(break_management_router, prefix=ApiPrefixes.BREAK_MANAGEMENT, tags=['break-management'])
 api_router.include_router(daily_entry_router, prefix=ApiPrefixes.DAILY_ENTRY, tags=['daily-entry'])
+api_router.include_router(daily_reports_router, prefix=ApiPrefixes.DAILY_REPORTS, tags=['daily-reports'])
 api_router.include_router(task_management_router, prefix=ApiPrefixes.TASK_MANAGEMENT, tags=['task-management'])
 api_router.include_router(pms_router, prefix=ApiPrefixes.PMS, tags=['pms'])
 api_router.include_router(config_router, prefix=ApiPrefixes.CONFIG, tags=['config'])

@@ -15,6 +15,7 @@ import Templates from './pages/templates/templates'
 import Users from './pages/users/users'
 import MessageTypes from './pages/message_reports/message_types'
 import MessageReports from './pages/message_reports/message_reports'
+import DailyReports from './pages/daily_reports/DailyReports'
 import OfferManagement from './pages/offer_management/offer_management'
 import SoldPosting from './pages/sold_posting/sold_posting'
 import DailyTaskEntry from './pages/daily_task_entry/daily_task_entry' 
@@ -91,6 +92,9 @@ const PROTECTED_ROUTES = [
   },
   {
     path: '/message-reports', component: MessageReports, allowedRoles: ['ADMIN', 'OPS_MANAGER', 'AGENT'],
+  },
+  {
+    path: '/daily-reports', component: DailyReports, allowedRoles: ['ADMIN', 'OPS_MANAGER', 'AGENT'],
   },
   {
     path: '/offer-management',
