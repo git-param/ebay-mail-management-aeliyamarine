@@ -8,6 +8,7 @@ import './replyComposer.css'
 import './replyComposerLayout.css'
 
 const REPLY_DRAFT_STORAGE_PREFIX = 'aces:conversation-reply-draft:v1'
+const MAX_IMAGE_SIZE_BYTES = 12 * 1024 * 1024
 
 function replyDraftStorageKey(userId, conversationId) {
   if (!userId || !conversationId) return ''
@@ -165,6 +166,11 @@ export default function ReplyComposer({
     const nextFiles = [...files, ...selectedFiles]
     if (nextFiles.length > 5) {
       setViolations(['eBay allows a maximum of 5 attachments per reply.'])
+      setFileInputKey((current) => current + 1)
+      return
+    }
+    if (selectedFiles.some((file) => file.size > MAX_IMAGE_SIZE_BYTES)) {
+      setViolations(['Images must be 12 MB or smaller.'])
       setFileInputKey((current) => current + 1)
       return
     }
@@ -393,7 +399,7 @@ export default function ReplyComposer({
               type="file"
               multiple
               onChange={updateFiles}
-              accept=".pdf,.txt,.jpg,.jpeg,.png,application/pdf,text/plain,image/jpeg,image/png"
+              accept=".jpg,.jpeg,.png,image/jpeg,image/png"
             />
             <label htmlFor={`reply-attachments-${conversationId}`}>
               <Icon name="paperclip" />

@@ -790,6 +790,38 @@ html[data-theme='dark'] .inbox-page .metadata-product-price {
   color: var(--inbox-primary, #675ee8);
 }
 
+.inbox-page .metadata-value-copy {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--inbox-primary, #675ee8);
+  font: inherit;
+  text-decoration: none;
+  text-align: right;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+
+.inbox-page .metadata-value-copy:hover {
+  text-decoration: underline;
+}
+
+.inbox-page .metadata-value-copy:focus-visible {
+  outline: 2px solid var(--inbox-primary, #675ee8);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+.inbox-page .metadata-copy-status {
+  color: var(--inbox-muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.inbox-page .metadata-copy-status:empty {
+  display: none;
+}
+
 .inbox-page .metadata-external-link .ui-icon {
   width: 15px;
   height: 15px;

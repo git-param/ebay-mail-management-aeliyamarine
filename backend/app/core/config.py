@@ -60,7 +60,7 @@ class Settings(BaseSettings):
         le=60,
         validation_alias='EBAY_BROWSE_RETRY_BASE_SECONDS',
     )
-    reply_attachment_max_bytes: int = Field(default=5 * 1024 * 1024, validation_alias='REPLY_ATTACHMENT_MAX_BYTES')
+    reply_attachment_max_bytes: int = Field(default=12 * 1024 * 1024, validation_alias='REPLY_ATTACHMENT_MAX_BYTES')
     reply_attachment_upload_dir: str = Field(default='uploads/reply_attachments', validation_alias='REPLY_ATTACHMENT_UPLOAD_DIR')
     translation_api_url: str = Field(
         default=ExternalApi.TRANSLATION_DEFAULT_BASE,
