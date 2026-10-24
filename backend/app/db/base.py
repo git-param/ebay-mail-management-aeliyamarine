@@ -45,7 +45,7 @@ from app.modules.offer_management.models import OfferManagementEntry, OfferManag
 from app.modules.daily_task_entry.models import DailyTaskEntry, DailyTaskEntryHistory
 from app.modules.daily_reports.models import DailyWorkReport
 from app.modules.sold_posting.models import SoldPostingLineItem, SoldPostingOrder, SoldPostingSyncState
-from app.modules.task_management.models import TaskCategory, Subtask, UserSubtaskAssignment
+from app.modules.task_management.models import MainTask, TaskCategory, Subtask, UserSubtaskAssignment
 from app.modules.leave_management.models import LeaveBalanceLedger, LeavePolicy, LeaveRequest
 break_management_models = __import__('app.modules.break-maagement.models', fromlist=['BreakSession'])
 BreakSession = break_management_models.BreakSession
@@ -103,6 +103,7 @@ __all__ = [
     'SoldPostingLineItem',
     'SoldPostingSyncState',
     'TaskCategory',
+    'MainTask',
     'Subtask',
     'UserSubtaskAssignment',
     'PmsMetricConfig',

@@ -19,6 +19,22 @@ export default function MessageTypes({ currentUser, onLogout }) {
   const [editing, setEditing] = useState('')
   const [error, setError] = useState('')
   const items = useMemo(() => flatten(tree), [tree])
+  const [showDisabled, setShowDisabled] = useState(false)
+  const visibleItems = items.filter((item) => showDisabled ? item.is_deleted || !item.is_active : !item.is_deleted && item.is_active)
+
+  async function changeStatus(item, payload) {
+    try {
+      await setMessageTypeStatus(item.id, payload)
+      await load()
+    } catch (caughtError) { setError(caughtError.message) }
+  }
+
+  async function remove(item) {
+    try {
+      await deleteMessageType(item.id)
+      await load()
+    } catch (caughtError) { setError(caughtError.message) }
+  }
 
   async function load() {
     try {
@@ -79,7 +95,8 @@ export default function MessageTypes({ currentUser, onLogout }) {
             {editing ? <button className="secondary-button compact action-button action-clear" type="button" onClick={() => { setEditing(''); setForm(EMPTY_FORM) }}>Cancel</button> : null}
           </div>
         </form>
-        <section className="analytics-panel"><div className="report-table-wrap"><table><thead><tr><th>Name</th><th>Keywords</th><th>Status</th><th>Order</th><th>Actions</th></tr></thead><tbody>{items.map((item) => <tr key={item.id}><td style={{ paddingLeft: `${16 + item.depth * 24}px` }}>{item.name}</td><td>{(item.keywords || []).join(', ') || '—'}</td><td>{item.is_deleted ? 'Deleted' : item.is_active ? 'Active' : 'Inactive'}</td><td>{item.display_order}</td><td><button className="secondary-button compact-action" type="button" onClick={() => edit(item)}>Edit</button> {item.is_deleted ? <button className="secondary-button compact-action" type="button" onClick={async () => { await setMessageTypeStatus(item.id, { restore: true, is_active: true }); load() }}>Restore</button> : <><button className="secondary-button compact-action" type="button" onClick={async () => { await setMessageTypeStatus(item.id, { is_active: !item.is_active }); load() }}>{item.is_active ? 'Disable' : 'Enable'}</button> <button className="secondary-button compact-action" type="button" onClick={async () => { await deleteMessageType(item.id); load() }}>Delete</button></>}</td></tr>)}</tbody></table></div></section>
+        <div className="analytics-filter-actions" style={{ margin: '16px 0' }}><button className="secondary-button compact" type="button" onClick={() => setShowDisabled(!showDisabled)}>{showDisabled ? 'Active Types' : `Disabled Types (${items.filter((item) => item.is_deleted || !item.is_active).length})`}</button></div>
+        <section className="analytics-panel"><div className="report-table-wrap"><table><thead><tr><th>Name</th><th>Keywords</th><th>Status</th><th>Order</th><th>Actions</th></tr></thead><tbody>{visibleItems.map((item) => <tr key={item.id}><td style={{ paddingLeft: `${16 + item.depth * 24}px` }}>{item.name}</td><td>{(item.keywords || []).join(', ') || '—'}</td><td>{item.is_deleted ? 'Deleted' : item.is_active ? 'Active' : 'Inactive'}</td><td>{item.display_order}</td><td><button className="secondary-button compact-action" type="button" onClick={() => edit(item)}>Edit</button> {item.is_deleted ? <button className="secondary-button compact-action" type="button" onClick={() => changeStatus(item, { restore: true, is_active: true })}>Restore</button> : <><button className="secondary-button compact-action" type="button" onClick={() => changeStatus(item, { is_active: !item.is_active })}>{item.is_active ? 'Disable' : 'Enable'}</button> <button className="secondary-button compact-action" type="button" onClick={() => remove(item)}>Delete</button></>}</td></tr>)}</tbody></table></div></section>
       </main>
     </AppLayout>
   )

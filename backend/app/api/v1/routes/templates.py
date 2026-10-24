@@ -30,6 +30,7 @@ def serialize_template(template) -> ReplyTemplateResponse:
         id=template.id,
         title=template.title,
         body=template.body,
+        message_type_id=template.message_type_id,
         category_id=template.category_id,
         category=serialize_category_summary(template.category) if template.category else None,
         is_active=template.is_active,
@@ -91,6 +92,7 @@ def create_template(
     template = ReplyTemplateService(db).create_template(
         title=payload.title,
         body=payload.body,
+        message_type_id=payload.message_type_id,
         category_id=payload.category_id,
         is_active=payload.is_active,
         actor_id=current_user.id,

@@ -30,7 +30,7 @@ def save_tasks(payload: ReportTasksUpdate, db: Session = Depends(get_db), curren
 
 @router.post('/today/copy', response_model=DailyReportResponse)
 def copy_today(payload: ReportCopyRequest, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
-    return DailyReportService(db).save_today(current_user, payload.report_date, copied=True)
+    return DailyReportService(db).save_today(current_user, payload.report_date, copied=True, reviewed=payload.tasks)
 
 
 @router.get('', response_model=DailyReportListResponse)

@@ -21,13 +21,18 @@ export default function MessageTypeSelector({
 }) {
   const category = messageTypes.find((item) => item.id === categoryId)
   const categoryIsMissing = showRequiredError && !categoryId
-  const subtypeIsMissing = showRequiredError && Boolean(category?.children?.length) && !subtypeId
+  const subtypeIsMissing = showRequiredError && Boolean(category?.children?.length) && category?.name?.toLowerCase() !== 'm2m' && !subtypeId
 
   useEffect(() => {
     // Keep a message type restored with a saved reply draft.
     if (categoryId) return
     onCategoryChange('')
     onSubtypeChange('')
+    const defaultType = messageTypes.find((item) => item.name?.trim().toLowerCase() === 'm2m')
+    if (defaultType) {
+      onCategoryChange(defaultType.id)
+      return
+    }
     if (!suggestedMessageTypeId) return
 
     const root = messageTypes.find((item) => item.id === suggestedMessageTypeId)
@@ -64,14 +69,14 @@ export default function MessageTypeSelector({
       </label>
       {category?.children?.length ? (
         <label className={`composer-select-control${subtypeIsMissing ? ' has-error' : ''}`}>
-          <span>Sub Type *</span>
+          <span>Sub Type {category.name?.toLowerCase() === 'm2m' ? '(optional)' : '*'}</span>
           <Icon name="tag" />
           <select
             value={subtypeId}
             aria-invalid={subtypeIsMissing}
             onChange={(event) => onSubtypeChange(event.target.value)}
           >
-            <option value="">Message subtype *</option>
+            <option value="">{category.name?.toLowerCase() === 'm2m' ? 'Use M2M' : 'Message subtype *'}</option>
             {category.children.map((item) => <option value={item.id} key={item.id}>{item.name}</option>)}
           </select>
         </label>

@@ -21,3 +21,22 @@
 .daily-report-history-item pre { white-space: pre-wrap; overflow-wrap: anywhere; font-family: inherit; font-size: 13px; line-height: 1.6; }
 .daily-report-history-item small { color: var(--aces-muted, #64748b); }
 @media (max-width: 600px) { .daily-report-card { padding: 16px; } .daily-report-actions { width: 100%; } }
+
+.daily-report-review-heading { margin: 4px 0 14px; }
+.daily-report-review-heading h3 { margin: 0; font-size: 16px; }
+.daily-report-review-heading p { margin: 5px 0 0; color: var(--aces-muted, #64748b); font-size: 13px; }
+.daily-report-review-list { border: 1px solid var(--aces-border, #dbe3ed); border-radius: 12px; overflow: hidden; }
+.daily-report-review-row { display: grid; grid-template-columns: minmax(0, 1fr) 150px; align-items: center; gap: 14px 20px; padding: 14px 18px; border-bottom: 1px solid var(--aces-border, #dbe3ed); }
+.daily-report-review-row:last-child { border-bottom: 0; }
+.daily-report-review-name { display: grid; gap: 3px; min-width: 0; }
+.daily-report-review-name strong { overflow-wrap: anywhere; }
+.daily-report-review-name small { color: var(--aces-muted, #64748b); }
+.daily-report-quantity { min-width: 0; }
+.daily-report-quantity input { width: 100%; min-height: 42px; }
+.daily-report-other-remarks { grid-column: 1 / -1; }
+.daily-report-other-remarks textarea { min-height: 74px; }
+.daily-report-preview-section { margin-top: 20px; }
+.daily-report-preview { max-width: 100%; }
+@media (max-width: 600px) {
+  .daily-report-review-row { grid-template-columns: minmax(0, 1fr) 110px; padding: 12px; }
+}

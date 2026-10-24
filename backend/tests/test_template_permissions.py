@@ -12,24 +12,24 @@ def user_with_role(role_name: str):
 
 
 class TemplatePermissionTests(TestCase):
-    def test_support_agent_can_manage_templates_without_database_grants(self):
+    def test_support_agent_can_view_templates_without_database_grants(self):
         service = PermissionService(Mock())
         service.repository.role_has_permission = Mock(return_value=False)
 
-        for permission_code in ('template.view', 'template.create', 'template.edit'):
-            with self.subTest(permission_code=permission_code):
-                service.ensure_user_has(user_with_role('Support Agent'), permission_code)
+        service.ensure_user_has(user_with_role('Support Agent'), 'template.view')
 
         service.repository.role_has_permission.assert_not_called()
 
-    def test_support_agent_cannot_delete_template_without_database_grant(self):
+    def test_support_agent_cannot_manage_templates_even_with_database_grants(self):
         service = PermissionService(Mock())
-        service.repository.role_has_permission = Mock(return_value=False)
+        service.repository.role_has_permission = Mock(return_value=True)
 
-        with self.assertRaises(HTTPException) as context:
-            service.ensure_user_has(user_with_role('Support Agent'), 'template.delete')
+        for permission_code in ('template.create', 'template.edit', 'template.delete'):
+            with self.subTest(permission_code=permission_code), self.assertRaises(HTTPException) as context:
+                service.ensure_user_has(user_with_role('Support Agent'), permission_code)
 
-        self.assertEqual(context.exception.status_code, 403)
+            self.assertEqual(context.exception.status_code, 403)
+        service.repository.role_has_permission.assert_not_called()
 
     def test_non_agent_template_access_still_uses_database_grants(self):
         service = PermissionService(Mock())

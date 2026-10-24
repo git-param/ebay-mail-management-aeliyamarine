@@ -25,6 +25,8 @@ class DailyEntryScoreItem(BaseModel):
     status: str = 'NOT_ENTERED'
     source: str = 'MANUAL'
     activity_count: int | None = None
+    quantity: int | None = None
+    remarks: str | None = None
     message_type_id: UUID | None = None
     subtask_id: UUID | None = None
     sub_subtask_id: UUID | None = None

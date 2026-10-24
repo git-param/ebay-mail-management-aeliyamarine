@@ -12,12 +12,14 @@ import {
   updateTemplateCategory,
 } from '../../services/templateApi'
 import { normalizeRole } from '../../utils/roles'
+import { fetchMessageTypeTree } from '../../services/messageTypeApi'
 
 import './templates.css'
 
 const EMPTY_FORM = {
   title: '',
   body: '',
+  messageTypeId: '',
   categoryId: '',
   isActive: true,
 }
@@ -65,6 +67,7 @@ function normalizeTemplate(template) {
     id: template.id,
     title: template.title || '',
     body: template.body || '',
+    messageTypeId: template.message_type_id || '',
     categoryId: template.category_id || '',
     categoryName: template.category?.name || 'Uncategorized',
     isActive: template.is_active !== false,
@@ -91,6 +94,7 @@ function toPayload(values) {
   return {
     title: values.title.trim(),
     body: values.body.trim(),
+    message_type_id: values.messageTypeId,
     category_id: values.categoryId || null,
     is_active: Boolean(values.isActive),
   }
@@ -138,7 +142,7 @@ function Modal({ title, children, onClose }) {
   )
 }
 
-function TemplateForm({ initialValues, templates, categories, selectedTemplate, isSubmitting, submitLabel, onCancel, onSubmit }) {
+function TemplateForm({ initialValues, templates, categories, messageTypes, selectedTemplate, isSubmitting, submitLabel, onCancel, onSubmit }) {
   const [values, setValues] = useState(initialValues)
   const [errors, setErrors] = useState({})
 
@@ -172,6 +176,10 @@ function TemplateForm({ initialValues, templates, categories, selectedTemplate, 
       nextErrors.body = 'Template body must be 5000 characters or less.'
     }
 
+    if (!values.messageTypeId) {
+      nextErrors.messageTypeId = 'Message type is required.'
+    }
+
     setErrors(nextErrors)
     if (Object.keys(nextErrors).length) {
       return
@@ -199,6 +207,20 @@ function TemplateForm({ initialValues, templates, categories, selectedTemplate, 
           placeholder="Write the reusable reply text agents can insert into conversations"
         />
         {errors.body ? <small>{errors.body}</small> : null}
+      </label>
+
+      <label className="field form-field-wide">
+        <span>Message Type *</span>
+        <select name="messageTypeId" value={values.messageTypeId} onChange={updateField}>
+          <option value="">Select message type</option>
+          {messageTypes.map((type) => (
+            <optgroup label={type.name} key={type.id}>
+              {!type.children?.length ? <option value={type.id}>{type.name}</option> : null}
+              {type.children?.map((child) => <option value={child.id} key={child.id}>{child.name}</option>)}
+            </optgroup>
+          ))}
+        </select>
+        {errors.messageTypeId ? <small>{errors.messageTypeId}</small> : null}
       </label>
 
       <label className="field form-field-wide">
@@ -387,8 +409,9 @@ function TemplateDrawer({ template, onClose }) {
 }
 
 function Templates({ currentUser, onLogout }) {
-  const canDeleteTemplates = normalizeRole(currentUser?.role) !== 'AGENT'
+  const canManageTemplates = normalizeRole(currentUser?.role) !== 'AGENT'
   const [templates, setTemplates] = useState([])
+  const [messageTypes, setMessageTypes] = useState([])
   const [categories, setCategories] = useState([])
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('All')
@@ -408,12 +431,14 @@ function Templates({ currentUser, onLogout }) {
     setError('')
 
     try {
-      const [templateResponse, categoryResponse] = await Promise.all([
+      const [templateResponse, categoryResponse, typeResponse] = await Promise.all([
         fetchTemplates({ includeInactive: true }),
         fetchTemplateCategories({ includeInactive: true }),
+        fetchMessageTypeTree(),
       ])
       setTemplates(getList(templateResponse).map(normalizeTemplate))
       setCategories(getList(categoryResponse).map(normalizeCategory))
+      setMessageTypes(typeResponse || [])
     } catch (caughtError) {
       setError(caughtError.message)
     } finally {
@@ -594,10 +619,10 @@ function Templates({ currentUser, onLogout }) {
             <h1>Templates</h1>
             <p>Create reusable replies for faster, consistent buyer messages</p>
           </div>
-          <button className="primary-button compact" type="button" onClick={() => openModal('create')}>
+          {canManageTemplates ? <button className="primary-button compact" type="button" onClick={() => openModal('create')}>
             <Icon name="plus" />
             Create Template
-          </button>
+          </button> : null}
         </div>
 
         <section className="stats-grid" aria-label="Template summary">
@@ -651,10 +676,10 @@ function Templates({ currentUser, onLogout }) {
               <h2>Template Categories</h2>
               <p>Group reply templates for faster selection in the inbox.</p>
             </div>
-            <button className="secondary-button compact" type="button" onClick={() => openModal('create-category')}>
+            {canManageTemplates ? <button className="secondary-button compact" type="button" onClick={() => openModal('create-category')}>
               <Icon name="plus" />
               Create Category
-            </button>
+            </button> : null}
           </div>
           {categories.length ? (
             <div className="category-chip-grid">
@@ -664,26 +689,24 @@ function Templates({ currentUser, onLogout }) {
                     <strong>{category.name}</strong>
                     <small>{category.status}</small>
                   </span>
-                  <button
+                  {canManageTemplates ? <button
                     className="icon-button"
                     type="button"
                     onClick={() => setActionCategoryId((current) => (current === category.id ? null : category.id))}
                     aria-label={`Open actions for ${category.name}`}
                   >
                     <Icon name="dots" />
-                  </button>
-                  {actionCategoryId === category.id ? (
+                  </button> : null}
+                  {canManageTemplates && actionCategoryId === category.id ? (
                     <div className="action-menu category-action-menu">
                       <button className="menu-edit" type="button" onClick={() => openModal('edit-category', category)}>
                         <Icon name="edit" />
                         Edit
                       </button>
-                      {canDeleteTemplates ? (
-                        <button className="menu-disable" type="button" onClick={() => openModal('delete-category', category)}>
-                          <Icon name="disable" />
-                          Delete
-                        </button>
-                      ) : null}
+                      <button className="menu-disable" type="button" onClick={() => openModal('delete-category', category)}>
+                        <Icon name="disable" />
+                        Delete
+                      </button>
                     </div>
                   ) : null}
                 </span>
@@ -754,11 +777,11 @@ function Templates({ currentUser, onLogout }) {
                               <Icon name="eye" />
                               View
                             </button>
-                            <button className="menu-edit" type="button" onClick={() => openModal('edit', template)}>
+                            {canManageTemplates ? <button className="menu-edit" type="button" onClick={() => openModal('edit', template)}>
                               <Icon name="edit" />
                               Edit
-                            </button>
-                            {canDeleteTemplates ? (
+                            </button> : null}
+                            {canManageTemplates ? (
                               <button className="menu-disable" type="button" onClick={() => openModal('delete', template)}>
                                 <Icon name="disable" />
                                 Delete
@@ -775,9 +798,9 @@ function Templates({ currentUser, onLogout }) {
           ) : (
             <div className="empty-state">
               <h2>No templates found</h2>
-              <button className="primary-button compact" type="button" onClick={() => openModal('create')}>
+              {canManageTemplates ? <button className="primary-button compact" type="button" onClick={() => openModal('create')}>
                 Create Template
-              </button>
+              </button> : null}
             </div>
           )}
         </section>
@@ -785,12 +808,13 @@ function Templates({ currentUser, onLogout }) {
 
       {notification ? <div className="toast">{notification}</div> : null}
 
-      {modal === 'create' ? (
+      {canManageTemplates && modal === 'create' ? (
         <Modal title="Create Template" onClose={closeModal}>
           <TemplateForm
             initialValues={EMPTY_FORM}
             templates={templates}
             categories={categories.filter((category) => category.isActive)}
+            messageTypes={messageTypes}
             selectedTemplate={null}
             isSubmitting={isSubmitting}
             submitLabel="Create Template"
@@ -800,17 +824,19 @@ function Templates({ currentUser, onLogout }) {
         </Modal>
       ) : null}
 
-      {modal === 'edit' && selectedTemplate ? (
+      {canManageTemplates && modal === 'edit' && selectedTemplate ? (
         <Modal title="Edit Template" onClose={closeModal}>
           <TemplateForm
             initialValues={{
               title: selectedTemplate.title,
               body: selectedTemplate.body,
+              messageTypeId: selectedTemplate.messageTypeId,
               categoryId: selectedTemplate.categoryId,
               isActive: selectedTemplate.isActive,
             }}
             templates={templates}
             categories={categories.filter((category) => category.isActive || category.id === selectedTemplate.categoryId)}
+            messageTypes={messageTypes}
             selectedTemplate={selectedTemplate}
             isSubmitting={isSubmitting}
             submitLabel="Save Changes"
@@ -820,7 +846,7 @@ function Templates({ currentUser, onLogout }) {
         </Modal>
       ) : null}
 
-      {modal === 'delete' && selectedTemplate ? (
+      {canManageTemplates && modal === 'delete' && selectedTemplate ? (
         <ConfirmModal
           template={selectedTemplate}
           isSubmitting={isSubmitting}
@@ -829,7 +855,7 @@ function Templates({ currentUser, onLogout }) {
         />
       ) : null}
 
-      {modal === 'create-category' ? (
+      {canManageTemplates && modal === 'create-category' ? (
         <Modal title="Create Category" onClose={closeModal}>
           <CategoryForm
             initialValues={EMPTY_CATEGORY_FORM}
@@ -843,7 +869,7 @@ function Templates({ currentUser, onLogout }) {
         </Modal>
       ) : null}
 
-      {modal === 'edit-category' && selectedCategory ? (
+      {canManageTemplates && modal === 'edit-category' && selectedCategory ? (
         <Modal title="Edit Category" onClose={closeModal}>
           <CategoryForm
             initialValues={{
@@ -861,7 +887,7 @@ function Templates({ currentUser, onLogout }) {
         </Modal>
       ) : null}
 
-      {modal === 'delete-category' && selectedCategory ? (
+      {canManageTemplates && modal === 'delete-category' && selectedCategory ? (
         <ConfirmCategoryModal
           category={selectedCategory}
           isSubmitting={isSubmitting}

@@ -11,6 +11,10 @@ function qs(params = {}) {
 }
 
 export const fetchTaskCategories = () => apiRequest(API.TASK_MANAGEMENT.CATEGORIES)
+export const fetchMainTasks = () => apiRequest('/task-management/main-tasks')
+export const saveMainTask = (payload, id = '') => apiRequest(`/task-management/main-tasks${id ? `/${id}` : ''}`, {
+  method: id ? 'PUT' : 'POST', body: JSON.stringify(payload),
+})
 export const saveTaskCategory = (payload, id = '') => apiRequest(id ? apiPath(API.TASK_MANAGEMENT.CATEGORIES_BY_ID, { id }) : API.TASK_MANAGEMENT.CATEGORIES, {
   method: id ? 'PATCH' : 'POST',
   body: JSON.stringify(payload),

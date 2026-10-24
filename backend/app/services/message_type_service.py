@@ -4,6 +4,8 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models.message_type import MessageType, MessageTypeKeyword
+from app.models.reply_template import ReplyTemplate
+from app.modules.task_management.models import MainTask
 from app.repositories.message_type_repository import MessageTypeRepository
 from app.services.audit_service import AuditService
 
@@ -69,10 +71,28 @@ class MessageTypeService:
         item = self.repo.get(item_id)
         if not item: raise HTTPException(404, 'Message type not found')
         family_ids = {item_id} | self.repo.descendants(item_id)
-        if any(self.repo.used(type_id) for type_id in family_ids): item.is_active = False; action = 'MESSAGE_TYPE_DISABLED'
-        else: item.is_deleted = True; item.is_active = False; action = 'MESSAGE_TYPE_DELETED'
+        referenced = (any(self.repo.used(type_id) for type_id in family_ids)
+                      or self.db.scalar(select(ReplyTemplate.id).where(ReplyTemplate.message_type_id.in_(family_ids)).limit(1)) is not None
+                      or self.db.scalar(select(MainTask.id).where(MainTask.message_type_id.in_(family_ids)).limit(1)) is not None)
+        if referenced:
+            for type_id in family_ids:
+                member = self.repo.get(type_id)
+                member.is_deleted = True
+                member.is_active = False
+            action = 'MESSAGE_TYPE_DISABLED'
+        else:
+            # Remove children before their parent to satisfy the self-referencing FK.
+            remaining = set(family_ids)
+            while remaining:
+                leaves = [type_id for type_id in remaining if not (self.repo.descendants(type_id) & remaining)]
+                for type_id in leaves:
+                    self.db.delete(self.repo.get(type_id))
+                self.db.flush()
+                remaining.difference_update(leaves)
+            action = 'MESSAGE_TYPE_DELETED'
         AuditService(self.db).log(action=action, user_id=actor_id, entity_type='MESSAGE_TYPE', entity_id=item.id)
-        self.db.commit(); return item
+        self.db.commit()
+        return {'id': item_id, 'is_active': False, 'is_deleted': referenced, 'removed': not referenced}
     @staticmethod
     def _clean_keywords(values):
         cleaned = []

@@ -24,6 +24,230 @@
   box-sizing: border-box;
 }
 
+/* Shared main-task catalog */
+.main-tasks-page {
+  display: grid;
+  gap: 22px;
+}
+
+.main-tasks-page .main-tasks-header {
+  margin-bottom: 0;
+  align-items: center;
+}
+
+.main-task-editor,
+.main-task-list {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--task-border);
+  border-radius: var(--task-radius);
+  background: var(--task-surface);
+}
+
+.main-task-editor {
+  display: block;
+  padding: 24px;
+}
+
+.main-task-editor-heading,
+.main-task-list-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.main-task-editor-heading {
+  margin-bottom: 22px;
+}
+
+.main-task-editor-heading h2,
+.main-task-list-heading h2 {
+  margin: 0;
+  color: var(--task-text);
+  font-size: 19px;
+}
+
+.main-task-editor-heading p,
+.main-task-list-heading p {
+  margin: 5px 0 0;
+  color: var(--task-muted);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.main-task-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 20px 24px;
+  align-items: start;
+}
+
+.main-task-fields .field {
+  min-width: 0;
+  gap: 7px;
+  color: var(--task-text);
+}
+
+.main-task-fields .field input:not([type='checkbox']),
+.main-task-fields .field select {
+  min-height: 46px;
+  border-color: var(--task-border);
+  border-radius: 10px;
+}
+
+.main-task-fields .field small,
+.main-task-availability small {
+  color: var(--task-muted);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.main-task-type-preview {
+  grid-column: 1 / -1;
+  padding: 14px 16px;
+  border: 1px solid rgba(109, 93, 252, 0.24);
+  border-radius: 11px;
+  background: var(--task-primary-soft);
+  color: var(--task-text);
+}
+
+.main-task-type-preview strong {
+  font-size: 13px;
+}
+
+.main-task-type-preview p {
+  margin: 5px 0 0;
+  color: var(--task-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.main-task-type-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.main-task-type-chips span {
+  padding: 5px 8px;
+  border: 1px solid var(--task-border);
+  border-radius: 999px;
+  background: var(--task-surface);
+  color: var(--task-text);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.main-task-availability {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  min-height: 70px;
+  padding: 13px 16px;
+  border: 1px solid var(--task-border);
+  border-radius: 11px;
+  background: var(--task-surface-soft);
+  color: var(--task-text);
+  cursor: pointer;
+}
+
+.main-task-availability > span {
+  display: grid;
+  gap: 3px;
+}
+
+.main-task-availability input[type='checkbox'] {
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  accent-color: var(--task-primary);
+  cursor: pointer;
+}
+
+.main-task-editor-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 24px;
+  padding-top: 18px;
+  border-top: 1px solid var(--task-border);
+}
+
+.main-task-list {
+  padding: 0;
+}
+
+.main-task-list-heading {
+  padding: 22px 24px 18px;
+}
+
+.main-task-list-heading > span {
+  flex: 0 0 auto;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: var(--task-primary-soft);
+  color: var(--task-primary);
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.main-task-list .users-table th,
+.main-task-list .users-table td {
+  padding: 14px 22px;
+  vertical-align: middle;
+}
+
+.main-task-list .users-table td strong {
+  color: var(--task-text);
+  font-weight: 700;
+}
+
+.main-task-status {
+  display: inline-flex;
+  padding: 5px 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.main-task-status.is-active {
+  background: #e8f8ef;
+  color: #19734b;
+}
+
+.main-task-status.is-inactive {
+  background: #f0f2f6;
+  color: #69768a;
+}
+
+.main-task-empty {
+  padding: 18px 24px 24px;
+  color: var(--task-muted);
+}
+
+html[data-theme='dark'] .main-task-status.is-active {
+  background: #14372b;
+  color: #86efac;
+}
+
+html[data-theme='dark'] .main-task-status.is-inactive {
+  background: #293244;
+  color: #b5c1d3;
+}
+
+@media (max-width: 760px) {
+  .main-task-fields { grid-template-columns: 1fr; }
+  .main-task-editor { padding: 18px; }
+  .main-task-list-heading { padding: 18px; }
+  .main-task-list .users-table th,
+  .main-task-list .users-table td { padding: 12px; }
+}
+
 .task-management-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr);

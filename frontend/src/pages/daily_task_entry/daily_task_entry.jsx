@@ -58,6 +58,10 @@ function taskPerformancePercent(item) {
 function taskAveragePercent(items) {
   const applicable = (items || []).filter((item) => item.status === 'ENTERED')
   if (!applicable.length) return 0
+  if (applicable.every((item) => item.key.startsWith('main_task:'))) {
+    const totalWeight = applicable.reduce((sum, item) => sum + Math.max(0.01, number(item.max_score)), 0)
+    return applicable.reduce((sum, item) => sum + Math.min(number(item.value), number(item.max_score)), 0) / totalWeight * 100
+  }
   return applicable.reduce((sum, item) => sum + taskPerformancePercent(item), 0) / applicable.length
 }
 
@@ -508,7 +512,7 @@ function AgentCard({ row, onChange, onReviewSla }) {
 
       <section className="dailyEntry-task-box">
         <h3 className="dailyEntry-section-label">Tasks &amp; Scoring</h3>
-        {(row.score_items || []).length === 0 ? <p className="field-help dailyEntry-empty-state">No subtasks assigned to this agent.</p> : null}
+        {(row.score_items || []).length === 0 ? <p className="field-help dailyEntry-empty-state">No tasks recorded for this agent on this date.</p> : null}
         {displayItems.map((item) => (
           <div className={`dailyEntry-dynamic-row${isTaskIncluded(item) ? '' : ' not-applicable'}`} key={item.key}>
             <div className="dailyEntry-dynamic-row-label">
@@ -519,8 +523,9 @@ function AgentCard({ row, onChange, onReviewSla }) {
               </div>
               <div className="dailyEntry-task-meta-line">
                 <span className={`source-badge ${item.source === 'AUTO' ? 'source-auto' : 'source-manual'}`}>
-                  {sourceLabel(item.source)}{item.source === 'AUTO' ? ` · ${item.activity_count ?? 0} handled` : ''}
+                  {sourceLabel(item.source)}{item.key.startsWith('main_task:') ? ` · ${item.quantity ?? item.activity_count ?? 0} done` : item.source === 'AUTO' ? ` · ${item.activity_count ?? 0} handled` : ''}
                 </span>
+                {item.remarks ? <span className="field-help">{item.remarks}</span> : null}
                 <span className={`dailyEntry-count-status ${isTaskIncluded(item) ? 'included' : 'excluded'}`}>
                   {isTaskIncluded(item) ? 'Counted today' : 'Not counted today'}
                 </span>
@@ -542,7 +547,7 @@ function AgentCard({ row, onChange, onReviewSla }) {
                 />
                 <span className="dailyEntry-score-max">/ {formatScore(item.max_score)} · {isTaskIncluded(item) ? `${formatPercent(taskPerformancePercent(item))}%` : 'N/A'}</span>
               </div>
-              <button
+              {!item.key.startsWith('main_task:') ? <button
                 type="button"
                 className={`dailyEntry-task-count-toggle ${isTaskIncluded(item) ? 'exclude' : 'include'}`}
                 disabled={isDisabled}
@@ -550,7 +555,7 @@ function AgentCard({ row, onChange, onReviewSla }) {
                 title={isTaskIncluded(item) ? "Exclude this task from today's PMS calculation" : "Include this task in today's PMS calculation, even if its score is 0"}
               >
                 {isTaskIncluded(item) ? 'Exclude Today' : 'Count 0 Today'}
-              </button>
+              </button> : null}
             </div>
           </div>
         ))}

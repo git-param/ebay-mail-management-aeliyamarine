@@ -48,7 +48,7 @@ def update_type(item_id: UUID, payload: MessageTypeUpdate, db: Session = Depends
 
 @router.delete(MessageTypesRoutes.BY_ITEM_ID)
 def delete_type(item_id: UUID, db: Session = Depends(get_db), current_user=Depends(require_admin)):
-    item = MessageTypeService(db).delete(item_id, current_user.id); return {'id': item.id, 'is_active': item.is_active, 'is_deleted': item.is_deleted}
+    return MessageTypeService(db).delete(item_id, current_user.id)
 
 
 @router.patch(MessageTypesRoutes.BY_ITEM_ID_STATUS)

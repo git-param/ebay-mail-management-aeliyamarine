@@ -9,9 +9,9 @@ export const saveDailyTasks = (reportDate, tasks) => apiRequest(API.DAILY_REPORT
   body: JSON.stringify({ report_date: reportDate, tasks }),
 })
 
-export const saveAndCopyTodayReport = (reportDate) => apiRequest(API.DAILY_REPORTS.COPY, {
+export const saveAndCopyTodayReport = (reportDate, tasks) => apiRequest(API.DAILY_REPORTS.COPY, {
   method: 'POST',
-  body: JSON.stringify({ report_date: reportDate }),
+  body: JSON.stringify({ report_date: reportDate, tasks }),
 })
 
 export const fetchDailyReports = (filters = {}) => {

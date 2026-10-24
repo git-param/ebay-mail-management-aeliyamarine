@@ -9,6 +9,7 @@ class ReplyTemplateCreateRequest(BaseModel):
 
     title: str = Field(min_length=1, max_length=160)
     body: str = Field(min_length=1, max_length=5000)
+    message_type_id: UUID
     category_id: UUID | None = None
     is_active: bool = True
 
@@ -18,6 +19,7 @@ class ReplyTemplateUpdateRequest(BaseModel):
 
     title: str | None = Field(default=None, min_length=1, max_length=160)
     body: str | None = Field(default=None, min_length=1, max_length=5000)
+    message_type_id: UUID | None = None
     category_id: UUID | None = None
     is_active: bool | None = None
 
@@ -65,6 +67,7 @@ class ReplyTemplateResponse(BaseModel):
     id: UUID
     title: str
     body: str
+    message_type_id: UUID | None = None
     category_id: UUID | None = None
     category: ReplyTemplateCategorySummary | None = None
     is_active: bool

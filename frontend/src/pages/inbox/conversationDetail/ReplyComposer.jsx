@@ -86,7 +86,7 @@ export default function ReplyComposer({
   const [sendCopyToEmail, setSendCopyToEmail] = useState(() => initialDraft?.sendCopyToEmail ?? true)
   const [showMessageTypeError, setShowMessageTypeError] = useState(false)
   const category = messageTypes.find((item) => item.id === categoryId)
-  const selectedTypeId = category?.children?.length ? subtypeId : categoryId
+  const selectedTypeId = category?.children?.length && category.name?.trim().toLowerCase() !== 'm2m' ? subtypeId : subtypeId || categoryId
   const templateCategories = useMemo(() => {
     const categoryMap = new Map()
     let hasUncategorizedTemplates = false
@@ -243,6 +243,19 @@ export default function ReplyComposer({
     const template = templates.find((item) => item.id === templateId)
     setSelectedTemplateId(templateId)
     if (template) {
+      const rootType = messageTypes.find((item) => item.id === template.message_type_id)
+      const parentType = messageTypes.find((item) =>
+        item.children?.some((child) => child.id === template.message_type_id),
+      )
+      if (rootType) {
+        setCategoryId(rootType.id)
+        setSubtypeId('')
+        setShowMessageTypeError(false)
+      } else if (parentType) {
+        setCategoryId(parentType.id)
+        setSubtypeId(template.message_type_id)
+        setShowMessageTypeError(false)
+      }
       const templateBody = String(template.body || '')
       const normalizedBuyerName = String(buyerName || '').trim()
       const employeeName = String(currentUser?.full_name || currentUser?.fullName || currentUser?.name || '').trim()
@@ -285,6 +298,7 @@ export default function ReplyComposer({
       setFileInputKey((current) => current + 1)
       setCategoryId('')
       setSubtypeId('')
+      setSelectedTemplateId('')
       setShowMessageTypeError(false)
     } catch (caughtError) {
       setViolations([caughtError.message])

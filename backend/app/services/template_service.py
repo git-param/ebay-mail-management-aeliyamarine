@@ -2,6 +2,7 @@ from uuid import UUID
 
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
+from app.models.message_type import MessageType
 
 from app.models.reply_template import ReplyTemplate, ReplyTemplateCategory
 from app.repositories.template_repository import ReplyTemplateRepository
@@ -27,16 +28,19 @@ class ReplyTemplateService:
         *,
         title: str,
         body: str,
+        message_type_id: UUID,
         category_id: UUID | None,
         is_active: bool,
         actor_id: UUID,
     ) -> ReplyTemplate:
         """Create a reply template."""
         self._ensure_category_exists(category_id)
+        self._ensure_message_type_exists(message_type_id)
         template = self.repository.add(
             ReplyTemplate(
                 title=title.strip(),
                 body=body.strip(),
+                message_type_id=message_type_id,
                 category_id=category_id,
                 is_active=is_active,
                 created_by=actor_id,
@@ -56,6 +60,9 @@ class ReplyTemplateService:
             if key == 'category_id':
                 self._ensure_category_exists(value)
                 template.category_id = value
+            elif key == 'message_type_id':
+                self._ensure_message_type_exists(value)
+                template.message_type_id = value
             elif value is not None:
                 setattr(template, key, value.strip() if isinstance(value, str) else value)
         template.updated_by = actor_id
@@ -127,6 +134,11 @@ class ReplyTemplateService:
             return
         if not self.repository.get_category(category_id):
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Template category not found')
+
+    def _ensure_message_type_exists(self, message_type_id: UUID | None) -> None:
+        message_type = self.db.get(MessageType, message_type_id) if message_type_id else None
+        if not message_type or not message_type.is_active or message_type.is_deleted:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Active message type is required')
 
     def _ensure_unique_category_name(self, name: str, category_id: UUID | None = None) -> None:
         existing = self.repository.get_category_by_name(name.strip())

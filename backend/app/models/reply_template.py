@@ -39,6 +39,9 @@ class ReplyTemplate(Base):
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     title: Mapped[str] = mapped_column(String(160), nullable=False)
     body: Mapped[str] = mapped_column(Text, nullable=False)
+    message_type_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey('message_types.id', ondelete='SET NULL'), nullable=True
+    )
     category_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey('reply_template_categories.id', ondelete='SET NULL'),
@@ -57,3 +60,4 @@ class ReplyTemplate(Base):
     creator = relationship('User', foreign_keys=[created_by])
     updater = relationship('User', foreign_keys=[updated_by])
     category = relationship('ReplyTemplateCategory', back_populates='templates')
+    message_type = relationship('MessageType')

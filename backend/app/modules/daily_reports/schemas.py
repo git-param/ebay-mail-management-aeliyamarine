@@ -5,8 +5,10 @@ from pydantic import BaseModel, Field, field_validator
 
 
 class ReportTask(BaseModel):
-    name: str = Field(min_length=1, max_length=120)
+    task_id: UUID | None = None
+    name: str = Field(min_length=1, max_length=160)
     quantity: int = Field(ge=1, le=100000)
+    remarks: str | None = Field(default=None, max_length=1000)
 
     @field_validator('name')
     @classmethod
@@ -30,8 +32,15 @@ class ReportTasksUpdate(BaseModel):
         return tasks
 
 
+class ReviewedTask(BaseModel):
+    task_id: UUID
+    quantity: int = Field(ge=0, le=100000)
+    remarks: str | None = Field(default=None, max_length=1000)
+
+
 class ReportCopyRequest(BaseModel):
     report_date: date
+    tasks: list[ReviewedTask] = Field(max_length=200)
 
 
 class DailyReportResponse(BaseModel):

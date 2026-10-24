@@ -13,6 +13,7 @@ from app.modules.daily_reports.router import router as daily_reports_router
 from app.modules.search_sku.router import router as search_sku_router
 from app.modules.sold_posting.router import router as sold_posting_router
 from app.modules.task_management.router import router as task_management_router
+from app.modules.task_management.main_tasks import router as main_tasks_router
 from app.modules.pms.router import router as pms_router
 from app.modules.leave_management.router import router as leave_management_router
 from app.modules.pms.router import router as pms_router
@@ -38,6 +39,7 @@ api_router.include_router(offer_management_router, prefix=ApiPrefixes.OFFER_MANA
 api_router.include_router(sold_posting_router, prefix=ApiPrefixes.SOLD_POSTING, tags=['sold-posting'])
 api_router.include_router(pms_router, prefix=ApiPrefixes.PMS, tags=['pms'])
 api_router.include_router(task_management_router, prefix=ApiPrefixes.TASK_MANAGEMENT, tags=['task-management'])
+api_router.include_router(main_tasks_router, prefix=ApiPrefixes.TASK_MANAGEMENT, tags=['task-management'])
 api_router.include_router(leave_management_router, prefix=ApiPrefixes.LEAVE_MANAGEMENT, tags=['leave-management'])
 api_router.include_router(break_management_router, prefix=ApiPrefixes.BREAK_MANAGEMENT, tags=['break-management'])
 api_router.include_router(daily_entry_router, prefix=ApiPrefixes.DAILY_ENTRY, tags=['daily-entry'])

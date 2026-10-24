@@ -10,6 +10,7 @@ from app.models.conversation import Conversation, ConversationSLAHistory
 from app.models.message_type import MessageClassification, MessageType
 from app.models.user import User
 from app.modules.offer_management.models import OfferManagementEntry
+from app.modules.daily_reports.models import DailyWorkReport
 from app.modules.daily_task_entry.models import DailyTaskEntry, DailyTaskEntryErrorLevel, DailyTaskEntryHistory, DailyTaskEntryDayType, DailyTaskEntryFeedbackStatus
 from app.modules.daily_task_entry.schemas import (
     DailyEntryCreate,
@@ -24,7 +25,8 @@ from app.modules.daily_task_entry.schemas import (
     DailyEntryUploadResultItem,
 )
 from app.modules.sold_posting.models import SoldPostingLineItem
-from app.modules.task_management.models import SubSubtask, Subtask, SubtaskSourceType, TaskCategory, TaskStatus, UserSubtaskAssignment
+from app.modules.task_management.models import MainTask, SubSubtask, Subtask, SubtaskSourceType, TaskCategory, TaskStatus, UserSubtaskAssignment
+from app.modules.task_management.activity import active_main_tasks
 
 
 OTHER_GENERAL_WORK_KEY = 'other_general_work'
@@ -106,6 +108,14 @@ class DailyEntryService:
 
     def _to_base_schema(self, entry: DailyTaskEntry) -> dict:
         sla_metadata = getattr(entry, 'sla_metadata', {}) or {}
+        score_items = entry.score_items or []
+        if entry.id and (not score_items or any(item.get('key', '').startswith('main_task:') for item in score_items)):
+            saved = {item['key']: item for item in score_items}
+            score_items = [
+                {**item, 'value': saved[item['key']]['value'], 'status': 'ENTERED'}
+                if item['key'] in saved else item
+                for item in self._main_task_items(entry.user_id, entry.entry_date)
+            ]
         return {
             'entry_date': entry.entry_date,
             'day_type': entry.day_type.value,
@@ -114,7 +124,7 @@ class DailyEntryService:
             'sla_met_count': sla_metadata.get('met_count'),
             'sla_total_count': sla_metadata.get('total_count'),
             'sla_auto_fetched': bool(sla_metadata.get('auto_fetched')),
-            'score_items': entry.score_items or [],
+            'score_items': score_items,
             'error_level': entry.error_level.value,
             'error_remark': entry.error_remark,
             'remarks': entry.remarks,
@@ -200,6 +210,15 @@ class DailyEntryService:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=f'Error Remark is required for {user.full_name or user.email} (Minor/Major error)')
 
         score_items = [item.model_dump(mode='json') for item in payload.score_items]
+        existing = self._entry(target_user_id, payload.entry_date)
+        if not existing or any(item['key'].startswith('main_task:') for item in score_items) or any(
+            item.get('key', '').startswith('main_task:') for item in (existing.score_items or [])
+        ):
+            performed = self._main_task_items(target_user_id, payload.entry_date)
+            submitted = {item['key']: item for item in score_items}
+            if len(submitted) != len(score_items) or set(submitted) != {item['key'] for item in performed}:
+                raise HTTPException(status_code=422, detail='Only tasks performed on this date can be scored')
+            score_items = [{**item, 'value': submitted[item['key']]['value']} for item in performed]
         for item in score_items:
             max_score = float(item.get('max_score') or 0)
             value = float(item.get('value') or 0)
@@ -315,7 +334,14 @@ class DailyEntryService:
             value = max(0.0, min(float(item.get('value') or 0), max_score))
             task_percentages.append((value / max_score) * 100)
 
-        task_average_percent = (sum(task_percentages) / len(task_percentages)) if task_percentages else 0.0
+        if applicable and all(item.get('key', '').startswith('main_task:') for item in applicable):
+            total_weight = sum(max(0.01, float(item.get('max_score') or 1)) for item in applicable)
+            task_average_percent = sum(
+                max(0.0, min(float(item.get('value') or 0), float(item.get('max_score') or 1)))
+                for item in applicable
+            ) / total_weight * 100
+        else:
+            task_average_percent = (sum(task_percentages) / len(task_percentages)) if task_percentages else 0.0
         normalized_sla = max(0, min(int(sla_score or 0), self.SLA_MAX))
         sla_percent = (normalized_sla / self.SLA_MAX) * 100
 
@@ -325,11 +351,7 @@ class DailyEntryService:
     def _auto_entry(self, user_id: UUID, entry_date: date):
         start = datetime.combine(entry_date, time.min, tzinfo=UTC)
         end = start + timedelta(days=1)
-        assignments = self._active_assignments(user_id, entry_date)
-        items = [self._assignment_item(assignment, user_id, start, end) for assignment in assignments]
-        other_item = self._other_general_work_item(assignments, user_id, start, end)
-        if other_item is not None:
-            items.append(other_item)
+        items = self._main_task_items(user_id, entry_date)
         sla_met_count, sla_total_count = self._sla_counts(user_id, start, end)
         sla_score = round((sla_met_count / sla_total_count) * self.SLA_MAX) if sla_total_count else self.SLA_MAX
         entry = DailyTaskEntry(
@@ -346,6 +368,36 @@ class DailyEntryService:
         )
         entry.sla_metadata = {'auto_fetched': True, 'met_count': sla_met_count, 'total_count': sla_total_count}
         return entry
+
+    def _main_task_items(self, user_id: UUID, entry_date: date) -> list[dict]:
+        report = self.db.scalar(select(DailyWorkReport).where(
+            DailyWorkReport.user_id == user_id, DailyWorkReport.report_date == entry_date,
+        ))
+        if not report or not report.copied_at:
+            return []
+        manual = {str(item.get('task_id')): item for item in (report.additional_tasks or []) if item.get('task_id')}
+        automatic = {str(item.get('task_id')): item for item in (report.automatic_tasks or []) if item.get('task_id')}
+        recorded_ids = set(manual) | set(automatic)
+        tasks = active_main_tasks(self.db)
+        missing_ids = recorded_ids - {str(task.id) for task in tasks}
+        if missing_ids:
+            tasks.extend(self.db.scalars(select(MainTask).where(MainTask.id.in_([UUID(item) for item in missing_ids]))))
+        items = []
+        for task in tasks:
+            recorded = manual.get(str(task.id)) or automatic.get(str(task.id))
+            quantity = int(recorded['quantity']) if recorded else 0
+            if quantity <= 0:
+                continue
+            source_type = recorded.get('source_type') or task.source_type
+            score = max(0.01, float(recorded.get('weight') or task.weight))
+            item = self._item(f'main_task:{task.id}', recorded.get('name') or task.name, score, score,
+                              'MANUAL' if source_type in {'MANUAL', 'OTHER'} else 'AUTO',
+                              status='ENTERED', activity_count=quantity if source_type not in {'MANUAL', 'OTHER'} else None,
+                              message_type_id=task.message_type_id)
+            item['quantity'] = quantity
+            item['remarks'] = recorded.get('remarks') if source_type == 'OTHER' else None
+            items.append(item)
+        return items
 
     def _active_assignments(self, user_id: UUID, entry_date: date) -> list[UserSubtaskAssignment]:
         return list(self.db.scalars(
