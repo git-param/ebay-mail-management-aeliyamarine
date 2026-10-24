@@ -23,11 +23,11 @@ def report_day() -> date:
 def format_report(day: date, automatic_tasks: list[dict], additional_tasks: list[dict]) -> str:
     lines = [f'Work Report: {day:%d-%m-%Y}', '']
     lines.extend(
-        task['name'] if task['quantity'] == 1 else f"{task['name']} - {task['quantity']}"
+        f"{task['name']} - {task['quantity']}"
         for task in automatic_tasks if task['quantity'] > 0
     )
     lines.extend(
-        (task['name'] if task['quantity'] == 1 else f"{task['name']} - {task['quantity']}")
+        f"{task['name']} - {task['quantity']}"
         + (f" ({task['remarks']})" if task.get('remarks') else '')
         for task in additional_tasks if task['quantity'] > 0
     )

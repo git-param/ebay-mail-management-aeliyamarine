@@ -15,14 +15,14 @@ def agent():
     return SimpleNamespace(id=uuid4(), role=SimpleNamespace(name='Support Agent'))
 
 
-def test_report_text_keeps_message_counts_and_omits_one_for_manual_tasks():
+def test_report_text_includes_all_task_counts():
     text = format_report(
         date(2026, 10, 23),
         [{'name': 'M2M', 'quantity': 11}, {'name': 'Stock query', 'quantity': 1}],
         [{'name': 'VIP Inquiry Follow Up', 'quantity': 1}, {'name': 'Offer Follow ups', 'quantity': 2}],
     )
-    assert text == ('Work Report: 23-10-2026\n\nM2M - 11\nStock query\n'
-                    'VIP Inquiry Follow Up\nOffer Follow ups - 2')
+    assert text == ('Work Report: 23-10-2026\n\nM2M - 11\nStock query - 1\n'
+                    'VIP Inquiry Follow Up - 1\nOffer Follow ups - 2')
 
 
 def test_task_names_are_cleaned_and_duplicates_are_rejected():
@@ -91,7 +91,7 @@ def test_copy_snapshot_omits_zero_tasks_and_uses_reviewed_quantities(monkeypatch
     automatic, additional = DailyReportService(None)._reviewed_tasks(reviewed)
     assert automatic == [{'task_id': str(booking.id), 'name': 'Booking', 'quantity': 3, 'weight': 10.0, 'source_type': 'MESSAGE_TYPE'}]
     assert additional == [{'task_id': str(other.id), 'name': 'Other', 'quantity': 1, 'weight': 4.0, 'source_type': 'OTHER', 'remarks': 'Stock review'}]
-    assert format_report(date(2026, 10, 24), automatic, additional) == 'Work Report: 24-10-2026\n\nBooking - 3\nOther (Stock review)'
+    assert format_report(date(2026, 10, 24), automatic, additional) == 'Work Report: 24-10-2026\n\nBooking - 3\nOther - 1 (Stock review)'
 
     with pytest.raises(HTTPException) as caught:
         DailyReportService(None)._reviewed_tasks(reviewed[:-1])
