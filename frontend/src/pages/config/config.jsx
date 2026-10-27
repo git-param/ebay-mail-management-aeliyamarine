@@ -8,11 +8,13 @@ import AuditLogMaintenance from './AuditLogMaintenance'
 const SECTION_LABELS = {
   api: 'API Limits',
   offer: 'Offer Rules',
+  sold_posting: 'Sold Posting',
 }
 
 const SECTION_DESCRIPTIONS = {
   api: 'Daily caps for each eBay API family. These limits are enforced independently.',
   offer: 'Thresholds used by offer management workflows.',
+  sold_posting: 'Automatic synchronization settings for the Sold Posting page. Only administrators can change these settings.',
 }
 
 export default function Config({ currentUser, onLogout }) {

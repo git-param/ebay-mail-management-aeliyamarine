@@ -112,7 +112,7 @@ function periodRange(period) {
   return { date_sold_from: isoDate(start), date_sold_to: isoDate(end) };
 }
 
-function CopyValue({ value }) {
+function CopyValue({ value, copyValue = value }) {
   if (!value) return <span>-</span>;
   return (
     <button
@@ -121,7 +121,7 @@ function CopyValue({ value }) {
       title="Copy"
       onClick={(event) => {
         event.stopPropagation();
-        navigator.clipboard?.writeText(value);
+        navigator.clipboard?.writeText(copyValue);
       }}
     >
       {value}
@@ -203,8 +203,15 @@ function copyAccountName(name) {
   return `Aeliya-${account || "Account"}110`;
 }
 
+function normalizeSku(sku) {
+  return String(sku || "")
+    .trim()
+    .replace(/\s+special listing\b.*$/i, "")
+    .trim();
+}
+
 function soldReferenceText(row) {
-  const sku = row.sku || row.item_id || row.order_id || "-";
+  const sku = normalizeSku(row.sku || row.item_id || row.order_id) || "-";
   const condition = row.condition || "No condition";
   const quantity = row.quantity || 0;
   const account = copyAccountName(row.ebay_account_name);
@@ -212,7 +219,7 @@ function soldReferenceText(row) {
 }
 
 function blogspotUrl(sku) {
-  const value = String(sku || "").trim();
+  const value = normalizeSku(sku);
   return value ? `https://aeliyamarine.blogspot.com/search?q=${encodeURIComponent(value)}` : "";
 }
 
@@ -1193,7 +1200,7 @@ export default function SoldPosting({ currentUser, onLogout }) {
                         ) : null}
                       </td>
                       <td>
-                        <CopyValue value={row.sku} />
+                        <CopyValue value={row.sku} copyValue={normalizeSku(row.sku)} />
                       </td>
                       <td>
                         {blogspotUrl(row.sku) ? (

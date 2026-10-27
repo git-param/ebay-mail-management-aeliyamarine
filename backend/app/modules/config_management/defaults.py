@@ -57,6 +57,14 @@ DEFAULT_CONFIGS = [
         'description': 'Controlled from the eBay Accounts page.',
         'is_editable': False,
     },
+    {
+        'section': 'sold_posting',
+        'config_key': 'sold_posting.auto_sync_interval_minutes',
+        'label': 'Sold Posting auto sync interval (minutes)',
+        'value': '60',
+        'value_type': 'integer',
+        'description': 'Minutes to wait after the latest successful Sold Posting sync before starting the next automatic sync.',
+    },
 ]
 
 for key, value, kind in [('enabled', 'false', 'boolean'), ('interval_minutes', '5', 'integer'), ('account_ids', '[]', 'text')]:
