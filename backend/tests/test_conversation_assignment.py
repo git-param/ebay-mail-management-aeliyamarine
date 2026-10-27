@@ -70,7 +70,7 @@ def test_reply_transfers_existing_assignment_only_after_success(monkeypatch, own
     )
     monkeypatch.setattr(replies, 'ConversationService', Mock(return_value=Mock(get_conversation=Mock(return_value=thread))))
     monkeypatch.setattr(replies, 'AssignmentService', Mock(return_value=assignment_service))
-    for dependency in ('SLAService', 'MessageClassificationRepository', 'AuditService'):
+    for dependency in ('SLAService', 'MessageClassificationRepository', 'DailyReportService', 'AuditService'):
         monkeypatch.setattr(replies, dependency, Mock())
 
     send = service.send_reply(conversation_id=thread.id, body='Thank you', actor_id=actor_id, message_type_id=selected_type.id)

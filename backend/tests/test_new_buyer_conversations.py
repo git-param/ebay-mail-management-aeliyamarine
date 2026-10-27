@@ -184,7 +184,7 @@ def test_successful_send_records_identity_and_prevents_restarting_sent_thread(mo
     assignment = Mock()
     assignment.repository.get_current_assignment.return_value = None
     monkeypatch.setattr(replies, 'AssignmentService', Mock(return_value=assignment))
-    for dependency in ('SLAService', 'MessageClassificationRepository', 'AuditService'):
+    for dependency in ('SLAService', 'MessageClassificationRepository', 'DailyReportService', 'AuditService'):
         monkeypatch.setattr(replies, dependency, Mock())
 
     asyncio.run(service.send_reply(

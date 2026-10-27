@@ -53,6 +53,17 @@ class DailyReportService:
                 tasks.append({'task_id': str(task.id), 'name': task.name, 'quantity': quantity})
         return tasks
 
+    def refresh_automatic_tasks(self, user_id: UUID, day: date | None = None) -> None:
+        day = day or report_day()
+        existing = self._existing(user_id, day)
+        if not existing or not existing.copied_at:
+            return
+        automatic = self.automatic_tasks(user_id, day)
+        existing.automatic_tasks = automatic
+        existing.report_text = format_report(day, automatic, existing.additional_tasks or [])
+        existing.updated_at = datetime.now(UTC)
+        self.db.flush()
+
     def _existing(self, user_id: UUID, day: date):
         return self.db.scalar(
             select(DailyWorkReport)

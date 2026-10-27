@@ -1,5 +1,6 @@
 from datetime import UTC, date, datetime
 from types import SimpleNamespace
+from unittest.mock import Mock
 from uuid import uuid4
 
 import pytest
@@ -55,6 +56,27 @@ def test_automatic_counts_include_only_recorded_shared_tasks(monkeypatch):
     monkeypatch.setattr('app.modules.daily_reports.service.count_main_task', lambda db, task, user_id, day: 2)
     tasks = DailyReportService(None).automatic_tasks(uuid4(), date(2026, 10, 23))
     assert tasks == [{'task_id': str(message_task.id), 'name': 'Booking', 'quantity': 2}]
+
+
+def test_refresh_automatic_tasks_updates_copied_report_without_changing_manual_tasks(monkeypatch):
+    day = date(2026, 10, 24)
+    user_id = uuid4()
+    report = SimpleNamespace(
+        copied_at=datetime.now(UTC),
+        additional_tasks=[{'name': 'Follow up', 'quantity': 1, 'remarks': None}],
+        automatic_tasks=[{'name': 'Booking', 'quantity': 1}],
+        report_text='old report',
+    )
+    service = DailyReportService(SimpleNamespace(flush=Mock()))
+    service._existing = Mock(return_value=report)
+    service.automatic_tasks = Mock(return_value=[{'name': 'Booking', 'quantity': 2}])
+
+    service.refresh_automatic_tasks(user_id, day)
+
+    assert report.automatic_tasks == [{'name': 'Booking', 'quantity': 2}]
+    assert report.additional_tasks == [{'name': 'Follow up', 'quantity': 1, 'remarks': None}]
+    assert report.report_text == 'Work Report: 24-10-2026\n\nBooking - 2\nFollow up - 1'
+    service.db.flush.assert_called_once()
 
 
 def test_main_task_counts_use_the_india_calendar_day():
