@@ -95,6 +95,9 @@ class EbaySyncService:
             account,
             max_conversations,
             updated_since,
+            fetch_since,
+            checkpoint_at,
+            overlap_minutes,
             sync_log_id=sync_log_id,
         )
         counters = self._initialize_counters()
@@ -138,9 +141,9 @@ class EbaySyncService:
         account: EbayAccount,
         max_conversations: int | None,
         updated_since: datetime | None,
-        fetch_since: datetime | None,
-        checkpoint_at: datetime | None,
-        overlap_minutes: int,
+        fetch_since: datetime | None = None,
+        checkpoint_at: datetime | None = None,
+        overlap_minutes: int = DEFAULT_MESSAGE_SYNC_OVERLAP_MINUTES,
         *,
         sync_log_id: UUID | None = None,
     ) -> SyncLog:
