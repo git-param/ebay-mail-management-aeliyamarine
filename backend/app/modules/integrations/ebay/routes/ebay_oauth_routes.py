@@ -203,7 +203,21 @@ def auto_sync_status(db: Session) -> EbayAutoSyncStatusResponse:
     )
     if latest_sync_at and latest_sync_at.tzinfo is None:
         latest_sync_at = latest_sync_at.replace(tzinfo=UTC)
-    next_run_at = latest_sync_at + timedelta(minutes=interval_minutes) if latest_sync_at else None
+    sync_times = list(db.scalars(
+        select(EbayAccount.last_sync_at)
+        .where(EbayAccount.connection_status == EbayConnectionStatus.CONNECTED)
+        .where(EbayAccount.is_active.is_(True))
+        .where(EbayAccount.last_sync_at.is_not(None))
+    ))
+    normalized_sync_times = [
+        value.replace(tzinfo=UTC) if value.tzinfo is None else value
+        for value in sync_times
+    ]
+    next_run_at = (
+        min(normalized_sync_times) + timedelta(minutes=interval_minutes)
+        if normalized_sync_times
+        else None
+    )
     return EbayAutoSyncStatusResponse(
         enabled=enabled,
         interval_minutes=interval_minutes,

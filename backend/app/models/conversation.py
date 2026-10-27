@@ -35,7 +35,12 @@ class Conversation(Base):
     """Represent one buyer support thread and its current operational state."""
     __tablename__ = 'conversations'
     __table_args__ = (
-        UniqueConstraint('provider', 'provider_conversation_id', name='uq_conversations_provider_external_id'),
+        UniqueConstraint(
+            'provider',
+            'provider_account_id',
+            'provider_conversation_id',
+            name='uq_conversations_provider_account_external_id',
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)

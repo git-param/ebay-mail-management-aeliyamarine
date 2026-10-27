@@ -91,6 +91,9 @@ function normalizeAccount(account) {
     status: account.is_active ? 'Active' : 'Inactive',
     isActive: Boolean(account.is_active),
     lastSync: formatDate(account.last_sync_at),
+    lastSuccessfulSync: formatDate(account.last_successful_sync_at || account.last_sync_at),
+    lastSyncError: account.last_sync_error || '',
+    lastSyncRecovery: formatDate(account.last_sync_recovery_at),
     createdDate: formatDate(account.created_at),
     updatedDate: formatDate(account.updated_at),
     notes: account.notes || '',
@@ -111,6 +114,8 @@ function normalizeSyncResult(result) {
     messagesProcessed,
     elapsedSeconds: result.elapsed_seconds,
     errorMessage: result.error_message || '',
+    overlapMinutes: Number(result.overlap_minutes || 0),
+    recoveryActivity: result.recovery_activity || '',
   }
 }
 
@@ -361,6 +366,7 @@ function SyncSummary({ results }) {
   )
 
   const runningCount = results.filter((result) => result.status === 'RUNNING').length
+  const recoveredCount = results.filter((result) => result.recoveryActivity).length
 
   return (
     <section className="sync-summary" aria-label="Sync summary">
@@ -371,6 +377,7 @@ function SyncSummary({ results }) {
       <span>{totals.messages} messages</span>
       <span>{formatElapsed(totals.elapsed)}</span>
       {runningCount ? <span>{runningCount} still running</span> : null}
+      {recoveredCount ? <span>{recoveredCount} account{recoveredCount === 1 ? '' : 's'} reconciled overlap</span> : null}
     </section>
   )
 }
@@ -407,6 +414,10 @@ function AccountDrawer({ account, onClose }) {
             <dd>{account.lastSync}</dd>
           </div>
           <div>
+            <dt>Last Successful Sync</dt>
+            <dd>{account.lastSuccessfulSync}</dd>
+          </div>
+          <div>
             <dt>Created Date</dt>
             <dd>{account.createdDate}</dd>
           </div>
@@ -418,6 +429,18 @@ function AccountDrawer({ account, onClose }) {
             <dt>Sync Status</dt>
             <dd>{account.syncStatus}</dd>
           </div>
+          {account.lastSyncError ? (
+            <div>
+              <dt>Last Sync Error</dt>
+              <dd>{account.lastSyncError}</dd>
+            </div>
+          ) : null}
+          {account.lastSyncRecovery !== 'Not synced' ? (
+            <div>
+              <dt>Last Recovery</dt>
+              <dd>{account.lastSyncRecovery}</dd>
+            </div>
+          ) : null}
         </dl>
 
         <section className="drawer-section">
@@ -794,6 +817,8 @@ function EbayAccounts({ currentUser, onLogout }) {
       messages_updated: metadata.messages_updated || 0,
       elapsed_seconds: metadata.elapsed_seconds,
       error_message: statusResponse.error_message || '',
+      overlap_minutes: metadata.overlap_minutes || 0,
+      recovery_activity: metadata.reconciliation?.enabled ? 'overlap reconciliation' : '',
     })
   }
 

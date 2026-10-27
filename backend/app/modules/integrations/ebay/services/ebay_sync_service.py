@@ -1,6 +1,6 @@
 import logging
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from time import perf_counter
 from uuid import UUID
 
@@ -20,11 +20,14 @@ from app.services.ebay_api_usage_service import EbayApiUsageService
 from app.services.conversation_product_context_service import ConversationProductContextService
 from app.services.order_context_service import OrderContextService
 from app.services.sync_log_service import SyncLogService
+from app.modules.config_management.service import ConfigService
 
 logger = logging.getLogger(__name__)
 
 EBAY_MESSAGE_SYNC_TYPE = 'EBAY_MESSAGE_SYNC'
 EBAY_CONVERSATION_TYPES = ('FROM_MEMBERS', 'FROM_EBAY')
+MESSAGE_SYNC_OVERLAP_KEY = 'api.ebay_message_sync_overlap_minutes'
+DEFAULT_MESSAGE_SYNC_OVERLAP_MINUTES = 5
 
 
 @dataclass(frozen=True)
@@ -58,6 +61,7 @@ class EbaySyncService:
         self.product_context_service = ConversationProductContextService(db)
         self.best_offer_sync_service = EbayBestOfferSyncService(db)
         self.conversation_offer_resolver = EbayConversationOfferResolver(db)
+        self.config_service = ConfigService(db)
         logger.warning("EbaySyncService initialized")
 
     # ebay_sync_service.py - Refactored version
@@ -69,8 +73,21 @@ class EbaySyncService:
         max_conversations: int | None = None,
         sync_log_id: UUID | None = None,
     ) -> EbaySyncResult:
-        account = self._get_syncable_account(account_id)
+        account = self._get_locked_syncable_account(account_id)
         updated_since = account.last_sync_at
+        checkpoint_at = datetime.now(UTC)
+        overlap_minutes = max(
+            self.config_service.get_int(
+                MESSAGE_SYNC_OVERLAP_KEY,
+                DEFAULT_MESSAGE_SYNC_OVERLAP_MINUTES,
+            ),
+            0,
+        )
+        fetch_since = (
+            updated_since - timedelta(minutes=overlap_minutes)
+            if updated_since
+            else None
+        )
 
         # Worker jobs reuse the RUNNING log created by the API before the
         # child process starts. Direct callers still create their own log.
@@ -81,13 +98,24 @@ class EbaySyncService:
             sync_log_id=sync_log_id,
         )
         counters = self._initialize_counters()
-        sync_context = self._initialize_sync_context(account, updated_since, max_conversations)
+        sync_context = self._initialize_sync_context(
+            account,
+            updated_since,
+            fetch_since,
+            checkpoint_at,
+            overlap_minutes,
+            max_conversations,
+        )
 
         try:
             account = self._ensure_access_token(account)
             
             # Process conversations
-            self._process_conversations(account, updated_since, max_conversations, sync_log, counters, sync_context)
+            self._process_conversations(account, fetch_since, max_conversations, sync_log, counters, sync_context)
+            if sync_context['failed_conversations']:
+                raise RuntimeError(
+                    f"{len(sync_context['failed_conversations'])} conversation(s) failed during message sync"
+                )
             
             # Sync related data
             order_sync_result, order_sync_error = self._sync_related_data(account, sync_context)
@@ -110,6 +138,9 @@ class EbaySyncService:
         account: EbayAccount,
         max_conversations: int | None,
         updated_since: datetime | None,
+        fetch_since: datetime | None,
+        checkpoint_at: datetime | None,
+        overlap_minutes: int,
         *,
         sync_log_id: UUID | None = None,
     ) -> SyncLog:
@@ -139,6 +170,13 @@ class EbaySyncService:
                 'conversation_types': list(EBAY_CONVERSATION_TYPES),
                 'max_conversations': max_conversations,
                 'updated_since': updated_since.isoformat() if updated_since else None,
+                'fetch_since': fetch_since.isoformat() if fetch_since else None,
+                'checkpoint_at': checkpoint_at.isoformat() if checkpoint_at else None,
+                'overlap_minutes': overlap_minutes,
+                'reconciliation': {
+                    'enabled': updated_since is not None,
+                    'window_minutes': overlap_minutes,
+                },
                 'incremental': updated_since is not None,
                 'execution_mode': 'DIRECT',
             },
@@ -266,11 +304,22 @@ class EbaySyncService:
         }
 
 
-    def _initialize_sync_context(self, account: EbayAccount, updated_since: datetime | None, max_conversations: int | None) -> dict:
+    def _initialize_sync_context(
+        self,
+        account: EbayAccount,
+        updated_since: datetime | None,
+        fetch_since: datetime | None,
+        checkpoint_at: datetime,
+        overlap_minutes: int,
+        max_conversations: int | None,
+    ) -> dict:
         """Initialize sync context."""
         return {
             'account': account,
             'updated_since': updated_since,
+            'fetch_since': fetch_since,
+            'checkpoint_at': checkpoint_at,
+            'overlap_minutes': overlap_minutes,
             'max_conversations': max_conversations,
             'total_conversations_available': None,
             'detail_seconds_total': 0.0,
@@ -326,12 +375,10 @@ class EbaySyncService:
         conversation_type = self._conversation_type(conversation_summary)
         detail_started_at = perf_counter()
         
-        detail_response = self._get_conversation_detail_with_retry(
+        detail_response = self._get_full_conversation_detail(
             account,
             conversation_id=conversation_id,
             conversation_type=conversation_type,
-            limit=50,
-            offset=0,
         )
 
         self._log_conversation_detail_diagnostic(account, conversation_id, conversation_type, conversation_summary, detail_response)
@@ -535,6 +582,9 @@ class EbaySyncService:
                     total_conversations_available=sync_context['total_conversations_available'],
                     max_conversations=sync_context['max_conversations'],
                     updated_since=sync_context['updated_since'],
+                    fetch_since=sync_context.get('fetch_since'),
+                    checkpoint_at=sync_context.get('checkpoint_at'),
+                    overlap_minutes=sync_context.get('overlap_minutes', 0),
                     elapsed_seconds=perf_counter() - sync_context['sync_started_at'],
                     detail_seconds_total=sync_context['detail_seconds_total'],
                     failed_conversations=sync_context['failed_conversations'],
@@ -579,7 +629,11 @@ class EbaySyncService:
         order_sync_error: str | None,
     ) -> EbaySyncResult:
         """Finalize the sync process."""
-        account.last_sync_at = datetime.now(UTC)
+        account.last_sync_at = sync_context['checkpoint_at']
+        account.last_successful_sync_at = sync_context['checkpoint_at']
+        account.last_sync_error = None
+        if sync_context['updated_since']:
+            account.last_sync_recovery_at = datetime.now(UTC)
         account.sync_status = (
             'SUCCESS_WITH_ERRORS'
             if counters['conversations_failed'] or order_sync_error or (order_sync_result and order_sync_result.orders_failed)
@@ -658,6 +712,9 @@ class EbaySyncService:
                 total_conversations_available=sync_context['total_conversations_available'],
                 max_conversations=sync_context['max_conversations'],
                 updated_since=sync_context['updated_since'],
+                fetch_since=sync_context.get('fetch_since'),
+                checkpoint_at=sync_context.get('checkpoint_at'),
+                overlap_minutes=sync_context.get('overlap_minutes', 0),
                 elapsed_seconds=elapsed_seconds,
                 detail_seconds_total=sync_context['detail_seconds_total'],
                 failed_conversations=sync_context['failed_conversations'],
@@ -689,6 +746,7 @@ class EbaySyncService:
         account = self.db.get(EbayAccount, account_id)
         if account:
             account.sync_status = 'FAILED'
+            account.last_sync_error = str(exc)
             self.db.commit()
         
         logger.exception('eBay message sync failed for account %s', account_id)
@@ -807,6 +865,21 @@ class EbaySyncService:
             )
         return account
 
+    def _get_locked_syncable_account(self, account_id: UUID) -> EbayAccount:
+        account = self.db.scalar(
+            select(EbayAccount).where(EbayAccount.id == account_id).with_for_update()
+        )
+        if not account:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='eBay account not found')
+        if not account.is_active:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='eBay account is inactive')
+        if account.connection_status != EbayConnectionStatus.CONNECTED:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f'eBay account is not connected. Current status: {account.connection_status.value}',
+            )
+        return account
+
     def _ensure_access_token(self, account: EbayAccount) -> EbayAccount:
         if not account.access_token or (
             account.access_token_expires_at and account.access_token_expires_at <= datetime.now(UTC)
@@ -875,6 +948,58 @@ class EbaySyncService:
             conversation_type=conversation_type,
             limit=limit,
             offset=offset,
+        )
+
+    def _get_full_conversation_detail(
+        self,
+        account: EbayAccount,
+        *,
+        conversation_id: str,
+        conversation_type: str,
+    ):
+        """Fetch every message page so an old conversation can receive new messages."""
+        limit = 50
+        offset = 0
+        first_response = None
+        all_messages: list[dict] = []
+
+        while True:
+            response = self._get_conversation_detail_with_retry(
+                account,
+                conversation_id=conversation_id,
+                conversation_type=conversation_type,
+                limit=limit,
+                offset=offset,
+            )
+            if first_response is None:
+                first_response = response
+            if not response.ok or not isinstance(response.payload, dict):
+                return response
+
+            payload = response.payload
+            page_messages = payload.get('messages')
+            if not isinstance(page_messages, list):
+                page_messages = []
+            all_messages.extend(message for message in page_messages if isinstance(message, dict))
+
+            total = payload.get('total')
+            has_more = (
+                (isinstance(total, int) and offset + len(page_messages) < total)
+                or (not isinstance(total, int) and len(page_messages) == limit)
+            )
+            if not has_more or not page_messages:
+                break
+            offset += limit
+
+        payload = dict(first_response.payload)
+        payload['messages'] = all_messages
+        return first_response.__class__(
+            status_code=first_response.status_code,
+            payload=payload,
+            ok=first_response.ok,
+            request_url=first_response.request_url,
+            request_headers=first_response.request_headers,
+            response_headers=first_response.response_headers,
         )
 
     def _conversation_id(self, conversation_summary: dict) -> str | None:
@@ -973,6 +1098,9 @@ class EbaySyncService:
         total_conversations_available: int | None,
         max_conversations: int | None,
         updated_since: datetime | None,
+        fetch_since: datetime | None,
+        checkpoint_at: datetime | None,
+        overlap_minutes: int,
         elapsed_seconds: float,
         detail_seconds_total: float,
         failed_conversations: list[dict],
@@ -986,6 +1114,13 @@ class EbaySyncService:
             'conversation_types': list(EBAY_CONVERSATION_TYPES),
             'max_conversations': max_conversations,
             'updated_since': updated_since.isoformat() if updated_since else None,
+            'fetch_since': fetch_since.isoformat() if fetch_since else None,
+            'checkpoint_at': checkpoint_at.isoformat() if checkpoint_at else None,
+            'overlap_minutes': overlap_minutes,
+            'reconciliation': {
+                'enabled': updated_since is not None,
+                'window_minutes': overlap_minutes,
+            },
             'incremental': updated_since is not None,
             'total_conversations_available': total_conversations_available,
             'conversations_processed': counters['conversations_processed'],

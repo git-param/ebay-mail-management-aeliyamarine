@@ -2,7 +2,7 @@ import asyncio
 import logging
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 
 from app.db.session import SessionLocal
 from app.models.ebay_account import EbayAccount, EbayConnectionStatus
@@ -47,32 +47,34 @@ def run_due_ebay_auto_sync() -> None:
             return
 
         interval_minutes = get_auto_sync_interval_minutes(config)
-        latest_sync_at = db.scalar(
-            select(func.max(EbayAccount.last_sync_at))
+        accounts = list(db.scalars(
+            select(EbayAccount)
             .where(EbayAccount.connection_status == EbayConnectionStatus.CONNECTED)
             .where(EbayAccount.is_active.is_(True))
-        )
+        ))
         now = datetime.now(UTC)
-        if latest_sync_at:
-            latest_sync_at = (
-                latest_sync_at.astimezone(UTC)
-                if latest_sync_at.tzinfo
-                else latest_sync_at.replace(tzinfo=UTC)
-            )
-            if latest_sync_at + timedelta(minutes=interval_minutes) > now:
-                return
+        due_accounts = []
+        for account in accounts:
+            last_sync_at = account.last_sync_at
+            if last_sync_at and last_sync_at.tzinfo is None:
+                last_sync_at = last_sync_at.replace(tzinfo=UTC)
+            if not last_sync_at or last_sync_at + timedelta(minutes=interval_minutes) <= now:
+                due_accounts.append(account)
 
-        connected_count = db.scalar(
-            select(func.count(EbayAccount.id))
-            .where(EbayAccount.connection_status == EbayConnectionStatus.CONNECTED)
-            .where(EbayAccount.is_active.is_(True))
-        )
-        if not connected_count:
+        if not due_accounts:
             return
 
-        queued = EbaySyncService(db).queue_sync_all_connected_accounts(
-            trigger='AUTO',
-        )
+        sync_service = EbaySyncService(db)
+        queued = []
+        for account in due_accounts:
+            try:
+                queued.append((
+                    account,
+                    sync_service.queue_sync_account(account.id, trigger='AUTO'),
+                ))
+            except Exception:
+                db.rollback()
+                logger.exception('Could not queue scheduled eBay sync account_id=%s', account.id)
 
         jobs = [
             (account.id, sync_log.id, None)

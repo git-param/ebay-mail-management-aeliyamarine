@@ -250,6 +250,7 @@ class ConversationRepository:
         self,
         provider: str,
         provider_conversation_id: str,
+        provider_account_id=None,
     ) -> Conversation | None:
         statement = (
             select(Conversation)
@@ -261,6 +262,8 @@ class ConversationRepository:
                 == provider_conversation_id
             )
         )
+        if provider_account_id is not None:
+            statement = statement.where(Conversation.provider_account_id == provider_account_id)
 
         return self.db.scalar(statement)
 
@@ -280,6 +283,7 @@ class ConversationRepository:
         conversation = self.get_by_provider_id(
             provider,
             provider_conversation_id,
+            values.get('provider_account_id'),
         )
 
         created = conversation is None

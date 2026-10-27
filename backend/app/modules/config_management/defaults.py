@@ -58,6 +58,14 @@ DEFAULT_CONFIGS = [
         'is_editable': False,
     },
     {
+        'section': 'api',
+        'config_key': 'api.ebay_message_sync_overlap_minutes',
+        'label': 'eBay message sync overlap',
+        'value': '5',
+        'value_type': 'integer',
+        'description': 'Minutes re-read before each account checkpoint to recover messages around sync boundaries.',
+    },
+    {
         'section': 'sold_posting',
         'config_key': 'sold_posting.auto_sync_interval_minutes',
         'label': 'Sold Posting auto sync interval (minutes)',

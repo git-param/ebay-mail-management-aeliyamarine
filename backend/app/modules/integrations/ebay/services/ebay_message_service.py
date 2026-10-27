@@ -182,7 +182,11 @@ class EbayMessageService:
         buyer = values.get('buyer_identifier')
         if not buyer or values.get('provider_conversation_type') != 'FROM_MEMBERS':
             return
-        existing = self.conversation_repository.get_by_provider_id(self.provider, conversation_id)
+        existing = self.conversation_repository.get_by_provider_id(
+            self.provider,
+            conversation_id,
+            account.id,
+        )
         if existing and (
             existing.provider_account_id != account.id
             or (existing.buyer_identifier or '').strip().lower() != buyer.strip().lower()
