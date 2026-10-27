@@ -269,10 +269,13 @@ export default function ReplyComposer({
 
   async function submitReply(event) {
     event.preventDefault()
-    if (isSubmitting || isValidating) return
+    if (isSubmitting || isValidating) 
+      return
     const trimmedBody = body.trim()
-    if (!trimmedBody || !conversationId || !selectedTypeId) {
-      if (!selectedTypeId) {
+    if (!trimmedBody || !conversationId || !selectedTypeId) 
+    {
+      if (!selectedTypeId) 
+        {
         setShowMessageTypeError(true)
         setViolations(['Message type is required.'])
       }
