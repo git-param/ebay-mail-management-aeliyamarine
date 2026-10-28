@@ -54,5 +54,30 @@ def count_main_task(db: Session, task: MainTask, user_id: UUID, day: date) -> in
     return 0
 
 
+def count_main_task_after(db: Session, task: MainTask, user_id: UUID, since: datetime, day: date) -> int:
+    """Count automatic task activity after a reviewed report snapshot."""
+    _, end = day_bounds(day)
+    if task.source_type == 'MESSAGE_TYPE' and task.message_type_id:
+        return int(db.scalar(select(func.count()).select_from(MessageClassification).where(
+            MessageClassification.user_id == user_id,
+            MessageClassification.message_type_id.in_(message_type_family(db, task.message_type_id)),
+            MessageClassification.created_at > since,
+            MessageClassification.created_at < end,
+        )) or 0)
+    if task.source_type == 'SOLD_POSTING':
+        return int(db.scalar(select(func.count()).select_from(SoldPostingLineItem).where(
+            SoldPostingLineItem.copied_by_user_id == user_id,
+            SoldPostingLineItem.copied_at > since,
+            SoldPostingLineItem.copied_at < end,
+        )) or 0)
+    if task.source_type == 'OFFER_MANAGEMENT':
+        return int(db.scalar(select(func.count()).select_from(OfferManagementEntry).where(
+            OfferManagementEntry.created_by_user_id == user_id,
+            OfferManagementEntry.created_at > since,
+            OfferManagementEntry.created_at < end,
+        )) or 0)
+    return 0
+
+
 def active_main_tasks(db: Session) -> list[MainTask]:
     return list(db.scalars(select(MainTask).where(MainTask.is_active.is_(True)).order_by(MainTask.created_at, MainTask.name)))

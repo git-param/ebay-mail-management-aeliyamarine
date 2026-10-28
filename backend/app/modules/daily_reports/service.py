@@ -10,7 +10,7 @@ from app.api.dependencies import can_manage_operations, is_support_agent
 from app.models.user import User
 from app.modules.daily_reports.models import DailyWorkReport
 from app.modules.daily_reports.schemas import ReportTask, ReviewedTask
-from app.modules.task_management.activity import active_main_tasks, count_main_task
+from app.modules.task_management.activity import active_main_tasks, count_main_task, count_main_task_after
 
 
 INDIA_TIME = timezone(timedelta(hours=5, minutes=30), name='Asia/Kolkata')
@@ -89,7 +89,20 @@ class DailyReportService:
         self.require_access(current_user)
         day = report_day()
         existing = self._existing(current_user.id, day)
-        automatic = existing.automatic_tasks if existing and existing.copied_at else self.automatic_tasks(current_user.id, day)
+        if existing and existing.copied_at:
+            saved = {item.get('task_id'): item for item in existing.automatic_tasks}
+            automatic = []
+            for task in active_main_tasks(self.db):
+                if task.source_type in {'MANUAL', 'OTHER'}:
+                    continue
+                key = str(task.id)
+                baseline = saved.get(key, {'task_id': key, 'name': task.name, 'quantity': 0})
+                delta = count_main_task_after(self.db, task, current_user.id, existing.copied_at, day)
+                quantity = int(baseline.get('quantity', 0)) + delta
+                if quantity:
+                    automatic.append({**baseline, 'quantity': quantity})
+        else:
+            automatic = self.automatic_tasks(current_user.id, day)
         additional = existing.additional_tasks if existing else []
         return {
             'id': existing.id if existing else None,

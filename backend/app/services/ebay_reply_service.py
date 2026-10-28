@@ -25,7 +25,6 @@ from sqlalchemy.orm import Session
 from app.constants.api import EbayTradingCalls
 from app.models.conversation import Conversation, Message, MessageSenderType
 from app.models.ebay_account import EbayAccount
-from app.modules.daily_reports.service import DailyReportService
 from app.modules.integrations.ebay.oauth.token_service import EbayTokenService
 from app.modules.integrations.ebay.providers import EBAY_PROVIDER_NAME
 from app.services.audit_service import AuditService
@@ -412,8 +411,6 @@ class EbayReplyService:
             user_id=actor_id,
             message_type_id=selected_type.id,
         )
-        DailyReportService(self.db).refresh_automatic_tasks(actor_id)
-
         # --- 10. Audit log and commit ---
         AuditService(self.db).log(
             action='MESSAGE_REPLY_SENT',
