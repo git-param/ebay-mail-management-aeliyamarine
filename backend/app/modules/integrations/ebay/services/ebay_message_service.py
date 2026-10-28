@@ -292,6 +292,7 @@ class EbayMessageService:
         """
         created_count = 0
         updated_count = 0
+        processed_provider_message_ids: set[str] = set()
 
         is_from_ebay = (
             self._is_from_ebay_conversation(
@@ -310,6 +311,12 @@ class EbayMessageService:
 
             if not message_id:
                 continue
+            if message_id in processed_provider_message_ids:
+                # eBay can repeat a message across overlapping/detail pages.
+                # Keep the first upsert authoritative and never re-claim a
+                # temporary local reply for the same provider identity.
+                continue
+            processed_provider_message_ids.add(message_id)
 
             sent_at = (
                 self._parse_ebay_datetime(
@@ -403,6 +410,7 @@ class EbayMessageService:
                     message_id,
                 )
             )
+            local_reply = None
             if (
                 existing_provider_message is None
                 and sender_type == MessageSenderType.AGENT
@@ -415,7 +423,6 @@ class EbayMessageService:
                     recipient_username=recipient_username,
                 )
                 if local_reply is not None:
-                    local_reply.provider_message_id = message_id
                     values['raw_payload'] = {
                         **(
                             local_reply.raw_payload
@@ -430,6 +437,7 @@ class EbayMessageService:
                     self.provider,
                     message_id,
                     values,
+                    local_reply=local_reply,
                 )
             )
 

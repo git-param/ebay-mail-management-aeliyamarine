@@ -4,6 +4,7 @@ import logging
 
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as postgresql_insert
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models.conversation import Message, MessageAttachment
@@ -103,9 +104,22 @@ class MessageRepository:
         target.download_url = source.download_url
         target.raw_payload = source.raw_payload
 
-    def upsert_by_provider_id(self, provider: str, provider_message_id: str, values: dict) -> tuple[Message, bool]:
+    def upsert_by_provider_id(
+        self,
+        provider: str,
+        provider_message_id: str,
+        values: dict,
+        *,
+        local_reply: Message | None = None,
+    ) -> tuple[Message, bool]:
         """
         Upsert a message by provider and provider_message_id.
+
+        When a locally-created reply is supplied, claim its provider ID inside
+        a savepoint. A concurrent sync may claim the same ID first; in that
+        case the savepoint is rolled back and the committed provider message
+        is updated instead of aborting the conversation transaction.
+
         Returns (message, created).
         """
         # Normalize provider to uppercase
@@ -121,6 +135,41 @@ class MessageRepository:
         if existing:
             self._update_message(existing, values)
             return existing, False
+
+        if local_reply is not None:
+            try:
+                with self.db.begin_nested():
+                    local_reply.provider_message_id = provider_message_id
+                    self._update_message(local_reply, values)
+                    self.db.flush()
+                return local_reply, False
+            except IntegrityError as exc:
+                constraint_name = getattr(
+                    getattr(exc.orig, 'diag', None),
+                    'constraint_name',
+                    None,
+                )
+                if (
+                    constraint_name
+                    and constraint_name != 'uq_messages_provider_external_id'
+                ):
+                    raise
+
+                existing = self._get_by_provider_id_no_autoflush(
+                    provider,
+                    provider_message_id,
+                )
+                if existing is None:
+                    raise
+                logger.warning(
+                    'Reconciled concurrent provider message claim: provider=%s provider_message_id=%s local_message_id=%s existing_message_id=%s',
+                    provider,
+                    provider_message_id,
+                    local_reply.id,
+                    existing.id,
+                )
+                self._update_message(existing, values)
+                return existing, False
 
         if self.db.bind is not None and self.db.bind.dialect.name == 'postgresql':
             return self._upsert_postgresql(provider, provider_message_id, values)

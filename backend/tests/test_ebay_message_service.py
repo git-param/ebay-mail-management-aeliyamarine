@@ -145,12 +145,20 @@ def test_sync_reconciles_local_reply_instead_of_creating_duplicate():
                 None,
             )
 
-        def upsert_by_provider_id(self, provider, provider_message_id, values):
-            message = self.get_by_provider_id(provider, provider_message_id)
-            assert message is reply
+        def upsert_by_provider_id(
+            self,
+            provider,
+            provider_message_id,
+            values,
+            *,
+            local_reply=None,
+        ):
+            assert local_reply is reply
+            message = local_reply
             for key, value in values.items():
                 if key != 'provider':
                     setattr(message, key, value)
+            message.provider_message_id = provider_message_id
             return message, False
 
         def replace_attachments(self, message, attachments):
@@ -187,3 +195,71 @@ def test_sync_reconciles_local_reply_instead_of_creating_duplicate():
     assert reply.provider_message_id == '6411218285019'
     assert reply.raw_payload['actor_id'] == 'agent-id'
     assert reply.raw_payload['messageId'] == '6411218285019'
+
+
+def test_sync_does_not_reclaim_local_reply_for_duplicate_provider_message():
+    sent_at = datetime(2026, 8, 26, 4, 21, tzinfo=UTC)
+    reply = local_reply(
+        provider_message_id='local-reply-existing',
+        sent_at=sent_at - timedelta(seconds=2),
+    )
+    conversation = SimpleNamespace(
+        id='conversation-id',
+        provider_conversation_type='FROM_MEMBERS',
+        buyer_identifier='buyer-name',
+        messages=[reply],
+    )
+
+    class RepositoryDouble:
+        def __init__(self):
+            self.upsert_calls = 0
+
+        def get_by_provider_id(self, provider, provider_message_id):
+            return next(
+                (
+                    message
+                    for message in conversation.messages
+                    if message.provider == provider
+                    and message.provider_message_id == provider_message_id
+                ),
+                None,
+            )
+
+        def upsert_by_provider_id(
+            self,
+            provider,
+            provider_message_id,
+            values,
+            *,
+            local_reply=None,
+        ):
+            self.upsert_calls += 1
+            assert local_reply is reply
+            return local_reply, False
+
+        def replace_attachments(self, message, attachments):
+            assert message is reply
+
+    service = EbayMessageService.__new__(EbayMessageService)
+    service.db = None
+    service.provider = 'EBAY'
+    service.message_repository = RepositoryDouble()
+    account = SimpleNamespace(ebay_username='seller-name')
+    payload = {
+        'messageId': '6411218285019',
+        'messageBody': 'Reply text',
+        'senderUsername': 'seller-name',
+        'recipientUsername': 'buyer-name',
+        'createdDate': '2026-08-26T04:21:00Z',
+    }
+
+    created_count, updated_count = service.upsert_messages(
+        account=account,
+        conversation=conversation,
+        conversation_detail={'messages': [payload, dict(payload)]},
+    )
+
+    assert created_count == 0
+    assert updated_count == 1
+    assert service.message_repository.upsert_calls == 1
+    assert reply.provider_message_id == 'local-reply-existing'
