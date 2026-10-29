@@ -293,19 +293,27 @@
 .reply-composer .reply-contact-warning {
   position: fixed;
   right: 18px;
-  bottom: 18px;
+  bottom: 76px;
   z-index: 1200;
-  width: min(320px, calc(100vw - 36px));
+  width: min(260px, calc(100vw - 36px));
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 12px;
+  gap: 8px;
+  margin: 0;
+  padding: 6px 8px;
   border: 1px solid #f3d18a;
   background: #fffbeb;
   color: #854d0e;
   box-shadow: 0 8px 24px rgb(15 23 42 / 16%);
-  font-size: 12px;
-  line-height: 1.45;
+  font-size: 11px;
+  line-height: 1.35;
+  animation: reply-contact-warning-dismiss 4.5s ease forwards;
+}
+
+@keyframes reply-contact-warning-dismiss {
+  0%, 91% { opacity: 1; }
+  100% { opacity: 0; }
 }
 
 .reply-composer .reply-contact-warning-close {
@@ -315,7 +323,7 @@
   background: transparent;
   color: inherit;
   font: inherit;
-  font-size: 20px;
+  font-size: 16px;
   line-height: 1;
   cursor: pointer;
 }

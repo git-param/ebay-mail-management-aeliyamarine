@@ -70,6 +70,11 @@ export default function ReplyComposer({
   const [body, setBody] = useState(() => initialDraft?.body || '')
   const containsContactDetails = CONTACT_DETAIL_PATTERN.test(body)
   const [isContactWarningDismissed, setIsContactWarningDismissed] = useState(false)
+  useEffect(() => {
+    if (!containsContactDetails || isContactWarningDismissed) return undefined
+    const timeoutId = window.setTimeout(() => setIsContactWarningDismissed(true), 4500)
+    return () => window.clearTimeout(timeoutId)
+  }, [containsContactDetails, isContactWarningDismissed])
   const [isReplyMinimized, setIsReplyMinimized] = useState(false)
   const editorRef = useRef(null)
   const editorId = useId()
