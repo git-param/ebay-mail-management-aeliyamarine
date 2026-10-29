@@ -162,7 +162,12 @@ class AuditPresentationService:
         if action == 'MESSAGE_STATUS_CHANGED':
             return f'{actor} changed {conversation} from {data.get("previous_status", "previous status not recorded")} to {data.get("status", "unknown")}.'
         if action == 'MESSAGE_REPLY_SENT':
-            return f'{actor} replied in {conversation}.'
+            delivery_status = data.get('delivery_status')
+            if delivery_status == 'eBay API reported success':
+                return f'{actor} submitted a reply in {conversation}; the eBay API reported success.'
+            if delivery_status == 'eBay rejected the send':
+                return f'{actor} tried to reply in {conversation}, but eBay rejected the send.'
+            return f'{actor} attempted to send a reply in {conversation}.'
         if action == 'REPLY_CATEGORIZED':
             return f'{actor} categorized the reply in {conversation} as {data.get("message_type_name", "Unavailable category")}.'
         if action.startswith('INTERNAL_NOTE_'):

@@ -35,6 +35,8 @@ from app.services.conversation_service import ConversationService
 from app.services.reply_policy_service import ReplyPolicyService
 from app.services.reply_attachment_service import ReplyAttachmentService
 from app.services.sla_service import SLAService
+from app.db.session import SessionLocal
+from app.models.audit_log import AuditLog
 
 
 logger = logging.getLogger(__name__)
@@ -122,6 +124,13 @@ class EbayReplyService:
             HTTPException 404: Conversation or eBay account not found.
             HTTPException 502: eBay upload or message-send failure.
         """
+        # Persist the click before any validation or provider I/O. The main
+        # request transaction can roll back, so this event uses its own session.
+        attempt_id = self._record_send_attempt(
+            conversation_id=conversation_id, actor_id=actor_id, body=body,
+            message_type_id=message_type_id, send_copy_to_email=send_copy_to_email,
+        )
+
         # --- 1. Validate reply body policy ---
         selected_type = self.db.get(MessageType, message_type_id)
         if not selected_type or selected_type.is_deleted or not selected_type.is_active:
@@ -308,6 +317,7 @@ class EbayReplyService:
 
         if not response.ok:
             self.db.rollback()
+            self._update_send_attempt(attempt_id, 'FAILED', self._reply_error_detail(response.payload))
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
                 detail=self._reply_error_detail(response.payload),
@@ -413,26 +423,42 @@ class EbayReplyService:
         )
         # --- 10. Audit log and commit ---
         AuditService(self.db).log(
-            action='MESSAGE_REPLY_SENT',
-            user_id=actor_id,
-            entity_type='CONVERSATION',
-            entity_id=conversation.id,
-            category='MESSAGE_MANAGEMENT',
-            metadata={
-                'message_id': str(message.id),
-                'ebay_account_id': str(account.id),
-                'ebay_call_name': send_context['call_name'],
-                'email_copy_requested': send_copy_to_email,
-            },
-        )
-        AuditService(self.db).log(
             action='REPLY_CATEGORIZED', user_id=actor_id, entity_type='MESSAGE', entity_id=message.id,
             category='MESSAGE_MANAGEMENT', metadata={'message_type_id': str(selected_type.id),
                 'message_type_name': selected_type.name, 'conversation_id': str(conversation.id)},
         )
         self.db.commit()
         self.db.refresh(message)
+        self._update_send_attempt(attempt_id, 'SUCCESS')
         return message
+
+    @staticmethod
+    def _record_send_attempt(*, conversation_id, actor_id, body, message_type_id, send_copy_to_email):
+        with SessionLocal() as audit_db:
+            event = AuditService(audit_db).log(
+                action='MESSAGE_REPLY_SENT', user_id=actor_id,
+                entity_type='CONVERSATION', entity_id=conversation_id,
+                category='MESSAGE_MANAGEMENT', status='ATTEMPTED',
+                metadata={'message_body': body, 'message_type_id': str(message_type_id),
+                          'email_copy_requested': bool(send_copy_to_email),
+                          'delivery_status': 'Attempted'},
+            )
+            audit_db.commit()
+            return event.id
+
+    @staticmethod
+    def _update_send_attempt(attempt_id, status_value, error=None):
+        with SessionLocal() as audit_db:
+            event = audit_db.get(AuditLog, attempt_id)
+            if not event:
+                return
+            event.status = status_value
+            event.audit_metadata = {
+                **(event.audit_metadata or {}),
+                'delivery_status': 'eBay API reported success' if status_value == 'SUCCESS' else 'eBay rejected the send',
+                **({'delivery_error': error} if error else {}),
+            }
+            audit_db.commit()
 
     # ------------------------------------------------------------------
     # Private helpers

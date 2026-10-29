@@ -1,7 +1,6 @@
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
 
 import { Icon } from '../../../layouts/app_layout'
-import { validateConversationReply } from '../../../services/conversationApi'
 import MessageTypeSelector from './MessageTypeSelector'
 
 import './replyComposer.css'
@@ -9,6 +8,7 @@ import './replyComposerLayout.css'
 
 const REPLY_DRAFT_STORAGE_PREFIX = 'aces:conversation-reply-draft:v1'
 const MAX_IMAGE_SIZE_BYTES = 12 * 1024 * 1024
+const CONTACT_DETAIL_PATTERN = /(?:\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b|\+?\d[\d\s().-]{7,}\d|\b(?:https?:\/\/|www\.)\S+|\b(?:whatsapp|telegram|instagram|facebook|gmail|yahoo|outlook)\b)/i
 
 function replyDraftStorageKey(userId, conversationId) {
   if (!userId || !conversationId) return ''
@@ -63,12 +63,13 @@ export default function ReplyComposer({
   onSendReply,
   templates = [],
   messageTypes = [],
-  validateMessage = validateConversationReply,
   composerLabel = 'Reply to buyer',
 }) {
   const draftStorageKey = replyDraftStorageKey(currentUser?.id, conversationId)
   const initialDraft = useMemo(() => readReplyDraft(draftStorageKey), [draftStorageKey])
   const [body, setBody] = useState(() => initialDraft?.body || '')
+  const containsContactDetails = CONTACT_DETAIL_PATTERN.test(body)
+  const [isContactWarningDismissed, setIsContactWarningDismissed] = useState(false)
   const [isReplyMinimized, setIsReplyMinimized] = useState(false)
   const editorRef = useRef(null)
   const editorId = useId()
@@ -286,11 +287,6 @@ export default function ReplyComposer({
     setViolations([])
     setDraftMessage('')
     try {
-      const validation = await validateMessage(conversationId, trimmedBody)
-      if (!validation.valid) {
-        setViolations(validation.violations || ['Reply violates eBay messaging policy.'])
-        return
-      }
       await onSendReply(trimmedBody, files, selectedTypeId, sendCopyToEmail)
       removeReplyDraft(draftStorageKey)
       setBody('')
@@ -399,13 +395,14 @@ export default function ReplyComposer({
             value={body}
             onChange={(event) => {
               setBody(event.target.value)
+              setIsContactWarningDismissed(false)
               if (!event.target.value) setIsReplyMinimized(false)
               setDraftMessage('')
             }}
             onPaste={pasteClipboardImages}
             rows="3"
             maxLength={2000}
-            placeholder="Write a reply without email, phone, external links, or abusive language"
+            placeholder="Write a reply to the buyer"
           />
         </div>
         <div className="composer-editor-footer">
@@ -472,6 +469,19 @@ export default function ReplyComposer({
               </button>
             </span>
           ))}
+        </div>
+      ) : null}
+      {containsContactDetails && !isContactWarningDismissed ? (
+        <div className="reply-contact-warning" role="status">
+          <span>This reply may include contact details. eBay may block or remove it.</span>
+          <button
+            className="reply-contact-warning-close"
+            type="button"
+            aria-label="Dismiss contact details warning"
+            onClick={() => setIsContactWarningDismissed(true)}
+          >
+            ×
+          </button>
         </div>
       ) : null}
       {violations.length ? (

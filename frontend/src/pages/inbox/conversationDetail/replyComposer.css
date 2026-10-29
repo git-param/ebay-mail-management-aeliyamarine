@@ -281,12 +281,43 @@
    ========================================================= */
 
 .reply-composer .reply-policy-warning,
-.reply-composer .reply-draft-message {
+.reply-composer .reply-draft-message,
+.reply-composer .reply-contact-warning {
   width: 100%;
   margin-top: 9px;
   padding: 8px 10px;
   border-radius: 8px;
   box-sizing: border-box;
+}
+
+.reply-composer .reply-contact-warning {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 1200;
+  width: min(320px, calc(100vw - 36px));
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid #f3d18a;
+  background: #fffbeb;
+  color: #854d0e;
+  box-shadow: 0 8px 24px rgb(15 23 42 / 16%);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.reply-composer .reply-contact-warning-close {
+  flex: 0 0 auto;
+  border: 0;
+  padding: 0 2px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
 }
 
 .reply-composer .reply-policy-warning {

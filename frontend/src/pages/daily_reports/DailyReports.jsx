@@ -11,7 +11,7 @@ const EMPTY_FILTERS = { date_from: '', date_to: '', user_id: '' }
 const SECTIONS = [
   { kind: 'auto', title: 'Automatically counted', hint: 'Pulled from your activity today. Check the numbers and adjust if needed.' },
   { kind: 'manual', title: 'Manual tasks', hint: 'Work that isn’t tracked automatically. Enter what you did.' },
-  { kind: 'other', title: 'Other work', hint: 'Anything else you worked on. Add a short remark.' },
+  { kind: 'other', title: 'Other work', hint: 'Anything else you worked on. Enter one remark per line.' },
 ]
 
 const displayDate = (value) => value ? value.split('-').reverse().join('-') : ''
@@ -38,11 +38,18 @@ function initialQuantities(tasks, report) {
 
 function previewText(day, tasks, quantities) {
   const lines = [`Work Report: ${displayDate(day)}`, '']
-  tasks.forEach((task) => {
+  const orderedTasks = [...tasks.filter((task) => task.source_type !== 'OTHER'), ...tasks.filter((task) => task.source_type === 'OTHER')]
+  orderedTasks.forEach((task) => {
     const quantity = Number(quantities[task.id]?.quantity || 0)
     if (!Number.isInteger(quantity) || quantity <= 0) return
     const remarks = task.source_type === 'OTHER' ? String(quantities[task.id]?.remarks || '').trim() : ''
-    lines.push(`${task.name} - ${quantity}${remarks ? ` (${remarks})` : ''}`)
+    if (task.source_type === 'OTHER') {
+      lines.push(`${task.name} - ${quantity} :`)
+      remarks.split(/\r?\n/).map((line) => line.trim()).filter(Boolean)
+        .forEach((line, index) => lines.push(`${index + 1}. ${line}`))
+    } else {
+      lines.push(`${task.name} - ${quantity}`)
+    }
   })
   return lines.join('\n').trimEnd()
 }
@@ -78,7 +85,7 @@ function TaskRow({ task, entry, onChange }) {
     <QuantityStepper name={task.name} value={entry?.quantity ?? 0} onChange={(value) => onChange('quantity', value)} />
     {isOther && hasWork ? <label className="dr-remarks">
       <span>What did you work on?</span>
-      <textarea maxLength="1000" placeholder="Describe the other work completed" value={entry?.remarks || ''}
+      <textarea maxLength="1000" placeholder="Enter each item on a new line" value={entry?.remarks || ''}
         onChange={(event) => onChange('remarks', event.target.value)} />
       <small className={missingRemarks ? 'is-required' : ''}>{missingRemarks ? 'Remarks are required when Other has a quantity.' : `${String(entry?.remarks || '').length}/1000`}</small>
     </label> : null}

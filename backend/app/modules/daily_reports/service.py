@@ -22,15 +22,21 @@ def report_day() -> date:
 
 def format_report(day: date, automatic_tasks: list[dict], additional_tasks: list[dict]) -> str:
     lines = [f'Work Report: {day:%d-%m-%Y}', '']
+    is_other = lambda task: task.get('source_type') == 'OTHER' or task.get('name', '').strip().casefold() == 'other'
     lines.extend(
         f"{task['name']} - {task['quantity']}"
         for task in automatic_tasks if task['quantity'] > 0
     )
     lines.extend(
         f"{task['name']} - {task['quantity']}"
-        + (f" ({task['remarks']})" if task.get('remarks') else '')
-        for task in additional_tasks if task['quantity'] > 0
+        for task in additional_tasks if task['quantity'] > 0 and not is_other(task)
     )
+    for task in additional_tasks:
+        if task['quantity'] <= 0 or not is_other(task):
+            continue
+        lines.append(f"{task['name']} - {task['quantity']} :")
+        remarks = [line.strip() for line in (task.get('remarks') or '').splitlines() if line.strip()]
+        lines.extend(f'{index}. {remark}' for index, remark in enumerate(remarks, start=1))
     return '\n'.join(lines).rstrip()
 
 
@@ -194,6 +200,7 @@ class DailyReportService:
                 raise HTTPException(status_code=422, detail='Other task remarks are required')
             item['name'] = task.name
             item['remarks'] = (item.get('remarks') or '').strip() or None
+            item['source_type'] = task.source_type
             seen.add(task.id)
 
     def list_reports(self, current_user, *, date_from: date | None, date_to: date | None,

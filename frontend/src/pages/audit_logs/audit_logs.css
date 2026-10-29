@@ -48,3 +48,22 @@ html[data-theme='dark'] .audit-status-warning, html[data-theme='dark'] .audit-st
   .audit-page .audit-pagination { flex-direction: column; align-items: stretch; padding: 12px; }
   .audit-pagination-controls { justify-content: space-between; gap: 8px; }
 }
+.audit-message-body {
+  max-width: min(560px, 65vw);
+  max-height: 260px;
+  overflow: auto;
+  margin: 8px 0 0;
+  padding: 10px;
+  border-radius: 6px;
+  background: var(--surface-subtle, #f6f7f9);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: inherit;
+  font-size: 12px;
+}
+
+.audit-delivery-error {
+  margin: 8px 0 0;
+  color: #b42318;
+  white-space: normal;
+}
