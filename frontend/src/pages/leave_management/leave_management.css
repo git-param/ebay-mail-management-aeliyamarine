@@ -757,7 +757,531 @@ html[data-theme="dark"] .leaveModule-modal-header button {
   }
 }
 
+/* ---------- Agent mood hero ---------- */
+.leaveHero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 460px);
+  align-items: center;
+  gap: 20px;
+  margin-bottom: 16px;
+  padding: 18px 22px;
+  overflow: hidden;
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  border-radius: 16px;
+  background: linear-gradient(135deg, rgba(109, 93, 252, 0.1), rgba(248, 250, 252, 0.95));
+  box-shadow: 0 16px 42px rgba(15, 23, 42, 0.07);
+  transition: background 300ms ease;
+}
+
+.leaveHero-excited {
+  background: linear-gradient(135deg, rgba(251, 191, 36, 0.2), rgba(167, 139, 250, 0.16));
+}
+
+.leaveHero-sweating {
+  background: linear-gradient(135deg, rgba(56, 189, 248, 0.16), rgba(248, 250, 252, 0.95));
+}
+
+.leaveHero-beach {
+  background: linear-gradient(135deg, rgba(56, 189, 248, 0.22), rgba(253, 230, 138, 0.3));
+}
+
+.leaveHero-chip {
+  display: inline-block;
+  margin-bottom: 8px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(109, 93, 252, 0.12);
+  color: var(--saas-primary);
+  font-size: 11px;
+  font-weight: 850;
+  letter-spacing: 0.04em;
+  text-transform: capitalize;
+}
+
+.leaveHero h2 {
+  margin: 0;
+  color: var(--ui-text);
+  font-size: clamp(20px, 2.4vw, 28px);
+  line-height: 1.15;
+}
+
+.leaveHero p {
+  max-width: 520px;
+  margin: 8px 0 0;
+  color: var(--ui-text-muted);
+  font-size: 14px;
+}
+
+.leaveHero-joke {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+  color: var(--ui-text);
+  font-size: 13px;
+  font-style: italic;
+  font-weight: 650;
+}
+
+.leaveHero-joke button {
+  padding: 5px 10px;
+  border: 1px solid var(--ui-border);
+  border-radius: 999px;
+  background: var(--ui-surface);
+  color: var(--ui-text);
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+/* Popping notification ticker */
+.leaveHero-feed {
+  position: relative;
+  height: 36px;
+  margin-top: 14px;
+}
+
+.leaveHero-feed-item {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  padding: 7px 13px;
+  border: 1px solid var(--ui-border);
+  border-radius: 999px;
+  background: var(--ui-surface);
+  color: var(--ui-text);
+  font-size: 12px;
+  font-weight: 750;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.1);
+  opacity: 0;
+  animation: leaveHeroFeed 9s ease-in-out infinite;
+}
+
+.leaveHero-feed-item b {
+  font-size: 14px;
+}
+
+/* Stage */
+.leaveHero-stage {
+  position: relative;
+  display: block;
+  width: 100%;
+  max-width: 460px;
+  aspect-ratio: 420 / 240;
+  margin: 0 auto;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.4);
+  cursor: pointer;
+  appearance: none;
+  font: inherit;
+}
+
+.leaveHero-stage:focus-visible {
+  outline: 3px solid rgba(109, 93, 252, 0.5);
+  outline-offset: 2px;
+}
+
+.leaveHero-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.leaveHero-svg [class] {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.leaveHero-bubble {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  z-index: 2;
+  max-width: 74%;
+  padding: 6px 11px;
+  border-radius: 12px;
+  background: #fff;
+  color: #1f2937;
+  font-size: 11.5px;
+  font-weight: 800;
+  line-height: 1.25;
+  text-align: center;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.18);
+  transform: translateX(-50%);
+  animation: leaveHeroBubbleIn 320ms ease-out;
+  pointer-events: none;
+}
+
+.leaveHero-bubble::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -5px;
+  width: 10px;
+  height: 10px;
+  background: #fff;
+  transform: translateX(-50%) rotate(45deg);
+}
+
+.leaveHero-hint {
+  position: absolute;
+  right: 8px;
+  bottom: 6px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.5);
+  color: #fff;
+  font-size: 9.5px;
+  font-weight: 800;
+  opacity: 0;
+  transition: opacity 160ms ease;
+  pointer-events: none;
+}
+
+.leaveHero-stage:hover .leaveHero-hint,
+.leaveHero-stage:focus-visible .leaveHero-hint {
+  opacity: 1;
+}
+
+/* Worker animations */
+.leaveHero-poked {
+  animation: leaveHeroPoke 520ms ease-out;
+}
+
+.leaveHero-tired .leaveHero-head {
+  transform-origin: 50% 100%;
+  animation: leaveHeroNod 3.2s ease-in-out infinite;
+}
+
+.leaveHero-yawn {
+  animation: leaveHeroYawn 3.2s ease-in-out infinite;
+}
+
+.leaveHero-strand {
+  animation: leaveHeroWiggle 2.4s ease-in-out infinite;
+}
+
+.leaveHero-z {
+  opacity: 0;
+  animation: leaveHeroFloat 3s ease-in infinite;
+}
+
+.leaveHero-z-b { animation-delay: 0.6s; }
+.leaveHero-z-c { animation-delay: 1.2s; }
+
+.leaveHero-excited .leaveHero-worker {
+  animation: leaveHeroJump 0.7s ease-in-out infinite;
+}
+
+.leaveHero-sweating .leaveHero-head {
+  animation: leaveHeroShake 0.45s ease-in-out infinite;
+}
+
+.leaveHero-drop {
+  animation: leaveHeroDrip 1.6s ease-in infinite;
+}
+
+.leaveHero-drop-b { animation-delay: 0.5s; }
+.leaveHero-drop-c { animation-delay: 1s; }
+
+.leaveHero-beach .leaveHero-head,
+.leaveHero-beach .leaveHero-body {
+  animation: leaveHeroSway 3.6s ease-in-out infinite;
+}
+
+/* Props */
+.leaveHero-key {
+  opacity: 0.2;
+  animation: leaveHeroKey 0.5s steps(2, end) infinite;
+}
+
+.leaveHero-key-b { animation-delay: 0.17s; }
+.leaveHero-key-c { animation-delay: 0.33s; }
+
+.leaveHero-blink {
+  animation: leaveHeroBlink 1s steps(2, start) infinite;
+}
+
+.leaveHero-pulse {
+  animation: leaveHeroPulse 1.1s ease-in-out infinite;
+}
+
+.leaveHero-wiggle,
+.leaveHero-wobble {
+  animation: leaveHeroWiggle 2.2s ease-in-out infinite;
+}
+
+.leaveHero-steam {
+  opacity: 0;
+  animation: leaveHeroSteam 2.4s ease-in-out infinite;
+}
+
+.leaveHero-steam-b { animation-delay: 1.1s; }
+
+.leaveHero-sway {
+  transform-origin: 50% 0;
+  animation: leaveHeroWiggle 3s ease-in-out infinite;
+}
+
+.leaveHero-hop {
+  animation: leaveHeroHop 0.9s ease-in-out infinite;
+}
+
+.leaveHero-plane {
+  opacity: 0;
+  animation: leaveHeroPlane 4s ease-out infinite;
+}
+
+.leaveHero-confetti {
+  animation: leaveHeroConfetti 3.2s linear infinite;
+}
+
+.leaveHero-flutter {
+  animation: leaveHeroFlutter 0.5s ease-in-out infinite;
+}
+
+.leaveHero-buzz {
+  animation: leaveHeroBuzz 0.22s linear infinite;
+}
+
+.leaveHero-cloud {
+  animation: leaveHeroDrift 9s ease-in-out infinite alternate;
+}
+
+.leaveHero-wave {
+  animation: leaveHeroWave 5s linear infinite;
+}
+
+.leaveHero-gull {
+  animation: leaveHeroGull 13s linear infinite;
+}
+
+.leaveHero-crab {
+  animation: leaveHeroCrab 4s ease-in-out infinite alternate;
+}
+
+.leaveHero-claw {
+  animation: leaveHeroPulse 0.6s ease-in-out infinite;
+}
+
+.leaveHero-claw-b { animation-delay: 0.3s; }
+
+.leaveHero-flag {
+  transform-origin: 0 50%;
+  animation: leaveHeroWiggle 1.2s ease-in-out infinite;
+}
+
+/* Keyframes */
+@keyframes leaveHeroNod {
+  0%, 100% { transform: rotate(-4deg) translateY(2px); }
+  50% { transform: rotate(5deg) translateY(5px); }
+}
+
+@keyframes leaveHeroYawn {
+  0%, 55%, 100% { transform: scaleY(0.4); }
+  70%, 85% { transform: scaleY(1.5); }
+}
+
+@keyframes leaveHeroFloat {
+  0% { opacity: 0; transform: translate(0, 10px); }
+  30% { opacity: 0.9; }
+  100% { opacity: 0; transform: translate(8px, -14px); }
+}
+
+@keyframes leaveHeroJump {
+  0%, 100% { transform: translateY(0) scale(1, 1); }
+  45% { transform: translateY(-16px) scale(0.98, 1.03); }
+  85% { transform: translateY(0) scale(1.04, 0.95); }
+}
+
+@keyframes leaveHeroShake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-1.5px); }
+  75% { transform: translateX(1.5px); }
+}
+
+@keyframes leaveHeroDrip {
+  0% { opacity: 0; transform: translateY(-6px); }
+  25% { opacity: 1; }
+  100% { opacity: 0; transform: translateY(22px); }
+}
+
+@keyframes leaveHeroSway {
+  0%, 100% { transform: rotate(-2deg); }
+  50% { transform: rotate(2deg); }
+}
+
+@keyframes leaveHeroPoke {
+  0% { transform: scale(1, 1); }
+  30% { transform: scale(1.08, 0.9) translateY(4px); }
+  60% { transform: scale(0.95, 1.08) translateY(-8px); }
+  100% { transform: scale(1, 1); }
+}
+
+@keyframes leaveHeroKey {
+  from { opacity: 0.15; }
+  to { opacity: 0.9; }
+}
+
+@keyframes leaveHeroBlink {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes leaveHeroPulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.14); }
+}
+
+@keyframes leaveHeroWiggle {
+  0%, 100% { transform: rotate(-3deg); }
+  50% { transform: rotate(3deg); }
+}
+
+@keyframes leaveHeroSteam {
+  0% { opacity: 0; transform: translateY(4px); }
+  40% { opacity: 0.8; }
+  100% { opacity: 0; transform: translateY(-10px); }
+}
+
+@keyframes leaveHeroHop {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-9px) rotate(-3deg); }
+}
+
+@keyframes leaveHeroPlane {
+  0% { opacity: 0; transform: translate(0, 0) rotate(0deg); }
+  15% { opacity: 1; }
+  100% { opacity: 0; transform: translate(100px, -90px) rotate(-12deg); }
+}
+
+@keyframes leaveHeroConfetti {
+  0% { transform: translateY(0) rotate(0deg); }
+  100% { transform: translateY(262px) rotate(540deg); }
+}
+
+@keyframes leaveHeroFlutter {
+  0%, 100% { transform: translate(0, 0) rotate(-2deg); }
+  50% { transform: translate(4px, -2px) rotate(4deg); }
+}
+
+@keyframes leaveHeroBuzz {
+  0%, 100% { transform: translate(0, 0); }
+  25% { transform: translate(-1px, 1px); }
+  75% { transform: translate(1px, -1px); }
+}
+
+@keyframes leaveHeroDrift {
+  from { transform: translateX(-14px); }
+  to { transform: translateX(24px); }
+}
+
+@keyframes leaveHeroWave {
+  from { transform: translateX(0); }
+  to { transform: translateX(-80px); }
+}
+
+@keyframes leaveHeroGull {
+  0% { transform: translate(-60px, 0); }
+  50% { transform: translate(220px, -14px); }
+  100% { transform: translate(480px, 0); }
+}
+
+@keyframes leaveHeroCrab {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(110px); }
+}
+
+@keyframes leaveHeroFeed {
+  0% { opacity: 0; transform: translateY(10px) scale(0.92); }
+  4%, 28% { opacity: 1; transform: translateY(0) scale(1); }
+  33%, 100% { opacity: 0; transform: translateY(-8px) scale(0.96); }
+}
+
+@keyframes leaveHeroBubbleIn {
+  from { opacity: 0; transform: translateX(-50%) translateY(6px) scale(0.9); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+}
+
+/* Dark theme */
+html[data-theme="dark"] .leaveHero {
+  border-color: #3b424d;
+  background: linear-gradient(135deg, #1b1f2e, #12151b);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.28);
+}
+
+html[data-theme="dark"] .leaveHero-beach {
+  background: linear-gradient(135deg, #12303f, #2b2a1a);
+}
+
+html[data-theme="dark"] .leaveHero-stage {
+  border-color: #3b424d;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+html[data-theme="dark"] .leaveHero h2,
+html[data-theme="dark"] .leaveHero-joke {
+  color: #f7f8fb;
+}
+
+html[data-theme="dark"] .leaveHero p {
+  color: #cbd5e1;
+}
+
+html[data-theme="dark"] .leaveHero-joke button {
+  border-color: #334155;
+  background: #15181d;
+  color: #e5e7eb;
+}
+
+html[data-theme="dark"] .leaveHero-feed-item {
+  border-color: #334155;
+  background: #15181d;
+  color: #f7f8fb;
+}
+
+@media (max-width: 900px) {
+  .leaveHero {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .leaveHero {
+    padding: 16px;
+  }
+
+  .leaveHero-feed-item {
+    font-size: 11px;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .leaveHero *,
+  .leaveHero-svg * {
+    animation: none !important;
+  }
+
+  .leaveHero-z,
+  .leaveHero-feed-item:first-child {
+    opacity: 1;
+  }
+
+  .leaveHero-confetti,
+  .leaveHero-plane {
+    display: none;
+  }
+
   .leaveModule-page,
   .leaveModule-modal,
   .leaveModule-skeleton {
